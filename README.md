@@ -30,10 +30,54 @@ or
 curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 ```
 
+
+
+自己配置文件内容
 ```bash
 curl -sS -O https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 ```
 
+下载sh脚本
+```bash
+apt update -y && apt install -y wget sudo sshpass
+```
+```bash
+cd /home
+```
+```bash
+wget beifen.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/beifen.sh
+```
+```bash
+chmod +x beifen.sh
+```
+```bash
+nano beifen.sh
+```
+
+
+
+运行sh脚本
+
+./beifen.sh
+
+
+
+定时任务
+
+(crontab -l ; echo "0 2 * * 1 /home/beifen.sh") | crontab -
+
+
+
+
+3.注意
+
+如果远端VPS重装系统了或是密码更改了。需要将之前连接的认证清除掉！
+ssh-keygen -f "/root/.ssh/known_hosts" -R "0.0.0.0"  
+
+0.0.0.0替换之前VPS的IP，清除认证！
+
+
+备份作者原地址视频[视频介绍](https://www.youtube.com/watch?v=0CkomEpfbhk)
 
 ***
 ### 觉得脚本还可以USTD TRC20打赏
