@@ -110,7 +110,31 @@ nano beifen.sh
 ```bash
 crontab -e
 ```
-
+-
+-
+-
+-
+-
+-
+-
+-
+备份vps设置定时清楚备份文件每周执行
+```bash
+(crontab -l ; echo "0 2 * * 1 /home/beifen.sh") | crontab -
+```
+查看是否添加定时任务
+```bash
+crontab -e
+```
+-
+-
+-
+-
+-
+-
+-
+-
+-
 3.注意
 
 如果远端VPS重装系统了或是密码更改了。需要将之前连接的认证清除掉！
