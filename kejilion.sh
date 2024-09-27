@@ -13,39 +13,7 @@ gl_zi='\033[35m'
 gl_kjlan='\033[96m'
 
 
-country="default"
-cn_yuan() {
-if [ "$country" = "CN" ]; then
-	zhushi=0
-	gh_proxy="https://gh.kejilion.pro/"
-else
-	zhushi=1  # 0 表示执行，1 表示不执行
-	gh_proxy=""
-fi
 
-}
-
-cn_yuan
-
-
-
-# 定义一个函数来执行命令
-run_command() {
-	if [ "$zhushi" -eq 0 ]; then
-		"$@"
-	fi
-}
-
-
-
-permission_granted="true"
-
-CheckFirstRun_true() {
-	if grep -q '^permission_granted="true"' /usr/local/bin/k > /dev/null 2>&1; then
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' ./kejilion.sh
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' /usr/local/bin/k
-	fi
-}
 
 CheckFirstRun_true
 
