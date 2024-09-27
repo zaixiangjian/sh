@@ -32,12 +32,18 @@ curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && ch
 
 
 
-自己配置文件内容
+
+
+
+
+
+
+自己配置网站文件内容
 ```bash
 curl -sS -O https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 ```
 
-下载sh脚本
+自动备份到另一台vps上下载sh脚本
 ```bash
 apt update -y && apt install -y wget sudo sshpass
 ```
@@ -57,15 +63,15 @@ nano beifen.sh
 
 
 运行sh脚本
-
+```bash
 ./beifen.sh
-
+```
 
 
 定时任务
-
+```bash
 (crontab -l ; echo "0 2 * * 1 /home/beifen.sh") | crontab -
-
+```
 
 
 
