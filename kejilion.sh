@@ -16,71 +16,68 @@ gl_kjlan='\033[96m'
 
 
 
-country="default"
-cn_yuan() {
-if [ "$country" = "CN" ]; then
-	zhushi=0
-	gh_proxy="https://gh.kejilion.pro/"
-else
-	zhushi=1  # 0 表示执行，1 表示不执行
-	gh_proxy=""
-fi
-
-}
-
-cn_yuan
-
-
-
-# 定义一个函数来执行命令
-run_command() {
-	if [ "$zhushi" -eq 0 ]; then
-		"$@"
-	fi
-}
-
-
-
-permission_granted="true"
-
-CheckFirstRun_true() {
-	if grep -q '^permission_granted="true"' /usr/local/bin/k > /dev/null 2>&1; then
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' ./kejilion.sh
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' /usr/local/bin/k
-	fi
-}
-
-
-
-
-
-
-
-
-
-# 提示用户同意条款
-UserLicenseAgreement() {
-	clear
-	echo -e "${gl_kjlan}欢迎使用科技lion脚本工具箱${gl_bai}"
-	echo "首次使用脚本，请先阅读并同意用户许可协议。"
-	echo "用户许可协议: https://blog.kejilion.pro/user-license-agreement/"
-	echo -e "----------------------"
-	read -r -p "是否同意以上条款？(y/n): " user_input
-
-
-	if [ "$user_input" = "y" ] || [ "$user_input" = "Y" ]; then
-		send_stats "许可同意"
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' ./kejilion.sh
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' /usr/local/bin/k
-	else
-		send_stats "许可拒绝"
-		clear
-		exit
-	fi
-}
-
 CheckFirstRun_false
 
+
+
+
+
+ip_address() {
+ipv4_address=$(curl -s ipv4.ip.sb)
+ipv6_address=$(curl -s --max-time 1 ipv6.ip.sb)
+}
+
+
+
+install() {
+	if [ $# -eq 0 ]; then
+		echo "未提供软件包参数!"
+		return
+	fi
+
+	for package in "$@"; do
+		if ! command -v "$package" &>/dev/null; then
+			echo -e "${gl_huang}正在安装 $package...${gl_bai}"
+			if command -v dnf &>/dev/null; then
+				dnf -y update
+				dnf install -y epel-release
+				dnf install -y "$package"
+			elif command -v yum &>/dev/null; then
+				yum -y update
+				yum install -y epel-release
+				yum -y install "$package"
+			elif command -v apt &>/dev/null; then
+				apt update -y
+				apt install -y "$package"
+			elif command -v apk &>/dev/null; then
+				apk update
+				apk add "$package"
+			elif command -v pacman &>/dev/null; then
+				pacman -Syu --noconfirm
+				pacman -S --noconfirm "$package"
+			elif command -v zypper &>/dev/null; then
+				zypper refresh
+				zypper install -y "$package"
+			elif command -v opkg &>/dev/null; then
+				opkg update
+				opkg install "$package"
+			else
+				echo "未知的包管理器!"
+				return
+			fi
+		else
+			echo -e "${gl_lv}$package 已经安装${gl_bai}"
+		fi
+	done
+
+	return
+}
+
+
+install_dependency() {
+	  clear
+	  install wget socat unzip tar
+}
 
 
 
