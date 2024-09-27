@@ -13,6 +13,66 @@ gl_zi='\033[35m'
 gl_kjlan='\033[96m'
 
 
+
+
+
+# 提示用户同意条款
+UserLicenseAgreement() {
+	clear
+	echo -e "${gl_kjlan}欢迎使用科技lion脚本工具箱${gl_bai}"
+	echo "首次使用脚本，请先阅读并同意用户许可协议。"
+	echo "用户许可协议: https://blog.kejilion.pro/user-license-agreement/"
+	echo -e "----------------------"
+	read -r -p "是否同意以上条款？(y/n): " user_input
+
+
+	if [ "$user_input" = "y" ] || [ "$user_input" = "Y" ]; then
+		send_stats "许可同意"
+		sed -i 's/^permission_granted="false"/permission_granted="true"/' ./kejilion.sh
+		sed -i 's/^permission_granted="false"/permission_granted="true"/' /usr/local/bin/k
+	else
+		send_stats "许可拒绝"
+		clear
+		exit
+	fi
+}
+
+CheckFirstRun_false
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 install() {
 	if [ $# -eq 0 ]; then
 		echo "未提供软件包参数!"
