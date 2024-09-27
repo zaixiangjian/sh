@@ -152,6 +152,7 @@ ssh-keygen -f "/root/.ssh/known_hosts" -R "0.0.0.0"
 -
 -
 创建自定义备份目录修改beifen.sh文件内容
+
 将目录自定义为/home/beifen/没有就会自动创建beifen目录
 -
 -
