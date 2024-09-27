@@ -50,21 +50,12 @@ curl -sS -O https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh &
 -
 -
 -
--
--
--
--
--
--
--
--
--
 1.手动备份迁移
 
 按时间戳打包
 ```bash
 cd /home/ && tar czvf web_$(date +"%Y%m%d%H%M%S").tar.gz web
-
+```
 
 传输最新的tar压缩包到其他VPS
 ```bash
@@ -85,10 +76,7 @@ cd /home/ && ls -t /home/*.tar.gz | head -1 | xargs -I {} tar -xzf {}
 -
 -
 -
--
--
--
--
+
 自动备份到另一台vps上下载sh脚本
 ```bash
 apt update -y && apt install -y wget sudo sshpass
