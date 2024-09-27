@@ -141,10 +141,52 @@ crontab -e
 ```bash
 ssh-keygen -f "/root/.ssh/known_hosts" -R "0.0.0.0"  
 ```
-
 0.0.0.0替换之前VPS的IP，清除认证！
+-
+-
+-
+-
+-
+-
+-
+-
+-
+创建自定义备份目录修改beifen.sh文件内容
+将目录自定义为/home/beifen/没有就会自动创建beifen目录
+-
+-
+```bash
+#!/bin/bash
 
+# Create the backup directory if it doesn't exist
+mkdir -p /home/beifen/
 
+# Create a tar archive of the web directory and save it in /home/beifen/
+tar czvf /home/beifen/web_$(date +"%Y%m%d%H%M%S").tar.gz -C /home/ web
+
+# Transfer the latest tar archive to another VPS
+ls -t /home/beifen/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/
+
+# Keep only 5 tar archives in /home/beifen/ and delete the rest
+cd /home/beifen/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
+```
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
 备份作者原地址视频[视频介绍](https://www.youtube.com/watch?v=0CkomEpfbhk)
 
 ***
