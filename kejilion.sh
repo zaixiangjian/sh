@@ -24,7 +24,6 @@ CheckFirstRun_true
 
 
 
-
 ENABLE_STATS="true"
 
 send_stats() {
