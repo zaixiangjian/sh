@@ -4054,10 +4054,10 @@ linux_ldnmp() {
 	  restart_ldnmp
 
 	  ldnmp_web_on
-	  echo 数据库名: admin
-	  echo 用户名: admin
-	  echo 密码: admin123456
-	  echo 数据库地址: localhost
+	  echo 数据库名: $dbname
+	  echo 用户名: $dbuse"
+	  echo 密码: $dbusepasswd
+	  echo 数据库地址: mysql
 	  echo 表前缀: wp_
 
 		;;
