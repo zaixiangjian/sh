@@ -29,20 +29,66 @@ or
 ```bash
 curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 ```
-
-
-
-
-
-
-
-
-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
 自己配置网站文件内容
 ```bash
 curl -sS -O https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 ```
 
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+1.手动备份迁移
+
+按时间戳打包
+```bash
+cd /home/ && tar czvf web_$(date +"%Y%m%d%H%M%S").tar.gz web
+
+
+传输最新的tar压缩包到其他VPS
+```bash
+cd /home/ && ls -t /home/*.tar.gz | head -1 | xargs -I {} scp {} root@0.0.0.0:/home/
+```
+
+
+只保留3个压缩包
+```bash
+cd /home/ && ls -t /home/*.tar.gz | tail -n +4 | xargs -I {} rm {}
+```
+
+
+远端机器解压最新tar文件
+```bash
+cd /home/ && ls -t /home/*.tar.gz | head -1 | xargs -I {} tar -xzf {}
+```
+-
+-
+-
+-
+-
+-
+-
 自动备份到另一台vps上下载sh脚本
 ```bash
 apt update -y && apt install -y wget sudo sshpass
@@ -78,7 +124,9 @@ nano beifen.sh
 3.注意
 
 如果远端VPS重装系统了或是密码更改了。需要将之前连接的认证清除掉！
+```bash
 ssh-keygen -f "/root/.ssh/known_hosts" -R "0.0.0.0"  
+```
 
 0.0.0.0替换之前VPS的IP，清除认证！
 
