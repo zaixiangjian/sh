@@ -83,35 +83,6 @@ install_dependency() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 install() {
 	if [ $# -eq 0 ]; then
 		echo "未提供软件包参数!"
