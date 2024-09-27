@@ -15,6 +15,86 @@ gl_kjlan='\033[96m'
 
 
 
+CheckFirstRun_true
+
+
+# 收集功能埋点信息的函数，记录当前脚本版本号，使用时间，系统版本，CPU架构，机器所在国家和用户使用的功能名称，绝对不涉及任何敏感信息，请放心！请相信我！
+# 为什么要设计这个功能，目的更好的了解用户喜欢使用的功能，进一步优化功能推出更多符合用户需求的功能。
+# 全文可搜搜 send_stats 函数调用位置，透明开源，如有顾虑可拒绝使用。
+
+
+
+
+ENABLE_STATS="true"
+
+send_stats() {
+
+	if [ "$ENABLE_STATS" == "false" ]; then
+		return
+	fi
+
+	country=$(curl -s ipinfo.io/country)
+	os_info=$(grep PRETTY_NAME /etc/os-release | cut -d '=' -f2 | tr -d '"')
+	cpu_arch=$(uname -m)
+	curl -s -X POST "https://api.kejilion.pro/api/log" \
+		 -H "Content-Type: application/json" \
+		 -d "{\"action\":\"$1\",\"timestamp\":\"$(date -u '+%Y-%m-%d %H:%M:%S')\",\"country\":\"$country\",\"os_info\":\"$os_info\",\"cpu_arch\":\"$cpu_arch\",\"version\":\"$sh_v\"}" &>/dev/null &
+}
+
+
+
+
+yinsiyuanquan1() {
+
+if grep -q '^ENABLE_STATS="true"' /usr/local/bin/k > /dev/null 2>&1; then
+	status_message="${gl_lv}正在采集数据${gl_bai}"
+elif grep -q '^ENABLE_STATS="false"' /usr/local/bin/k > /dev/null 2>&1; then
+	status_message="${hui}采集已关闭${gl_bai}"
+else
+	status_message="无法确定的状态"
+fi
+
+}
+
+
+yinsiyuanquan2() {
+
+if grep -q '^ENABLE_STATS="false"' /usr/local/bin/k > /dev/null 2>&1; then
+	sed -i 's/^ENABLE_STATS="true"/ENABLE_STATS="false"/' ./kejilion.sh
+	sed -i 's/^ENABLE_STATS="true"/ENABLE_STATS="false"/' /usr/local/bin/k
+fi
+
+}
+
+
+
+yinsiyuanquan2
+cp -f ./kejilion.sh /usr/local/bin/k > /dev/null 2>&1
+
+
+
+CheckFirstRun_false() {
+	if grep -q '^permission_granted="false"' /usr/local/bin/k > /dev/null 2>&1; then
+		UserLicenseAgreement
+	fi
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # 提示用户同意条款
 UserLicenseAgreement() {
