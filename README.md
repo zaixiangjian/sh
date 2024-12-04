@@ -100,8 +100,24 @@ nano beifen.sh
 ```bash
 ./beifen.sh
 ```
-
-
+-
+-
+-
+-
+运行前先连接一次
+```bash
+ls -t /home/beifen/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/
+```
+如果远端VPS重装系统了或是密码更改了。需要将之前连接的认证清除掉！
+```bash
+ssh-keygen -f "/root/.ssh/known_hosts" -R "0.0.0.0"  
+```
+-
+-
+-
+-
+-
+-
 定时任务每三天凌晨3点执行备份
 ```bash
 (crontab -l ; echo "0 3 */3 * * /home/beifen.sh") | crontab -
