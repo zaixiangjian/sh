@@ -120,7 +120,7 @@ ssh-keygen -f "/root/.ssh/known_hosts" -R "0.0.0.0"
 -
 定时任务每三天凌晨7点执行备份
 ```bash
-(crontab -l ; echo "0 7 */3 * * /home/beifen.sh") | crontab -
+0 7 */3 * * /home/beifen.sh
 ```
 查看定时任务是否生效
 ```bash
