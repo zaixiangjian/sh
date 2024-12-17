@@ -104,6 +104,25 @@ nano beifen.sh
 -
 -
 -
+-
+-
+-
+# sshpass 工具安装
+## 在Ubuntu/Debian系统上
+```bash
+sudo apt-get update
+sudo apt-get install sshpass
+```
+## 在CentOS/RHEL系统上，你可以使用以下命令来安装：
+```bash
+sudo yum install epel-release
+sudo yum install sshpass
+```
+-
+-
+-
+-
+-
 运行前先连接一次
 ```bash
 ls -t /home/beifen/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/
