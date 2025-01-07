@@ -147,12 +147,6 @@ crontab -e
 ```
 -
 -
--
--
--
--
--
--
 备份vps设置定时清楚备份文件每周执行
 ```bash
 (crontab -l ; echo "0 2 * * 1 /home/beifen.sh") | crontab -
