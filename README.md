@@ -224,12 +224,12 @@ cd /home/beifen/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
 -
 -
 ## 论坛备份
-
-备份作者原地址视频[视频介绍](https://www.youtube.com/watch?v=0CkomEpfbhk)
 ```bash
 ls -t /var/discourse/shared/standalone/backups/default/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/论坛/
 
 ```
+
+备份作者原地址视频[视频介绍](https://www.youtube.com/watch?v=0CkomEpfbhk)
 ***
 ### 觉得脚本还可以USTD TRC20打赏
 ![Snipaste_2024-01-17_18-01-52](https://github.com/kejilion/sh/assets/131984541/98cf2762-1bfb-4c33-af10-af0eda29fc20)
