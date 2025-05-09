@@ -5839,8 +5839,8 @@ linux_panel() {
 					1)
 						install_docker
 						cd /home/ && mkdir -p docker/cloud && cd docker/cloud && mkdir temp_data && mkdir -vp cloudreve/{uploads,avatar} && touch cloudreve/conf.ini && touch cloudreve/cloudreve.db && mkdir -p aria2/config && mkdir -p data/aria2 && chmod -R 777 data/aria2
-						curl -o /home/web/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
-						cd /home/web/docker/cloud/ && docker compose up -d
+						curl -o /home/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
+						cd /home/docker/cloud/ && docker compose up -d
 
 						clear
 						echo "cloudreve已经安装完成"
@@ -5858,8 +5858,8 @@ linux_panel() {
 						docker rm -f aria2
 						docker rmi -f p3terx/aria2-pro
 						cd /home/ && mkdir -p docker/cloud && cd docker/cloud && mkdir temp_data && mkdir -vp cloudreve/{uploads,avatar} && touch cloudreve/conf.ini && touch cloudreve/cloudreve.db && mkdir -p aria2/config && mkdir -p data/aria2 && chmod -R 777 data/aria2
-						curl -o /home/web/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
-						cd /home/web/docker/cloud/ && docker compose up -d
+						curl -o /home/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
+						cd /home/docker/cloud/ && docker compose up -d
 						clear
 						echo "cloudreve已经安装完成"
 						check_docker_app_ip
@@ -5873,7 +5873,7 @@ linux_panel() {
 						docker rmi -f cloudreve/cloudreve:latest
 						docker rm -f aria2
 						docker rmi -f p3terx/aria2-pro
-						rm -rf /home/web/docker/cloud
+						rm -rf /home/docker/cloud
 						echo "应用已卸载"
 
 						;;
