@@ -5537,7 +5537,7 @@ linux_panel() {
 
 				case $choice in
 					1)
-						curl -L ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh && chmod +x nezha.sh && ./nezha.sh
+						curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh && chmod +x nezha.sh && sudo ./nezha.sh
 						;;
 					0)
 						break
