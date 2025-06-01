@@ -6435,13 +6435,15 @@ linux_panel() {
 
 
 		  42)
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
+
 			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
 				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
 				docker stop vaultwarden && docker rm vaultwarden
 			fi
+
+			docker_name="vaultwarden"
+			docker_img="vaultwarden/server"
+			docker_port=3280
 			docker_rum="docker run -d \
 							--name vaultwarden \
 							-e SIGNUPS_ALLOWED=false \
@@ -6456,13 +6458,15 @@ linux_panel() {
 			docker_app
 			  ;;
 		  43)
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
+
 			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
 				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
 				docker stop vaultwarden && docker rm vaultwarden
 			fi
+    
+			docker_name="vaultwarden"
+			docker_img="vaultwarden/server"
+			docker_port=3280
 			docker_rum="docker run -d \
 							--name vaultwarden \
 							--restart always \
@@ -6477,6 +6481,12 @@ linux_panel() {
 			  ;;
 
 		  44)
+
+			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
+				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
+				docker stop vaultwarden && docker rm vaultwarden
+			fi
+
 			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
 			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
 			read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
@@ -6485,10 +6495,6 @@ linux_panel() {
 			docker_name="vaultwarden"
 			docker_img="vaultwarden/server"
 			docker_port=3280
-			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
-				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
-				docker stop vaultwarden && docker rm vaultwarden
-			fi
 			docker_rum="docker run -d \
 							--name vaultwarden \
 							--restart always \
