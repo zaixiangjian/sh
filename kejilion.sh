@@ -5370,7 +5370,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}39.  ${gl_bai}Bililive直播录制工具                ${gl_kjlan}40.  ${gl_bai}远程Windows11"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(可注册版本)             ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册添加SMTP邮箱设置)"
+   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册添加SMTP设置)          ${gl_kjlan}44.  ${gl_bai}vaultwarden(可以注册)"
+   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}PVE开小鸡面板"
 	  echo -e "${gl_kjlan}------------------------"
@@ -6454,27 +6455,6 @@ linux_panel() {
 			  ;;
 
 		  43)
-
-
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
-			docker_rum="docker run -d \
-							--name vaultwarden \
-							--restart always \
-							-p 3280:80 \
-							-v /home/web/vaultwarden/data:/data \
-							vaultwarden/server"
-			docker_describe="一个开源的 Bitwarden 服务端实现（注册开放，无 SMTP 设置）"
-			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  44)
-
-
 			# 交互式输入
 			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
 			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
@@ -6501,6 +6481,58 @@ linux_panel() {
 				vaultwarden/server"
 
 			docker_describe="Vaultwarden 禁止注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
+			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+			docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
+			docker_passwd=""
+
+			docker_app
+			  ;;
+
+		  44)
+
+
+			docker_name="vaultwarden"
+			docker_img="vaultwarden/server"
+			docker_port=3280
+			docker_rum="docker run -d \
+							--name vaultwarden \
+							--restart always \
+							-p 3280:80 \
+							-v /home/web/vaultwarden/data:/data \
+							vaultwarden/server"
+			docker_describe="一个开源的 Bitwarden 服务端实现（注册开放，无 SMTP 设置）"
+			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+			docker_use=""
+			docker_passwd=""
+			docker_app
+			  ;;
+
+		  45)
+			# 交互式输入
+			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
+			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
+			read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
+			read -p "请输入发件邮箱密码: " smtp_pass
+
+			docker_name="vaultwarden"
+			docker_img="vaultwarden/server"
+			docker_port=3280
+			docker_rum="docker run -d \
+				--name vaultwarden \
+				--restart always \
+				-p 3280:80 \
+				-e SIGNUPS_VERIFY=true \
+				-e DOMAIN=${user_domain} \
+				-e SMTP_HOST=${smtp_host} \
+				-e SMTP_FROM=${smtp_user} \
+				-e SMTP_PORT=587 \
+				-e SMTP_SECURITY=starttls \
+				-e SMTP_USERNAME=${smtp_user} \
+				-e SMTP_PASSWORD=${smtp_pass} \
+				-v /home/web/vaultwarden/data:/data \
+				vaultwarden/server"
+
+			docker_describe="Vaultwarden 可以注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
 			docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
 			docker_passwd=""
