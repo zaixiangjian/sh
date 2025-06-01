@@ -5370,7 +5370,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}39.  ${gl_bai}Bililive直播录制工具                ${gl_kjlan}40.  ${gl_bai}远程Windows11"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册添加SMTP设置)          ${gl_kjlan}44.  ${gl_bai}vaultwarden(可以注册)"
+   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册添加SMTP设置)   ${gl_kjlan}44.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}PVE开小鸡面板"
