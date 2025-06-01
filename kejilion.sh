@@ -6446,7 +6446,7 @@ linux_panel() {
 							-p 3280:80 \
 							-v /home/web/vaultwarden/data:/data \
 							vaultwarden/server"
-			docker_describe="一个开源的 Bitwarden 服务端实现，禁止注册功能已开启"
+			docker_describe="一个开源的 Bitwarden 服务端实现，注册功能已开启"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
 			docker_use=""
 			docker_passwd=""
@@ -6500,7 +6500,7 @@ linux_panel() {
 							-p 3280:80 \
 							-v /home/web/vaultwarden/data:/data \
 							vaultwarden/server"
-			docker_describe="一个开源的 Bitwarden 服务端实现（注册开放，无 SMTP 设置）"
+			docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，无 SMTP 设置）"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
 			docker_use=""
 			docker_passwd=""
