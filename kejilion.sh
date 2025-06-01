@@ -6474,8 +6474,14 @@ linux_panel() {
 
 		  44)
 
+			# 检查是否存在容器并删除
+			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
+				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
+				docker stop vaultwarden && docker rm vaultwarden
+			fi
 
-			read -p "请输入 Vaultwarden 访问域名（如 https://miam.123.com）: " user_domain
+			# 交互式输入
+			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
 			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
 			read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
 			read -p "请输入发件邮箱密码: " smtp_pass
@@ -6484,24 +6490,26 @@ linux_panel() {
 			docker_img="vaultwarden/server"
 			docker_port=3280
 			docker_rum="docker run -d \
-							--name vaultwarden \
-							--restart always \
-							-p 3280:80 \
-							-e SIGNUPS_ALLOWED=false \
-							-e SIGNUPS_VERIFY=true \
-							-e DOMAIN='$user_domain' \
-							-e SMTP_HOST='$smtp_host' \
-							-e SMTP_FROM='$smtp_user' \
-							-e SMTP_PORT='587' \
-							-e SMTP_SECURITY='starttls' \
-							-e SMTP_USERNAME='$smtp_user' \
-							-e SMTP_PASSWORD='$smtp_pass' \
-							-v /home/web/vaultwarden/data:/data \
-							vaultwarden/server"
+				--name vaultwarden \
+				--restart always \
+				-p 3280:80 \
+				-e SIGNUPS_ALLOWED=false \
+				-e SIGNUPS_VERIFY=true \
+				-e DOMAIN=${user_domain} \
+				-e SMTP_HOST=${smtp_host} \
+				-e SMTP_FROM=${smtp_user} \
+				-e SMTP_PORT=587 \
+				-e SMTP_SECURITY=starttls \
+				-e SMTP_USERNAME=${smtp_user} \
+				-e SMTP_PASSWORD=${smtp_pass} \
+				-v /home/web/vaultwarden/data:/data \
+				vaultwarden/server"
+
 			docker_describe="Vaultwarden 禁止注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
 			docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
 			docker_passwd=""
+
 			docker_app
 			  ;;
 
