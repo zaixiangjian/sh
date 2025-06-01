@@ -6567,7 +6567,7 @@ EOF
 			docker run -d \
 				--name caddy \
 				--restart always \
-				-p 8080:8080 -p 8443:8443 \
+				-p 80:80 -p 8443:443 \
 				-v /home/web/caddy/Caddyfile:/etc/caddy/Caddyfile \
 				-v caddy_data:/data \
 				-v caddy_config:/config \
@@ -6575,7 +6575,7 @@ EOF
 
 			docker_name="caddy"
 			docker_img="caddy"
-			docker_port="8080/8443"
+			docker_port="80/443"
 			docker_describe="Caddy 自动 HTTPS 反向代理服务器"
 			docker_url="官网：https://caddyserver.com/"
 			docker_use="echo -e '\033[32m访问地址：https://$caddy_domain\033[0m\n反代目标：$proxy_target'"
