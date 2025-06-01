@@ -6474,11 +6474,6 @@ linux_panel() {
 
 		  44)
 
-			# 检查是否存在容器并删除
-			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
-				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
-				docker stop vaultwarden && docker rm vaultwarden
-			fi
 
 			# 交互式输入
 			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
