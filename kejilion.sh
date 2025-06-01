@@ -5369,8 +5369,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}37.  ${gl_bai}MyIP工具箱 ${gl_huang}★${gl_bai}                        ${gl_kjlan}38.  ${gl_bai}小雅alist全家桶"
 	  echo -e "${gl_kjlan}39.  ${gl_bai}Bililive直播录制工具                ${gl_kjlan}40.  ${gl_bai}远程Windows11"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(可以注册)"
+	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
+   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}PVE开小鸡面板"
@@ -6442,7 +6442,6 @@ linux_panel() {
 			docker_port=3280
 			docker_rum="docker run -d \
 							--name vaultwarden \
-							-e SIGNUPS_ALLOWED=false \
 							--restart always \
 							-p 3280:80 \
 							-v /home/web/vaultwarden/data:/data \
@@ -6496,6 +6495,7 @@ linux_panel() {
 			docker_port=3280
 			docker_rum="docker run -d \
 							--name vaultwarden \
+							-e SIGNUPS_ALLOWED=false \
 							--restart always \
 							-p 3280:80 \
 							-v /home/web/vaultwarden/data:/data \
