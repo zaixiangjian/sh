@@ -6433,9 +6433,7 @@ linux_panel() {
 			  ;;
 
 
-
 		  42)
-
 			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
 				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
 				docker stop vaultwarden && docker rm vaultwarden
@@ -6457,13 +6455,13 @@ linux_panel() {
 			docker_passwd=""
 			docker_app
 			  ;;
-		  43)
 
+		  43)
 			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
 				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
 				docker stop vaultwarden && docker rm vaultwarden
 			fi
-    
+
 			docker_name="vaultwarden"
 			docker_img="vaultwarden/server"
 			docker_port=3280
@@ -6473,7 +6471,7 @@ linux_panel() {
 							-p 3280:80 \
 							-v /home/web/vaultwarden/data:/data \
 							vaultwarden/server"
-			docker_describe="一个开源的 Bitwarden 服务端实现，禁止注册功能已开启"
+			docker_describe="一个开源的 Bitwarden 服务端实现（注册开放，无 SMTP 设置）"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
 			docker_use=""
 			docker_passwd=""
@@ -6481,7 +6479,6 @@ linux_panel() {
 			  ;;
 
 		  44)
-
 			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
 				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
 				docker stop vaultwarden && docker rm vaultwarden
@@ -6491,6 +6488,15 @@ linux_panel() {
 			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
 			read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
 			read -p "请输入发件邮箱密码: " smtp_pass
+			read -p "是否清空旧的数据目录以应用新配置？输入 yes 清空，其他跳过: " confirm_clean
+
+			if [[ "$confirm_clean" == "yes" ]]; then
+				echo -e "\033[33m正在清空旧的数据目录 /home/web/vaultwarden/data ...\033[0m"
+				rm -rf /home/web/vaultwarden/data
+				mkdir -p /home/web/vaultwarden/data
+			else
+				echo -e "\033[33m保留旧数据，部分配置可能不会生效，如需变更请手动修改 config.json\033[0m"
+			fi
 
 			docker_name="vaultwarden"
 			docker_img="vaultwarden/server"
@@ -6516,6 +6522,7 @@ linux_panel() {
 			docker_passwd=""
 			docker_app
 			  ;;
+
 
 
 
