@@ -6567,7 +6567,7 @@ EOF
 			docker run -d \
 				--name caddy \
 				--restart always \
-				-p 80:80 -p 8443:443 \
+				-p 80:80 -p 443:443 \
 				-v /home/web/caddy/Caddyfile:/etc/caddy/Caddyfile \
 				-v caddy_data:/data \
 				-v caddy_config:/config \
