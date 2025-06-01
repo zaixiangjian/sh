@@ -6438,6 +6438,10 @@ linux_panel() {
 			docker_name="vaultwarden"
 			docker_img="vaultwarden/server"
 			docker_port=3280
+			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
+				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
+				docker stop vaultwarden && docker rm vaultwarden
+			fi
 			docker_rum="docker run -d \
 							--name vaultwarden \
 							-e SIGNUPS_ALLOWED=false \
@@ -6455,6 +6459,10 @@ linux_panel() {
 			docker_name="vaultwarden"
 			docker_img="vaultwarden/server"
 			docker_port=3280
+			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
+				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
+				docker stop vaultwarden && docker rm vaultwarden
+			fi
 			docker_rum="docker run -d \
 							--name vaultwarden \
 							--restart always \
@@ -6477,6 +6485,10 @@ linux_panel() {
 			docker_name="vaultwarden"
 			docker_img="vaultwarden/server"
 			docker_port=3280
+			if [ "$(docker ps -a -q -f name=^vaultwarden$)" ]; then
+				echo -e "\033[33m发现已有 vaultwarden 容器，正在删除...\033[0m"
+				docker stop vaultwarden && docker rm vaultwarden
+			fi
 			docker_rum="docker run -d \
 							--name vaultwarden \
 							--restart always \
