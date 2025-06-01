@@ -5371,7 +5371,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)           ${gl_kjlan}46.  ${gl_bai}caddy安装"
+   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}PVE开小鸡面板"
 	  echo -e "${gl_kjlan}------------------------"
@@ -6539,54 +6539,6 @@ linux_panel() {
 
 			docker_app
 			  ;;
-
-		  46)
-
-			# 检查并删除已有 Caddy 容器
-			if [ "$(docker ps -a -q -f name=^caddy$)" ]; then
-				echo -e "\033[33m发现已有 caddy 容器，正在删除...\033[0m"
-				docker stop caddy && docker rm caddy
-			fi
-
-			# 交互式输入
-			read -p "请输入要反代的域名（如 example.com）: " caddy_domain
-			read -p "请输入反代目标地址（如 http://127.0.0.1:3280）: " proxy_target
-
-			# 创建 Caddy 配置目录
-			mkdir -p /home/web/caddy
-			caddyfile_path="/home/web/caddy/Caddyfile"
-
-			# 写入 Caddyfile
-			cat > $caddyfile_path <<EOF
-$caddy_domain {
-    reverse_proxy $proxy_target
-}
-EOF
-
-			# 启动 Caddy 容器
-			docker run -d \
-				--name caddy \
-				--restart always \
-				-p 80:80 -p 443:443 \
-				-v /home/web/caddy/Caddyfile:/etc/caddy/Caddyfile \
-				-v caddy_data:/data \
-				-v caddy_config:/config \
-				caddy:latest
-
-			docker_name="caddy"
-			docker_img="caddy"
-			docker_port="80/443"
-			docker_describe="Caddy 自动 HTTPS 反向代理服务器"
-			docker_url="官网：https://caddyserver.com/"
-			docker_use="echo -e '\033[32m访问地址：https://$caddy_domain\033[0m\n反代目标：$proxy_target'"
-			docker_passwd=""
-
-			docker_app
-			  ;;
-
-
-
-
 
 
 
