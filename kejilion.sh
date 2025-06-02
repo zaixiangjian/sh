@@ -5605,7 +5605,7 @@ linux_panel() {
 				echo ""
 
 				if docker inspect "$docker_name" &>/dev/null; then
-					yuming=$(cat /home/docker/mail.txt)
+					yuming=$(cat /home/web/mail/mail.txt)
 					echo "访问地址: "
 					echo "https://$yuming"
 				fi
