@@ -6160,17 +6160,17 @@ linux_panel() {
 			  ;;
 
 		  25)
-			docker_name="nextcloud"
-			docker_img="nextcloud:latest"
-			docker_port=8989
-			rootpasswd=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16)
-			docker_rum="docker run -d --name nextcloud --restart=always -p 8989:80 -v /home/docker/nextcloud:/var/www/html -e NEXTCLOUD_ADMIN_USER=nextcloud -e NEXTCLOUD_ADMIN_PASSWORD=$rootpasswd nextcloud"
-			docker_describe="Nextcloud拥有超过 400,000 个部署，是您可以下载的最受欢迎的本地内容协作平台"
+			docker_name="nextcloud-aio"
+			docker_img="nextcloud/all-in-one:latest"
+			docker_port="80 8080 8443"
+			docker_rum="docker run --init --sig-proxy=false --name nextcloud-aio-mastercontainer --restart always -p 80:80 -p 8080:8080 -p 8443:8443 -v nextcloud_aio_mastercontainer:/mnt/docker-aio-config -v /var/run/docker.sock:/var/run/docker.sock:ro nextcloud/all-in-one:latest"
+			docker_describe="Nextcloud AIO 是官方推荐的多合一部署方式，简化了 Nextcloud 的部署和维护"
 			docker_url="官网介绍: https://nextcloud.com/"
-			docker_use="echo \"账号: nextcloud  密码: $rootpasswd\""
+			docker_use="echo '容器已部署，请访问 https://<你的服务器IP>:8443 进行安装配置'"
 			docker_passwd=""
 			docker_app
 			  ;;
+
 
 		  26)
 			docker_name="qd"
