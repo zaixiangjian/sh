@@ -5618,84 +5618,99 @@ linux_panel() {
 				read -e -p "输入你的选择: " choice
 
 				case $choice in
-					1)
-						read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
-						mkdir -p /home/docker
-						echo "$yuming" > /home/docker/mail.txt
-						echo "------------------------"
-						ip_address
-						echo "先解析这些DNS记录"
-						echo "A           mail            $ipv4_address"
-						echo "CNAME       imap            $yuming"
-						echo "CNAME       pop             $yuming"
-						echo "CNAME       smtp            $yuming"
-						echo "MX          @               $yuming"
-						echo "TXT         @               v=spf1 mx ~all"
-						echo "TXT         ?               ?"
-						echo ""
-						echo "------------------------"
-						echo "按任意键继续..."
-						read -n 1 -s -r -p ""
 
-						install_docker
+				1)
+					read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
+					mkdir -p /home/web/mail
+					echo "$yuming" > /home/web/mail/mail.txt
+					echo "------------------------"
+					ip_address
+					echo "先解析这些DNS记录"
+					echo "A           mail            $ipv4_address"
+					echo "CNAME       imap            $yuming"
+					echo "CNAME       pop             $yuming"
+					echo "CNAME       smtp            $yuming"
+					echo "MX          @               $yuming"
+					echo "TXT         @               v=spf1 mx ~all"
+					echo ""
+					echo "------------------------"
+					echo "按任意键继续..."
+					read -n 1 -s -r -p ""
 
-						docker run \
-							--net=host \
-							-e TZ=Europe/Prague \
-							-v /home/docker/mail:/data \
-							--name "mailserver" \
-							-h "$yuming" \
-							--restart=always \
-							-d analogic/poste.io
+					install_docker
 
-						clear
-						echo "poste.io已经安装完成"
-						echo "------------------------"
-						echo "您可以使用以下地址访问poste.io:"
-						echo "https://$yuming"
-						echo ""
+					docker run -d \
+						--name mailserver \
+						--hostname "$yuming" \
+						-e TZ=Asia/Shanghai \
+						-v /home/web/mail/data:/data \
+						-p 80:80 \
+						-p 443:443 \
+						-p 25:25 \
+						-p 587:587 \
+						-p 993:993 \
+						-p 110:110 \
+						-p 995:995 \
+						-p 143:143 \
+						-p 465:465 \
+						-p 4190:4190 \
+						--restart=always \
+						analogic/poste.io
 
-						;;
+					clear
+					echo "poste.io已经安装完成"
+					echo "------------------------"
+					echo "您可以使用以下地址访问poste.io:"
+					echo "https://$yuming"
+					echo ""
 
-					2)
-						docker rm -f mailserver
-						docker rmi -f analogic/poste.i
-						yuming=$(cat /home/docker/mail.txt)
-						docker run \
-							--net=host \
-							-e TZ=Europe/Prague \
-							-v /home/docker/mail:/data \
-							--name "mailserver" \
-							-h "$yuming" \
-							--restart=always \
-							-d analogic/poste.i
-						clear
-						echo "poste.io已经安装完成"
-						echo "------------------------"
-						echo "您可以使用以下地址访问poste.io:"
-						echo "https://$yuming"
-						echo ""
-						;;
-					3)
-						docker rm -f mailserver
-						docker rmi -f analogic/poste.io
-						rm /home/docker/mail.txt
-						rm -rf /home/docker/mail
-						echo "应用已卸载"
-						;;
+					;;
 
-					0)
-						break
-						;;
-					*)
-						break
-						;;
+				2)
+					docker rm -f mailserver
+					docker rmi -f analogic/poste.io
+					yuming=$(cat /home/web/mail/mail.txt)
+					docker run -d \
+						--name mailserver \
+						--hostname "$yuming" \
+						-e TZ=Asia/Shanghai \
+						-v /home/web/mail/data:/data \
+						-p 80:80 \
+						-p 443:443 \
+						-p 25:25 \
+						-p 587:587 \
+						-p 993:993 \
+						-p 110:110 \
+						-p 995:995 \
+						-p 143:143 \
+						-p 465:465 \
+						-p 4190:4190 \
+						--restart=always \
+						analogic/poste.io
+					clear
+					echo "poste.io已经安装完成"
+					echo "------------------------"
+					echo "您可以使用以下地址访问poste.io:"
+					echo "https://$yuming"
+					echo ""
+					;;
 
-				esac
-				break_end
-			done
+				3)
+					docker rm -f mailserver
+					docker rmi -f analogic/poste.io
+					rm /home/web/mail/mail.txt
+					rm -rf /home/web/mail/data
+					echo "应用已卸载"
+					;;
 
-			  ;;
+				0)
+					break
+					;;
+
+				*)
+					break
+					;;
+
 
 		  10)
 			send_stats "搭建聊天"
