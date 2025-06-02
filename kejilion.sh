@@ -5643,8 +5643,8 @@ linux_panel() {
 							--hostname "$yuming" \
 							-e TZ=Asia/Shanghai \
 							-v /home/web/mail/data:/data \
-							-p 80:80 \
-							-p 443:443 \
+							-p 8989:80 \
+							-p 8443:443 \
 							-p 25:25 \
 							-p 587:587 \
 							-p 993:993 \
@@ -5673,8 +5673,8 @@ linux_panel() {
 							--hostname "$yuming" \
 							-e TZ=Asia/Shanghai \
 							-v /home/web/mail/data:/data \
-							-p 80:80 \
-							-p 443:443 \
+							-p 8989:80 \
+							-p 8443:443 \
 							-p 25:25 \
 							-p 587:587 \
 							-p 993:993 \
