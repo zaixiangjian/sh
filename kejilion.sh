@@ -6160,10 +6160,6 @@ linux_panel() {
 			  ;;
 
 		  25)
-			docker_name="nextcloud"
-			docker_img="nextcloud:latest"
-			docker_port=8080
-			rootpasswd=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16)
 
 			docker run \
 			--init \
@@ -6177,11 +6173,6 @@ linux_panel() {
 			--volume /var/run/docker.sock:/var/run/docker.sock:ro \
 			nextcloud/all-in-one:latest
 
-
-			docker_describe="Nextcloud拥有超过 400,000 个部署，是您可以下载的最受欢迎的本地内容协作平台"
-			docker_url="官网介绍: https://nextcloud.com/"
-			docker_use=""
-			docker_passwd=""
 			docker_app
 			  ;;
 
