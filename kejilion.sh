@@ -5584,7 +5584,7 @@ linux_panel() {
 			send_stats "搭建邮局"
 			clear
 			install telnet
-			docker_name=“mailserver”
+			docker_name="mailserver"
 			while true; do
 				check_docker_app
 
@@ -5618,98 +5618,102 @@ linux_panel() {
 				read -e -p "输入你的选择: " choice
 
 				case $choice in
+					1)
+						read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
+						mkdir -p /home/web/mail
+						echo "$yuming" > /home/web/mail/mail.txt
+						echo "------------------------"
+						ip_address
+						echo "先解析这些DNS记录"
+						echo "A           mail            $ipv4_address"
+						echo "CNAME       imap            $yuming"
+						echo "CNAME       pop             $yuming"
+						echo "CNAME       smtp            $yuming"
+						echo "MX          @               $yuming"
+						echo "TXT         @               v=spf1 mx ~all"
+						echo ""
+						echo "------------------------"
+						echo "按任意键继续..."
+						read -n 1 -s -r -p ""
 
-				1)
-					read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
-					mkdir -p /home/web/mail
-					echo "$yuming" > /home/web/mail/mail.txt
-					echo "------------------------"
-					ip_address
-					echo "先解析这些DNS记录"
-					echo "A           mail            $ipv4_address"
-					echo "CNAME       imap            $yuming"
-					echo "CNAME       pop             $yuming"
-					echo "CNAME       smtp            $yuming"
-					echo "MX          @               $yuming"
-					echo "TXT         @               v=spf1 mx ~all"
-					echo ""
-					echo "------------------------"
-					echo "按任意键继续..."
-					read -n 1 -s -r -p ""
+						install_docker
 
-					install_docker
+						docker run -d \
+							--name mailserver \
+							--hostname "$yuming" \
+							-e TZ=Asia/Shanghai \
+							-v /home/web/mail/data:/data \
+							-p 80:80 \
+							-p 443:443 \
+							-p 25:25 \
+							-p 587:587 \
+							-p 993:993 \
+							-p 110:110 \
+							-p 995:995 \
+							-p 143:143 \
+							-p 465:465 \
+							-p 4190:4190 \
+							--restart=always \
+							analogic/poste.io
 
-					docker run -d \
-						--name mailserver \
-						--hostname "$yuming" \
-						-e TZ=Asia/Shanghai \
-						-v /home/web/mail/data:/data \
-						-p 80:80 \
-						-p 443:443 \
-						-p 25:25 \
-						-p 587:587 \
-						-p 993:993 \
-						-p 110:110 \
-						-p 995:995 \
-						-p 143:143 \
-						-p 465:465 \
-						-p 4190:4190 \
-						--restart=always \
-						analogic/poste.io
+						clear
+						echo "poste.io已经安装完成"
+						echo "------------------------"
+						echo "您可以使用以下地址访问poste.io:"
+						echo "https://$yuming"
+						echo ""
+						;;
 
-					clear
-					echo "poste.io已经安装完成"
-					echo "------------------------"
-					echo "您可以使用以下地址访问poste.io:"
-					echo "https://$yuming"
-					echo ""
+					2)
+						docker rm -f mailserver
+						docker rmi -f analogic/poste.io
+						yuming=$(cat /home/web/mail/mail.txt)
+						docker run -d \
+							--name mailserver \
+							--hostname "$yuming" \
+							-e TZ=Asia/Shanghai \
+							-v /home/web/mail/data:/data \
+							-p 80:80 \
+							-p 443:443 \
+							-p 25:25 \
+							-p 587:587 \
+							-p 993:993 \
+							-p 110:110 \
+							-p 995:995 \
+							-p 143:143 \
+							-p 465:465 \
+							-p 4190:4190 \
+							--restart=always \
+							analogic/poste.io
+						clear
+						echo "poste.io已经安装完成"
+						echo "------------------------"
+						echo "您可以使用以下地址访问poste.io:"
+						echo "https://$yuming"
+						echo ""
+						;;
 
-					;;
+					3)
+						docker rm -f mailserver
+						docker rmi -f analogic/poste.io
+						rm /home/web/mail/mail.txt
+						rm -rf /home/web/mail/data
+						echo "应用已卸载"
+						;;
 
-				2)
-					docker rm -f mailserver
-					docker rmi -f analogic/poste.io
-					yuming=$(cat /home/web/mail/mail.txt)
-					docker run -d \
-						--name mailserver \
-						--hostname "$yuming" \
-						-e TZ=Asia/Shanghai \
-						-v /home/web/mail/data:/data \
-						-p 80:80 \
-						-p 443:443 \
-						-p 25:25 \
-						-p 587:587 \
-						-p 993:993 \
-						-p 110:110 \
-						-p 995:995 \
-						-p 143:143 \
-						-p 465:465 \
-						-p 4190:4190 \
-						--restart=always \
-						analogic/poste.io
-					clear
-					echo "poste.io已经安装完成"
-					echo "------------------------"
-					echo "您可以使用以下地址访问poste.io:"
-					echo "https://$yuming"
-					echo ""
-					;;
+					0)
+						break
+						;;
 
-				3)
-					docker rm -f mailserver
-					docker rmi -f analogic/poste.io
-					rm /home/web/mail/mail.txt
-					rm -rf /home/web/mail/data
-					echo "应用已卸载"
-					;;
+					*)
+						echo "无效选项"
+						;;
 
-				0)
-					break
-					;;
+				esac
+				break_end
+			done
+			;;
 
-				*)
-					break
-					;;
 
 
 		  10)
