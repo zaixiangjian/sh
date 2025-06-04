@@ -5371,7 +5371,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)"
+   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)            ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}PVE开小鸡面板"
 	  echo -e "${gl_kjlan}------------------------"
@@ -6569,6 +6569,42 @@ nextcloud/all-in-one:latest"
 
 			docker_app
 			  ;;
+
+
+		  46)
+
+
+			RPC_SECRET=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+
+			docker_name="aria2-pro"
+			docker_img="p3terx/aria2-pro"
+			docker_port=6800
+			docker_rum="docker run -d --restart=always \
+							--name aria2-pro \
+							-p 6800:6800 \
+							-p 6888:6888 \
+							-p 6888:6888/udp \
+							-e RPC_SECRET=$RPC_SECRET \
+							-e UPDATE_TRACKERS=true \
+							-v /home/docker/aria2/config:/config \
+							-v /home/docker/aria2/downloads:/downloads \
+							p3terx/aria2-pro"
+			docker_describe="Aria2 下载神器，支持 BT、磁力、百度网盘，配套 AriaNg 使用，自动更新 Tracker"
+			docker_url="访问地址: http://ariang.js.org        项目地址: https://hub.docker.com/r/p3terx/aria2-pro"
+			docker_use="echo \"✅ 默认 RPC 密钥: $RPC_SECRET\" && echo \"🌐 AriaNg 访问地址：http://ariang.js.org/\""
+			docker_passwd=""
+			docker_app
+			  ;;
+
+
+
+
+
+
+
+
+
+
 
 
 
