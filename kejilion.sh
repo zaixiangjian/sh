@@ -5372,10 +5372,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)           ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-	  echo -e "${gl_kjlan}47.  ${gl_bai}LibreTV                            ${gl_kjlan}48.  ${gl_bai}Nexterm远程连接工具"
+	  echo -e "${gl_kjlan}47.  ${gl_bai}LibreTV"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}49.  ${gl_bai}RustDesk远程桌面(服务端) ${gl_huang}★${gl_bai}          ${gl_kjlan}50.  ${gl_bai}RustDesk远程桌面(中继端) ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}51.  ${gl_bai}Docker加速站            		 ${gl_kjlan}52.  ${gl_bai}GitHub加速站 ${gl_huang}★${gl_bai}"
 
 
 
@@ -6627,114 +6625,6 @@ nextcloud/all-in-one:latest"
 		    docker_passwd=""
 		    docker_app
 		      ;;
-
-		  48)
-			local docker_name="nexterm"
-			local docker_img="germannewsmaker/nexterm:latest"
-			local docker_port=8042
-
-			docker_rum() {
-
-				docker run -d \
-				  --name nexterm \
-				  -p ${docker_port}:6989 \
-				  -v /home/docker/nexterm:/app/data \
-				  --restart unless-stopped \
-				  germannewsmaker/nexterm:latest
-
-			}
-
-			local docker_describe="nexterm是一款强大的在线SSH/VNC/RDP连接工具。"
-			local docker_url="官网介绍: ${gh_proxy}github.com/gnmyt/Nexterm"
-			local docker_use=""
-			local docker_passwd=""
-			local app_size="1"
-			docker_app
-			  ;;
-
-
-		  49)
-			local docker_name="hbbs"
-			local docker_img="rustdesk/rustdesk-server"
-			local docker_port=0000
-
-			docker_rum() {
-
-				docker run --name hbbs -v /home/docker/hbbs/data:/root -td --net=host --restart unless-stopped rustdesk/rustdesk-server hbbs
-
-			}
-
-
-			local docker_describe="rustdesk开源的远程桌面(服务端)，类似自己的向日葵私服。"
-			local docker_url="官网介绍: https://rustdesk.com/zh-cn/"
-			local docker_use="docker logs hbbs"
-			local docker_passwd="echo \"把你的IP和key记录下，会在远程桌面客户端中用到。去44选项装中继端吧！\""
-			local app_size="1"
-			docker_app
-			  ;;
-
-		  50)
-			local docker_name="hbbr"
-			local docker_img="rustdesk/rustdesk-server"
-			local docker_port=0000
-
-			docker_rum() {
-
-				docker run --name hbbr -v /home/docker/hbbr/data:/root -td --net=host --restart unless-stopped rustdesk/rustdesk-server hbbr
-
-			}
-
-			local docker_describe="rustdesk开源的远程桌面(中继端)，类似自己的向日葵私服。"
-			local docker_url="官网介绍: https://rustdesk.com/zh-cn/"
-			local docker_use="echo \"前往官网下载远程桌面的客户端: https://rustdesk.com/zh-cn/\""
-			local docker_passwd=""
-			local app_size="1"
-			docker_app
-			  ;;
-
-		  51)
-			local docker_name="registry"
-			local docker_img="registry:2"
-			local docker_port=8045
-
-			docker_rum() {
-
-				docker run -d \
-					-p ${docker_port}:5000 \
-					--name registry \
-					-v /home/docker/registry:/var/lib/registry \
-					-e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
-					--restart always \
-					registry:2
-
-			}
-
-			local docker_describe="Docker Registry 是一个用于存储和分发 Docker 镜像的服务。"
-			local docker_url="官网介绍: https://hub.docker.com/_/registry"
-			local docker_use=""
-			local docker_passwd=""
-			local app_size="2"
-			docker_app
-			  ;;
-
-		  52)
-			local docker_name="ghproxy"
-			local docker_img="wjqserver/ghproxy:latest"
-			local docker_port=8046
-
-			docker_rum() {
-
-				docker run -d --name ghproxy --restart always -p ${docker_port}:8080 wjqserver/ghproxy:latest
-
-			}
-
-			local docker_describe="使用Go实现的GHProxy，用于加速部分地区Github仓库的拉取。"
-			local docker_url="官网介绍: https://github.com/WJQSERVER-STUDIO/ghproxy"
-			local docker_use=""
-			local docker_passwd=""
-			local app_size="1"
-			docker_app
-			  ;;
 
 
 
