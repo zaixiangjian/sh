@@ -5490,16 +5490,13 @@ linux_panel() {
 			tar -xzf /home/docker/alist/alist-linux-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
 			chmod +x /home/docker/alist/alist
 
-			# 先杀掉之前运行的进程（如果有）
-			pkill alist > /dev/null 2>&1 || true
-
-			# 启动一次进程，写日志，用于提取密码（后台启动）
+			# 启动一次以生成日志和密码
 			setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
 
-			sleep 2
+			sleep 3
+
+			# 提取密码
 			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
-			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
-			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
 
 			# 创建 systemd 服务文件
 			service_file="/etc/systemd/system/alist.service"
@@ -5522,9 +5519,8 @@ WantedBy=multi-user.target
 EOF
 				systemctl daemon-reload
 				systemctl enable alist
-				systemctl restart alist
+				systemctl start alist
 			else
-				# 如果服务已存在，重启一下
 				systemctl restart alist
 			fi
 
@@ -5532,9 +5528,15 @@ EOF
 			echo "alist 已经安装完成"
 			echo "------------------------"
 			echo "访问地址:"
+			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
+			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
 			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
 			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
+			if [ -n "$password" ]; then
+				echo "密码：$password"
+			else
+				echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
+			fi
 			echo ""
 			echo "服务已设置为开机自启"
 			echo "操作完成"
