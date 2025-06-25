@@ -5482,33 +5482,47 @@ linux_panel() {
 			  ;;
 
 		  5)
-			if [ ! -d /home/docker/alist/ ]; then
-				mkdir -p /home/docker/alist/ > /dev/null 2>&1
-			fi
-			wget -O /home/docker/alist/alist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/3.40.0/alist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/docker/alist/alist-linux-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
-			chmod +x /home/docker/alist/alist
+install_path="/home/docker/alist"
+alist_binary="$install_path/alist"
+alist_tar="$install_path/alist-linux-amd64.tar.gz"
+alist_log="$install_path/alist.log"
+alist_data="$install_path/data"
+alist_service="/etc/systemd/system/alist.service"
+custom_password="123456"  # 设置你想要的密码
 
-			# 启动一次以生成日志和密码
-			setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
+# 1. 创建目录
+[ ! -d "$install_path" ] && mkdir -p "$install_path"
 
-			sleep 3
+# 2. 下载与解压
+wget -qO "$alist_tar" https://github.com/zaixiangjian/ziyongcdn/releases/download/3.40.0/alist-linux-amd64.tar.gz
+tar -xzf "$alist_tar" -C "$install_path" && chmod +x "$alist_binary"
 
-			# 提取密码
-			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
+# 3. 启动一次以初始化配置（如果 data 目录不存在）
+if [ ! -d "$alist_data" ]; then
+    echo "初始化配置文件..."
+    setsid "$alist_binary" server > "$alist_log" 2>&1 &
+    for i in {1..15}; do
+        if [ -f "$alist_data/config.json" ]; then
+            break
+        fi
+        sleep 1
+    done
+fi
 
-			# 创建 systemd 服务文件
-			service_file="/etc/systemd/system/alist.service"
-			if [ ! -f "$service_file" ]; then
-				cat > "$service_file" <<EOF
+# 4. 重置密码
+"$alist_binary" admin reset admin "$custom_password"
+
+# 5. 创建 systemd 服务（如不存在）
+if [ ! -f "$alist_service" ]; then
+cat > "$alist_service" <<EOF
 [Unit]
 Description=Alist File Listing Service
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/docker/alist/alist server
-WorkingDirectory=/home/docker/alist
+ExecStart=$alist_binary server
+WorkingDirectory=$install_path
 Restart=always
 RestartSec=5
 User=root
@@ -5516,41 +5530,28 @@ User=root
 [Install]
 WantedBy=multi-user.target
 EOF
-				systemctl daemon-reload
-				systemctl enable alist
-				systemctl start alist
-			else
-				systemctl restart alist
-			fi
 
-			clear
-			echo "alist 已经安装完成"
-			echo "------------------------"
-			echo "访问地址:"
-			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
-			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
-			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
-			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			if [ -n "$password" ]; then
-				echo "密码：$password"
-			else
-				echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
-			fi
-			echo ""
-			echo "服务已设置为开机自启"
-			echo "操作完成"
-			read -n1 -rsp $'按任意键继续...\n'
+    systemctl daemon-reload
+    systemctl enable alist
+fi
 
-			docker_name="alist"
-			docker_img=""
-			docker_port=5244
-			docker_rum="systemctl restart alist"
-			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
-			docker_url="项目地址: https://github.com/AlistGo/alist"
-			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
-			docker_passwd=""
-			docker_app
-			  ;;
+# 6. 启动/重启服务
+systemctl restart alist
+
+# 7. 显示信息
+ipv4=$(curl -s4 --max-time 5 ifconfig.me)
+ipv6=$(curl -s6 --max-time 5 ifconfig.me)
+clear
+echo "alist 已经安装完成"
+echo "------------------------"
+[ -n "$ipv4" ] && echo "访问地址: http://$ipv4:5244"
+[ -n "$ipv6" ] && echo "访问地址: http://[$ipv6]:5244"
+echo "用户名：admin"
+echo "密码：$custom_password"
+echo "服务已设置为开机自启"
+echo "操作完成"
+read -n1 -rsp $'按任意键继续...\n'
+
 
 
 		  6)
