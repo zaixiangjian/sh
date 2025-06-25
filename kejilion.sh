@@ -5492,6 +5492,17 @@ linux_panel() {
 
 			setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
 
+			sleep 2
+			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
+
+			echo ""
+			echo "✅ Alist 启动成功！默认监听端口：http://<你的IP>:5244"
+			if [ -n "$password" ]; then
+				echo "🔐 初始管理员密码：$password"
+			else
+				echo "⚠️  未能检测到初始密码，请稍后手动查看日志：/home/docker/alist/alist.log"
+			fi
+
 			docker_name="alist"
 			docker_img=""
 			docker_port=5244
@@ -5502,8 +5513,6 @@ linux_panel() {
 			docker_passwd=""
 			docker_app
 			  ;;
-
-
 
 		  6)
 
