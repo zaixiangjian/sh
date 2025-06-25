@@ -5512,7 +5512,7 @@ linux_panel() {
 			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
 			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
 			echo ""
-			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 Alist"
+			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 Alist如果打不开手动放行5244端口"
 			echo "命令内容为："
 			echo "nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
 			echo ""
