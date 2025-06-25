@@ -5493,9 +5493,15 @@ linux_panel() {
 			nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
 			sleep 5
 
+			# 提取密码与 IP
 			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
 			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
 			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
+
+			# 添加开机启动定时任务（延迟10秒）
+			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &' || (
+				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &') | crontab -
+			)
 
 			clear
 			echo "alist 已安装"
@@ -5506,9 +5512,9 @@ linux_panel() {
 			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
 			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
 			echo ""
-			echo "请手动添加定时任务内容为："
+			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 Alist"
+			echo "命令内容为："
 			echo "nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
-			echo ""
 			echo ""
 			echo "------------------------"
 			echo "1. 安装            2. 更新            3. 卸载"
@@ -5517,6 +5523,18 @@ linux_panel() {
 			echo "------------------------"
 			echo -n "请输入你的选择: "
 
+			exit 0  # 防止继续执行 case 后续内容
+
+			docker_name="alist"
+			docker_img=""
+			docker_port=5244
+			docker_rum="setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
+			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
+			docker_url=""
+			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
+			docker_passwd=""
+			docker_app
+			  ;;
 
 
 		  6)
