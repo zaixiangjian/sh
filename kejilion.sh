@@ -5491,7 +5491,6 @@ linux_panel() {
 			chmod +x /home/docker/alist/alist
 
 			nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
-
 			sleep 5
 
 			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
@@ -5499,31 +5498,25 @@ linux_panel() {
 			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
 
 			clear
-			echo "alist 已经启动完成"
-			echo "------------------------"
+			echo "alist 已安装"
+			echo "Alist 是一个支持多种存储挂载的文件列表程序"
+			echo ""
 			echo "访问地址:"
 			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
 			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			if [ -n "$password" ]; then
-				echo "密码：$password"
-			else
-				echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
-			fi
+			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
 			echo ""
 			echo "请手动添加定时任务内容为："
 			echo "nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
 			echo ""
+			echo ""
+			echo "------------------------"
+			echo "1. 安装            2. 更新            3. 卸载"
+			echo "------------------------"
+			echo "0. 返回上一级"
+			echo "------------------------"
+			echo -n "请输入你的选择: "
 
-			docker_name="alist"
-			docker_img=""
-			docker_port=5244
-			docker_rum="setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
-			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
-			docker_url=""
-			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
-			docker_passwd=""
-			docker_app
-			  ;;
 
 
 		  6)
