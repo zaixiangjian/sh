@@ -5490,29 +5490,67 @@ linux_panel() {
 			tar -xzf /home/docker/alist/alist-linux-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
 			chmod +x /home/docker/alist/alist
 
+			# 先杀掉之前运行的进程（如果有）
+			pkill alist > /dev/null 2>&1 || true
+
+			# 启动一次进程，写日志，用于提取密码（后台启动）
 			setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
 
 			sleep 2
 			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
+			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
+			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
 
-			echo ""
-			echo "✅ Alist 启动成功！默认监听端口：http://<你的IP>:5244"
-			if [ -n "$password" ]; then
-				echo "🔐 初始管理员密码：$password"
+			# 创建 systemd 服务文件
+			service_file="/etc/systemd/system/alist.service"
+			if [ ! -f "$service_file" ]; then
+				cat > "$service_file" <<EOF
+[Unit]
+Description=Alist File Listing Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/docker/alist/alist server
+WorkingDirectory=/home/docker/alist
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+				systemctl daemon-reload
+				systemctl enable alist
+				systemctl restart alist
 			else
-				echo "⚠️  未能检测到初始密码，请稍后手动查看日志：/home/docker/alist/alist.log"
+				# 如果服务已存在，重启一下
+				systemctl restart alist
 			fi
+
+			clear
+			echo "alist 已经安装完成"
+			echo "------------------------"
+			echo "访问地址:"
+			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
+			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
+			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
+			echo ""
+			echo "服务已设置为开机自启"
+			echo "操作完成"
+			read -n1 -rsp $'按任意键继续...\n'
 
 			docker_name="alist"
 			docker_img=""
 			docker_port=5244
-			docker_rum="setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
+			docker_rum="systemctl restart alist"
 			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
 			docker_url="项目地址: https://github.com/AlistGo/alist"
 			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
 			docker_passwd=""
 			docker_app
 			  ;;
+
 
 		  6)
 
