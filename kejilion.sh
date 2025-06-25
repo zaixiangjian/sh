@@ -5486,7 +5486,7 @@ linux_panel() {
 				mkdir -p /home/docker/alist/ > /dev/null 2>&1
 			fi
 
-			wget -O /home/docker/alist/alist-android-amd64.tar.gz https://github.com/AlistGo/alist/releases/download/v3.40.0/alist-android-amd64.tar.gz > /dev/null 2>&1
+			wget -O /home/docker/alist/alist-android-amd64.tar.gz https://github.com/AlistGo/alist/releases/download/v3.40.0/alist-linux-amd64.tar.gz > /dev/null 2>&1
 			tar -xzf /home/docker/alist/alist-android-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
 			chmod +x /home/docker/alist/alist
 
