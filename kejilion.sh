@@ -5486,22 +5486,23 @@ linux_panel() {
 				mkdir -p /home/docker/alist/ > /dev/null 2>&1
 			fi
 
-			wget -O /home/docker/alist/alist-android-amd64.tar.gz https://github.com/AlistGo/alist/releases/download/v3.40.0/alist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/docker/alist/alist-android-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
+			wget -O /home/docker/alist/alist-linux-amd64.tar.gz https://github.com/AlistGo/alist/releases/download/v3.40.0/alist-linux-amd64.tar.gz > /dev/null 2>&1
+			tar -xzf /home/docker/alist/alist-linux-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
 			chmod +x /home/docker/alist/alist
 
-			nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
+			setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
 
 			docker_name="alist"
 			docker_img=""
 			docker_port=5244
-			docker_rum="nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
+			docker_rum="setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
 			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
 			docker_url="项目地址: https://github.com/AlistGo/alist"
 			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
 			docker_passwd=""
 			docker_app
 			  ;;
+
 
 
 		  6)
