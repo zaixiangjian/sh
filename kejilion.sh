@@ -6670,7 +6670,7 @@ nextcloud/all-in-one:latest"
 						install_docker
 						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
 						touch /home/web/wangpan/cloudreve/conf.ini
-						touch /home/web/wangpan/cloudreve/cloudreve.db
+
 						chmod -R 777 /home/web/wangpan/data/aria2
 
 						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
@@ -6701,7 +6701,8 @@ services:
       - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
       - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
       - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
-      - /home/web/wangpan/cloudreve/cloudreve.db:/cloudreve/cloudreve.db
+
+      - /home/web/wangpan/cloudreve/data:/cloudreve/data
 
   aria2:
     image: p3terx/aria2-pro
@@ -6732,7 +6733,7 @@ EOF
 
 						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
 						touch /home/web/wangpan/cloudreve/conf.ini
-						touch /home/web/wangpan/cloudreve/cloudreve.db
+
 						chmod -R 777 /home/web/wangpan/data/aria2
 
 						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
@@ -6763,7 +6764,8 @@ services:
       - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
       - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
       - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
-      - /home/web/wangpan/cloudreve/cloudreve.db:/cloudreve/cloudreve.db
+
+      - /home/web/wangpan/cloudreve/data:/cloudreve/data
 
   aria2:
     image: p3terx/aria2-pro
