@@ -6807,45 +6807,42 @@ EOF
 			;;
 
 
-		  48)
-			send_stats "搭建网盘"
-			has_ipv4_has_ipv6
+			48)
+				send_stats "搭建网盘 Cloudreve 4.1.1"
+				has_ipv4_has_ipv6
 
-			docker_name=cloudreve
-			docker_port=5212
-			while true; do
-				check_docker_app
-				clear
-				echo -e "网盘服务 $check_docker"
-				echo "cloudreve是一个支持多家云存储的网盘系统"
-				echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
-				if docker inspect "$docker_name" &>/dev/null; then
-					check_docker_app_ip
-				fi
-				echo ""
+				docker_name=cloudreve
+				docker_port=5212
+				while true; do
+					check_docker_app
+					clear
+					echo -e "网盘服务 $check_docker"
+					echo "cloudreve是一个支持多家云存储的网盘系统"
+					echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
+					if docker inspect "$docker_name" &>/dev/null; then
+						check_docker_app_ip
+					fi
+					echo ""
 
-				echo "------------------------"
-				echo "1. 安装           2. 更新           3. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
+					echo "------------------------"
+					echo "1. 安装           2. 更新           3. 卸载"
+					echo "------------------------"
+					echo "0. 返回上一级"
+					echo "------------------------"
+					read -e -p "输入你的选择: " choice
 
-				case $choice in
-					1)
-						install_docker
-						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
-						touch /home/web/wangpan/cloudreve/cloudreve.db
-						chmod -R 777 /home/web/wangpan/data/aria2
+					case $choice in
+						1)
+							install_docker
+							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
-						if [ ! -f /home/web/wangpan/cloudreve/conf.ini ]; then
-							cat > /home/web/wangpan/cloudreve/conf.ini <<EOF
+							cat > /home/web/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
 Listen = :5212
 
 [Slave]
-Secret = 7IOxmkvgxgMD9F4nxb9r2qVcnxzcnPw7kvg20UU2jFOC8Fwj3LnN7SNpcPBHs1LS
+Secret = B3oDjh5C0X1cocPPA80KiBepHILMCcwRUEzOtZQ5TE3xPDfQWGmtUTExoy4NC8ih
 
 ; 如果你未来需要使用此节点存储，请保留下面的跨域配置。
 [CORS]
@@ -6853,10 +6850,8 @@ AllowOrigins = *
 AllowMethods = OPTIONS,GET,POST
 AllowHeaders = *
 EOF
-							echo "已创建默认从节点配置文件 conf.ini"
-						fi
 
-						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+							cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -6871,7 +6866,9 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-						cat > /home/web/wangpan/docker-compose.yml <<EOF
+							chmod -R 777 /home/web/wangpan/data/aria2
+
+							cat > /home/web/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -6883,10 +6880,9 @@ services:
     volumes:
       - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
       - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
-      - /home/web/wangpan/cloudreve/cloudreve.db:/cloudreve/cloudreve.db
-    working_dir: /cloudreve
-    command: ./cloudreve -c conf.ini
+      - /home/web/wangpan/cloudreve/data:/cloudreve/data
+      - /home/web/wangpan/cloudreve/config.ini:/cloudreve/config.ini
+    command: ./cloudreve -c /cloudreve/config.ini
 
   aria2:
     image: p3terx/aria2-pro
@@ -6902,30 +6898,29 @@ services:
       - /home/web/wangpan/data/aria2:/downloads
 EOF
 
-						cd /home/web/wangpan && docker compose up -d
-						clear
-						echo "cloudreve已经安装完成"
-						check_docker_app_ip
-						sleep 3
-						docker logs cloudreve
-						echo ""
-						;;
-					2)
-						docker rm -f cloudreve aria2
-						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+							cd /home/web/wangpan && docker compose up -d
 
-						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
-						touch /home/web/wangpan/cloudreve/cloudreve.db
-						chmod -R 777 /home/web/wangpan/data/aria2
+							clear
+							echo "cloudreve已经安装完成"
+							check_docker_app_ip
+							sleep 3
+							docker logs cloudreve
+							echo ""
+							;;
 
-						if [ ! -f /home/web/wangpan/cloudreve/conf.ini ]; then
-							cat > /home/web/wangpan/cloudreve/conf.ini <<EOF
+						2)
+							docker rm -f cloudreve aria2
+							docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+
+							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
+
+							cat > /home/web/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
 Listen = :5212
 
 [Slave]
-Secret = 7IOxmkvgxgMD9F4nxb9r2qVcnxzcnPw7kvg20UU2jFOC8Fwj3LnN7SNpcPBHs1LS
+Secret = B3oDjh5C0X1cocPPA80KiBepHILMCcwRUEzOtZQ5TE3xPDfQWGmtUTExoy4NC8ih
 
 ; 如果你未来需要使用此节点存储，请保留下面的跨域配置。
 [CORS]
@@ -6933,10 +6928,8 @@ AllowOrigins = *
 AllowMethods = OPTIONS,GET,POST
 AllowHeaders = *
 EOF
-							echo "已创建默认从节点配置文件 conf.ini"
-						fi
 
-						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+							cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -6951,7 +6944,9 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-						cat > /home/web/wangpan/docker-compose.yml <<EOF
+							chmod -R 777 /home/web/wangpan/data/aria2
+
+							cat > /home/web/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -6963,10 +6958,9 @@ services:
     volumes:
       - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
       - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
-      - /home/web/wangpan/cloudreve/cloudreve.db:/cloudreve/cloudreve.db
-    working_dir: /cloudreve
-    command: ./cloudreve -c conf.ini
+      - /home/web/wangpan/cloudreve/data:/cloudreve/data
+      - /home/web/wangpan/cloudreve/config.ini:/cloudreve/config.ini
+    command: ./cloudreve -c /cloudreve/config.ini
 
   aria2:
     image: p3terx/aria2-pro
@@ -6982,30 +6976,35 @@ services:
       - /home/web/wangpan/data/aria2:/downloads
 EOF
 
-						cd /home/web/wangpan && docker compose up -d
-						clear
-						echo "cloudreve已经更新完成"
-						check_docker_app_ip
-						sleep 3
-						docker logs cloudreve
-						echo ""
-						;;
-					3)
-						docker rm -f cloudreve aria2
-						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-						rm -rf /home/web/wangpan
-						echo "应用已卸载"
-						;;
-					0)
-						break
-						;;
-					*)
-						break
-						;;
-				esac
-				break_end
-			done
-			  ;;
+							cd /home/web/wangpan && docker compose up -d
+							clear
+							echo "cloudreve已经更新完成"
+							check_docker_app_ip
+							sleep 3
+							docker logs cloudreve
+							echo ""
+							;;
+
+						3)
+							docker rm -f cloudreve aria2
+							docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+							rm -rf /home/web/wangpan
+							echo "应用已卸载"
+							;;
+
+						0)
+							break
+							;;
+
+						*)
+							break
+							;;
+					esac
+					break_end
+				done
+				;;
+
+
 
 		  49)
 		    
