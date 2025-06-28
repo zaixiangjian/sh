@@ -5372,8 +5372,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)           ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-      	  echo -e "${gl_kjlan}48.  ${gl_bai}Cloudreve网盘 ${gl_huang}★${gl_bai}                     ${gl_kjlan}49.  ${gl_bai}Cloudreve网盘从机"
-	  echo -e "${gl_kjlan}47.  ${gl_bai}LibreTV"
+      	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                       ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
+	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV"
 	  echo -e "${gl_kjlan}------------------------"
 
 
@@ -6639,30 +6639,9 @@ nextcloud/all-in-one:latest"
 			docker_app
 			  ;;
 
+
+
 		  47)
-		    
-		    ADMINPASSWORD="111111"
-		    PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
-		
-		    docker_name="libretv"
-		    docker_img="bestzwei/libretv:latest"
-		    docker_port=8899
-		    docker_rum="docker run -d \
-		      --name libretv \
-		      --restart unless-stopped \
-		      -p 8899:8080 \
-		      -e PASSWORD=$PASSWORD \
-		      -e ADMINPASSWORD=$ADMINPASSWORD \
-		      $docker_img"
-		    docker_describe="LibreTV 是一个 IPTV 媒体播放器，支持直播电视流媒体播放"
-		    docker_url="项目地址: https://hub.docker.com/r/bestzwei/libretv"
-		    docker_use="echo \"✅ 设置密码: $PASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
-		    docker_passwd=""
-		    docker_app
-		      ;;
-
-
-		  48)
 			send_stats "搭建网盘"
 			has_ipv4_has_ipv6
 
@@ -6826,7 +6805,7 @@ EOF
 			;;
 
 
-		  49)
+		  48)
 			send_stats "搭建网盘"
 			has_ipv4_has_ipv6
 
@@ -7026,7 +7005,27 @@ EOF
 			done
 			  ;;
 
-
+		  49)
+		    
+		    ADMINPASSWORD="111111"
+		    PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+		
+		    docker_name="libretv"
+		    docker_img="bestzwei/libretv:latest"
+		    docker_port=8899
+		    docker_rum="docker run -d \
+		      --name libretv \
+		      --restart unless-stopped \
+		      -p 8899:8080 \
+		      -e PASSWORD=$PASSWORD \
+		      -e ADMINPASSWORD=$ADMINPASSWORD \
+		      $docker_img"
+		    docker_describe="LibreTV 是一个 IPTV 媒体播放器，支持直播电视流媒体播放"
+		    docker_url="项目地址: https://hub.docker.com/r/bestzwei/libretv"
+		    docker_use="echo \"✅ 设置密码: $PASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
+		    docker_passwd=""
+		    docker_app
+		      ;;
 
 
 
