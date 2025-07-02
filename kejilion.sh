@@ -7008,7 +7008,7 @@ EOF
 
 		  49)
 		    
-		    ADMINPASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+		    ADMINPASSWORD="admin123456789"
 		    PASSWORD="111111"
 		
 		    docker_name="libretv"
