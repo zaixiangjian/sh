@@ -5371,9 +5371,9 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)           ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-      	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                       ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
-	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV"
+   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)          ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
+      	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
+	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 
 
@@ -7008,8 +7008,8 @@ EOF
 
 		  49)
 		    
-		    ADMINPASSWORD="111111"
-		    PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+		    ADMINPASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+		    PASSWORD="111111"
 		
 		    docker_name="libretv"
 		    docker_img="bestzwei/libretv:latest"
@@ -7023,14 +7023,30 @@ EOF
 		      $docker_img"
 		    docker_describe="LibreTV 是一个 IPTV 媒体播放器，支持直播电视流媒体播放"
 		    docker_url="项目地址: https://hub.docker.com/r/bestzwei/libretv"
-		    docker_use="echo \"✅ 设置密码: $PASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
+		    docker_use="echo \"✅ 设置密码: $ADMINPASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
 		    docker_passwd=""
 		    docker_app
 		      ;;
 
+		  50)
 
+		    PASSWORD="111111"
 
-
+		    docker_name="moontv"
+		    docker_img="ghcr.io/senshinya/moontv:latest"
+		    docker_port=3000
+		    docker_rum="docker run -d \
+		      --name moontv \
+		      --restart unless-stopped \
+		      -p 3000:3000 \
+		      -e PASSWORD=$PASSWORD \
+		      $docker_img"
+		    docker_describe="MoonTV 是一个 IPTV 播放平台，支持多种源解析"
+		    docker_url="项目地址: https://github.com/Senshinya/MoonTV"
+		    docker_use="echo \"✅ 设置密码: $PASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
+		    docker_passwd=""
+		    docker_app
+		      ;;
 
 
 
