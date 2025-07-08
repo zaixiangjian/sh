@@ -5375,7 +5375,7 @@ linux_panel() {
       	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
-
+	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板"
 
 
 
@@ -7048,6 +7048,12 @@ EOF
 		    docker_app
 		      ;;
 
+		  51)
+		    clear
+		    echo "▶️ 正在运行极光面板一键脚本..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/deploy/main/install.sh)
+		    echo "✅ 极光面板脚本运行完成，若你选择了安装，请访问 http://服务器IP:8000"
+		    ;;
 
 
 
