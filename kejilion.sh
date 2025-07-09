@@ -5375,8 +5375,8 @@ linux_panel() {
       	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板"
-
+	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
+	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8"
 
 
 
@@ -7055,7 +7055,83 @@ EOF
 		    echo "✅ 极光面板脚本运行完成，若你选择了安装，请访问 http://服务器IP:8000"
 		    ;;
 
+		  52)
+			docker_name="emby"
+			docker_img="emby/embyserver:latest"
+			docker_port=8096
+			docker_rum="docker run -d \
+							--name emby \
+							--restart=unless-stopped \
+							-v /home/web/emby/config:/config \
+							-v /home/web/emby/电影:/mnt/movies \
+							-v /home/web/挂载/电视剧:/mnt/dianshiju \
+							-v /home/web/挂载/电影:/mnt/dianying \
+							-v /home/web/emby/电视剧:/mnt/tvshows \
+							-p 8096:8096 \
+							-p 8920:8920 \
+							emby/embyserver:latest"
+			docker_describe="Emby 媒体服务器，支持电影和电视剧挂载"
+			docker_url="官网介绍: https://emby.media/"
+			docker_use=""
+			docker_passwd=""
+			docker_app
+			  ;;
 
+		  53)
+			if [ ! -d /home/web/openlist/ ]; then
+				mkdir -p /home/web/openlist/ > /dev/null 2>&1
+			fi
+
+			wget -O /home/web/openlist/openlist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-amd64.tar.gz > /dev/null 2>&1
+			tar -xzf /home/web/openlist/openlist-linux-amd64.tar.gz -C /home/web/openlist/ > /dev/null 2>&1
+			chmod +x /home/web/openlist/openlist
+
+			nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &
+			sleep 5
+
+			# 提取密码与 IP
+			password=$(grep "initial password is:" /home/web/openlist/openlist.log | tail -n 1 | awk '{print $NF}')
+			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
+			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
+
+			# 添加开机启动定时任务（延迟10秒）
+			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &' || (
+				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &') | crontab -
+			)
+
+			clear
+			echo "openlist 已安装"
+			echo "OpenList 是一个支持多种存储挂载的文件列表程序"
+			echo ""
+			echo "访问地址:"
+			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
+   			echo "如果打不开手动放行5244端口ufw命令为ufw allow 5244/tcp"
+			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
+			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/web/openlist/openlist.log"
+			echo ""
+			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 OpenList"
+			echo "命令内容为："
+			echo "nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &"
+			echo ""
+			echo "------------------------"
+			echo "1. 安装            2. 更新            3. 卸载"
+			echo "------------------------"
+			echo "0. 返回上一级"
+			echo "------------------------"
+			echo -n "请输入你的选择: "
+
+			exit 0  # 防止继续执行 case 后续内容
+
+			docker_name="openlist"
+			docker_img=""
+			docker_port=5244
+			docker_rum="setsid /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &"
+			docker_describe="OpenList 是一个支持多种存储挂载的文件列表程序"
+			docker_url=""
+			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
+			docker_passwd=""
+			docker_app
+			  ;;
 
 
 
