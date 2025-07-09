@@ -5376,8 +5376,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8"
-
+	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8                      ${gl_kjlan}54.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}55.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}"
 
 
    
@@ -7132,6 +7132,195 @@ EOF
 			docker_passwd=""
 			docker_app
 			  ;;
+
+
+		  54)
+			# 创建目录
+			if [ ! -d /home/web/edge-admin ]; then
+				mkdir -p /home/web/edge-admin > /dev/null 2>&1
+			fi
+
+			# 下载并解压 edge-admin
+			wget -O /home/web/edge-admin/edge-admin.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.3.9/edge-admin-linux-amd64-plus-v1.3.9.zip > /dev/null 2>&1
+			unzip -o /home/web/edge-admin/edge-admin.zip -d /home/web/edge-admin/ > /dev/null 2>&1
+
+			# 处理多一层目录结构
+			if [ -d /home/web/edge-admin/edge-admin ]; then
+				mv /home/web/edge-admin/edge-admin/* /home/web/edge-admin/
+				rm -rf /home/web/edge-admin/edge-admin
+			fi
+
+			chmod +x /home/web/edge-admin/bin/edge-admin
+
+			# 启动 edge-admin 后台服务（无日志输出）
+			nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
+
+			# 添加开机自启（无日志）
+			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
+				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
+			)
+
+			# 安装 MariaDB
+			apt update > /dev/null 2>&1
+			DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
+
+			# 修改 MariaDB 配置，监听 3307 端口
+			sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
+
+			# 重启 MariaDB 服务
+			systemctl restart mariadb
+			systemctl enable mariadb
+
+			# 生成随机 root 密码（如果需要可自定义）
+			root_pass="RootPass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
+			# 设置 root 密码并允许本地连接
+			mysql -uroot <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_pass}';
+FLUSH PRIVILEGES;
+EOF
+
+			# 创建数据库名和用户及密码
+			db_name="edge_admin"
+			db_user="edge_admin"
+			db_pass="EdgePass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
+
+			# 创建数据库及用户，赋予权限
+			mysql -uroot -p"${root_pass}" <<EOF
+CREATE DATABASE IF NOT EXISTS \`${db_name}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';
+GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+			# 输出数据库信息，方便用户填写
+			clear
+			echo "edge-admin 已安装完成"
+			echo "-----------------------------------"
+			echo "MySQL root密码: $root_pass"
+			echo "数据库名称: $db_name"
+			echo "数据库用户名: $db_user"
+			echo "数据库密码: $db_pass"
+			echo "数据库端口: 3307"
+			echo "edge-admin 访问地址: http://127.0.0.1:7788"
+			echo "-----------------------------------"
+			echo "请使用以上数据库信息完成 edge-admin 安装配置页面填写"
+			echo ""
+
+			echo "------------------------"
+			echo "1. 安装            2. 更新            3. 卸载"
+			echo "------------------------"
+			echo "0. 返回上一级"
+			echo "------------------------"
+			echo -n "请输入你的选择: "
+
+			exit 0
+		  ;;
+
+
+		  55)
+			# 添加本地接地 hosts 记录
+			echo "正在添加本地 hosts 解析..."
+			# 添加 IPv4
+			echo "127.0.0.1 goedge.cloud" | tee -a /etc/hosts > /dev/null
+			echo "127.0.0.1 goedge.cn" | tee -a /etc/hosts > /dev/null
+			echo "127.0.0.1 dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
+			echo "127.0.0.1 dl.goedge.cn" | tee -a /etc/hosts > /dev/null
+			echo "127.0.0.1 global.dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
+			echo "127.0.0.1 global.dl.goedge.cn" | tee -a /etc/hosts > /dev/null
+			# 添加 IPv6
+			echo "::1 goedge.cloud" | tee -a /etc/hosts > /dev/null
+			echo "::1 goedge.cn" | tee -a /etc/hosts > /dev/null
+			echo "::1 dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
+			echo "::1 dl.goedge.cn" | tee -a /etc/hosts > /dev/null
+			echo "::1 global.dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
+			echo "::1 global.dl.goedge.cn" | tee -a /dev/hosts > /dev/null
+			# 显示 hosts
+			echo "=== /etc/hosts 当前内容 ==="
+			cat /etc/hosts
+
+			# 三选项功能
+			echo ""
+			echo "请选择操作："
+			echo "1. 备份 edge-admin 和数据库"
+			echo "2. 恢复 edge-admin 和数据库"
+			echo "3. 卸载 edge-admin 和数据库"
+			read -p "请输入选项 [1-3]: " action
+
+			# 备份路径
+			backup_dir="/home/cdn"
+			program_tar="${backup_dir}/edge-admin-program.tar.gz"
+			db_tar="${backup_dir}/mariadb-data.tar.gz"
+
+			# 确保目录存在
+			if [ ! -d "$backup_dir" ]; then
+				mkdir -p "$backup_dir"
+			fi
+
+			if [ "$action" = "1" ]; then
+				echo "📦 开始备份 edge-admin 程序..."
+				tar czf "$program_tar" -C /home/web edge-admin
+
+				echo "📦 开始备份 MariaDB 数据库..."
+				systemctl stop mariadb
+				tar czf "$db_tar" -C /var/lib mysql
+				systemctl start mariadb
+
+				echo "✅ 备份完成，文件保存在：$backup_dir"
+				echo "程序包: $program_tar"
+				echo "数据库: $db_tar"
+				exit 0
+
+			elif [ "$action" = "2" ]; then
+				if [ ! -f "$program_tar" ] || [ ! -f "$db_tar" ]; then
+					echo "❌ 未找到备份文件：$program_tar 或 $db_tar"
+					exit 1
+				fi
+
+				apt update > /dev/null 2>&1
+				DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
+
+				# 恢复数据库配置端口为3307
+				sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
+
+				systemctl stop mariadb
+				rm -rf /var/lib/mysql/*
+				tar xzf "$db_tar" -C /var/lib/
+				chown -R mysql:mysql /var/lib/mysql
+				systemctl start mariadb
+				systemctl enable mariadb
+
+				mkdir -p /home/web
+				tar xzf "$program_tar" -C /home/web/
+
+				nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
+				crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
+					(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
+				)
+
+				clear
+				echo "✅ edge-admin 恢复完成"
+				echo "访问地址: http://127.0.0.1:7788"
+				exit 0
+
+			elif [ "$action" = "3" ]; then
+				systemctl stop mariadb
+				systemctl disable mariadb
+				apt purge -y mariadb-server mariadb-common > /dev/null 2>&1
+				apt autoremove -y > /dev/null 2>&1
+				rm -rf /var/lib/mysql /etc/mysql
+				rm -rf /home/web/edge-admin
+				crontab -l | grep -v 'edge-admin' | crontab -
+
+				echo "✅ edge-admin 与数据库已卸载完成"
+				exit 0
+
+			else
+				echo "❌ 无效输入，请输入 1、2 或 3"
+				exit 1
+			fi
+		  ;;
+
+
 
 
 
