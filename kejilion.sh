@@ -5568,7 +5568,7 @@ linux_panel() {
 						  -e PGID=1000 \
 						  -e TZ=Asia/Shanghai \
 						  -e LC_ALL=zh_CN.UTF-8 \
-						  -e CUSTOM_USER=admin \
+						  -e CUSTOM_USER=weodeweb \
 						  -e PASSWORD=$random_passwd \
 						  -e SUBFOLDER=/ \
 						  -e TITLE=Webtop \
@@ -5591,7 +5591,7 @@ linux_panel() {
 					echo "http://$(curl -s ipv4.ip.sb):$docker_port"
 					echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
 					echo ""
-					echo "用户名: admin"
+					echo "用户名: wodeweb"
 					echo "密码: $random_passwd"
 					echo "⚠️ 此密码仅显示一次，请妥善保存！"
 					;;
@@ -5627,6 +5627,8 @@ linux_panel() {
 					;;
 			esac
 			;;
+
+
 
 		  7)
 			clear
@@ -6265,7 +6267,7 @@ linux_panel() {
 					  -e LC_ALL=zh_CN.UTF-8 \
 					  -e DOCKER_MODS=linuxserver/mods:universal-package-install \
 					  -e INSTALL_PACKAGES=font-noto-cjk \
-					  -e CUSTOM_USER=admin \
+					  -e CUSTOM_USER=weodeweb \
 					  -e PASSWORD=$random_passwd \
 					  -e SUBFOLDER=/ \
 					  -e TITLE=Webtop \
@@ -6293,7 +6295,7 @@ linux_panel() {
 					echo "http://$(curl -s ipv4.ip.sb):$docker_port"
 					echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
 					echo ""
-					echo "用户名: admin"
+					echo "用户名: wodeweb"
 					echo "密码: $random_passwd"
 					echo "⚠️ 此密码仅显示一次，请妥善保存！"
 					;;
