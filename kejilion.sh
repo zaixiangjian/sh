@@ -7192,11 +7192,13 @@ EOF
 			docker_rum="docker run -d \
 							--name emby \
 							--restart=unless-stopped \
-							-v /home/web/emby/config:/config \
-							-v /home/web/emby/电影:/mnt/movies \
+							-v /home/docker/emby/config:/config \
+							-v /home/docker/emby/电影:/mnt/embydianying \
+							-v /home/docker/emby/电视剧:/mnt/embydianshiju \
+
 							-v /home/web/挂载/电视剧:/mnt/dianshiju \
 							-v /home/web/挂载/电影:/mnt/dianying \
-							-v /home/web/emby/电视剧:/mnt/tvshows \
+
 							-p 8096:8096 \
 							-p 8920:8920 \
 							emby/embyserver:latest"
