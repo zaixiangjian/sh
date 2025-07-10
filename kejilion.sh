@@ -5626,7 +5626,6 @@ linux_panel() {
 					echo "无效选项，请重新输入！"
 					;;
 			esac
-			docker_app
 			;;
 
 
@@ -6330,7 +6329,6 @@ linux_panel() {
 					echo "无效选项，请重新输入！"
 					;;
 			esac
-			docker_app
 			;;
 
 		  25)
