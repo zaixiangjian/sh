@@ -6274,7 +6274,6 @@ linux_panel() {
 					  -p $docker_port:3000 \
 					  -v $docker_dir/data:/config \
 					  -v $docker_dir/Downloads:/home/abc/Downloads \
-					  -v /var/run/docker.sock:/var/run/docker.sock \
 					  --shm-size=\"1gb\" \
 					  --restart unless-stopped \
 					  $docker_img"
