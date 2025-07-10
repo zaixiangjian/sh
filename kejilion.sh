@@ -5539,34 +5539,95 @@ linux_panel() {
 			  ;;
 
 
-		  6)
-
+		6)
 			docker_name="webtop-ubuntu"
 			docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"
 			docker_port=3006
-			docker_rum="docker run -d \
+			docker_dir="/home/docker/webtop"
+
+			clear
+			echo "------------------------"
+			echo "1. 安装"
+			echo "2. 更新（预留）"
+			echo "3. 卸载"
+			echo "------------------------"
+			echo "0. 返回上一级"
+			echo "------------------------"
+			echo -n "请输入你的选择: "
+			read sub_choice
+
+			case "$sub_choice" in
+				1)
+					# 生成随机18位密码
+					random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+
+					docker_rum="docker run -d \
 						  --name=webtop-ubuntu \
 						  --security-opt seccomp=unconfined \
 						  -e PUID=1000 \
 						  -e PGID=1000 \
-						  -e TZ=Etc/UTC \
+						  -e TZ=Asia/Shanghai \
+						  -e LC_ALL=zh_CN.UTF-8 \
+						  -e CUSTOM_USER=admin \
+						  -e PASSWORD=$random_passwd \
 						  -e SUBFOLDER=/ \
 						  -e TITLE=Webtop \
-						  -p 3006:3000 \
-						  -v /home/docker/webtop/data:/config \
-						  -v /var/run/docker.sock:/var/run/docker.sock \
-						  --shm-size="1gb" \
+						  -p $docker_port:3000 \
+						  -v $docker_dir/data:/config \
+						  -v $docker_dir/Downloads:/home/abc/Downloads \
+						  --shm-size=\"1gb\" \
 						  --restart unless-stopped \
-						  lscr.io/linuxserver/webtop:ubuntu-kde"
+						  $docker_img"
 
-			docker_describe="webtop基于Ubuntu的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
-			docker_url="官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
+					# 启动容器
+					eval "$docker_rum"
 
+					echo ""
+					echo "$docker_name 已安装 ✅"
+					echo "webtop基于Ubuntu的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
+					echo "官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
+					echo ""
+					echo "访问地址:"
+					echo "http://$(curl -s ipv4.ip.sb):$docker_port"
+					echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
+					echo ""
+					echo "用户名: admin"
+					echo "密码: $random_passwd"
+					echo "⚠️ 此密码仅显示一次，请妥善保存！"
+					;;
+				2)
+					echo "更新功能暂未实现..."
+					;;
+				3)
+					echo "正在停止并删除容器 $docker_name ..."
+					docker stop $docker_name >/dev/null 2>&1
+					docker rm $docker_name >/dev/null 2>&1
 
-			  ;;
+					if [ $? -eq 0 ]; then
+						echo "容器已成功删除 ✅"
+					else
+						echo "⚠️ 容器不存在或删除失败"
+					fi
+
+					echo "正在删除本地目录 $docker_dir ..."
+					if [ -d "$docker_dir" ]; then
+						rm -rf "$docker_dir"
+						echo "目录已删除 ✅"
+					else
+						echo "⚠️ 本地目录不存在或已被删除"
+					fi
+
+					echo "Webtop 容器及数据已卸载完成 ✅"
+					;;
+				0)
+					echo "返回上一级菜单..."
+					;;
+				*)
+					echo "无效选项，请重新输入！"
+					;;
+			esac
+			;;
+
 		  7)
 			clear
 			send_stats "搭建哪吒"
@@ -6173,34 +6234,101 @@ linux_panel() {
 			docker_app
 			  ;;
 
-		  24)
+		24)
 			docker_name="webtop"
 			docker_img="lscr.io/linuxserver/webtop:latest"
 			docker_port=3083
-			docker_rum="docker run -d \
-						  --name=webtop \
-						  --security-opt seccomp=unconfined \
-						  -e PUID=1000 \
-						  -e PGID=1000 \
-						  -e TZ=Etc/UTC \
-						  -e SUBFOLDER=/ \
-						  -e TITLE=Webtop \
-						  -e LC_ALL=zh_CN.UTF-8 \
-						  -e DOCKER_MODS=linuxserver/mods:universal-package-install \
-						  -e INSTALL_PACKAGES=font-noto-cjk \
-						  -p 3083:3000 \
-						  -v /home/docker/webtop/data:/config \
-						  -v /var/run/docker.sock:/var/run/docker.sock \
-						  --shm-size="1gb" \
-						  --restart unless-stopped \
-						  lscr.io/linuxserver/webtop:latest"
+			docker_dir="/home/docker/webtop"
 
-			docker_describe="webtop基于 Alpine、Ubuntu、Fedora 和 Arch 的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
-			docker_url="官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+			clear
+			echo "------------------------"
+			echo "1. 安装"
+			echo "2. 更新（预留）"
+			echo "3. 卸载"
+			echo "------------------------"
+			echo "0. 返回上一级"
+			echo "------------------------"
+			echo -n "请输入你的选择: "
+			read sub_choice
+
+			case "$sub_choice" in
+				1)
+					# 生成随机18位密码
+					random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+
+					docker_rum="docker run -d \
+					  --name=webtop \
+					  --security-opt seccomp=unconfined \
+					  -e PUID=1000 \
+					  -e PGID=1000 \
+					  -e TZ=Asia/Shanghai \
+					  -e LC_ALL=zh_CN.UTF-8 \
+					  -e DOCKER_MODS=linuxserver/mods:universal-package-install \
+					  -e INSTALL_PACKAGES=font-noto-cjk \
+					  -e CUSTOM_USER=admin \
+					  -e PASSWORD=$random_passwd \
+					  -e SUBFOLDER=/ \
+					  -e TITLE=Webtop \
+					  -p $docker_port:3000 \
+					  -v $docker_dir/data:/config \
+					  -v $docker_dir/Downloads:/home/abc/Downloads \
+					  -v /var/run/docker.sock:/var/run/docker.sock \
+					  --shm-size=\"1gb\" \
+					  --restart unless-stopped \
+					  $docker_img"
+
+					# 启动容器
+					eval "$docker_rum"
+
+					echo ""
+					echo "安装完成"
+					echo ""
+					echo "$docker_name 已安装"
+					echo "webtop基于 Alpine、Ubuntu、Fedora 和 Arch 的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
+					echo "官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
+					echo "------------------------"
+					echo "Webtop 容器已安装完成 ✅"
+					echo ""
+					echo "访问地址:"
+					echo "http://$(curl -s ipv4.ip.sb):$docker_port"
+					echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
+					echo ""
+					echo "用户名: admin"
+					echo "密码: $random_passwd"
+					echo "⚠️ 此密码仅显示一次，请妥善保存！"
+					;;
+				2)
+					echo "更新功能暂未实现..."
+					;;
+				3)
+					echo "正在停止并删除容器 $docker_name ..."
+					docker stop $docker_name >/dev/null 2>&1
+					docker rm $docker_name >/dev/null 2>&1
+
+					if [ $? -eq 0 ]; then
+						echo "容器已成功删除 ✅"
+					else
+						echo "⚠️ 容器不存在或删除失败"
+					fi
+
+					echo "正在删除本地目录 $docker_dir ..."
+					if [ -d "$docker_dir" ]; then
+						rm -rf "$docker_dir"
+						echo "目录已删除 ✅"
+					else
+						echo "⚠️ 本地目录不存在或已被删除"
+					fi
+
+					echo "Webtop 容器及数据已卸载完成 ✅"
+					;;
+				0)
+					echo "返回上一级菜单..."
+					;;
+				*)
+					echo "无效选项，请重新输入！"
+					;;
+			esac
+			;;
 
 		  25)
 			docker_name="nextcloud-aio"
