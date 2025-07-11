@@ -7478,7 +7478,7 @@ EOF
 			clear
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
-			  ;;
+		  ;;
 
 		88)
 			# 添加本地接地 hosts 记录
