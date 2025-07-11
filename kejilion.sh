@@ -7552,7 +7552,7 @@ EOF
 
 				echo "🔧 正在恢复 MariaDB..."
 				apt update
-
+			  ;;
 
 		99)
 			show_installed_webtop(){
