@@ -7517,10 +7517,16 @@ EOF
 				echo "📦 开始备份 edge-admin 程序..."
 				tar czf "$program_tar" -C /home/cdn edge-admin
 
+				# 清理旧程序备份，仅保留最新 3 个
+				ls -1 "${edge_dir}/edge-"*.tar.gz 2>/dev/null | sort -r | tail -n +4 | xargs -r rm -f
+
 				echo "📦 开始备份 MariaDB 数据库..."
 				systemctl stop mariadb
 				tar czf "$db_tar" -C /var/lib mysql
 				systemctl start mariadb
+
+				# 清理旧数据库备份，仅保留最新 3 个
+				ls -1 "${db_dir}/mariadb-"*.tar.gz 2>/dev/null | sort -r | tail -n +4 | xargs -r rm -f
 
 				echo "✅ 备份完成："
 				echo "程序包: $program_tar"
@@ -7545,55 +7551,8 @@ EOF
 				fi
 
 				echo "🔧 正在恢复 MariaDB..."
-				apt update > /dev/null 2>&1
-				DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
+				apt update
 
-				# 配置数据库端口
-				sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
-
-				systemctl stop mariadb
-				rm -rf /var/lib/mysql/*
-				tar xzf "$chosen_db" -C /var/lib/
-				chown -R mysql:mysql /var/lib/mysql
-				systemctl start mariadb
-				systemctl enable mariadb
-
-				echo "🔧 正在恢复 edge-admin..."
-				mkdir -p /home/cdn
-				tar xzf "$chosen_program" -C /home/cdn/
-
-				# 启动 edge-admin
-				nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
-
-				# 设置开机自启
-				crontab -l 2>/dev/null | grep -q 'edge-admin' || (
-					(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
-				)
-
-				clear
-				echo "✅ edge-admin 恢复完成"
-				local_ip=$(hostname -I | awk '{print $1}')
-				echo "edge-admin 访问地址: http://$local_ip:7788"
-				exit 0
-
-			elif [ "$action" = "3" ]; then
-				echo "🧹 正在卸载 edge-admin 和 MariaDB..."
-				systemctl stop mariadb
-				systemctl disable mariadb
-				apt purge -y mariadb-server mariadb-common > /dev/null 2>&1
-				apt autoremove -y > /dev/null 2>&1
-				rm -rf /var/lib/mysql /etc/mysql
-				rm -rf /home/cdn/edge-admin
-				crontab -l | grep -v 'edge-admin' | crontab -
-
-				echo "✅ edge-admin 与数据库已卸载完成"
-				exit 0
-
-			else
-				echo "❌ 无效输入，请输入 1、2 或 3"
-				exit 1
-			fi
-			;;
 
 		99)
 			show_installed_webtop(){
