@@ -5572,7 +5572,7 @@ linux_panel() {
 						  -e CUSTOM_USER=admin \
 						  -e PASSWORD=$random_passwd \
 						  -e SUBFOLDER=/ \
-						  -e TITLE=我的网站Webtop \
+						  -e TITLE=我的网站目录 \
 						  -p $docker_port:3000 \
 						  -v $docker_dir/data:/config \
 						  -v $docker_dir/Downloads:/home/abc/Downloads \
@@ -6310,7 +6310,7 @@ linux_panel() {
 					  -e CUSTOM_USER=admin \
 					  -e PASSWORD=$random_passwd \
 					  -e SUBFOLDER=/ \
-					  -e TITLE=我的网站Webtop \
+					  -e TITLE=我的网站目录 \
 					  -p $docker_port:3000 \
 					  -v $docker_dir/data:/config \
 					  -v $docker_dir/Downloads:/home/abc/Downloads \
@@ -7691,7 +7691,7 @@ EOF
 								-e CUSTOM_USER=admin \
 								-e PASSWORD=$random_passwd \
 								-e SUBFOLDER=/ \
-								-e TITLE=我的网站Webtop \
+								-e TITLE=我的网站目录 \
 								-p $docker_port:3000 \
 								-v /home/docker/$docker_name/data:/config \
 								-v /home/docker/$docker_name/Downloads:/home/abc/Downloads \
