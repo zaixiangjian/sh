@@ -5382,9 +5382,8 @@ linux_panel() {
 
    
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}60.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}"
-   	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}88.  ${gl_bai}PVE开小鸡面板                      ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
+   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                          ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -7379,7 +7378,7 @@ EOF
 
 
 
-		  60)
+		  66)
 
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -7473,8 +7472,13 @@ EOF
 			exit 0
 		  ;;
 
+		  80)
+			clear
+			send_stats "PVE开小鸡"
+			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
+			  ;;
 
-		66)
+		88)
 			# 添加本地接地 hosts 记录
 			echo "正在添加本地 hosts 解析..."
 			for host in goedge.cloud goedge.cn dl.goedge.cloud dl.goedge.cn global.dl.goedge.cloud global.dl.goedge.cn; do
@@ -7584,13 +7588,6 @@ EOF
 				exit 1
 			fi
 			;;
-
-
-		  88)
-			clear
-			send_stats "PVE开小鸡"
-			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
-			  ;;
 
 		99)
 			show_installed_webtop(){
