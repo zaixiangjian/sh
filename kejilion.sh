@@ -7344,29 +7344,39 @@ EOF
 
 
 		  54)
-			# 创建目录
-			if [ ! -d /home/web/edge-admin ]; then
-				mkdir -p /home/web/edge-admin > /dev/null 2>&1
+
+			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
+			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
+			grep -q '127.0.0.1 dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 dl.goedge.cloud" >> /etc/hosts
+			grep -q '127.0.0.1 dl.goedge.cn' /etc/hosts || echo "127.0.0.1 dl.goedge.cn" >> /etc/hosts
+			grep -q '127.0.0.1 global.dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cloud" >> /etc/hosts
+			grep -q '127.0.0.1 global.dl.goedge.cn' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cn" >> /etc/hosts
+			grep -q '::1 goedge.cloud' /etc/hosts || echo "::1 goedge.cloud" >> /etc/hosts
+			grep -q '::1 goedge.cn' /etc/hosts || echo "::1 goedge.cn" >> /etc/hosts
+			grep -q '::1 dl.goedge.cloud' /etc/hosts || echo "::1 dl.goedge.cloud" >> /etc/hosts
+			grep -q '::1 dl.goedge.cn' /etc/hosts || echo "::1 dl.goedge.cn" >> /etc/hosts
+			grep -q '::1 global.dl.goedge.cloud' /etc/hosts || echo "::1 global.dl.goedge.cloud" >> /etc/hosts
+			grep -q '::1 global.dl.goedge.cn' /etc/hosts || echo "::1 global.dl.goedge.cn" >> /etc/hosts
+
+			# 创建安装目录
+			if [ ! -d /home/cdn ]; then
+				mkdir -p /home/cdn > /dev/null 2>&1
 			fi
 
-			# 下载并解压 edge-admin
-			wget -O /home/web/edge-admin/edge-admin.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.3.9/edge-admin-linux-amd64-plus-v1.3.9.zip > /dev/null 2>&1
-			unzip -o /home/web/edge-admin/edge-admin.zip -d /home/web/edge-admin/ > /dev/null 2>&1
+			# 下载并解压 edge-admin 到 /home/cdn
+			wget -O /home/cdn/edge-admin.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.3.9/edge-admin-linux-amd64-plus-v1.3.9.zip > /dev/null 2>&1
+			unzip -o /home/cdn/edge-admin.zip -d /home/cdn/ > /dev/null 2>&1
 
-			# 处理多一层目录结构
-			if [ -d /home/web/edge-admin/edge-admin ]; then
-				mv /home/web/edge-admin/edge-admin/* /home/web/edge-admin/
-				rm -rf /home/web/edge-admin/edge-admin
-			fi
 
-			chmod +x /home/web/edge-admin/bin/edge-admin
+			# 赋予执行权限
+			chmod +x /home/cdn/edge-admin/bin/edge-admin
 
 			# 启动 edge-admin 后台服务（无日志输出）
-			nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
+			nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
 
-			# 添加开机自启（无日志）
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
+			# 添加开机自启
+			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
+				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
 			)
 
 			# 安装 MariaDB
@@ -7376,13 +7386,14 @@ EOF
 			# 修改 MariaDB 配置，监听 3307 端口
 			sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
 
-			# 重启 MariaDB 服务
+			# 重启并设置开机启动
 			systemctl restart mariadb
 			systemctl enable mariadb
 
-			# 生成随机 root 密码（如果需要可自定义）
+			# 生成随机 root 密码
 			root_pass="RootPass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
-			# 设置 root 密码并允许本地连接
+
+			# 设置 root 密码
 			mysql -uroot <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_pass}';
 FLUSH PRIVILEGES;
@@ -7393,7 +7404,7 @@ EOF
 			db_user="edge_admin"
 			db_pass="EdgePass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
 
-			# 创建数据库及用户，赋予权限
+			# 创建数据库及用户
 			mysql -uroot -p"${root_pass}" <<EOF
 CREATE DATABASE IF NOT EXISTS \`${db_name}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';
@@ -7401,7 +7412,7 @@ GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 
-			# 输出数据库信息，方便用户填写
+			# 输出安装信息
 			clear
 			echo "edge-admin 已安装完成"
 			echo "-----------------------------------"
@@ -7410,11 +7421,12 @@ EOF
 			echo "数据库用户名: $db_user"
 			echo "数据库密码: $db_pass"
 			echo "数据库端口: 3307"
-			echo "edge-admin 访问地址: http://127.0.0.1:7788"
+
+			local_ip=$(hostname -I | awk '{print $1}')
+			echo "edge-admin 访问地址: http://$local_ip:7788"
 			echo "-----------------------------------"
 			echo "请使用以上数据库信息完成 edge-admin 安装配置页面填写"
 			echo ""
-
 			echo "------------------------"
 			echo "1. 安装            2. 更新            3. 卸载"
 			echo "------------------------"
