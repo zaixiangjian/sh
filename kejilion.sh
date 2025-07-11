@@ -5572,7 +5572,7 @@ linux_panel() {
 						  -e CUSTOM_USER=admin \
 						  -e PASSWORD=$random_passwd \
 						  -e SUBFOLDER=/ \
-						  -e TITLE=Webtop \
+						  -e TITLE=我的网站Webtop \
 						  -p $docker_port:3000 \
 						  -v $docker_dir/data:/config \
 						  -v $docker_dir/Downloads:/home/abc/Downloads \
@@ -6310,7 +6310,7 @@ linux_panel() {
 					  -e CUSTOM_USER=admin \
 					  -e PASSWORD=$random_passwd \
 					  -e SUBFOLDER=/ \
-					  -e TITLE=Webtop \
+					  -e TITLE=我的网站Webtop \
 					  -p $docker_port:3000 \
 					  -v $docker_dir/data:/config \
 					  -v $docker_dir/Downloads:/home/abc/Downloads \
@@ -7584,6 +7584,7 @@ EOF
 			    if docker ps -a --format '{{.Names}}' | grep -qw "$name"; then
 			      echo "已安装$i. $name"
 			      echo "访问地址: http://$(curl -s ipv4.ip.sb):$port"
+			      echo "访问地址: http://$(curl -s ipv6.ip.sb):$port"
 			      echo "介绍: $intro"
 			      echo "---------------------------------------------"
 			    fi
@@ -7676,6 +7677,7 @@ EOF
 							echo "---------------------------------------------"
 							echo "容器 $docker_name 已安装，跳过安装"
 							echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
+       							echo "访问地址: http://$(curl -s ipv6.ip.sb):$docker_port"
 							echo "---------------------------------------------"
 						else
 							random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
@@ -7689,7 +7691,7 @@ EOF
 								-e CUSTOM_USER=admin \
 								-e PASSWORD=$random_passwd \
 								-e SUBFOLDER=/ \
-								-e TITLE=Webtop \
+								-e TITLE=我的网站Webtop \
 								-p $docker_port:3000 \
 								-v /home/docker/$docker_name/data:/config \
 								-v /home/docker/$docker_name/Downloads:/home/abc/Downloads \
@@ -7698,6 +7700,7 @@ EOF
 								$docker_img
 							echo "安装完成"
 							echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
+							echo "访问地址: http://$(curl -s ipv6.ip.sb):$docker_port"
 							echo "用户名: admin"
 							echo "密码: $random_passwd"
 						fi
