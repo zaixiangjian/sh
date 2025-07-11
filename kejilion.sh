@@ -5376,13 +5376,15 @@ linux_panel() {
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8                      ${gl_kjlan}54.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}55.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8"
+
 
 
    
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}61.  ${gl_bai}PVE开小鸡面板                      ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}60.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}88.  ${gl_bai}PVE开小鸡面板                      ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -7343,7 +7345,41 @@ EOF
 			  ;;
 
 
-		  54)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		  60)
 
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -7438,28 +7474,18 @@ EOF
 		  ;;
 
 
-		  55)
+		66)
 			# 添加本地接地 hosts 记录
 			echo "正在添加本地 hosts 解析..."
-			# 添加 IPv4
-			echo "127.0.0.1 goedge.cloud" | tee -a /etc/hosts > /dev/null
-			echo "127.0.0.1 goedge.cn" | tee -a /etc/hosts > /dev/null
-			echo "127.0.0.1 dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
-			echo "127.0.0.1 dl.goedge.cn" | tee -a /etc/hosts > /dev/null
-			echo "127.0.0.1 global.dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
-			echo "127.0.0.1 global.dl.goedge.cn" | tee -a /etc/hosts > /dev/null
-			# 添加 IPv6
-			echo "::1 goedge.cloud" | tee -a /etc/hosts > /dev/null
-			echo "::1 goedge.cn" | tee -a /etc/hosts > /dev/null
-			echo "::1 dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
-			echo "::1 dl.goedge.cn" | tee -a /etc/hosts > /dev/null
-			echo "::1 global.dl.goedge.cloud" | tee -a /etc/hosts > /dev/null
-			echo "::1 global.dl.goedge.cn" | tee -a /dev/hosts > /dev/null
-			# 显示 hosts
+			for host in goedge.cloud goedge.cn dl.goedge.cloud dl.goedge.cn global.dl.goedge.cloud global.dl.goedge.cn; do
+				grep -q "127.0.0.1 $host" /etc/hosts || echo "127.0.0.1 $host" >> /etc/hosts
+				grep -q "::1 $host" /etc/hosts || echo "::1 $host" >> /etc/hosts
+			done
+
 			echo "=== /etc/hosts 当前内容 ==="
 			cat /etc/hosts
 
-			# 三选项功能
+			# 交互选项
 			echo ""
 			echo "请选择操作："
 			echo "1. 备份 edge-admin 和数据库"
@@ -7467,69 +7493,87 @@ EOF
 			echo "3. 卸载 edge-admin 和数据库"
 			read -p "请输入选项 [1-3]: " action
 
-			# 备份路径
-			backup_dir="/home/cdn"
-			program_tar="${backup_dir}/edge-admin-program.tar.gz"
-			db_tar="${backup_dir}/mariadb-data.tar.gz"
+			# 路径和文件名
+			backup_base="/home/cdn/备份"
+			edge_dir="${backup_base}/edge主程序"
+			db_dir="${backup_base}/数据库"
+			today=$(date +%Y%m%d)
+			program_tar="${edge_dir}/edge-${today}.tar.gz"
+			db_tar="${db_dir}/mariadb-${today}.tar.gz"
 
-			# 确保目录存在
-			if [ ! -d "$backup_dir" ]; then
-				mkdir -p "$backup_dir"
-			fi
+			mkdir -p "$edge_dir" "$db_dir"
 
 			if [ "$action" = "1" ]; then
 				echo "📦 开始备份 edge-admin 程序..."
-				tar czf "$program_tar" -C /home/web edge-admin
+				tar czf "$program_tar" -C /home/cdn edge-admin
 
 				echo "📦 开始备份 MariaDB 数据库..."
 				systemctl stop mariadb
 				tar czf "$db_tar" -C /var/lib mysql
 				systemctl start mariadb
 
-				echo "✅ 备份完成，文件保存在：$backup_dir"
+				echo "✅ 备份完成："
 				echo "程序包: $program_tar"
 				echo "数据库: $db_tar"
 				exit 0
 
 			elif [ "$action" = "2" ]; then
-				if [ ! -f "$program_tar" ] || [ ! -f "$db_tar" ]; then
-					echo "❌ 未找到备份文件：$program_tar 或 $db_tar"
+				# 列出可用备份
+				echo "📁 可用 edge-admin 程序备份："
+				ls -1 "${edge_dir}/edge-"*.tar.gz 2>/dev/null | sort -r
+				read -p "请输入程序备份文件名（直接回车使用最新）: " chosen_program
+				chosen_program=${chosen_program:-$(ls -1 "${edge_dir}/edge-"*.tar.gz 2>/dev/null | sort -r | head -n1)}
+
+				echo "📁 可用数据库备份："
+				ls -1 "${db_dir}/mariadb-"*.tar.gz 2>/dev/null | sort -r
+				read -p "请输入数据库备份文件名（直接回车使用最新）: " chosen_db
+				chosen_db=${chosen_db:-$(ls -1 "${db_dir}/mariadb-"*.tar.gz 2>/dev/null | sort -r | head -n1)}
+
+				if [ ! -f "$chosen_program" ] || [ ! -f "$chosen_db" ]; then
+					echo "❌ 未找到备份文件"
 					exit 1
 				fi
 
+				echo "🔧 正在恢复 MariaDB..."
 				apt update > /dev/null 2>&1
 				DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
 
-				# 恢复数据库配置端口为3307
+				# 配置数据库端口
 				sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
 
 				systemctl stop mariadb
 				rm -rf /var/lib/mysql/*
-				tar xzf "$db_tar" -C /var/lib/
+				tar xzf "$chosen_db" -C /var/lib/
 				chown -R mysql:mysql /var/lib/mysql
 				systemctl start mariadb
 				systemctl enable mariadb
 
-				mkdir -p /home/web
-				tar xzf "$program_tar" -C /home/web/
+				echo "🔧 正在恢复 edge-admin..."
+				mkdir -p /home/cdn
+				tar xzf "$chosen_program" -C /home/cdn/
 
-				nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
-				crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
-					(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
+				# 启动 edge-admin
+				nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
+
+				# 设置开机自启
+				crontab -l 2>/dev/null | grep -q 'edge-admin' || (
+					(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
 				)
 
 				clear
 				echo "✅ edge-admin 恢复完成"
-				echo "访问地址: http://127.0.0.1:7788"
+				local_ip=$(hostname -I | awk '{print $1}')
+				echo "edge-admin 访问地址: http://$local_ip:7788"
 				exit 0
 
 			elif [ "$action" = "3" ]; then
+				echo "🧹 正在卸载 edge-admin 和 MariaDB..."
 				systemctl stop mariadb
 				systemctl disable mariadb
 				apt purge -y mariadb-server mariadb-common > /dev/null 2>&1
 				apt autoremove -y > /dev/null 2>&1
 				rm -rf /var/lib/mysql /etc/mysql
-				rm -rf /home/web/edge-admin
+				rm -rf /home/cdn/edge-admin
 				crontab -l | grep -v 'edge-admin' | crontab -
 
 				echo "✅ edge-admin 与数据库已卸载完成"
@@ -7539,23 +7583,10 @@ EOF
 				echo "❌ 无效输入，请输入 1、2 或 3"
 				exit 1
 			fi
-		  ;;
+			;;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-		  61)
+		  88)
 			clear
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
