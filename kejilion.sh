@@ -5382,7 +5382,7 @@ linux_panel() {
 
    
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}61.  ${gl_bai}PVE开小鸡面板"
+	  echo -e "${gl_kjlan}61.  ${gl_bai}PVE开小鸡面板                      ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -5548,8 +5548,9 @@ linux_panel() {
 			clear
 			echo "------------------------"
 			echo "1. 安装"
-			echo "2. 更新（预留）"
+			echo "2. 备份"
 			echo "3. 卸载"
+			echo "4. 恢复最新备份"
 			echo "------------------------"
 			echo "0. 返回上一级"
 			echo "------------------------"
@@ -5596,7 +5597,15 @@ linux_panel() {
 					echo "⚠️ 此密码仅显示一次，请妥善保存！"
 					;;
 				2)
-					echo "更新功能暂未实现..."
+					echo "正在备份 Webtop 数据..."
+					backup_file="/home/docker/webtop_backup_$(date +%F_%H%M%S).tar.gz"
+					tar -czvf "$backup_file" -C /home/docker webtop
+					if [ $? -eq 0 ]; then
+						echo "备份完成 ✅"
+						echo "备份文件: $backup_file"
+					else
+						echo "⚠️ 备份失败"
+					fi
 					;;
 				3)
 					echo "正在停止并删除容器 $docker_name ..."
@@ -5619,6 +5628,35 @@ linux_panel() {
 
 					echo "Webtop 容器及数据已卸载完成 ✅"
 					;;
+				4)
+					echo "正在查找最新的备份文件..."
+					latest_backup=$(ls -t /home/docker/webtop_backup_*.tar.gz 2>/dev/null | head -n 1)
+
+					if [ -z "$latest_backup" ]; then
+						echo "⚠️ 未找到任何备份文件"
+					else
+						echo "找到备份文件: $latest_backup"
+						echo "正在恢复备份..."
+
+						# 停止容器
+						docker stop $docker_name >/dev/null 2>&1
+
+						# 删除原数据
+						rm -rf "$docker_dir"
+
+						# 解压备份
+						tar -xzvf "$latest_backup" -C /home/docker
+
+						# 重启容器
+						docker restart $docker_name >/dev/null 2>&1
+
+						if [ $? -eq 0 ]; then
+							echo "恢复并重启容器成功 ✅"
+						else
+							echo "⚠️ 恢复失败或容器启动失败"
+						fi
+					fi
+					;;
 				0)
 					echo "返回上一级菜单..."
 					;;
@@ -5627,6 +5665,7 @@ linux_panel() {
 					;;
 			esac
 			;;
+
 
 
 
@@ -6245,8 +6284,9 @@ linux_panel() {
 			clear
 			echo "------------------------"
 			echo "1. 安装"
-			echo "2. 更新（预留）"
+			echo "2. 备份"
 			echo "3. 卸载"
+			echo "4. 恢复最新备份"
 			echo "------------------------"
 			echo "0. 返回上一级"
 			echo "------------------------"
@@ -6299,7 +6339,15 @@ linux_panel() {
 					echo "⚠️ 此密码仅显示一次，请妥善保存！"
 					;;
 				2)
-					echo "更新功能暂未实现..."
+					echo "正在备份 Webtop 数据..."
+					backup_file="/home/docker/webtop_backup_$(date +%F_%H%M%S).tar.gz"
+					tar -czvf "$backup_file" -C /home/docker webtop
+					if [ $? -eq 0 ]; then
+						echo "备份完成 ✅"
+						echo "备份文件: $backup_file"
+					else
+						echo "⚠️ 备份失败"
+					fi
 					;;
 				3)
 					echo "正在停止并删除容器 $docker_name ..."
@@ -6322,6 +6370,35 @@ linux_panel() {
 
 					echo "Webtop 容器及数据已卸载完成 ✅"
 					;;
+				4)
+					echo "正在查找最新的备份文件..."
+					latest_backup=$(ls -t /home/docker/webtop_backup_*.tar.gz 2>/dev/null | head -n 1)
+
+					if [ -z "$latest_backup" ]; then
+						echo "⚠️ 未找到任何备份文件"
+					else
+						echo "找到备份文件: $latest_backup"
+						echo "正在恢复备份..."
+
+						# 停止容器
+						docker stop $docker_name >/dev/null 2>&1
+
+						# 删除原数据
+						rm -rf "$docker_dir"
+
+						# 解压备份
+						tar -xzvf "$latest_backup" -C /home/docker
+
+						# 重启容器
+						docker restart $docker_name >/dev/null 2>&1
+
+						if [ $? -eq 0 ]; then
+							echo "恢复并重启容器成功 ✅"
+						else
+							echo "⚠️ 恢复失败或容器启动失败"
+						fi
+					fi
+					;;
 				0)
 					echo "返回上一级菜单..."
 					;;
@@ -6330,6 +6407,7 @@ linux_panel() {
 					;;
 			esac
 			;;
+
 
 		  25)
 			docker_name="nextcloud-aio"
@@ -7470,6 +7548,198 @@ EOF
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
 			  ;;
+
+		99)
+			show_installed_webtop(){
+			  local installed=0
+			  echo "---------------------------------------------"
+			  for i in {1..24}; do
+			    case $i in
+			      1) name="webtop-ubuntu-kde";  img="lscr.io/linuxserver/webtop:ubuntu-kde"; port=3001; intro="资源占用高，KDE桌面，完整桌面体验";;
+			      2) name="webtop-latest";      img="lscr.io/linuxserver/webtop:latest";     port=3002; intro="轻量 Alpine + XFCE，资源占用低，基础桌面";;
+			      3) name="webtop-arch-kde";    img="lscr.io/linuxserver/webtop:arch-kde";   port=3003; intro="Arch Linux，KDE桌面，前沿软件，资源占用高";;
+			      4) name="webtop-ubuntu-gnome";img="lscr.io/linuxserver/webtop:ubuntu-gnome"; port=3004; intro="Ubuntu，GNOME桌面，现代风格，资源中等";;
+			      5) name="webtop-fedora-xfce"; img="lscr.io/linuxserver/webtop:fedora-xfce";  port=3005; intro="Fedora，XFCE桌面，轻量且稳定";;
+			      6) name="webtop-ubuntu-xfce"; img="lscr.io/linuxserver/webtop:ubuntu-xfce";  port=3006; intro="Ubuntu，XFCE桌面，轻量，资源低";;
+			      7) name="webtop-ubuntu-mate"; img="lscr.io/linuxserver/webtop:ubuntu-mate";  port=3007; intro="Ubuntu，MATE桌面，传统界面，中等资源";;
+			      8) name="webtop-ubuntu-i3";   img="lscr.io/linuxserver/webtop:ubuntu-i3";    port=3008; intro="Ubuntu，i3窗口管理器，极简，高效";;
+			      9) name="webtop-arch-xfce";   img="lscr.io/linuxserver/webtop:arch-xfce";    port=3009; intro="Arch，XFCE，轻量，滚动更新";;
+			      10) name="webtop-arch-mate";  img="lscr.io/linuxserver/webtop:arch-mate";   port=3010; intro="Arch，MATE，传统桌面，较轻量";;
+			      11) name="webtop-arch-i3";    img="lscr.io/linuxserver/webtop:arch-i3";     port=3011; intro="Arch，i3，极简窗口管理";;
+			      12) name="webtop-debian-xfce";img="lscr.io/linuxserver/webtop:debian-xfce"; port=3012; intro="Debian，XFCE，稳定，轻量";;
+			      13) name="webtop-debian-mate";img="lscr.io/linuxserver/webtop:debian-mate"; port=3013; intro="Debian，MATE，传统桌面，稳定";;
+			      14) name="webtop-debian-i3";  img="lscr.io/linuxserver/webtop:debian-i3";   port=3014; intro="Debian，i3，极简，稳定";;
+			      15) name="webtop-debian-kde"; img="lscr.io/linuxserver/webtop:debian-kde";  port=3015; intro="Debian，KDE，稳定，资源较高";;
+			      16) name="webtop-fedora-mate";img="lscr.io/linuxserver/webtop:fedora-mate"; port=3016; intro="Fedora，MATE，轻量且现代";;
+			      17) name="webtop-fedora-kde"; img="lscr.io/linuxserver/webtop:fedora-kde";  port=3017; intro="Fedora，KDE，现代桌面，资源中高";;
+			      18) name="webtop-fedora-i3";  img="lscr.io/linuxserver/webtop:fedora-i3";   port=3018; intro="Fedora，i3，极简，高效";;
+			      19) name="webtop-el-xfce";    img="lscr.io/linuxserver/webtop:el-xfce";     port=3019; intro="Enterprise Linux，XFCE，稳定";;
+			      20) name="webtop-el-mate";    img="lscr.io/linuxserver/webtop:el-mate";     port=3020; intro="Enterprise Linux，MATE，稳定";;
+			      21) name="webtop-el-i3";      img="lscr.io/linuxserver/webtop:el-i3";       port=3021; intro="Enterprise Linux，i3，极简";;
+			      22) name="webtop-alpine-xfce";img="lscr.io/linuxserver/webtop:alpine-xfce"; port=3022; intro="Alpine，XFCE，极轻量，基础桌面";;
+			      23) name="webtop-alpine-mate";img="lscr.io/linuxserver/webtop:alpine-mate"; port=3023; intro="Alpine，MATE，轻量桌面";;
+			      24) name="webtop-alpine-i3";  img="lscr.io/linuxserver/webtop:alpine-i3";   port=3024; intro="Alpine，i3，极简窗口管理器";;
+			    esac
+
+			    if docker ps -a --format '{{.Names}}' | grep -qw "$name"; then
+			      echo "已安装$i. $name"
+			      echo "访问地址: http://$(curl -s ipv4.ip.sb):$port"
+			      echo "介绍: $intro"
+			      echo "---------------------------------------------"
+			    fi
+			  done
+			}
+
+			clear
+			show_installed_webtop
+
+			echo "==== Webtop 镜像版本管理 ===="
+			echo "请选择镜像版本："
+			echo " 1. ubuntu-kde      【资源占用高，KDE桌面，完整桌面体验】"
+			echo " 2. latest          【轻量 Alpine + XFCE，资源占用低，基础桌面】"
+			echo " 3. arch-kde        【Arch Linux，KDE桌面，前沿软件，资源占用高】"
+			echo " 4. ubuntu-gnome    【Ubuntu，GNOME桌面，现代风格，资源中等】"
+			echo " 5. fedora-xfce     【Fedora，XFCE桌面，轻量且稳定】"
+			echo " 6. ubuntu-xfce     【Ubuntu，XFCE桌面，轻量，资源低】"
+			echo " 7. ubuntu-mate     【Ubuntu，MATE桌面，传统界面，中等资源】"
+			echo " 8. ubuntu-i3       【Ubuntu，i3窗口管理器，极简，高效】"
+			echo " 9. arch-xfce       【Arch，XFCE，轻量，滚动更新】"
+			echo "10. arch-mate       【Arch，MATE，传统桌面，较轻量】"
+			echo "11. arch-i3         【Arch，i3，极简窗口管理】"
+			echo "12. debian-xfce     【Debian，XFCE，稳定，轻量】"
+			echo "13. debian-mate     【Debian，MATE，传统桌面，稳定】"
+			echo "14. debian-i3       【Debian，i3，极简，稳定】"
+			echo "15. debian-kde      【Debian，KDE，稳定，资源较高】"
+			echo "16. fedora-mate     【Fedora，MATE，轻量且现代】"
+			echo "17. fedora-kde      【Fedora，KDE，现代桌面，资源中高】"
+			echo "18. fedora-i3       【Fedora，i3，极简，高效】"
+			echo "19. el-xfce         【Enterprise Linux，XFCE，稳定】"
+			echo "20. el-mate         【Enterprise Linux，MATE，稳定】"
+			echo "21. el-i3           【Enterprise Linux，i3，极简】"
+			echo "22. alpine-xfce     【Alpine，XFCE，极轻量，基础桌面】"
+			echo "23. alpine-mate     【Alpine，MATE，轻量桌面】"
+			echo "24. alpine-i3       【Alpine，i3，极简窗口管理器】"
+			echo "0. 返回上一级"
+			echo -n "请输入你的选择(数字): "
+			read img_choice
+
+			case "$img_choice" in
+				1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3001;;
+				2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3002;;
+				3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3003;;
+				4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3004;;
+				5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3005;;
+				6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3006;;
+				7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3007;;
+				8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3008;;
+				9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3009;;
+				10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3010;;
+				11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=3011;;
+				12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3012;;
+				13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3013;;
+				14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3014;;
+				15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3015;;
+				16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3016;;
+				17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3017;;
+				18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3018;;
+				19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3019;;
+				20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3020;;
+				21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3021;;
+				22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3022;;
+				23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3023;;
+				24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3024;;
+				0)
+					echo "返回上一级"
+					;;
+				*)
+					echo "无效输入"
+					;;
+			esac
+
+			if [[ "$img_choice" =~ ^[1-9][0-9]*$ ]] && [ "$img_choice" -ge 1 ] && [ "$img_choice" -le 24 ]; then
+				clear
+				echo "选择镜像：$docker_img"
+				echo "容器名：$docker_name"
+				echo "端口号：$docker_port"
+				echo "操作："
+				echo " 1. 安装"
+				echo " 2. 备份"
+				echo " 3. 卸载"
+				echo " 4. 恢复最新备份"
+				echo " 0. 返回上一级"
+				echo -n "请输入操作编号: "
+				read op_choice
+
+				case "$op_choice" in
+					1)
+						if docker ps -a --format '{{.Names}}' | grep -qw "$docker_name"; then
+							echo "---------------------------------------------"
+							echo "容器 $docker_name 已安装，跳过安装"
+							echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
+							echo "---------------------------------------------"
+						else
+							random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+							docker run -d \
+								--name=$docker_name \
+								--security-opt seccomp=unconfined \
+								-e PUID=1000 \
+								-e PGID=1000 \
+								-e TZ=Asia/Shanghai \
+								-e LC_ALL=zh_CN.UTF-8 \
+								-e CUSTOM_USER=admin \
+								-e PASSWORD=$random_passwd \
+								-e SUBFOLDER=/ \
+								-e TITLE=Webtop \
+								-p $docker_port:3000 \
+								-v /home/docker/$docker_name/data:/config \
+								-v /home/docker/$docker_name/Downloads:/home/abc/Downloads \
+								--shm-size="1gb" \
+								--restart unless-stopped \
+								$docker_img
+							echo "安装完成"
+							echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
+							echo "用户名: admin"
+							echo "密码: $random_passwd"
+						fi
+						;;
+					2)
+						backup_file="/home/docker/${docker_name}_backup_$(date +%F_%H%M%S).tar.gz"
+						tar -czvf "$backup_file" -C /home/docker "$docker_name"
+						echo "备份完成，文件: $backup_file"
+						;;
+					3)
+						docker stop $docker_name >/dev/null 2>&1
+						docker rm $docker_name >/dev/null 2>&1
+						rm -rf /home/docker/$docker_name
+						echo "容器和数据已删除"
+						;;
+					4)
+						latest_backup=$(ls -t /home/docker/${docker_name}_backup_*.tar.gz 2>/dev/null | head -n 1)
+						if [ -z "$latest_backup" ]; then
+							echo "未找到备份文件"
+						else
+							echo "恢复备份文件: $latest_backup"
+							docker stop $docker_name >/dev/null 2>&1
+							rm -rf /home/docker/$docker_name
+							tar -xzvf "$latest_backup" -C /home/docker
+							docker restart $docker_name >/dev/null 2>&1
+							echo "恢复完成并重启容器"
+						fi
+						;;
+					0)
+						echo "返回上一级"
+						;;
+					*)
+						echo "无效操作"
+						;;
+				esac
+			fi
+			;;
+
+
+
+
+
 		  0)
 			  kejilion
 			  ;;
