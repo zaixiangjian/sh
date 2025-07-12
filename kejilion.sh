@@ -7397,6 +7397,10 @@ EOF
 			if [ ! -d /home/cdn ]; then
 				mkdir -p /home/cdn > /dev/null 2>&1
 			fi
+   
+			if [ ! -d /home/cdn/备份 ]; then
+				mkdir -p /home/cdn/备份 > /dev/null 2>&1
+			fi
 
 			# 下载并解压 edge-admin 到 /home/cdn
 			wget -O /home/cdn/edge-admin.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.3.9/edge-admin-linux-amd64-plus-v1.3.9.zip > /dev/null 2>&1
@@ -7418,8 +7422,8 @@ EOF
 			apt update > /dev/null 2>&1
 			DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
 
-			# 修改 MariaDB 配置，监听 3307 端口
-			sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
+			# 修改 MariaDB 配置，监听 7789 端口
+			sed -i '/^\[mysqld\]/a port=7789' /etc/mysql/mariadb.conf.d/50-server.cnf
 
 			# 重启并设置开机启动
 			systemctl restart mariadb
@@ -7455,7 +7459,7 @@ EOF
 			echo "数据库名称: $db_name"
 			echo "数据库用户名: $db_user"
 			echo "数据库密码: $db_pass"
-			echo "数据库端口: 3307"
+			echo "数据库端口: 7789"
 
 			local_ip=$(hostname -I | awk '{print $1}')
 			echo "edge-admin 访问地址: http://$local_ip:7788"
@@ -7581,7 +7585,7 @@ EOF
 
 				apt update > /dev/null 2>&1
 				DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
-				sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
+				sed -i '/^\[mysqld\]/a port=7789' /etc/mysql/mariadb.conf.d/50-server.cnf
 
 				systemctl stop mariadb
 				rm -rf /var/lib/mysql
