@@ -7537,26 +7537,41 @@ EOF
 				exit 0
 
 			elif [ "$action" = "2" ]; then
+				# edge-admin 备份选择
 				echo ""
 				echo "📂 当前可用 edge-admin 备份："
 				ls "$backup_dir"/edge-*.tar.gz 2>/dev/null | nl
 				echo ""
-				read -p "请输入要恢复的版本编号（回车恢复最新）: " version_index
+				read -p "请输入要恢复的 edge-admin 版本编号（回车恢复最新）: " edge_index
 
 				edge_list=( $(ls -t "$backup_dir"/edge-*.tar.gz 2>/dev/null) )
-				db_list=( $(ls -t "$backup_dir"/mariadb-*.tar.gz 2>/dev/null) )
-
-				if [ -z "${edge_list[0]}" ] || [ -z "${db_list[0]}" ]; then
-					echo "❌ 找不到备份文件"
+				if [ -z "${edge_list[0]}" ]; then
+					echo "❌ 找不到 edge-admin 备份文件"
 					exit 1
 				fi
-
-				if [[ -z "$version_index" ]]; then
+				if [[ -z "$edge_index" ]]; then
 					program_tar="${edge_list[0]}"
+				else
+					index=$((edge_index - 1))
+					program_tar="${edge_list[$index]}"
+				fi
+
+				# mariadb 备份选择
+				echo ""
+				echo "📂 当前可用 mysql 备份："
+				ls "$backup_dir"/mariadb-*.tar.gz 2>/dev/null | nl
+				echo ""
+				read -p "请输入要恢复的 mysql 版本编号（回车恢复最新）: " db_index
+
+				db_list=( $(ls -t "$backup_dir"/mariadb-*.tar.gz 2>/dev/null) )
+				if [ -z "${db_list[0]}" ]; then
+					echo "❌ 找不到 mysql 备份文件"
+					exit 1
+				fi
+				if [[ -z "$db_index" ]]; then
 					db_tar="${db_list[0]}"
 				else
-					index=$((version_index - 1))
-					program_tar="${edge_list[$index]}"
+					index=$((db_index - 1))
 					db_tar="${db_list[$index]}"
 				fi
 
@@ -7572,14 +7587,18 @@ EOF
 				rm -rf /var/lib/mysql
 				tar xzf "$db_tar" -C /var/lib
 				chown -R mysql:mysql /var/lib/mysql
-				systemctl start mariadb
+
+				# 恢复完毕后重启数据库
+				systemctl restart mariadb
 				systemctl enable mariadb
 
 				rm -rf "$base_dir/edge-admin"
 				tar xzf "$program_tar" -C "$base_dir"
 
+				# 启动 edge-admin
 				nohup "$base_dir/edge-admin/bin/edge-admin" start > /dev/null 2>&1 &
 
+				# 设置开机自启
 				crontab -l 2>/dev/null | grep -q "edge-admin/bin/edge-admin start" || (
 					(crontab -l 2>/dev/null; echo "@reboot sleep 10 && nohup $base_dir/edge-admin/bin/edge-admin start > /dev/null 2>&1 &") | crontab -
 				)
