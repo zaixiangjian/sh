@@ -7474,85 +7474,136 @@ EOF
 			exit 0
 		  ;;
 
+
 		  80)
 			clear
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
 		  ;;
 
-		88)
-			# 添加本地接地 hosts 记录
-			echo "正在添加本地 hosts 解析..."
-			for host in goedge.cloud goedge.cn dl.goedge.cloud dl.goedge.cn global.dl.goedge.cloud global.dl.goedge.cn; do
-				grep -q "127.0.0.1 $host" /etc/hosts || echo "127.0.0.1 $host" >> /etc/hosts
-				grep -q "::1 $host" /etc/hosts || echo "::1 $host" >> /etc/hosts
-			done
 
+		  88)
+			echo "正在添加本地 hosts 解析..."
+			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
+			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
+			grep -q '127.0.0.1 dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 dl.goedge.cloud" >> /etc/hosts
+			grep -q '127.0.0.1 dl.goedge.cn' /etc/hosts || echo "127.0.0.1 dl.goedge.cn" >> /etc/hosts
+			grep -q '127.0.0.1 global.dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cloud" >> /etc/hosts
+			grep -q '127.0.0.1 global.dl.goedge.cn' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cn" >> /etc/hosts
+			grep -q '::1 goedge.cloud' /etc/hosts || echo "::1 goedge.cloud" >> /etc/hosts
+			grep -q '::1 goedge.cn' /etc/hosts || echo "::1 goedge.cn" >> /etc/hosts
+			grep -q '::1 dl.goedge.cloud' /etc/hosts || echo "::1 dl.goedge.cloud" >> /etc/hosts
+			grep -q '::1 dl.goedge.cn' /etc/hosts || echo "::1 dl.goedge.cn" >> /etc/hosts
+			grep -q '::1 global.dl.goedge.cloud' /etc/hosts || echo "::1 global.dl.goedge.cloud" >> /etc/hosts
+			grep -q '::1 global.dl.goedge.cn' /etc/hosts || echo "::1 global.dl.goedge.cn" >> /etc/hosts
 			echo "=== /etc/hosts 当前内容 ==="
 			cat /etc/hosts
 
-			# 交互选项
 			echo ""
 			echo "请选择操作："
 			echo "1. 备份 edge-admin 和数据库"
-			echo "2. 恢复 edge-admin 和数据库"
+			echo "2. 恢复 edge-admin 和数据库（可选版本）"
 			echo "3. 卸载 edge-admin 和数据库"
-   			echo "-----------------------------------"
-			echo "激活商业版"
-			echo "F4BuVYEKSDWV+I13ISd5NUyBcWOlH0af4/ow9obzYBS3XvYC9IsK86k5UDyyBv9vqJWN2/FQTDbPyuAO0zxYlkLDC0c8rrShs+7PAkqM0O8wBIGknzForgidDZahky5Lo/ZWaPZ1dVFUxmV29ykb0I0b4tv7Q3OtnTylOuzf//MYrlvyw6VJQMGnsttmeHzsNL/r0yDONOEXZoGoLZsuBKnkfXt+qt6bZF+kM1ncbh+sY42BrPTWQ12sXqJS3qHlzU0FFl9lTNzLGYYhq5vi/4sJuPVE50/uLCtslTJdb9zOGR915hnM+jHYsR+jUk0QxOqtreaHpsvNuLkexXbkmA=="
-			echo "------------------------"
 			read -p "请输入选项 [1-3]: " action
 
-			# 路径和文件名
-			backup_base="/home/cdn/备份"
-			edge_dir="${backup_base}/edge主程序"
-			db_dir="${backup_base}/数据库"
-			today=$(date +%Y%m%d)
-			program_tar="${edge_dir}/edge-${today}.tar.gz"
-			db_tar="${db_dir}/mariadb-${today}.tar.gz"
-
-			mkdir -p "$edge_dir" "$db_dir"
+			base_dir="/home/cdn"
+			backup_dir="${base_dir}/备份"
+			mkdir -p "$backup_dir"
 
 			if [ "$action" = "1" ]; then
+				timestamp=$(date +"%Y%m%d%H%M%S")
+				program_tar="${backup_dir}/edge-${timestamp}.tar.gz"
+				db_tar="${backup_dir}/mariadb-${timestamp}.tar.gz"
+
 				echo "📦 开始备份 edge-admin 程序..."
 				tar czf "$program_tar" -C /home/cdn edge-admin
-
-				# 清理旧程序备份，仅保留最新 3 个
-				ls -1 "${edge_dir}/edge-"*.tar.gz 2>/dev/null | sort -r | tail -n +4 | xargs -r rm -f
 
 				echo "📦 开始备份 MariaDB 数据库..."
 				systemctl stop mariadb
 				tar czf "$db_tar" -C /var/lib mysql
 				systemctl start mariadb
 
-				# 清理旧数据库备份，仅保留最新 3 个
-				ls -1 "${db_dir}/mariadb-"*.tar.gz 2>/dev/null | sort -r | tail -n +4 | xargs -r rm -f
+				echo "🧹 保留最新的 3 个程序和数据库备份..."
+				ls -tp "$backup_dir"/edge-*.tar.gz 2>/dev/null | grep -v '/$' | tail -n +4 | xargs -r rm -f
+				ls -tp "$backup_dir"/mariadb-*.tar.gz 2>/dev/null | grep -v '/$' | tail -n +4 | xargs -r rm -f
 
-				echo "✅ 备份完成："
-				echo "程序包: $program_tar"
-				echo "数据库: $db_tar"
+				echo "✅ 已完成备份："
+				echo "程序：$program_tar"
+				echo "数据库：$db_tar"
 				exit 0
 
 			elif [ "$action" = "2" ]; then
-				# 列出可用备份
-				echo "📁 可用 edge-admin 程序备份："
-				ls -1 "${edge_dir}/edge-"*.tar.gz 2>/dev/null | sort -r
-				read -p "请输入程序备份文件名（直接回车使用最新）: " chosen_program
-				chosen_program=${chosen_program:-$(ls -1 "${edge_dir}/edge-"*.tar.gz 2>/dev/null | sort -r | head -n1)}
+				echo ""
+				echo "📂 当前可用 edge-admin 备份："
+				ls "$backup_dir"/edge-*.tar.gz 2>/dev/null | nl
+				echo ""
+				read -p "请输入要恢复的版本编号（回车恢复最新）: " version_index
 
-				echo "📁 可用数据库备份："
-				ls -1 "${db_dir}/mariadb-"*.tar.gz 2>/dev/null | sort -r
-				read -p "请输入数据库备份文件名（直接回车使用最新）: " chosen_db
-				chosen_db=${chosen_db:-$(ls -1 "${db_dir}/mariadb-"*.tar.gz 2>/dev/null | sort -r | head -n1)}
+				edge_list=( $(ls -t "$backup_dir"/edge-*.tar.gz 2>/dev/null) )
+				db_list=( $(ls -t "$backup_dir"/mariadb-*.tar.gz 2>/dev/null) )
 
-				if [ ! -f "$chosen_program" ] || [ ! -f "$chosen_db" ]; then
-					echo "❌ 未找到备份文件"
+				if [ -z "${edge_list[0]}" ] || [ -z "${db_list[0]}" ]; then
+					echo "❌ 找不到备份文件"
 					exit 1
 				fi
 
-				echo "🔧 正在恢复 MariaDB..."
-				apt update
-			  ;;
+				if [[ -z "$version_index" ]]; then
+					program_tar="${edge_list[0]}"
+					db_tar="${db_list[0]}"
+				else
+					index=$((version_index - 1))
+					program_tar="${edge_list[$index]}"
+					db_tar="${db_list[$index]}"
+				fi
+
+				echo "🔄 正在恢复："
+				echo "程序备份：$program_tar"
+				echo "数据库备份：$db_tar"
+
+				apt update > /dev/null 2>&1
+				DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
+				sed -i '/^\[mysqld\]/a port=3307' /etc/mysql/mariadb.conf.d/50-server.cnf
+
+				systemctl stop mariadb
+				rm -rf /var/lib/mysql
+				tar xzf "$db_tar" -C /var/lib
+				chown -R mysql:mysql /var/lib/mysql
+				systemctl start mariadb
+				systemctl enable mariadb
+
+				rm -rf "$base_dir/edge-admin"
+				tar xzf "$program_tar" -C "$base_dir"
+
+				nohup "$base_dir/edge-admin/bin/edge-admin" start > /dev/null 2>&1 &
+
+				crontab -l 2>/dev/null | grep -q "edge-admin/bin/edge-admin start" || (
+					(crontab -l 2>/dev/null; echo "@reboot sleep 10 && nohup $base_dir/edge-admin/bin/edge-admin start > /dev/null 2>&1 &") | crontab -
+				)
+
+				clear
+				echo "✅ 恢复完成"
+				local_ip=$(hostname -I | awk '{print $1}')
+				echo "edge-admin 访问地址: http://$local_ip:7788"
+				exit 0
+
+			elif [ "$action" = "3" ]; then
+				systemctl stop mariadb
+				systemctl disable mariadb
+				apt purge -y mariadb-server mariadb-common > /dev/null 2>&1
+				apt autoremove -y > /dev/null 2>&1
+				rm -rf /var/lib/mysql /etc/mysql
+				rm -rf "$base_dir/edge-admin"
+				crontab -l | grep -v 'edge-admin' | crontab -
+				echo "✅ edge-admin 与数据库已卸载"
+				exit 0
+
+			else
+				echo "❌ 输入无效"
+				exit 1
+			fi
+		  ;;
+
+
 
 		99)
 			show_installed_webtop(){
