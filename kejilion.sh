@@ -7504,6 +7504,10 @@ EOF
 			echo "1. 备份 edge-admin 和数据库"
 			echo "2. 恢复 edge-admin 和数据库（可选版本）"
 			echo "3. 卸载 edge-admin 和数据库"
+   			echo "-----------------------------------"
+			echo "激活商业版"
+			echo "F4BuVYEKSDWV+I13ISd5NUyBcWOlH0af4/ow9obzYBS3XvYC9IsK86k5UDyyBv9vqJWN2/FQTDbPyuAO0zxYlkLDC0c8rrShs+7PAkqM0O8wBIGknzForgidDZahky5Lo/ZWaPZ1dVFUxmV29ykb0I0b4tv7Q3OtnTylOuzf//MYrlvyw6VJQMGnsttmeHzsNL/r0yDONOEXZoGoLZsuBKnkfXt+qt6bZF+kM1ncbh+sY42BrPTWQ12sXqJS3qHlzU0FFl9lTNzLGYYhq5vi/4sJuPVE50/uLCtslTJdb9zOGR915hnM+jHYsR+jUk0QxOqtreaHpsvNuLkexXbkmA=="
+			echo "------------------------"
 			read -p "请输入选项 [1-3]: " action
 
 			base_dir="/home/cdn"
