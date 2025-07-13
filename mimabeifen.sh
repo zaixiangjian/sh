@@ -1,14 +1,6 @@
 #!/bin/bash
 
-# 设置备份目录
-BACKUP_DIR="/home/密码"
-SOURCE_DIR="/home/web/vaultwarden"
 
-# 创建目录（如果不存在）
-if [ ! -d "$BACKUP_DIR" ]; then
-  mkdir -p "$BACKUP_DIR"
-  chmod 700 "$BACKUP_DIR"
-fi
 # Create a tar archive of the web directory
 cd /home/web/ && tar czvf /home/密码/mima_$(date +"%Y%m%d%H%M%S").tar.gz vaultwarden
 
