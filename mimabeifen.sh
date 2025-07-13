@@ -1,5 +1,5 @@
 #!/bin/bash
-
+mkdir -p /home/密码/
 
 # Create a tar archive of the web directory
 cd /home/web/ && tar czvf /home/密码/mima_$(date +"%Y%m%d%H%M%S").tar.gz vaultwarden
