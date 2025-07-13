@@ -5376,7 +5376,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8"
+	  echo -e "${gl_kjlan}53.  ${gl_bai}openlist4.0.8                      ${gl_kjlan}54.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}"
 
 
 
@@ -7343,8 +7343,135 @@ EOF
 			docker_app
 			  ;;
 
+		  54)
 
+			clear
+			echo "Nexterm - 基于 Web 的终端访问工具"
+			echo "GitHub 地址"
+			echo "https://github.com/gnmyt/Nexterm"
+			echo "功能介绍: 使用浏览器远程访问主机终端，支持加密会话与多用户协作"
+			echo
+			echo "1. 安装 Nexterm"
+			echo "2. 备份 Nexterm"
+			echo "3. 卸载 Nexterm"
+			echo "4. 恢复 Nexterm"
+			read -p "请输入操作编号: " sub_choice
 
+			nexterm_dir="/home/docker/nexterm"
+			backup_dir="/home/docker"
+			backup_prefix="nexterm"
+			backup_limit=3
+			docker_name="nexterm"
+			docker_img="germannewsmaker/nexterm:1.0.5-OPEN-PREVIEW"
+			docker_port=6989
+
+			local_ip=$(hostname -I | awk '{print $1}')
+			ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+
+			case "$sub_choice" in
+				1)
+					if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
+						echo "$docker_name 已经安装完成"
+						echo "------------------------"
+						echo "访问地址:"
+						echo "http://${local_ip}:${docker_port}"
+						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
+					else
+						encryption_key=$(openssl rand -hex 32)
+						mkdir -p $nexterm_dir
+
+						docker run -d \
+							--name $docker_name \
+							-e ENCRYPTION_KEY=$encryption_key \
+							--restart always \
+							-p ${docker_port}:6989 \
+							-v $nexterm_dir:/app/data \
+							$docker_img
+
+						echo "$docker_name 已经安装完成"
+						echo "------------------------"
+						echo "https://github.com/gnmyt/Nexterm"
+						echo "通过 SSH、VNC 和 RDP 远程连接，通过 SFTP 管理文件"
+						echo "访问地址:"
+						echo "http://${local_ip}:${docker_port}"
+						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
+						echo "加密密钥为: $encryption_key"
+					fi
+					;;
+				2)
+					timestamp=$(date +%Y%m%d%H%M%S)
+					backup_file="${backup_prefix}-${timestamp}.tar.gz"
+					tar -czf "${backup_dir}/${backup_file}" -C "$nexterm_dir" .
+					echo "备份已保存为: ${backup_dir}/${backup_file}"
+
+					# 删除多余的旧备份，保留最新3个
+					find "$backup_dir" -name "${backup_prefix}-*.tar.gz" | sort -r | sed -n '4,$p' | xargs -r rm -f
+					;;
+				3)
+					read -p "确认卸载 Nexterm？将删除容器和 $nexterm_dir 目录 [y/N]: " confirm
+					if [[ "$confirm" =~ ^[Yy]$ ]]; then
+						docker rm -f $docker_name 2>/dev/null
+						rm -rf "$nexterm_dir"
+						echo "Nexterm 已卸载完成"
+					else
+						echo "操作已取消"
+					fi
+					;;
+				4)
+					echo "可用备份文件："
+					backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+					if [ ${#backups[@]} -eq 0 ]; then
+						echo "无可用备份"
+						break
+					fi
+
+					for i in "${!backups[@]}"; do
+						echo "$((i+1)). $(basename ${backups[$i]})"
+					done
+					read -p "请输入备份编号（留空则恢复最新）: " sel
+
+					if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
+						restore_file="${backups[$((sel-1))]}"
+					else
+						restore_file="${backups[0]}"
+					fi
+
+					echo "恢复自: $(basename $restore_file)"
+					read -p "请输入原始加密密钥（必填，恢复后用于重新启动服务）: " encryption_key
+					if [ -z "$encryption_key" ]; then
+						echo "未输入密钥，操作取消。"
+						break
+					fi
+
+					docker rm -f $docker_name 2>/dev/null
+					rm -rf "$nexterm_dir"
+					mkdir -p "$nexterm_dir"
+					tar -xzf "$restore_file" -C "$nexterm_dir"
+
+					echo "恢复完成。正在重新运行安装启动服务。"
+
+					docker run -d \
+						--name $docker_name \
+						-e ENCRYPTION_KEY=$encryption_key \
+						--restart always \
+						-p ${docker_port}:6989 \
+						-v $nexterm_dir:/app/data \
+						$docker_img
+
+					echo "------------------------"
+					echo "$docker_name 已重新启动"
+					echo "访问地址:"
+					echo "http://${local_ip}:${docker_port}"
+					[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
+					echo "加密密钥为: $encryption_key"
+					;;
+				*)
+					echo "无效选项"
+					;;
+			esac
+
+			read -p "按任意键继续..." -n1
+			  ;;
 
 
 
