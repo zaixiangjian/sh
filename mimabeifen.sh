@@ -1,9 +1,10 @@
 #!/bin/bash
 
-# 目标备份目录
-BACKUP_DIR="/home/mima"
+# 设置备份目录
+BACKUP_DIR="/home/密码"
+SOURCE_DIR="/home/web/vaultwarden"
 
-# 如果目录不存在则创建
+# 创建目录（如果不存在）
 if [ ! -d "$BACKUP_DIR" ]; then
   mkdir -p "$BACKUP_DIR"
   chmod 700 "$BACKUP_DIR"
