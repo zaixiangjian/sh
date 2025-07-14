@@ -392,25 +392,24 @@ EOF
 
 
 
-  # ----------- 新增：Vaultwarden 监控服务安装启动 -------------
+# ----------- 新增：Vaultwarden 监控服务安装启动 -------------
+echo "------------------------"
+echo "安装 Vaultwarden 监控服务并启用..."
 
-  echo "------------------------"
-  echo "安装 Vaultwarden 监控服务并启用..."
-
-  # 安装 inotify-tools
-  if ! command -v inotifywait > /dev/null 2>&1; then
-    echo "inotify-tools 未安装，尝试安装..."
-    if grep -qi "ubuntu\|debian" /etc/os-release; then
-      apt-get update && apt-get install -y inotify-tools
-    elif grep -qi "centos\|redhat" /etc/os-release; then
-      yum install -y inotify-tools
-    fi
-  else
-    echo "inotify-tools 已安装，跳过"
+# 判断 inotify-tools 是否已安装
+if ! command -v inotifywait > /dev/null 2>&1; then
+  echo "inotify-tools 未安装，尝试安装..."
+  if grep -qi "ubuntu\|debian" /etc/os-release; then
+    apt-get update && apt-get install -y inotify-tools
+  elif grep -qi "centos\|redhat" /etc/os-release; then
+    yum install -y inotify-tools
   fi
+else
+  echo "inotify-tools 已安装，跳过"
+fi
 
-  # 创建 jiankong.sh 监控脚本
-  cat > /home/web/vaultwarden/jiankong.sh << 'EOF'
+# 创建 jiankong.sh 监控脚本
+cat > /home/web/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
 WATCH_FILES="/home/web/vaultwarden/data/db.sqlite3 /home/web/vaultwarden/data/db.sqlite3-shm /home/web/vaultwarden/data/db.sqlite3-wal"
@@ -421,10 +420,10 @@ inotifywait -m -e modify,create,delete $WATCH_FILES | while read path action fil
 done
 EOF
 
-  chmod +x /home/web/vaultwarden/jiankong.sh
+chmod +x /home/web/vaultwarden/jiankong.sh
 
-  # 创建 systemd 服务文件
-  cat > /etc/systemd/system/vaultwarden-watch.service << EOF
+# 创建 systemd 服务文件
+cat > /etc/systemd/system/vaultwarden-watch.service << EOF
 [Unit]
 Description=Vaultwarden 数据库监控备份
 After=network.target
@@ -440,13 +439,13 @@ WorkingDirectory=/home/web/vaultwarden/
 WantedBy=multi-user.target
 EOF
 
-  # 启用并启动服务
-  systemctl daemon-reexec
-  systemctl daemon-reload
-  systemctl enable vaultwarden-watch
-  systemctl restart vaultwarden-watch
+# 启用并启动服务
+systemctl daemon-reexec
+systemctl daemon-reload
+systemctl enable vaultwarden-watch
+systemctl restart vaultwarden-watch
 
-  echo "Vaultwarden 监控服务已启动并设为开机自启。"
-  systemctl status vaultwarden-watch --no-pager
+echo "Vaultwarden 监控服务已启动并设为开机自启。"
+systemctl status vaultwarden-watch --no-pager
 
   ;;
