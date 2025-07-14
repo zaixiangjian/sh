@@ -14,7 +14,7 @@ tar -czvf /home/密码/mima_$(date +%Y%m%d%H%M%S).tar.gz -C /home/web vaultwarde
 # ssh-keygen -f "/root/.ssh/known_hosts" -R "103.234.53.1"
 
 #                                                                                         别忘记哈希加密
-ls -t /home/web/beifen/*.tar.gz | head -1 | xargs -I {} sshpass -p '密码' scp -o StrictHostKeyChecking=no -P 22 {} root@1.1.1.1:/home/密码
+ls -t /home/密码/*.tar.gz | head -1 | xargs -I {} sshpass -p '密码' scp -o StrictHostKeyChecking=no -P 22 {} root@1.1.1.1:/home/密码
 
 
 
