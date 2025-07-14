@@ -5378,7 +5378,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
 	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                      ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                      ${gl_kjlan}56.  ${gl_bai}网站密码自动备份合并 ${gl_huang}★${gl_bai}"
 
    
 	  echo -e "${gl_kjlan}------------------------"
