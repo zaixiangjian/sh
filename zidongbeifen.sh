@@ -103,8 +103,8 @@
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
-          mkdir -p /root/beifen
-          cd /root/beifen || exit 1
+          mkdir -p /home/web/beifen
+          cd /home/web/beifen || exit 1
 
           wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/beifen.sh
           chmod +x beifen.sh
@@ -114,9 +114,9 @@
 
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/root/beifen/beifen_tmp.sh"
-          OBFUSCATED_SCRIPT="/root/beifen/beifen_obf.sh"
-          OUTPUT_BIN="/root/beifen/beifen.x"
+          TMP_SCRIPT="/home/web/beifen/beifen_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/web/beifen/beifen_obf.sh"
+          OUTPUT_BIN="/home/web/beifen/beifen.x"
 
           cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -181,8 +181,8 @@ EOF
           esac
           ;;
         2)
-          mkdir -p /root/beifen
-          cd /root/beifen || exit 1
+          mkdir -p /home/web/beifen
+          cd /home/web/beifen || exit 1
 
           wget -q -O chuansong.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/chuansong.sh
           chmod +x chuansong.sh
@@ -195,9 +195,9 @@ EOF
 
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/root/beifen/chuansong_tmp.sh"
-          OBFUSCATED_SCRIPT="/root/beifen/chuansong_obf.sh"
-          OUTPUT_BIN="/root/beifen/chuansong.x"
+          TMP_SCRIPT="/home/web/beifen/chuansong_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/web/beifen/chuansong_obf.sh"
+          OUTPUT_BIN="/home/web/beifen/chuansong.x"
 
           cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
