@@ -1,4 +1,9 @@
-33)
+#!/bin/bash
+
+# 自动化定时备份+传送脚本，适用于主脚本中 curl <zidongbeifen.sh> 直接调用
+# 注意：本脚本应独立运行，不含 case/33) 标签或 menu 结构
+
+
   clear
   send_stats "定时远程备份+传送"
 
