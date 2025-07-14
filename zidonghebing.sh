@@ -515,10 +515,15 @@ EOF
     cat > /home/web/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
+# 设置监控的数据库文件
 WATCH_FILES="/home/web/vaultwarden/data/db.sqlite3 /home/web/vaultwarden/data/db.sqlite3-shm /home/web/vaultwarden/data/db.sqlite3-wal"
 
-inotifywait -m -e modify,create,delete $WATCH_FILES | while read path action file; do
-    echo "$(date '+%F %T') 检测到变化: $file (动作: $action)"
+# 使用 inotifywait 监控数据库文件的变化
+inotifywait -m -e modify,create,delete $WATCH_FILES |
+while read path action file; do
+    echo "Change detected in file: $file (Action: $action)"
+    
+    # 在文件变化时运行备份脚本
     /home/web/vaultwarden/beifen.x
 done
 EOF
