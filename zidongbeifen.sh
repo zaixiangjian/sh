@@ -103,8 +103,8 @@
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
-          mkdir -p /home/web/beifen
-          cd /home/web/beifen || exit 1
+          mkdir -p /root/beifen
+          cd /root/beifen || exit 1
 
           wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/beifen.sh
           chmod +x beifen.sh
@@ -114,9 +114,9 @@
 
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/home/web/beifen/beifen_tmp.sh"
-          OBFUSCATED_SCRIPT="/home/web/beifen/beifen_obf.sh"
-          OUTPUT_BIN="/home/web/beifen/beifen.x"
+          TMP_SCRIPT="/root/beifen/beifen_tmp.sh"
+          OBFUSCATED_SCRIPT="/root/beifen/beifen_obf.sh"
+          OUTPUT_BIN="/root/beifen/beifen.x"
 
           cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -181,8 +181,8 @@ EOF
           esac
           ;;
         2)
-          mkdir -p /home/web/beifen
-          cd /home/web/beifen || exit 1
+          mkdir -p /root/beifen
+          cd /root/beifen || exit 1
 
           wget -q -O chuansong.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/chuansong.sh
           chmod +x chuansong.sh
@@ -195,9 +195,9 @@ EOF
 
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/home/web/beifen/chuansong_tmp.sh"
-          OBFUSCATED_SCRIPT="/home/web/beifen/chuansong_obf.sh"
-          OUTPUT_BIN="/home/web/beifen/chuansong.x"
+          TMP_SCRIPT="/root/beifen/chuansong_tmp.sh"
+          OBFUSCATED_SCRIPT="/root/beifen/chuansong_obf.sh"
+          OUTPUT_BIN="/root/beifen/chuansong.x"
 
           cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -281,4 +281,252 @@ EOF
             echo "传送脚本不可执行或不存在"
           fi
           ;;
+        *)
+          echo "操作取消"
+          ;;
+      esac
+
+      ;;
+
+
+	34)
+	  root_use
+	  send_stats "LDNMP环境还原"
+	  echo "可用的站点备份"
+	  echo "-------------------------"
+	  ls -lt /home/*.gz | awk '{print $NF}'
+	  echo ""
+	  read -e -p  "回车键还原最新的备份，输入备份文件名还原指定的备份，输入0退出：" filename
+
+	  if [ "$filename" == "0" ]; then
+		  break_end
+		  linux_ldnmp
+	  fi
+
+	  # 如果用户没有输入文件名，使用最新的压缩包
+	  if [ -z "$filename" ]; then
+		  filename=$(ls -t /home/*.tar.gz | head -1)
+	  fi
+
+	  if [ -n "$filename" ]; then
+		  cd /home/web/ > /dev/null 2>&1
+		  docker compose down > /dev/null 2>&1
+		  rm -rf /home/web > /dev/null 2>&1
+
+		  echo -e "${gl_huang}正在解压 $filename ...${gl_bai}"
+		  cd /home/ && tar -xzf "$filename"
+
+		  check_port
+		  install_dependency
+		  install_docker
+		  install_certbot
+		  install_ldnmp
+	  else
+		  echo "没有找到压缩包。"
+	  fi
+
+	  ;;
+
+	35)
+	  send_stats "LDNMP环境防御"
+	  while true; do
+		if docker inspect fail2ban &>/dev/null ; then
+
+			  clear
+			  echo "服务器防御程序已启动"
+			  echo "------------------------"
+			  echo "1. 开启SSH防暴力破解              2. 关闭SSH防暴力破解"
+			  echo "3. 开启网站保护                   4. 关闭网站保护"
+			  echo "------------------------"
+			  echo "5. 查看SSH拦截记录                6. 查看网站拦截记录"
+			  echo "7. 查看防御规则列表               8. 查看日志实时监控"
+			  echo "------------------------"
+			  echo "11. 配置拦截参数"
+			  echo "------------------------"
+			  echo "21. cloudflare模式                22. 高负载开启5秒盾"
+			  echo "------------------------"
+			  echo "9. 卸载防御程序"
+			  echo "------------------------"
+			  echo "0. 退出"
+			  echo "------------------------"
+			  read -e -p "请输入你的选择: " sub_choice
+			  case $sub_choice in
+				  1)
+					  sed -i 's/false/true/g' /path/to/fail2ban/config/fail2ban/jail.d/alpine-ssh.conf
+					  sed -i 's/false/true/g' /path/to/fail2ban/config/fail2ban/jail.d/linux-ssh.conf
+					  sed -i 's/false/true/g' /path/to/fail2ban/config/fail2ban/jail.d/centos-ssh.conf
+					  f2b_status
+					  ;;
+				  2)
+					  sed -i 's/true/false/g' /path/to/fail2ban/config/fail2ban/jail.d/alpine-ssh.conf
+					  sed -i 's/true/false/g' /path/to/fail2ban/config/fail2ban/jail.d/linux-ssh.conf
+					  sed -i 's/true/false/g' /path/to/fail2ban/config/fail2ban/jail.d/centos-ssh.conf
+					  f2b_status
+					  ;;
+				  3)
+					  sed -i 's/false/true/g' /path/to/fail2ban/config/fail2ban/jail.d/nginx-docker-cc.conf
+					  f2b_status
+					  ;;
+				  4)
+					  sed -i 's/true/false/g' /path/to/fail2ban/config/fail2ban/jail.d/nginx-docker-cc.conf
+					  f2b_status
+					  ;;
+				  5)
+					  echo "------------------------"
+					  f2b_sshd
+					  echo "------------------------"
+					  ;;
+				  6)
+
+					  echo "------------------------"
+					  xxx=fail2ban-nginx-cc
+					  f2b_status_xxx
+					  echo "------------------------"
+					  xxx=docker-nginx-bad-request
+					  f2b_status_xxx
+					  echo "------------------------"
+					  xxx=docker-nginx-botsearch
+					  f2b_status_xxx
+					  echo "------------------------"
+					  xxx=docker-nginx-http-auth
+					  f2b_status_xxx
+					  echo "------------------------"
+					  xxx=docker-nginx-limit-req
+					  f2b_status_xxx
+					  echo "------------------------"
+					  xxx=docker-php-url-fopen
+					  f2b_status_xxx
+					  echo "------------------------"
+
+					  ;;
+
+				  7)
+					  docker exec -it fail2ban fail2ban-client status
+					  ;;
+				  8)
+					  tail -f /path/to/fail2ban/config/log/fail2ban/fail2ban.log
+
+					  ;;
+				  9)
+					  docker rm -f fail2ban
+					  rm -rf /path/to/fail2ban
+					  crontab -l | grep -v "CF-Under-Attack.sh" | crontab - 2>/dev/null
+					  echo "Fail2Ban防御程序已卸载"
+					  break
+					  ;;
+
+				  11)
+					  install nano
+					  nano /path/to/fail2ban/config/fail2ban/jail.d/nginx-docker-cc.conf
+					  f2b_status
+
+					  break
+					  ;;
+				  21)
+					  send_stats "cloudflare模式"
+					  echo "到cf后台右上角我的个人资料，选择左侧API令牌，获取Global API Key"
+					  echo "https://dash.cloudflare.com/login"
+					  read -e -p "输入CF的账号: " cfuser
+					  read -e -p "输入CF的Global API Key: " cftoken
+
+					  wget -O /home/web/conf.d/default.conf ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/nginx/main/default11.conf
+					  docker restart nginx
+
+					  cd /path/to/fail2ban/config/fail2ban/jail.d/
+					  curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/config/main/fail2ban/nginx-docker-cc.conf
+
+					  cd /path/to/fail2ban/config/fail2ban/action.d
+					  curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/config/main/fail2ban/cloudflare-docker.conf
+
+					  sed -i "@outlook.com/$cfuser/g" /path/to/fail2ban/config/fail2ban/action.d/cloudflare-docker.conf
+					  sed -i "s/APIKEY00000/$cftoken/g" /path/to/fail2ban/config/fail2ban/action.d/cloudflare-docker.conf
+					  f2b_status
+
+					  echo "已配置cloudflare模式，可在cf后台，站点-安全性-事件中查看拦截记录"
+					  ;;
+
+				  22)
+					  send_stats "高负载开启5秒盾"
+					  echo -e "${gl_huang}网站每5分钟自动检测，当达检测到高负载会自动开盾，低负载也会自动关闭5秒盾。${gl_bai}"
+					  echo "--------------"
+					  echo "获取CF参数: "
+					  echo -e "到cf后台右上角我的个人资料，选择左侧API令牌，获取${gl_huang}Global API Key${gl_bai}"
+					  echo -e "到cf后台域名概要页面右下方获取${gl_huang}区域ID${gl_bai}"
+					  echo "https://dash.cloudflare.com/login"
+					  echo "--------------"
+					  read -e -p "输入CF的账号: " cfuser
+					  read -e -p "输入CF的Global API Key: " cftoken
+					  read -e -p "输入CF中域名的区域ID: " cfzonID
+
+					  cd ~
+					  install jq bc
+					  check_crontab_installed
+					  curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/CF-Under-Attack.sh
+					  chmod +x CF-Under-Attack.sh
+					  sed -i "s/AAAA/$cfuser/g" ~/CF-Under-Attack.sh
+					  sed -i "s/BBBB/$cftoken/g" ~/CF-Under-Attack.sh
+					  sed -i "s/CCCC/$cfzonID/g" ~/CF-Under-Attack.sh
+
+					  cron_job="*/5 * * * * ~/CF-Under-Attack.sh"
+
+					  existing_cron=$(crontab -l 2>/dev/null | grep -F "$cron_job")
+
+					  if [ -z "$existing_cron" ]; then
+						  (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
+						  echo "高负载自动开盾脚本已添加"
+					  else
+						  echo "自动开盾脚本已存在，无需添加"
+					  fi
+
+					  ;;
+				  0)
+					  break
+					  ;;
+				  *)
+					  echo "无效的选择，请重新输入。"
+					  ;;
+			  esac
+		elif [ -x "$(command -v fail2ban-client)" ] ; then
+			clear
+			echo "卸载旧版fail2ban"
+			read -e -p "确定继续吗？(Y/N): " choice
+			case "$choice" in
+			  [Yy])
+				remove fail2ban
+				rm -rf /etc/fail2ban
+				echo "Fail2Ban防御程序已卸载"
+				;;
+			  [Nn])
+				echo "已取消"
+				;;
+			  *)
+				echo "无效的选择，请输入 Y 或 N。"
+				;;
+			esac
+
+		else
+			clear
+			install_docker
+
+
+			wget -O /home/web/nginx.conf ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/nginx/main/nginx10.conf
+			wget -O /home/web/conf.d/default.conf ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/nginx/main/default10.conf
+			default_server_ssl
+			nginx_upgrade
+
+			f2b_install_sshd
+			cd /path/to/fail2ban/config/fail2ban/filter.d
+			curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/fail2ban-nginx-cc.conf
+			cd /path/to/fail2ban/config/fail2ban/jail.d/
+			curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/config/main/fail2ban/nginx-docker-cc.conf
+			sed -i "/cloudflare/d" /path/to/fail2ban/config/fail2ban/jail.d/nginx-docker-cc.conf
+
+			f2b_status
+			cd ~
+
+			echo "防御程序已开启"
+		fi
+	  break_end
+	  done
+
 		;;
