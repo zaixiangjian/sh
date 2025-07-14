@@ -5383,7 +5383,9 @@ linux_panel() {
    
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
-   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                          ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+      	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -8034,6 +8036,27 @@ EOF
 				esac
 			fi
 			;;
+
+		  100)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongbeifen.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+
+
+		  101)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongmima.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+
+
+
+
 
 
 
