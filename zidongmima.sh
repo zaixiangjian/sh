@@ -282,6 +282,100 @@ EOF
         echo "传送脚本不可执行或不存在"
       fi
       ;;
+
+
+
+
+
+
+
+
+
+
+    6)
+      echo "------------------------"
+      echo "恢复 Vaultwarden 数据库备份..."
+      
+      # 停止 Vaultwarden 容器
+      docker stop vaultwarden
+      echo "Vaultwarden 已停止"
+
+      # 列出 /home/密码 目录中的所有备份文件
+      backup_dir="/home/密码"
+      backups=$(ls -t $backup_dir/mima_*.tar.gz)
+
+      if [ -z "$backups" ]; then
+        echo "没有找到备份文件，无法恢复！"
+        exit 1
+      fi
+
+      echo "备份文件列表："
+      echo "------------------------"
+      i=1
+      for backup in $backups; do
+        echo "$i. $backup"
+        i=$((i+1))
+      done
+
+      # 提示用户选择备份文件（默认为最新备份）
+      read -e -p "请输入要恢复的备份编号（回车恢复最新）： " restore_choice
+
+      if [ -z "$restore_choice" ]; then
+        # 如果用户回车，则恢复最新备份
+        restore_file=$(echo "$backups" | head -n 1)
+      else
+        # 否则恢复用户指定的备份
+        restore_file=$(echo "$backups" | sed -n "${restore_choice}p")
+      fi
+
+      if [ -z "$restore_file" ]; then
+        echo "无效的选择，恢复失败！"
+        exit 1
+      fi
+
+      echo "正在恢复备份：$restore_file"
+
+      # 解压备份文件
+      tar -xvzf "$restore_file" -C /home/web
+
+      # 检查解压是否成功
+      if [ $? -eq 0 ]; then
+        echo "备份恢复成功！"
+      else
+        echo "备份恢复失败！"
+        exit 1
+      fi
+
+      # 重启 Vaultwarden 容器
+      docker start vaultwarden
+      echo "Vaultwarden 已重启"
+
+      ;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     *)
       echo "操作取消"
       ;;
