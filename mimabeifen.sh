@@ -21,3 +21,6 @@ ls -t /home/密码/*.tar.gz | head -1 | xargs -I {} sshpass -p '密码' scp -o S
 # Keep only 5 tar archives in /home/beifen/ and delete the rest
 cd /home/密码/ && ls -t *.tar.gz | tail -n +10 | xargs -I {} rm {}
 
+cd /home/博客/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
+cd /home/论坛/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
+cd /home/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
