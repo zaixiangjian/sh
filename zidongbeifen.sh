@@ -96,7 +96,7 @@
       echo "3. 删除备份/传送任务"
       echo "4. 测试某个备份任务"
       echo "5. 测试某个传送任务"
-      echo "6. 论坛传送"
+      echo "6. 论坛传送任务"
       read -e -p "请选择操作编号: " action
 
       case $action in
