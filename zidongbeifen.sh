@@ -286,7 +286,7 @@ EOF
 
 
 
-        6)
+        6) 
           mkdir -p /home
           cd /home || exit 1
 
@@ -322,17 +322,26 @@ EOF
 
           rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" luntanbeifen.sh
 
-          read -e -p "每几天备份一次（例如3天）: " interval
+
+          # 新增：选择间隔天数传送
+          read -e -p "每几天传送一次（如：2 表示每2天）: " interval
           read -e -p "每天几点传送（0-23）: " chuan_hour
           read -e -p "每天几分传送（0-59）: " chuan_min
 
           if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
             echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
           else
-            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * $OUTPUT_BIN") | crontab -
-            echo "已设置每天 ${chuan_hour}点${chuan_min}分 自动传送"
+            # 如果用户设置了间隔天数，则使用类似 "*/N" 的格式
+            if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
+              (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour */$interval * * $OUTPUT_BIN") | crontab -
+              echo "已设置每${interval}天 ${chuan_hour}点${chuan_min}分进行传送"
+            else
+              (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * $OUTPUT_BIN") | crontab -
+              echo "已设置每天 ${chuan_hour}点${chuan_min}分自动传送"
+            fi
           fi
           ;;
+
 
 
 
