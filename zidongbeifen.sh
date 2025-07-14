@@ -285,6 +285,7 @@ EOF
 
 
 
+
         6)
           mkdir -p /home
           cd /home || exit 1
@@ -321,6 +322,7 @@ EOF
 
           rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" luntanbeifen.sh
 
+          read -e -p "每几天备份一次（例如3）: " interval
           read -e -p "每天几点传送（0-23）: " chuan_hour
           read -e -p "每天几分传送（0-59）: " chuan_min
 
