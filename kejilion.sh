@@ -1869,12 +1869,12 @@ clear
 dd_xitong() {
 		send_stats "重装系统"
 		dd_xitong_MollyLau() {
-			wget --no-check-certificate -qO InstallNET.sh "${gh_proxy}https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh" && chmod a+x InstallNET.sh
+			wget --no-check-certificate -qO InstallNET.sh "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/Tools/master/Linux_reinstall/InstallNET.sh" && chmod a+x InstallNET.sh
 
 		}
 
 		dd_xitong_bin456789() {
-			curl -O ${gh_proxy}https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh
+			curl -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/reinstall/main/reinstall.sh
 		}
 
 		dd_xitong_1() {
@@ -1914,6 +1914,11 @@ dd_xitong() {
 			echo -e "${gl_hong}注意: ${gl_bai}重装有风险失联，不放心者慎用。重装预计花费15分钟，请提前备份数据。"
 			echo -e "${hui}感谢MollyLau大佬和bin456789大佬的脚本支持！${gl_bai} "
 			echo "------------------------"
+			echo "原地址1"
+			echo "			wget --no-check-certificate -qO InstallNET.sh "${gh_proxy}https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh" && chmod a+x InstallNET.sh"
+			echo "原地址2"
+			echo "			curl -O ${gh_proxy}https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh"
+   			echo "------------------------"
 			echo "1. Debian 12                  2. Debian 11"
 			echo "3. Debian 10                  4. Debian 9"
 			echo "------------------------"
@@ -3899,6 +3904,9 @@ linux_Oracle() {
 		  clear
 		  echo "重装系统"
 		  echo "--------------------------------"
+    		  echo "原地址"
+    		  echo "			  bash <(wget --no-check-certificate -qO- "${gh_proxy}https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh") $xitong -v 64 -p $vpspasswd -port 22"
+    		  echo "--------------------------------"
 		  echo -e "${gl_hong}注意: ${gl_bai}重装有风险失联，不放心者慎用。重装预计花费15分钟，请提前备份数据。"
 		  read -e -p "确定继续吗？(Y/N): " choice
 
@@ -3924,7 +3932,7 @@ linux_Oracle() {
 
 			  read -e -p "请输入你重装后的密码: " vpspasswd
 			  install wget
-			  bash <(wget --no-check-certificate -qO- "${gh_proxy}https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh") $xitong -v 64 -p $vpspasswd -port 22
+			  bash <(wget --no-check-certificate -qO- "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/Note/master/InstallNET.sh") $xitong -v 64 -p $vpspasswd -port 22
 			  send_stats "甲骨文云重装系统脚本"
 			  ;;
 			[Nn])
