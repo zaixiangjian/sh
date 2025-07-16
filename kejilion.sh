@@ -5394,7 +5394,7 @@ linux_panel() {
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
       	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}102.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}                       ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}102.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}                ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
