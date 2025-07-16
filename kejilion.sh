@@ -8090,7 +8090,7 @@ EOF
 
 		    echo "------------------------"
 		    # 读取用户输入
-		    read -e -p "请输入本地目录路径（如 /home/web/wangpan 或 /home/web/wangpan/）: " local_path
+		    read -e -p "请输入本地目录路径（如 /home/web/wangpan/）: " local_path
 		    # 如果本地路径末尾没有 /，则自动添加
 		    [[ "$local_path" != */ ]] && local_path="${local_path}/"
 
