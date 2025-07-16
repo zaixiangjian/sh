@@ -5386,7 +5386,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
 	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                      ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                      ${gl_kjlan}56.  ${gl_bai}网站密码自动备份合并 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}"
 
    
 	  echo -e "${gl_kjlan}------------------------"
@@ -5394,6 +5394,7 @@ linux_panel() {
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
       	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}102.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}                       ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -7570,12 +7571,6 @@ EOF
 			docker_app
 			  ;;
 
-		  56)
-		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
-		    echo "✅ 远程备份与传送模块执行完成。"
-		    ;;
 
 
 
@@ -8064,6 +8059,75 @@ EOF
 		    echo "▶️ 正在启动定时远程备份与传送模块..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongmima.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+		  102)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+		  103)
+		    clear
+		    echo "▶️ 正在准备使用 rsync 手动传送文件夹..."
+
+		    # 检查并安装 rsync
+		    if ! command -v rsync > /dev/null 2>&1; then
+		        echo "⏳ 未检测到 rsync，正在安装中..."
+		        apt update > /dev/null 2>&1
+		        apt install -y rsync > /dev/null 2>&1
+		        echo "✅ rsync 安装完成。"
+		    else
+		        echo "✅ rsync 已安装，跳过安装步骤。"
+
+		    fi
+		    echo "------------------------"
+
+		    echo -e "\033[1;33m📌 说明：\033[0m"
+		    echo -e "\033[1;32m✔ 不带斜杠（如 /home/web/wangpan）表示复制整个文件夹\033[0m"
+		    echo -e "\033[1;32m✔ 带斜杠（如 /home/web/wangpan/）表示只复制该文件夹的内容\033[0m"
+
+		    echo "------------------------"
+		    # 读取用户输入
+		    read -e -p "请输入本地目录路径（如 /home/web/wangpan 或 /home/web/wangpan/）: " local_path
+		    # 如果本地路径末尾没有 /，则自动添加
+		    [[ "$local_path" != */ ]] && local_path="${local_path}/"
+
+		    read -e -p "请输入远程 VPS 的 IP 地址（例如 1.1.1.1）: " remote_ip
+
+		    read -e -p "请输入远程目录路径（默认与本地一致，直接回车即可）: " remote_path
+		    if [ -z "$remote_path" ]; then
+		        remote_path="$local_path"
+		        echo "📂 未输入远程路径，已自动设置为与本地路径一致：$remote_path"
+		    fi
+
+
+		    # 检查远程 VPS 是否安装 rsync
+		    echo "🕵️ 正在检查远程 VPS 是否已安装 rsync..."
+		    ssh root@"$remote_ip" "command -v rsync > /dev/null 2>&1"
+		    if [ $? -ne 0 ]; then
+		        echo "⚙️ 远程 VPS 未安装 rsync，正在安装..."
+		        ssh root@"$remote_ip" "apt update > /dev/null 2>&1 && apt install -y rsync > /dev/null 2>&1"
+		        echo "✅ 远程 VPS 的 rsync 安装完成。"
+		    else
+		        echo "✅ 远程 VPS 已安装 rsync，跳过安装。"
+		    fi
+
+
+		    echo ""
+		    echo "🚀 开始传送："
+		    echo "从：$local_path"
+		    echo "到：root@$remote_ip:$remote_path"
+		    echo ""
+
+
+		    rsync -avz "$local_path" root@"$remote_ip":"$remote_path"
+
+		    echo ""
+		    echo "✅ 文件传送完成。"
+		    echo "------------------------"
+		    echo ""
 		    ;;
 
 
