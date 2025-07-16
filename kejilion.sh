@@ -7570,7 +7570,12 @@ EOF
 			docker_app
 			  ;;
 
-
+		  56)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
 
 
 
