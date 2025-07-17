@@ -337,7 +337,7 @@ EOF
       echo "正在恢复备份：$restore_file"
 
       # 解压备份文件
-      tar -xvzf "$restore_file" -C /home/web
+      tar -xvzf "$restore_file" -C /home/docker
 
       # 检查解压是否成功
       if [ $? -eq 0 ]; then
