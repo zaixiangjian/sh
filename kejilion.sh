@@ -6886,7 +6886,7 @@ nextcloud/all-in-one:latest"
 				case $choice in
 					1)
 						install_docker
-						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
+						cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
 						touch /home/docker/wangpan/cloudreve/conf.ini
 
 						chmod -R 777 /home/docker/wangpan/data/aria2
@@ -6949,7 +6949,7 @@ EOF
 						docker rm -f cloudreve aria2
 						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
 
-						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
+						cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
 						touch /home/docker/wangpan/cloudreve/conf.ini
 
 						chmod -R 777 /home/docker/wangpan/data/aria2
@@ -7052,7 +7052,7 @@ EOF
 					case $choice in
 						1)
 							install_docker
-							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
+							cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
 							cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
@@ -7129,7 +7129,7 @@ EOF
 							docker rm -f cloudreve aria2
 							docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
 
-							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
+							cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
 							cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
