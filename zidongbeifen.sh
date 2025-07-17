@@ -181,6 +181,7 @@ EOF
               ;;
           esac
           ;;
+
         2)
           mkdir -p /home/web/beifen
           cd /home/web/beifen || exit 1
@@ -226,9 +227,9 @@ EOF
           read -e -p "传送时间几分（0-59）: " chuan_min
 
           if [[ "$chuan_interval_day" == "0" || "$chuan_interval_day" == "" ]]; then
-            cron_entry="$chuan_min $chuan_hour * * * bash $OUTPUT_BIN"
+            cron_entry="$chuan_min $chuan_hour * * * $OUTPUT_BIN"
           else
-            cron_entry="$chuan_min $chuan_hour */$chuan_interval_day * * bash $OUTPUT_BIN"
+            cron_entry="$chuan_min $chuan_hour */$chuan_interval_day * * $OUTPUT_BIN"
           fi
 
           if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
