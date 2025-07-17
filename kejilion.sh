@@ -6887,7 +6887,10 @@ nextcloud/all-in-one:latest"
               case $choice in
                 1)
                   install_docker
-                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
+
+		  [ ! -d /home/docker ] && mkdir -p /home/docker
+
+		  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
                   touch /home/docker/wangpan/cloudreve/conf.ini
 
                   chmod -R 777 /home/docker/wangpan/data/aria2
@@ -7050,8 +7053,10 @@ EOF
               case $choice in
                 1)
                   install_docker
-                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
+		  [ ! -d /home/docker ] && mkdir -p /home/docker
+
+                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
                   cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
