@@ -6726,6 +6726,7 @@ nextcloud/all-in-one:latest"
 			  ;;
 
 
+
 		  42)
 
 
@@ -6736,7 +6737,7 @@ nextcloud/all-in-one:latest"
 							--name vaultwarden \
 							--restart always \
 							-p 3280:80 \
-							-v /home/web/vaultwarden/data:/data \
+							-v /home/docker/vaultwarden/data:/data \
 							vaultwarden/server"
 			docker_describe="一个开源的 Bitwarden 服务端实现，注册功能已开启"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
@@ -6768,7 +6769,7 @@ nextcloud/all-in-one:latest"
 				-e SMTP_SECURITY=starttls \
 				-e SMTP_USERNAME=${smtp_user} \
 				-e SMTP_PASSWORD=${smtp_pass} \
-				-v /home/web/vaultwarden/data:/data \
+				-v /home/docker/vaultwarden/data:/data \
 				vaultwarden/server"
 
 			docker_describe="Vaultwarden 禁止注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
@@ -6790,7 +6791,7 @@ nextcloud/all-in-one:latest"
 							-e SIGNUPS_ALLOWED=false \
 							--restart always \
 							-p 3280:80 \
-							-v /home/web/vaultwarden/data:/data \
+							-v /home/docker/vaultwarden/data:/data \
 							vaultwarden/server"
 			docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，无 SMTP 设置）"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
@@ -6821,7 +6822,7 @@ nextcloud/all-in-one:latest"
 				-e SMTP_SECURITY=starttls \
 				-e SMTP_USERNAME=${smtp_user} \
 				-e SMTP_PASSWORD=${smtp_pass} \
-				-v /home/web/vaultwarden/data:/data \
+				-v /home/docker/vaultwarden/data:/data \
 				vaultwarden/server"
 
 			docker_describe="Vaultwarden 可以注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
