@@ -6859,6 +6859,7 @@ nextcloud/all-in-one:latest"
 			docker_app
 			  ;;
 
+
           47)
             send_stats "搭建网盘"
             has_ipv4_has_ipv6
@@ -7021,7 +7022,6 @@ EOF
               break_end
             done
             ;;
-
 
           48)
             send_stats "搭建Cloudreve从机（4.1.1）"
@@ -7214,6 +7214,7 @@ EOF
               break_end
             done
             ;;
+
 
 
 
