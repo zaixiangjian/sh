@@ -6859,7 +6859,6 @@ nextcloud/all-in-one:latest"
 			  ;;
 
 
-
 		  47)
 			send_stats "搭建网盘"
 			has_ipv4_has_ipv6
@@ -6888,11 +6887,11 @@ nextcloud/all-in-one:latest"
 					1)
 						install_docker
 						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
-						touch /home/web/wangpan/cloudreve/conf.ini
+						touch /home/docker/wangpan/cloudreve/conf.ini
 
-						chmod -R 777 /home/web/wangpan/data/aria2
+						chmod -R 777 /home/docker/wangpan/data/aria2
 
-						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+						cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -6907,7 +6906,7 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-						cat > /home/web/wangpan/docker-compose.yml <<EOF
+						cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -6917,11 +6916,11 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
 
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
 
   aria2:
     image: p3terx/aria2-pro
@@ -6933,11 +6932,11 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-						cd /home/web/wangpan && docker compose up -d
+						cd /home/docker/wangpan && docker compose up -d
 
 						clear
 						echo "cloudreve已经安装完成"
@@ -6951,11 +6950,11 @@ EOF
 						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
 
 						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
-						touch /home/web/wangpan/cloudreve/conf.ini
+						touch /home/docker/wangpan/cloudreve/conf.ini
 
-						chmod -R 777 /home/web/wangpan/data/aria2
+						chmod -R 777 /home/docker/wangpan/data/aria2
 
-						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+						cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -6970,7 +6969,7 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-						cat > /home/web/wangpan/docker-compose.yml <<EOF
+						cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -6980,11 +6979,11 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
 
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
 
   aria2:
     image: p3terx/aria2-pro
@@ -6996,11 +6995,11 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-						cd /home/web/wangpan && docker compose up -d
+						cd /home/docker/wangpan && docker compose up -d
 						clear
 						echo "cloudreve已经更新完成"
 						check_docker_app_ip
@@ -7011,7 +7010,7 @@ EOF
 					3)
 						docker rm -f cloudreve aria2
 						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-						rm -rf /home/web/wangpan
+						rm -rf /home/docker/wangpan
 						echo "应用已卸载"
 						;;
 					0)
@@ -7055,7 +7054,7 @@ EOF
 							install_docker
 							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
-							cat > /home/web/wangpan/cloudreve/config.ini <<EOF
+							cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
 Listen = :5212
@@ -7069,7 +7068,7 @@ AllowMethods = OPTIONS,GET,POST
 AllowHeaders = *
 EOF
 
-							cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+							cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -7084,9 +7083,9 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-							chmod -R 777 /home/web/wangpan/data/aria2
+							chmod -R 777 /home/docker/wangpan/data/aria2
 
-							cat > /home/web/wangpan/docker-compose.yml <<EOF
+							cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -7097,10 +7096,10 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
-      - /home/web/wangpan/cloudreve/config.ini:/cloudreve/config.ini
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
 
   aria2:
     image: p3terx/aria2-pro
@@ -7112,11 +7111,11 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-							cd /home/web/wangpan && docker compose up -d
+							cd /home/docker/wangpan && docker compose up -d
 
 							clear
 							echo "Cloudreve 已安装完成（从机模式）"
@@ -7132,7 +7131,7 @@ EOF
 
 							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
-							cat > /home/web/wangpan/cloudreve/config.ini <<EOF
+							cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
 Listen = :5212
@@ -7146,7 +7145,7 @@ AllowMethods = OPTIONS,GET,POST
 AllowHeaders = *
 EOF
 
-							cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+							cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -7161,9 +7160,9 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-							chmod -R 777 /home/web/wangpan/data/aria2
+							chmod -R 777 /home/docker/wangpan/data/aria2
 
-							cat > /home/web/wangpan/docker-compose.yml <<EOF
+							cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -7174,10 +7173,10 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
-      - /home/web/wangpan/cloudreve/config.ini:/cloudreve/config.ini
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
 
   aria2:
     image: p3terx/aria2-pro
@@ -7189,11 +7188,11 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-							cd /home/web/wangpan && docker compose up -d
+							cd /home/docker/wangpan && docker compose up -d
 
 							clear
 							echo "Cloudreve 已更新完成（从机模式）"
@@ -7206,7 +7205,7 @@ EOF
 						3)
 							docker rm -f cloudreve aria2
 							docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-							rm -rf /home/web/wangpan
+							rm -rf /home/docker/wangpan
 							echo "Cloudreve 应用已卸载"
 							;;
 
@@ -7221,6 +7220,7 @@ EOF
 					break_end
 				done
 				;;
+
 
 
 
