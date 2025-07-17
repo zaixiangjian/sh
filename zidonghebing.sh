@@ -351,6 +351,7 @@ EOF
 
 
 
+
     7)
       echo "------------------------"
       echo "恢复 Vaultwarden 数据库备份..."
@@ -395,7 +396,7 @@ EOF
       echo "正在恢复备份：$restore_file"
 
       # 解压备份文件
-      tar -xvzf "$restore_file" -C /home/web
+      tar -xvzf "$restore_file" -C /home/docker
 
       # 检查解压是否成功
       if [ $? -eq 0 ]; then
@@ -419,8 +420,8 @@ EOF
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
-    mkdir -p /home/web/vaultwarden
-    cd /home/web/vaultwarden || exit 1
+    mkdir -p /home/docker/vaultwarden
+    cd /home/docker/vaultwarden || exit 1
 
     wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimabeifen.sh
     chmod +x beifen.sh
@@ -430,9 +431,9 @@ EOF
 
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/web/vaultwarden/beifen_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/web/vaultwarden/beifen_obf.sh"
-    OUTPUT_BIN="/home/web/vaultwarden/beifen.x"
+    TMP_SCRIPT="/home/docker/vaultwarden/beifen_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/beifen_obf.sh"
+    OUTPUT_BIN="/home/docker/vaultwarden/beifen.x"
 
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -512,11 +513,11 @@ EOF
     fi
 
     # 创建 jiankong.sh 监控脚本
-    cat > /home/web/vaultwarden/jiankong.sh << 'EOF'
+    cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
 # 设置监控的数据库文件
-WATCH_FILES="/home/web/vaultwarden/data/db.sqlite3 /home/web/vaultwarden/data/db.sqlite3-shm /home/web/vaultwarden/data/db.sqlite3-wal"
+WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
 
 # 使用 inotifywait 监控数据库文件的变化
 inotifywait -m -e modify,create,delete $WATCH_FILES |
@@ -524,11 +525,11 @@ while read path action file; do
     echo "Change detected in file: $file (Action: $action)"
     
     # 在文件变化时运行备份脚本
-    /home/web/vaultwarden/beifen.x
+    /home/docker/vaultwarden/beifen.x
 done
 EOF
 
-    chmod +x /home/web/vaultwarden/jiankong.sh
+    chmod +x /home/docker/vaultwarden/jiankong.sh
 
     # 创建 systemd 服务文件
     cat > /etc/systemd/system/vaultwarden-watch.service << EOF
@@ -538,10 +539,10 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/web/vaultwarden/jiankong.sh
+ExecStart=/home/docker/vaultwarden/jiankong.sh
 Restart=always
 User=root
-WorkingDirectory=/home/web/vaultwarden/
+WorkingDirectory=/home/docker/vaultwarden/
 
 [Install]
 WantedBy=multi-user.target
