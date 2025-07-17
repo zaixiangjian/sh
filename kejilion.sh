@@ -7514,27 +7514,26 @@ EOF
 			done
 			;;
 
-   
-		  55)
-			if [ ! -d /home/web/openlist/ ]; then
-				mkdir -p /home/web/openlist/ > /dev/null 2>&1
+   		  55)
+			if [ ! -d /home/docker/openlist/ ]; then
+				mkdir -p /home/docker/openlist/ > /dev/null 2>&1
 			fi
 
-			wget -O /home/web/openlist/openlist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/web/openlist/openlist-linux-amd64.tar.gz -C /home/web/openlist/ > /dev/null 2>&1
-			chmod +x /home/web/openlist/openlist
+			wget -O /home/docker/openlist/openlist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-amd64.tar.gz > /dev/null 2>&1
+			tar -xzf /home/docker/openlist/openlist-linux-amd64.tar.gz -C /home/docker/openlist/ > /dev/null 2>&1
+			chmod +x /home/docker/openlist/openlist
 
-			nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &
+			nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &
 			sleep 5
 
 			# 提取密码与 IP
-			password=$(grep "initial password is:" /home/web/openlist/openlist.log | tail -n 1 | awk '{print $NF}')
+			password=$(grep "initial password is:" /home/docker/openlist/openlist.log | tail -n 1 | awk '{print $NF}')
 			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
 			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
 
 			# 添加开机启动定时任务（延迟10秒）
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &') | crontab -
+			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &' || (
+				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &') | crontab -
 			)
 
 			clear
@@ -7545,11 +7544,11 @@ EOF
 			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
    			echo "如果打不开手动放行5244端口ufw命令为ufw allow 5244/tcp"
 			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/web/openlist/openlist.log"
+			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/openlist/openlist.log"
 			echo ""
 			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 OpenList"
 			echo "命令内容为："
-			echo "nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &"
+			echo "nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &"
 			echo ""
 			echo "------------------------"
 			echo "1. 安装            2. 更新            3. 卸载"
@@ -7563,13 +7562,14 @@ EOF
 			docker_name="openlist"
 			docker_img=""
 			docker_port=5244
-			docker_rum="setsid /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &"
+			docker_rum="setsid /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &"
 			docker_describe="OpenList 是一个支持多种存储挂载的文件列表程序"
 			docker_url=""
 			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
 			docker_passwd=""
 			docker_app
 			  ;;
+
 
 
 
