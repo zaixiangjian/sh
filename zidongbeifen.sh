@@ -217,16 +217,24 @@ EOF
 
           rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" chuansong.sh
 
+          read -e -p "每隔几天传送一次（0表示每天）: " chuan_interval_day
           read -e -p "每天几点传送（0-23）: " chuan_hour
           read -e -p "每天几分传送（0-59）: " chuan_min
+
+          if [[ "$chuan_interval_day" == "0" || "$chuan_interval_day" == "" ]]; then
+            cron_entry="$chuan_min $chuan_hour * * * $OUTPUT_BIN"
+          else
+            cron_entry="$chuan_min $chuan_hour */$chuan_interval_day * * $OUTPUT_BIN"
+          fi
 
           if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
             echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
           else
-            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * $OUTPUT_BIN") | crontab -
-            echo "已设置每天 ${chuan_hour}点${chuan_min}分 自动传送"
+            (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
+            echo "已设置每隔 ${chuan_interval_day} 天 ${chuan_hour}点${chuan_min}分 自动传送"
           fi
           ;;
+
         3)
           echo "------------------------"
           echo "当前定时任务如下："
