@@ -217,23 +217,32 @@ EOF
 
           rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" chuansong.sh
 
-          read -e -p "每隔几天传送一次（0表示每天）: " chuan_interval_day
-          read -e -p "每天几点传送（0-23）: " chuan_hour
-          read -e -p "每天几分传送（0-59）: " chuan_min
+          echo "------------------------"
+          echo "设置传送频率："
+          echo "0. 每天传送"
+          echo "N. 每 N 天传送一次"
+          read -e -p "请输入传送间隔天数（输入 0 表示每天）: " chuan_interval_day
+          read -e -p "传送时间几点（0-23）: " chuan_hour
+          read -e -p "传送时间几分（0-59）: " chuan_min
 
           if [[ "$chuan_interval_day" == "0" || "$chuan_interval_day" == "" ]]; then
-            cron_entry="$chuan_min $chuan_hour * * * $OUTPUT_BIN"
+            cron_entry="$chuan_min $chuan_hour * * * bash $OUTPUT_BIN"
           else
-            cron_entry="$chuan_min $chuan_hour */$chuan_interval_day * * $OUTPUT_BIN"
+            cron_entry="$chuan_min $chuan_hour */$chuan_interval_day * * bash $OUTPUT_BIN"
           fi
 
           if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
             echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
           else
             (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
-            echo "已设置每隔 ${chuan_interval_day} 天 ${chuan_hour}点${chuan_min}分 自动传送"
+            if [[ "$chuan_interval_day" == "0" || "$chuan_interval_day" == "" ]]; then
+              echo "✅ 已设置为每天 ${chuan_hour}点${chuan_min}分 自动传送"
+            else
+              echo "✅ 已设置为每 ${chuan_interval_day} 天 ${chuan_hour}点${chuan_min}分 自动传送"
+            fi
           fi
           ;;
+
 
         3)
           echo "------------------------"
