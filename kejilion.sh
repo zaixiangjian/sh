@@ -7285,8 +7285,8 @@ EOF
 							-v /home/docker/emby/电影:/mnt/embydianying \
 							-v /home/docker/emby/电视剧:/mnt/embydianshiju \
 
-							-v /home/web/挂载/电视剧:/mnt/dianshiju \
-							-v /home/web/挂载/电影:/mnt/dianying \
+							-v /home/挂载/电视剧:/mnt/dianshiju \
+							-v /home/挂载/电影:/mnt/dianying \
 
 							-p 8096:8096 \
 							-p 8920:8920 \
