@@ -105,8 +105,8 @@
       read -e -p "输入远程服务器IP: " useip
       read -e -p "输入远程服务器密码: " usepasswd
 
-      mkdir -p /home/web/vaultwarden
-      cd /home/web/vaultwarden || exit 1
+      mkdir -p /home/docker/vaultwarden
+      cd /home/docker/vaultwarden || exit 1
 
       wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimabeifen.sh
       chmod +x beifen.sh
@@ -116,9 +116,9 @@
 
       local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-      TMP_SCRIPT="/home/web/vaultwarden/beifen_tmp.sh"
-      OBFUSCATED_SCRIPT="/home/web/vaultwarden/beifen_obf.sh"
-      OUTPUT_BIN="/home/web/vaultwarden/beifen.x"
+      TMP_SCRIPT="/home/docker/vaultwarden/beifen_tmp.sh"
+      OBFUSCATED_SCRIPT="/home/docker/vaultwarden/beifen_obf.sh"
+      OUTPUT_BIN="/home/docker/vaultwarden/beifen.x"
 
       cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -183,8 +183,8 @@ EOF
       esac
       ;;
     2)
-      mkdir -p /home/web/vaultwarden
-      cd /home/web/vaultwarden || exit 1
+      mkdir -p /home/docker/vaultwarden
+      cd /home/docker/vaultwarden || exit 1
 
       wget -q -O chuansong.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/chuansong.sh
       chmod +x chuansong.sh
@@ -197,9 +197,9 @@ EOF
 
       local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-      TMP_SCRIPT="/home/web/vaultwarden/chuansong_tmp.sh"
-      OBFUSCATED_SCRIPT="/home/web/vaultwarden/chuansong_obf.sh"
-      OUTPUT_BIN="/home/web/vaultwarden/chuansong.x"
+      TMP_SCRIPT="/home/docker/vaultwarden/chuansong_tmp.sh"
+      OBFUSCATED_SCRIPT="/home/docker/vaultwarden/chuansong_obf.sh"
+      OUTPUT_BIN="/home/docker/vaultwarden/chuansong.x"
 
       cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -410,18 +410,18 @@ EOF
   fi
 
   # 创建 jiankong.sh 监控脚本
-  cat > /home/web/vaultwarden/jiankong.sh << 'EOF'
+  cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
-WATCH_FILES="/home/web/vaultwarden/data/db.sqlite3 /home/web/vaultwarden/data/db.sqlite3-shm /home/web/vaultwarden/data/db.sqlite3-wal"
+WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
 
 inotifywait -m -e modify,create,delete $WATCH_FILES | while read path action file; do
     echo "$(date '+%F %T') 检测到变化: $file (动作: $action)"
-    /home/web/vaultwarden/beifen.x
+    /home/docker/vaultwarden/beifen.x
 done
 EOF
 
-  chmod +x /home/web/vaultwarden/jiankong.sh
+  chmod +x /home/docker/vaultwarden/jiankong.sh
 
   # 创建 systemd 服务文件
   cat > /etc/systemd/system/vaultwarden-watch.service << EOF
@@ -431,10 +431,10 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/web/vaultwarden/jiankong.sh
+ExecStart=/home/docker/vaultwarden/jiankong.sh
 Restart=always
 User=root
-WorkingDirectory=/home/web/vaultwarden/
+WorkingDirectory=/home/docker/vaultwarden/
 
 [Install]
 WantedBy=multi-user.target
