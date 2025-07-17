@@ -4,7 +4,7 @@
 mkdir -p /home/密码/
 
 # Create a tar archive of the web directory and save it in /home/beifen/
-tar -czvf /home/密码/mima_$(date +%Y%m%d%H%M%S).tar.gz -C /home/web vaultwarden
+tar -czvf /home/密码/mima_$(date +%Y%m%d%H%M%S).tar.gz -C /home/docker vaultwarden
 
 # Transfer the latest tar archive to another VPS
 # 如果你确认这是你自己的服务器，并且知道密钥变化是正常的，可以这样处理：
