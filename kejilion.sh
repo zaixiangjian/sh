@@ -5385,8 +5385,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                      ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                   ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
 
    
 	  echo -e "${gl_kjlan}------------------------"
@@ -7568,6 +7568,63 @@ EOF
 			docker_url=""
 			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
 			docker_passwd=""
+			docker_app
+			  ;;
+
+
+		  56)
+			docker_name="umami"
+			docker_img="docker.umami.is/umami-software/umami:postgresql-latest"
+			docker_port=3000
+
+			# 自动创建目录
+			[ ! -d /home/docker/umami ] && mkdir -p /home/docker/umami
+			cd /home/docker/umami || exit 1
+
+			# 写入 docker-compose.yml
+			cat > docker-compose.yml <<EOF
+version: '3.8'
+
+services:
+  umami-db:
+    image: postgres:15
+    container_name: umami-db
+    restart: always
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: umami123
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+
+  umami:
+    image: docker.umami.is/umami-software/umami:postgresql-latest
+    container_name: umami
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://umami:umami123@umami-db:5432/umami
+      APP_SECRET: $(openssl rand -hex 16)
+    depends_on:
+      - umami-db
+EOF
+
+			# 启动容器
+			docker compose up -d
+
+			echo "------------------------"
+			echo "访问地址:"
+			echo "http://$(hostname -I | awk '{print $1}'):3000"
+			echo "http://$(curl -s ifconfig.me):${docker_port}"
+			echo "账号：admin 密码：umami"
+			echo "默认密码：umami123"
+			echo "------------------------"
+
+			docker_describe="Umami 网站流量统计系统，轻量、隐私友好"
+			docker_url="GitHub: https://github.com/umami-software/umami"
+			docker_use="默认访问地址：http://服务器IP:3000，账号：admin 密码：umami"
+			docker_passwd="umami123"
 			docker_app
 			  ;;
 
