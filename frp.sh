@@ -1,112 +1,158 @@
 #!/bin/bash
 
 FRP_DIR="/home/frp"
-FRPS_CONFIG="$FRP_DIR/frps.toml"
-DOCKER_NAME="frps"
-DASHBOARD_PORT=8056
+FRPC_CONFIG="$FRP_DIR/frpc.toml"
+DOCKER_NAME="frpc"
+SERVER_PORT=8055
 
-# 读取配置里的token和dashboard用户名密码
-get_frps_info() {
-  if [ -f "$FRPS_CONFIG" ]; then
-    token=$(grep '^token' "$FRPS_CONFIG" | awk -F '=' '{print $2}' | tr -d ' "')
-    dashboard_user=$(grep '^dashboard_user' "$FRPS_CONFIG" | awk -F '=' '{print $2}' | tr -d ' "')
-    dashboard_pwd=$(grep '^dashboard_pwd' "$FRPS_CONFIG" | awk -F '=' '{print $2}' | tr -d ' "')
+# 检查是否安装FRP客户端
+check_frp_app() {
+  if [ -d "$FRP_DIR" ]; then
+    echo "FRP客户端已安装"
+  else
+    echo "FRP客户端未安装"
   fi
 }
 
-# 显示面板地址
-show_dashboard_info() {
-  local ip
-  ip=$(curl -s https://api.ipify.org)
-  echo "访问面板：http://$ip:$DASHBOARD_PORT"
-  echo "用户名：$dashboard_user"
-  echo "密码：$dashboard_pwd"
+# 下载并运行frpc Docker容器
+run_frpc() {
+  local config_file="$FRPC_CONFIG"
+  docker pull kjlion/frp:alpine
+
+  # 停止并删除旧容器（如果有）
+  docker rm -f "$DOCKER_NAME" 2>/dev/null || true
+
+  docker run -d --name "$DOCKER_NAME" --restart=always --network host \
+    -v "$config_file":/frp/frpc.toml kjlion/frp:alpine /frpc -c /frp/frpc.toml
 }
 
-# 显示已连接端口信息（通过api或者读取日志，简单示范用API）
-show_connected_services() {
-  # 先确认docker运行
-  if ! docker ps | grep -q "$DOCKER_NAME"; then
-    echo "FRP服务端未运行"
-    return
-  fi
+# 生成基础配置文件
+generate_frpc_config() {
+  mkdir -p "$FRP_DIR"
 
-  echo "已连接的服务端口列表:"
+  echo "请输入外网服务端IP地址:"
+  read -rp "服务端IP: " server_addr
+  echo "请输入服务端Token:"
+  read -rp "Token: " token
 
-  # 通过dashboard API获取TCP隧道信息（需要jq）
-  curl -s -u "$dashboard_user:$dashboard_pwd" "http://127.0.0.1:$DASHBOARD_PORT/api/status" | jq -r '
-    .data.tcp | to_entries[] |
-    "服务名: \(.key) 远端端口: \(.value.remote_port) 内网地址: \(.value.local_ip):\(.value.local_port)"
-  '
+  cat > "$FRPC_CONFIG" <<EOF
+[common]
+server_addr = $server_addr
+server_port = $SERVER_PORT
+token = $token
+
+EOF
+  echo "基础配置生成成功：$FRPC_CONFIG"
 }
 
-main_menu() {
-  get_frps_info
+# 添加内网穿透服务
+add_forwarding_service() {
+  echo "添加内网穿透服务"
+  read -rp "服务名称（唯一标识）: " service_name
+  read -rp "协议 (tcp/udp) [默认tcp]: " service_type
+  service_type=${service_type:-tcp}
+  read -rp "内网IP地址 [默认127.0.0.1]: " local_ip
+  local_ip=${local_ip:-127.0.0.1}
+  read -rp "内网端口: " local_port
+  read -rp "映射的远端端口: " remote_port
 
+  cat >> "$FRPC_CONFIG" <<EOF
+[$service_name]
+type = $service_type
+local_ip = $local_ip
+local_port = $local_port
+remote_port = $remote_port
+
+EOF
+  echo "服务 $service_name 已添加"
+}
+
+# 删除内网穿透服务
+delete_forwarding_service() {
+  echo "删除内网穿透服务"
+  read -rp "请输入要删除的服务名称: " service_name
+  sed -i "/\[$service_name\]/,/^$/d" "$FRPC_CONFIG"
+  echo "服务 $service_name 已删除"
+}
+
+# 查看已配置的内网穿透服务
+list_forwarding_services() {
+  echo "当前已配置的内网穿透服务："
+  awk '
+  /^\[.*\]/ {section=$0; next}
+  /^[ \t]*type *=/ {type=$0}
+  /^[ \t]*local_ip *=/ {local_ip=$0}
+  /^[ \t]*local_port *=/ {local_port=$0}
+  /^[ \t]*remote_port *=/ {remote_port=$0}
+  /^[ \t]*$/ {
+    if (section != "[common]") {
+      print section
+      print "  " type
+      print "  " local_ip
+      print "  " local_port
+      print "  " remote_port
+      print ""
+    }
+    section=""; type=""; local_ip=""; local_port=""; remote_port=""
+  }
+  ' "$FRPC_CONFIG"
+}
+
+# 安装frpc
+install_frpc() {
+  echo "开始安装FRP客户端..."
+  generate_frpc_config
+  run_frpc
+  echo "FRP客户端安装完成"
+  read -rp "按回车继续..."
+}
+
+# 更新frpc
+update_frpc() {
+  echo "开始更新FRP客户端..."
+  docker rm -f "$DOCKER_NAME" 2>/dev/null || true
+  run_frpc
+  echo "更新完成"
+  read -rp "按回车继续..."
+}
+
+# 卸载frpc
+uninstall_frpc() {
+  echo "开始卸载FRP客户端..."
+  docker rm -f "$DOCKER_NAME" 2>/dev/null || true
+  rm -rf "$FRP_DIR"
+  echo "卸载完成"
+  read -rp "按回车继续..."
+}
+
+# 主菜单
+frpc_menu() {
   while true; do
     clear
-    echo "========== FRP 服务端管理 =========="
-    show_dashboard_info
-    echo "-------------------------------"
-    show_connected_services
-    echo "==============================="
-    echo "1) 安装 FRP 服务端"
-    echo "2) 更新 FRP 服务端"
-    echo "3) 卸载 FRP 服务端"
-    echo "4) 显示已连接客户端"
-    echo "5) 刷新已连接客户端"
+    check_frp_app
+    echo "========== FRP 客户端管理 =========="
+    list_forwarding_services
+    echo "===================================="
+    echo "1) 安装 FRP 客户端"
+    echo "2) 更新 FRP 客户端"
+    echo "3) 卸载 FRP 客户端"
+    echo "4) 添加内网穿透服务"
+    echo "5) 删除内网穿透服务"
     echo "0) 退出"
-    echo "==================================="
+    echo "===================================="
     read -rp "请选择操作: " choice
 
     case $choice in
-      1)
-        # 安装函数示例，需自己实现
-        install_frps
-        ;;
-      2)
-        update_frps
-        ;;
-      3)
-        uninstall_frps
-        ;;
-      4)
-        show_connected_services
-        read -rp "按回车返回..."
-        ;;
-      5)
-        echo "刷新中..."
-        show_connected_services
-        read -rp "按回车返回..."
-        ;;
-      0)
-        echo "退出"
-        exit 0
-        ;;
-      *)
-        echo "无效选项，请重试"
-        ;;
+      1) install_frpc ;;
+      2) update_frpc ;;
+      3) uninstall_frpc ;;
+      4) add_forwarding_service; run_frpc ;;
+      5) delete_forwarding_service; run_frpc ;;
+      0) echo "退出"; exit 0 ;;
+      *) echo "无效选项，请重试" ;;
     esac
   done
 }
 
-# 伪函数示例（根据你已有逻辑补充）
-install_frps() {
-  echo "安装中..."
-  # 你的安装逻辑
-  read -rp "按回车继续..."
-}
-
-update_frps() {
-  echo "更新中..."
-  # 你的更新逻辑
-  read -rp "按回车继续..."
-}
-
-uninstall_frps() {
-  echo "卸载中..."
-  # 你的卸载逻辑
-  read -rp "按回车继续..."
-}
-
-main_menu
+# 运行菜单
+frpc_menu
