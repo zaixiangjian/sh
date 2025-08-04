@@ -105,6 +105,7 @@ function delete_config() {
         return
     fi
 
+    # 提取配置块（域名 + 对应配置）
     mapfile -t BLOCKS < <(awk '
         BEGIN { block=""; inside=0 }
         /^[^# \t].*{$/ {
@@ -141,16 +142,19 @@ function delete_config() {
         echo "🗑 正在删除配置："
         echo "$BLOCK_TO_DELETE"
 
+        # 用 awk 精确跳过这块配置，删除整块
         sudo awk -v blk="$BLOCK_TO_DELETE" '
         BEGIN { skip=0 }
         {
             if (skip==0) {
-                if (index(blk, $0 "\n") == 1) {
+                # 如果当前行等于配置块首行，则开始跳过
+                if ($0 == substr(blk, 1, length($0))) {
                     skip=1
                     next
                 }
                 print
             } else {
+                # 跳过直到碰到 } 行，结束跳过
                 if ($0 ~ /^}/) {
                     skip=0
                 }
