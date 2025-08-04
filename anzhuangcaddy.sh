@@ -105,7 +105,7 @@ function delete_config() {
         return
     fi
 
-    # 提取配置块（域名 + 对应配置）
+    # 先提取所有配置块到数组
     mapfile -t BLOCKS < <(awk '
         BEGIN { block=""; inside=0 }
         /^[^# \t].*{$/ {
@@ -130,7 +130,8 @@ function delete_config() {
 
     echo "请选择要删除的域名："
     for i in "${!BLOCKS[@]}"; do
-        DOMAIN_LINE=$(echo "${BLOCKS[$i]}" | head -n 1 | sed 's/ *{//')
+        # 提取域名行，去掉尾部{及空格
+        DOMAIN_LINE=$(echo "${BLOCKS[$i]}" | head -n 1 | sed 's/{.*//;s/ *$//')
         echo "$((i+1)). $DOMAIN_LINE"
     done
 
@@ -138,25 +139,23 @@ function delete_config() {
     INDEX=$((SELECTED - 1))
 
     if [ "$INDEX" -ge 0 ] && [ "$INDEX" -lt "${#BLOCKS[@]}" ]; then
-        BLOCK_TO_DELETE="${BLOCKS[$INDEX]}"
-        echo "🗑 正在删除配置："
-        echo "$BLOCK_TO_DELETE"
+        DOMAIN_TO_DELETE=$(echo "${BLOCKS[$INDEX]}" | head -n 1 | sed 's/{.*//;s/ *$//')
+        echo "🗑 正在删除配置域名：$DOMAIN_TO_DELETE"
 
-        # 用 awk 精确跳过这块配置，删除整块
-        sudo awk -v blk="$BLOCK_TO_DELETE" '
+        # 删除匹配域名开始的配置块，直到 } 行结束跳过
+        sudo awk -v domain="$DOMAIN_TO_DELETE" '
         BEGIN { skip=0 }
         {
             if (skip==0) {
-                # 如果当前行等于配置块首行，则开始跳过
-                if ($0 == substr(blk, 1, length($0))) {
+                if ($0 ~ domain) {
                     skip=1
                     next
                 }
                 print
             } else {
-                # 跳过直到碰到 } 行，结束跳过
                 if ($0 ~ /^}/) {
                     skip=0
+                    next
                 }
             }
         }
