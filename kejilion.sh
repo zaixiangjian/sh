@@ -5387,7 +5387,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
 	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                   ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
-
+	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}  "
    
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
@@ -7627,7 +7627,148 @@ EOF
 			docker_passwd="umami123"
 			docker_app
 			  ;;
+		57)
 
+			clear
+			echo "Dify - 开源 AIGC 应用开发平台"
+			echo "GitHub 项目地址: https://github.com/langgenius/dify"
+			echo "功能介绍: 快速搭建属于自己的类 ChatGPT 平台，支持模型调用和 API 应用开发"
+			echo
+			echo "1. 安装 Dify"
+			echo "2. 备份 Dify 数据"
+			echo "3. 卸载 Dify"
+			echo "4. 恢复 Dify 数据"
+			read -p "请输入操作编号: " sub_choice
+
+			dify_dir="/home/docker/dify"
+			backup_dir="/home/docker"
+			backup_prefix="dify"
+			docker_compose_dir="${dify_dir}/docker"
+			docker_compose_file="${docker_compose_dir}/docker-compose.yaml"  # 注意是 .yaml 不是 .yml
+			docker_compose_env="${docker_compose_dir}/.env"
+			local_ip=$(hostname -I | awk '{print $1}')
+			ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+
+			case "$sub_choice" in
+				1)
+					mkdir -p /home/docker
+					cd /home/docker || exit
+
+					if [ -d "$dify_dir" ]; then
+						echo "检测到已有 Dify 目录，正在更新代码..."
+						cd "$dify_dir" || exit
+						git pull
+					else
+						echo "正在克隆 Dify 仓库..."
+						git clone https://github.com/langgenius/dify.git
+						cd "$dify_dir" || exit
+					fi
+
+					cd "$docker_compose_dir" || exit
+
+					# 复制 .env 配置文件（如果不存在就复制示例）
+					if [ ! -f "$docker_compose_env" ]; then
+						cp -f .env.example "$docker_compose_env"
+					fi
+
+					# 修改 .env 文件，设置端口变量为 8058 和 8443
+					sed -i "s/^NGINX_PORT=.*/NGINX_PORT=8058/" "$docker_compose_env"
+					sed -i "s/^NGINX_SSL_PORT=.*/NGINX_SSL_PORT=8443/" "$docker_compose_env"
+					sed -i "s/^EXPOSE_NGINX_PORT=.*/EXPOSE_NGINX_PORT=8058/" "$docker_compose_env"
+					sed -i "s/^EXPOSE_NGINX_SSL_PORT=.*/EXPOSE_NGINX_SSL_PORT=8443/" "$docker_compose_env"
+
+					# 确认docker-compose.yaml中ports字段是使用变量映射端口
+					# 这里不修改docker-compose.yaml的端口映射，默认使用环境变量
+
+					echo "启动 Dify 容器..."
+					if docker compose up -d; then
+						echo "------------------------"
+						echo "Dify 安装完成"
+						echo "访问地址: http://${local_ip}:8058"
+						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
+					else
+						echo "Dify 启动失败，请检查 Docker 和网络配置"
+					fi
+					;;
+
+				2)
+					if [ -d "$dify_dir" ]; then
+						timestamp=$(date +%Y%m%d%H%M%S)
+						backup_file="${backup_prefix}-${timestamp}.tar.gz"
+						tar -czf "${backup_dir}/${backup_file}" -C "$dify_dir" .
+						echo "备份完成: ${backup_dir}/${backup_file}"
+					else
+						echo "未检测到安装目录，无法备份"
+					fi
+					;;
+
+				3)
+					read -p "确认卸载 Dify？将删除 /home/docker/dify 目录及所有数据，且停止所有相关容器 [y/N]: " confirm
+					if [[ "$confirm" =~ ^[Yy]$ ]]; then
+						if [ -f "$docker_compose_file" ]; then
+							docker compose -f "$docker_compose_file" down
+						else
+							echo "docker-compose.yaml 文件不存在，跳过停止容器"
+						fi
+						rm -rf "$dify_dir"
+						echo "Dify 已卸载完成"
+					else
+						echo "操作已取消"
+					fi
+					;;
+
+				4)
+					echo "可用备份文件："
+					backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+					if [ ${#backups[@]} -eq 0 ]; then
+						echo "无可用备份"
+						break
+					fi
+
+					for i in "${!backups[@]}"; do
+						echo "$((i+1)). $(basename ${backups[$i]})"
+					done
+					read -p "请输入备份编号（留空恢复最新）: " sel
+
+					if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
+						restore_file="${backups[$((sel-1))]}"
+					else
+						restore_file="${backups[0]}"
+					fi
+
+					echo "恢复自: $(basename $restore_file)"
+
+					if [ -f "$docker_compose_file" ]; then
+						docker compose -f "$docker_compose_file" down
+					else
+						echo "docker-compose.yaml 文件不存在，跳过停止容器"
+					fi
+
+					rm -rf "$dify_dir"
+					mkdir -p "$dify_dir"
+
+					tar -xzf "$restore_file" -C "$dify_dir"
+
+					cd "$docker_compose_dir" || exit
+
+					echo "启动 Dify 容器..."
+					if docker compose up -d; then
+						echo "------------------------"
+						echo "Dify 已恢复"
+						echo "访问地址: http://${local_ip}:8058"
+						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
+					else
+						echo "Dify 启动失败，请检查 Docker 和网络配置"
+					fi
+					;;
+
+				*)
+					echo "无效选项"
+					;;
+			esac
+
+			read -p "按任意键继续..." -n1
+			;;
 
 
 
