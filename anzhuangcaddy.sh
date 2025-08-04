@@ -105,22 +105,19 @@ function delete_config() {
         return
     fi
 
-    # 读取配置块，按整块处理
     mapfile -t BLOCKS < <(awk '
         BEGIN { block=""; inside=0 }
         /^[^# \t].*{$/ {
-            if (inside == 0) {
-                block=$0"\n"; inside=1
-            } else {
-                block = block $0"\n"
-            }
+            block=$0"\n"
+            inside=1
             next
         }
-        inside == 1 {
-            block = block $0"\n"
+        inside==1 {
+            block=block $0 "\n"
             if ($0 ~ /^}/) {
                 print block
-                block=""; inside=0
+                block=""
+                inside=0
             }
         }
     ' "$CONFIG_FILE")
@@ -144,19 +141,21 @@ function delete_config() {
         echo "🗑 正在删除配置："
         echo "$BLOCK_TO_DELETE"
 
-        # 用 awk 过滤整块配置
         sudo awk -v blk="$BLOCK_TO_DELETE" '
-            BEGIN { skip=0 }
-            {
-                line = $0 "\n"
-                if (index(blk, line) == 1) {
+        BEGIN { skip=0 }
+        {
+            if (skip==0) {
+                if (index(blk, $0 "\n") == 1) {
                     skip=1
+                    next
                 }
-                if (!skip) print $0
-                if (skip && $0 ~ /^}/) {
+                print
+            } else {
+                if ($0 ~ /^}/) {
                     skip=0
                 }
             }
+        }
         ' "$CONFIG_FILE" > /tmp/caddy_tmp && sudo mv /tmp/caddy_tmp "$CONFIG_FILE"
 
         format_and_reload
