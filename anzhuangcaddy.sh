@@ -105,26 +105,60 @@ function delete_config() {
         return
     fi
 
-    mapfile -t DOMAINS < <(grep -E '^[^# \t].*{$' "$CONFIG_FILE" | sed 's/ *{//')
+    # 读取配置块，按整块处理
+    mapfile -t BLOCKS < <(awk '
+        BEGIN { block=""; inside=0 }
+        /^[^# \t].*{$/ {
+            if (inside == 0) {
+                block=$0"\n"; inside=1
+            } else {
+                block = block $0"\n"
+            }
+            next
+        }
+        inside == 1 {
+            block = block $0"\n"
+            if ($0 ~ /^}/) {
+                print block
+                block=""; inside=0
+            }
+        }
+    ' "$CONFIG_FILE")
 
-    if [ ${#DOMAINS[@]} -eq 0 ]; then
-        echo "⚠️  没有找到可删除的域名配置。"
+    if [ ${#BLOCKS[@]} -eq 0 ]; then
+        echo "⚠️  没有找到可删除的配置块。"
         return
     fi
 
-    echo "请选择要删除的域名配置："
-    for i in "${!DOMAINS[@]}"; do
-        echo "$((i+1)). ${DOMAINS[$i]}"
+    echo "请选择要删除的域名："
+    for i in "${!BLOCKS[@]}"; do
+        DOMAIN_LINE=$(echo "${BLOCKS[$i]}" | head -n 1 | sed 's/ *{//')
+        echo "$((i+1)). $DOMAIN_LINE"
     done
 
     read -p "请输入序号: " SELECTED
     INDEX=$((SELECTED - 1))
 
-    if [ "$INDEX" -ge 0 ] && [ "$INDEX" -lt "${#DOMAINS[@]}" ]; then
-        DOMAIN_TO_DELETE="${DOMAINS[$INDEX]}"
-        echo "🗑 正在删除配置：$DOMAIN_TO_DELETE"
+    if [ "$INDEX" -ge 0 ] && [ "$INDEX" -lt "${#BLOCKS[@]}" ]; then
+        BLOCK_TO_DELETE="${BLOCKS[$INDEX]}"
+        echo "🗑 正在删除配置："
+        echo "$BLOCK_TO_DELETE"
 
-        sudo sed -i "/^$DOMAIN_TO_DELETE {/,/^}/d" "$CONFIG_FILE"
+        # 用 awk 过滤整块配置
+        sudo awk -v blk="$BLOCK_TO_DELETE" '
+            BEGIN { skip=0 }
+            {
+                line = $0 "\n"
+                if (index(blk, line) == 1) {
+                    skip=1
+                }
+                if (!skip) print $0
+                if (skip && $0 ~ /^}/) {
+                    skip=0
+                }
+            }
+        ' "$CONFIG_FILE" > /tmp/caddy_tmp && sudo mv /tmp/caddy_tmp "$CONFIG_FILE"
+
         format_and_reload
     else
         echo "❌ 无效的选择。"
@@ -173,7 +207,7 @@ function menu() {
     echo "4. 重启 Caddy"
     echo "5. 停止 Caddy"
     echo "6. 添加 TLS Skip Verify 反向代理"
-    echo "7. 删除指定域名配置块"
+    echo "7. 删除指定域名配置"
     echo "0. 退出"
     echo "=============================="
     read -p "请输入选项: " choice
