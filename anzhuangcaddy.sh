@@ -70,11 +70,32 @@ function list_config() {
     echo "        🛠 Caddy 管理脚本"
     echo "📄 当前配置内容："
     echo "------------------------------"
-    if [ -f "$CONFIG_FILE" ] && [ -s "$CONFIG_FILE" ]; then
-        cat "$CONFIG_FILE"
-    else
+    if [ ! -f "$CONFIG_FILE" ] || [ ! -s "$CONFIG_FILE" ]; then
         echo "⚠️  当前还没有任何配置。"
+        echo "------------------------------"
+        return
     fi
+
+    awk '
+    BEGIN { count=0; block=""; inside=0 }
+    /^[^# \t].*{$/ {
+        if (inside == 0) {
+            block=$0"\n"
+            inside=1
+        } else {
+            block=block $0"\n"
+        }
+        next
+    }
+    inside == 1 {
+        block=block $0"\n"
+        if ($0 ~ /^}/) {
+            count++
+            printf "%d. %s\n", count, block
+            block=""; inside=0
+        }
+    }
+    ' "$CONFIG_FILE"
     echo "------------------------------"
 }
 
@@ -84,23 +105,24 @@ function delete_config() {
         return
     fi
 
-    mapfile -t DOMAINS < <(grep -E '^[^ #].*{$' "$CONFIG_FILE" | sed 's/ *{//')
+    mapfile -t DOMAINS < <(grep -E '^[^# \t].*{$' "$CONFIG_FILE" | sed 's/ *{//')
 
     if [ ${#DOMAINS[@]} -eq 0 ]; then
         echo "⚠️  没有找到可删除的域名配置。"
         return
     fi
 
-    echo "请选择要删除的域名："
+    echo "请选择要删除的域名配置："
     for i in "${!DOMAINS[@]}"; do
         echo "$((i+1)). ${DOMAINS[$i]}"
     done
-    read -p "请输入序号: " SELECTED
 
+    read -p "请输入序号: " SELECTED
     INDEX=$((SELECTED - 1))
+
     if [ "$INDEX" -ge 0 ] && [ "$INDEX" -lt "${#DOMAINS[@]}" ]; then
         DOMAIN_TO_DELETE="${DOMAINS[$INDEX]}"
-        echo "🗑 正在删除：$DOMAIN_TO_DELETE"
+        echo "🗑 正在删除配置：$DOMAIN_TO_DELETE"
 
         sudo sed -i "/^$DOMAIN_TO_DELETE {/,/^}/d" "$CONFIG_FILE"
         format_and_reload
@@ -151,7 +173,7 @@ function menu() {
     echo "4. 重启 Caddy"
     echo "5. 停止 Caddy"
     echo "6. 添加 TLS Skip Verify 反向代理"
-    echo "7. 删除指定域名配置"
+    echo "7. 删除指定域名配置块"
     echo "0. 退出"
     echo "=============================="
     read -p "请输入选项: " choice
