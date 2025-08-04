@@ -5387,7 +5387,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
 	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                   ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
-	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}  "
+	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                      ${gl_kjlan}58.  ${gl_bai}安装caddy"
    
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
@@ -7769,6 +7769,12 @@ EOF
 
 			read -p "按任意键继续..." -n1
 			;;
+		  58)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
 
 
 
