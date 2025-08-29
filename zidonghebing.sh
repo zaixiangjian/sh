@@ -247,14 +247,14 @@ EOF
         3)
           echo "------------------------"
           echo "当前定时任务如下："
-          crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x" | nl
+          crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" | nl
 
           read -e -p "请输入要删除的任务编号: " del_num
 
-          task_line=$(crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x" | sed -n "${del_num}p")
+          task_line=$(crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" | sed -n "${del_num}p")
 
-          crontab -l 2>/dev/null | grep -v -E "beifen.x|chuansong.x" > /tmp/tmp_cron
-          crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x" | sed "${del_num}d" >> /tmp/tmp_cron
+          crontab -l 2>/dev/null | grep -v -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" > /tmp/tmp_cron
+          crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" | sed "${del_num}d" >> /tmp/tmp_cron
           crontab /tmp/tmp_cron && rm -f /tmp/tmp_cron
 
           echo "已删除定时任务: $task_line"
