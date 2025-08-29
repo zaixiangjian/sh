@@ -77,24 +77,20 @@
         echo "bash-obfuscate 已安装，跳过"
       fi
 
-      echo "当前已有定时任务："
-      echo "------------------------"
+echo "当前已有定时任务："
+echo "------------------------"
 
-crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" | nl | while read -r line; do
-  num=$(echo "$line" | awk '{print $1}')
-  content=$(echo "$line" | cut -d' ' -f2-)
-
-  if echo "$content" | grep -q "beifen.x"; then
-    echo "$num. 备份任务: $content"
-  elif echo "$content" | grep -q "chuansong.x"; then
-    echo "$num. 传送任务: $content"
-  elif echo "$content" | grep -q "zidongtuchuang.x"; then
-    echo "$num. 自动上传任务: $content"
-  elif echo "$content" | grep -q "wangpan.x"; then
-    echo "$num. 远程同步任务: $content"
-  else
-    echo "$num. 其他任务: $content"
-  fi
+crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" | awk '{print NR". "$0}' | while read -r line; do
+    content=$(echo "$line" | cut -d' ' -f2-)
+    if echo "$content" | grep -q "beifen.x"; then
+        echo "$line" | sed 's/\. beifen.x/\. 备份任务: &/'
+    elif echo "$content" | grep -q "chuansong.x"; then
+        echo "$line" | sed 's/\. chuansong.x/\. 传送任务: &/'
+    elif echo "$content" | grep -q "zidongtuchuang.x"; then
+        echo "$line" | sed 's/\. zidongtuchuang.x/\. 自动上传任务: &/'
+    elif echo "$content" | grep -q "wangpan.x"; then
+        echo "$line" | sed 's/\. wangpan.x/\. 远程同步任务: &/'
+    fi
 done
 
       echo "------------------------"
