@@ -748,7 +748,7 @@ EOF
           mkdir -p /home/docker
           cd /home/docker || exit 1
 
-          wget -q -O zixuanmulu.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
+          wget -q -O zixuanmulu.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/zixuanmulu.sh
           chmod +x zixuanmulu.sh
 
           sed -i "s/vpsip/$useip/g" zixuanmulu.sh
