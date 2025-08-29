@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 本地目录
-SRC="/home/web/wangpan"
+SRC="/home/docker/wangpan/"
 # 远程服务器目录，与本地一致
 DEST="root@vpsip:$SRC"
 
