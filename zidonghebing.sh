@@ -685,7 +685,7 @@ EOF
           strip "$OUTPUT_BIN" >/dev/null 2>&1
           upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" beifen.sh
 
           echo "------------------------"
           echo "选择备份频率："
