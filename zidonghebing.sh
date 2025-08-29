@@ -676,7 +676,7 @@ IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-          cat beifen.sh >> "$TMP_SCRIPT"
+          cat wangpan.sh >> "$TMP_SCRIPT"
 
           bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
           sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
