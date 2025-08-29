@@ -80,7 +80,7 @@
 echo "当前已有定时任务："
 echo "------------------------"
 
-crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x|zixuanmulu.sh" | nl | while read -r line; do
+crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x|zixuanmulu.x" | nl | while read -r line; do
   num=$(echo "$line" | awk '{print $1}')
   content=$(echo "$line" | cut -d' ' -f2-)
 
@@ -92,6 +92,10 @@ crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.
     echo "$num. 自动上传任务: $content"
   elif echo "$content" | grep -q "wangpan.x"; then
     echo "$num. 远程同步任务: $content"
+
+
+
+    
   else
     echo "$num. 其他任务: $content"
   fi
