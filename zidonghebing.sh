@@ -650,7 +650,6 @@ EOF
 
 
 
-
         10)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
@@ -659,8 +658,9 @@ EOF
           cd /home/docker || exit 1
 
           wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
-          chmod +x beifen.sh
+          chmod +x wangpan.sh
 
+          # 修正替换文件名，确保占位符替换到 wangpan.sh
           sed -i "s/vpsip/$useip/g" wangpan.sh
           sed -i "s/vps密码/$usepasswd/g" wangpan.sh
 
@@ -685,7 +685,7 @@ EOF
           strip "$OUTPUT_BIN" >/dev/null 2>&1
           upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" beifen.sh
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
 
           echo "------------------------"
           echo "选择备份频率："
@@ -732,6 +732,7 @@ EOF
               ;;
           esac
           ;;
+
 
 
 
