@@ -80,7 +80,7 @@
       echo "当前已有定时任务："
       echo "------------------------"
 
-      crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x" | nl | while read -r line; do
+      crontab -l 2>/dev/null | grep -E "beifen.x|chuansong.x|zidongtuchuang.x|wangpan.x" | nl | while read -r line; do
         num=$(echo "$line" | awk '{print $1}')
         content=$(echo "$line" | cut -d' ' -f2-)
         if echo "$content" | grep -q "beifen.x"; then
