@@ -665,9 +665,9 @@ EOF
 
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/home/web/wangpan/wangpan_tmp.sh"
-          OBFUSCATED_SCRIPT="/home/web/wangpan/wangpan_obf.sh"
-          OUTPUT_BIN="/home/web/wangpan/wangpan.x"
+          TMP_SCRIPT="/home/docker/wangpan_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/docker/wangpan_obf.sh"
+          OUTPUT_BIN="/home/docker/wangpan.x"
 
           cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -731,6 +731,7 @@ EOF
               ;;
           esac
           ;;
+
 
 
 
