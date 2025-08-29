@@ -113,7 +113,7 @@ done
       echo "9. 图床备份"
       echo "------------------------"
       echo "10. 网盘传送"
-      echo "11. 自选目录传送回车默认/home/docker/wangpan/"
+      echo "11. 在github修改目录https://github.com/zaixiangjian/sh/blob/main/zixuanmulu.sh"
       echo "------------------------"
       read -e -p "请选择操作编号: " action
 
