@@ -699,7 +699,7 @@ EOF
 #!/bin/bash
 
 # 设置监控的数据库文件
-WATCH_DIR="/home/密码"
+WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
 # 使用 inotifywait 监控数据库文件的变化
 inotifywait -m -e modify,create,delete $WATCH_FILES |
 while read path action file; do
