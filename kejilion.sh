@@ -1919,6 +1919,7 @@ dd_xitong() {
 			echo "原地址2"
 			echo "			curl -O ${gh_proxy}https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh"
    			echo "------------------------"
+   			echo "133. Debian 13"
 			echo "1. Debian 12                  2. Debian 11"
 			echo "3. Debian 10                  4. Debian 9"
 			echo "------------------------"
@@ -1943,6 +1944,13 @@ dd_xitong() {
 			echo "------------------------"
 			read -e -p "请选择要重装的系统: " sys_choice
 			case "$sys_choice" in
+   			  133)
+				send_stats "重装debian 13"
+				dd_xitong_1
+				bash InstallNET.sh -debian 13
+				reboot
+				exit
+				;;
 			  1)
 				send_stats "重装debian 12"
 				dd_xitong_1
