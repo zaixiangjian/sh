@@ -1,7 +1,16 @@
 #!/bin/bash
 
-# 本地目录
-SRC="/home/docker/wangpan/"
+# 让用户输入本地目录，默认是 /home/docker/wangpan/
+read -e -p "请输入要同步的本地目录 (默认: /home/docker/wangpan/): " SRC
+SRC=${SRC:-/home/docker/wangpan/}
+
+# 如果本地目录不存在，则自动创建
+if [ ! -d "$SRC" ]; then
+    echo "本地目录 $SRC 不存在，正在创建..."
+    mkdir -p "$SRC"
+    echo "本地目录已创建：$SRC"
+fi
+
 # 远程服务器目录，与本地一致
 DEST="root@vpsip:$SRC"
 
