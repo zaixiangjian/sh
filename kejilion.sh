@@ -5771,7 +5771,7 @@ linux_panel() {
 				echo ""
 
 				if docker inspect "$docker_name" &>/dev/null; then
-					yuming=$(cat /home/web/mail/mail.txt)
+					yuming=$(cat /home/docker/mail/mail.txt)
 					echo "访问地址: "
 					echo "https://$yuming"
 				fi
@@ -5786,8 +5786,8 @@ linux_panel() {
 				case $choice in
 					1)
 						read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
-						mkdir -p /home/web/mail
-						echo "$yuming" > /home/web/mail/mail.txt
+						mkdir -p /home/docker/mail
+						echo "$yuming" > /home/docker/mail/mail.txt
 						echo "------------------------"
 						ip_address
 						echo "先解析这些DNS记录"
@@ -5808,7 +5808,7 @@ linux_panel() {
 							--name mailserver \
 							--hostname "$yuming" \
 							-e TZ=Asia/Shanghai \
-							-v /home/web/mail/data:/data \
+							-v /home/docker/mail/data:/data \
 							-p 80:80 \
 							-p 443:443 \
 							-p 25:25 \
@@ -5833,12 +5833,12 @@ linux_panel() {
 					2)
 						docker rm -f mailserver
 						docker rmi -f analogic/poste.io
-						yuming=$(cat /home/web/mail/mail.txt)
+						yuming=$(cat /home/docker/mail/mail.txt)
 						docker run -d \
 							--name mailserver \
 							--hostname "$yuming" \
 							-e TZ=Asia/Shanghai \
-							-v /home/web/mail/data:/data \
+							-v /home/docker/mail/data:/data \
 							-p 80:80 \
 							-p 443:443 \
 							-p 25:25 \
@@ -5862,8 +5862,8 @@ linux_panel() {
 					3)
 						docker rm -f mailserver
 						docker rmi -f analogic/poste.io
-						rm /home/web/mail/mail.txt
-						rm -rf /home/web/mail/data
+						rm /home/docker/mail/mail.txt
+						rm -rf /home/docker/mail/data
 						echo "应用已卸载"
 						;;
 
