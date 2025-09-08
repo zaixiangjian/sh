@@ -36,6 +36,13 @@ GW=$(ip route | grep default | awk '{print $3}')
 # 拼接参数
 PARAMS="$IP,$MASK,$GW"
 
+# 默认镜像地址
+DEFAULT_URL="https://file.1323123.xyz/dd/windows/1keydd/win10ltsc_password_1keydd.gz"
+
+# 用户输入镜像地址（可回车跳过）
+read -p "请输入镜像地址 [回车使用默认值]: " IMG_URL
+IMG_URL=${IMG_URL:-$DEFAULT_URL}
+
 # 打印确认信息
 echo "======================"
 echo "检测到的网络参数："
@@ -48,7 +55,9 @@ echo "账户名：Administrator"
 echo "初始密码：1keydd"
 echo "登陆后请务必修改密码！"
 echo "======================"
+echo "使用的镜像地址：$IMG_URL"
+echo "======================"
 read -p "按回车键确认安装，或 Ctrl+C 取消..."
 
 # 执行命令
-wget -qO- inst.sh | bash -s - -n "$PARAMS" -t https://file.1323123.xyz/dd/windows/1keydd/win10ltsc_password_1keydd.gz
+wget -qO- inst.sh | bash -s - -n "$PARAMS" -t "$IMG_URL"
