@@ -705,13 +705,6 @@ WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/d
 inotifywait -m -e modify,create,delete $WATCH_FILES |
 while read path action file; do
     echo "Change detected in file: $file (Action: $action)"
-
-
-    # 延迟 30 秒再执行备份
-    sleep 30
-
-
-
     /home/docker/vaultwarden/mimachuansong.x
 done
 EOF
