@@ -576,7 +576,82 @@ EOF
 
 
 
+
         9)
+          mkdir -p /home/docker/vaultwarden
+          cd /home/docker/vaultwarden || exit 1
+
+          wget -q -O chuansong.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong.sh
+          chmod +x chuansong.sh
+
+          read -e -p "输入远程服务器IP: " useip
+          read -e -p "输入远程服务器密码: " usepasswd
+
+          sed -i "s/vpsip/$useip/g" chuansong.sh
+          sed -i "s/vps密码/$usepasswd/g" chuansong.sh
+
+          local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+
+          TMP_SCRIPT="/home/web/beifen/chuansong_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/web/beifen/chuansong_obf.sh"
+          OUTPUT_BIN="/home/web/beifen/chuansong.x"
+
+          cat > "$TMP_SCRIPT" <<EOF
+#!/bin/bash
+IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
+EOF
+
+          cat chuansong.sh >> "$TMP_SCRIPT"
+
+          bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+          sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+          shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+          chmod +x "$OUTPUT_BIN"
+          strip "$OUTPUT_BIN" >/dev/null 2>&1
+          upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" chuansong.sh
+
+          read -e -p "每天几点传送（0-23）: " chuan_hour
+          read -e -p "每天几分传送（0-59）: " chuan_min
+
+          if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+            echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
+          else
+            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * $OUTPUT_BIN") | crontab -
+            echo "已设置每天 ${chuan_hour}点${chuan_min}分 自动传送"
+          fi
+          ;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        10)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
@@ -662,7 +737,7 @@ EOF
 
 
 
-        10)
+        11)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
@@ -745,7 +820,7 @@ EOF
           ;;
 
 
-        11)
+        12)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
