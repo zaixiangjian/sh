@@ -39,7 +39,7 @@ check_frp_app() {
 }
 
 # 下载并运行 FRP 服务端/客户端容器
-donlond_frp() {
+download_frp() {
   role="$1"
   config_file="/home/frp/${role}.toml"
 
@@ -80,7 +80,7 @@ dashboard_user = $dashboard_user
 dashboard_pwd = $dashboard_pwd
 EOF
 
-  donlond_frp frps
+  download_frp frps
 
   # 输出生成的信息
   ip_address
@@ -114,7 +114,7 @@ server_port = 8055
 token = ${token}
 EOF
 
-  donlond_frp frpc
+  download_frp frpc
   open_port 8055
 }
 
@@ -245,7 +245,7 @@ frps_main_ports() {
   generate_access_urls
 }
 
-# FRP 服务端面板
+# 控制 FRP 服务端和客户端面板的逻辑
 frps_panel() {
   send_stats "FRP服务端"
   local app_id="55"
@@ -287,7 +287,7 @@ frps_panel() {
         tmux kill-session -t frps >/dev/null 2>&1
         docker rm -f frps && docker rmi kjlion/frp:alpine >/dev/null 2>&1
         [ -f /home/frp/frps.toml ] || cp /home/frp/frp_0.61.0_linux_amd64/frps.toml /home/frp/frps.toml
-        donlond_frp frps
+        download_frp frps
         add_app_id
         echo "FRP服务端已经更新完成"
         ;;
@@ -299,79 +299,6 @@ frps_panel() {
         close_port 8055 8056
         sed -i "/\b${app_id}\b/d" /home/docker/appno.txt
         echo "应用已卸载"
-        ;;
-      *)
-        break
-        ;;
-    esac
-    break_end
-  done
-}
-
-# FRP 客户端面板
-frpc_panel() {
-  send_stats "FRP客户端"
-  local app_id="56"
-  local docker_name="frpc"
-  local docker_port=8055
-  while true; do
-    clear
-    check_frp_app
-    check_docker_image_update $docker_name
-    echo -e "FRP客户端 $check_frp $update_status"
-    echo "与服务端对接，对接后可创建内网穿透服务到互联网访问"
-    echo "官网介绍: https://github.com/fatedier/frp/"
-    echo "视频教学: https://www.bilibili.com/video/BV1yMw6e2EwL?t=173.9"
-    echo "------------------------"
-    if [ -d "/home/frp/" ]; then
-      [ -f /home/frp/frpc.toml ] || cp /home/frp/frp_0.61.0_linux_amd64/frpc.toml /home/frp/frpc.toml
-      list_forwarding_services "/home/frp/frpc.toml"
-    fi
-    echo ""
-    echo "------------------------"
-    echo "1. 安装               2. 更新               3. 卸载"
-    echo "------------------------"
-    echo "4. 添加对外服务       5. 删除对外服务       6. 手动配置服务"
-    echo "------------------------"
-    echo "0. 返回上一级选单"
-    echo "------------------------"
-    read -e -p "输入你的选择: " choice
-    case $choice in
-      1)
-        install jq grep ss
-        install_docker
-        configure_frpc
-        add_app_id
-        echo "FRP客户端已经安装完成"
-        ;;
-      2)
-        crontab -l | grep -v 'frpc' | crontab - > /dev/null 2>&1
-        tmux kill-session -t frpc >/dev/null 2>&1
-        docker rm -f frpc && docker rmi kjlion/frp:alpine >/dev/null 2>&1
-        [ -f /home/frp/frpc.toml ] || cp /home/frp/frp_0.61.0_linux_amd64/frpc.toml /home/frp/frpc.toml
-        donlond_frp frpc
-        add_app_id
-        echo "FRP客户端已经更新完成"
-        ;;
-      3)
-        crontab -l | grep -v 'frpc' | crontab - > /dev/null 2>&1
-        tmux kill-session -t frpc >/dev/null 2>&1
-        docker rm -f frpc && docker rmi kjlion/frp:alpine
-        rm -rf /home/frp
-        close_port 8055
-        sed -i "/\b${app_id}\b/d" /home/docker/appno.txt
-        echo "应用已卸载"
-        ;;
-      4)
-        add_forwarding_service
-        ;;
-      5)
-        delete_forwarding_service
-        ;;
-      6)
-        install nano
-        nano /home/frp/frpc.toml
-        docker restart frpc
         ;;
       *)
         break
