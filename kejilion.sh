@@ -7789,10 +7789,11 @@ EOF
 
 
   59)
-
+  
     # 放行端口规则
     ufw allow 21115:21119/tcp
     ufw allow 21116/udp
+    ufw reload
 
 
 
@@ -7813,6 +7814,7 @@ EOF
     # 放行端口规则
     ufw allow 21115:21119/tcp
     ufw allow 21116/udp
+    ufw reload
 
 
 
