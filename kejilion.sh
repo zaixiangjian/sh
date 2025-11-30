@@ -5397,7 +5397,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
 	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
    	  echo -e "${gl_kjlan}------------------------"
-   	  echo -e "${gl_kjlan}59.  ${gl_bai}rustdesk安装 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}             ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
+	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -7786,7 +7787,39 @@ EOF
 		    echo "✅ caddy安装完成。"
 		    ;;
 
-		  59) 
+
+  59)
+
+    docker_name="hbbs"
+    docker_img="rustdesk/rustdesk-server"
+    docker_port=21116
+    docker_rum="docker run --name hbbs -v /root/rustdesk/amd64:/root -td --net=host --restart=always rustdesk/rustdesk-server hbbs"
+
+    docker_describe="rustdesk开源的远程桌面(服务端)，类似自己的向日葵私服。"
+    docker_url="官网介绍: https://rustdesk.com/zh-cn/"
+    docker_use="docker logs hbbs"
+    docker_passwd="echo \"把你的IP和key记录下，会在远程桌面客户端中用到。去44选项装中继端吧！\""
+    docker_app
+      ;;
+  
+  60)
+
+    docker_name="hbbr"
+    docker_img="rustdesk/rustdesk-server"
+    docker_port=21116
+    docker_rum="docker run --name hbbr -v /root/rustdesk/amd64:/root -td --net=host --restart=always rustdesk/rustdesk-server hbbr"
+
+    docker_describe="rustdesk开源的远程桌面(中继端)，类似自己的向日葵私服。"
+    docker_url="官网介绍: https://rustdesk.com/zh-cn/"
+    docker_use="echo \"前往官网下载远程桌面的客户端: https://rustdesk.com/zh-cn/\""
+    docker_passwd=""
+    docker_app
+      ;;
+
+
+
+
+		  61) 
 			clear
 			echo "🔄 更新系统..."
 			apt update -y && apt upgrade -y
