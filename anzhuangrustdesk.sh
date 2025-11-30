@@ -5,6 +5,7 @@ set -e
 RUSTDESK_VERSION="1.1.14"
 DOWNLOAD_URL="https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_VERSION}/rustdesk-server-linux-amd64.zip"
 INSTALL_DIR="/root/rustdesk"
+TMP_DIR="/tmp/rustdesk"
 
 function install_rustdesk() {
     echo "🔄 更新系统..."
@@ -18,26 +19,26 @@ function install_rustdesk() {
     mkdir -p $INSTALL_DIR
 
     echo "🌐 下载 RustDesk Server..."
-    wget -O /tmp/rustdesk.zip "$DOWNLOAD_URL"
+    wget -O $TMP_DIR/rustdesk.zip "$DOWNLOAD_URL" || { echo "❌ 下载失败，检查链接或网络。"; exit 1; }
 
-    echo "📂 解压到 /root/rustdesk ..."
-    unzip /tmp/rustdesk.zip -d $INSTALL_DIR
+    echo "📂 解压到 $INSTALL_DIR ..."
+    unzip -o $TMP_DIR/rustdesk.zip -d $INSTALL_DIR || { echo "❌ 解压失败。"; exit 1; }
 
     echo "📦 安装 PM2..."
-    npm install -g pm2
+    npm install -g pm2 || { echo "❌ 安装 PM2 失败。"; exit 1; }
 
     echo "🚀 启动 hbbs / hbbr ..."
-    cd $INSTALL_DIR/amd64
+    cd $INSTALL_DIR/amd64 || { echo "❌ 进入 RustDesk 目录失败。"; exit 1; }
 
     pm2 delete hbbs >/dev/null 2>&1 || true
     pm2 delete hbbr >/dev/null 2>&1 || true
 
-    pm2 start hbbs
-    pm2 start hbbr
+    pm2 start hbbs || { echo "❌ 启动 hbbs 失败。"; exit 1; }
+    pm2 start hbbr || { echo "❌ 启动 hbbr 失败。"; exit 1; }
 
     echo "🧷 设置 PM2 开机启动..."
-    pm2 startup
-    pm2 save
+    pm2 startup || { echo "❌ 设置 PM2 开机启动失败。"; exit 1; }
+    pm2 save || { echo "❌ 保存 PM2 配置失败。"; exit 1; }
 
     echo "====================================="
     echo "🎉 RustDesk Server 安装成功！"
@@ -51,7 +52,7 @@ function uninstall_rustdesk() {
     echo "🛑 停止 PM2 进程..."
     pm2 delete hbbs || true
     pm2 delete hbbr || true
-    pm2 save
+    pm2 save || true
 
     echo "🗑 删除目录 $INSTALL_DIR ..."
     rm -rf $INSTALL_DIR
