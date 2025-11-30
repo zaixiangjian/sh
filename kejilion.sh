@@ -7780,9 +7780,9 @@ EOF
 			;;
 		  58)
 		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    echo "▶️ 正在启动caddy安装..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh)
-		    echo "✅ 远程备份与传送模块执行完成。"
+		    echo "✅ caddy安装完成。"
 		    ;;
 
 
