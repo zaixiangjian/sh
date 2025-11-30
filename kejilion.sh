@@ -7790,6 +7790,12 @@ EOF
 
   59)
 
+    # 放行端口规则
+    ufw allow 21115:21119/tcp
+    ufw allow 21116/udp
+
+
+
     docker_name="hbbs"
     docker_img="rustdesk/rustdesk-server"
     docker_port=21116
@@ -7803,6 +7809,12 @@ EOF
       ;;
   
   60)
+
+    # 放行端口规则
+    ufw allow 21115:21119/tcp
+    ufw allow 21116/udp
+
+
 
     docker_name="hbbr"
     docker_img="rustdesk/rustdesk-server"
