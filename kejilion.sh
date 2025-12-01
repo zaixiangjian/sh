@@ -5398,7 +5398,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
    	  echo -e "${gl_kjlan}------------------------"
    	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}             ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
-	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}                         ${gl_kjlan}62.  ${gl_bai}安装caddycloudflare"
+	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -7894,12 +7894,7 @@ EOF
 		  ;;
 
 
-		  62)
-		    clear
-		    echo "▶️ 正在启动cloudflarecaddy安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddycloudflare.sh)
-		    echo "✅ cloudflarecaddy安装完成。"
-		    ;;
+
 
 
 
