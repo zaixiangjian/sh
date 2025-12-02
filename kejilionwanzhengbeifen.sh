@@ -1869,12 +1869,12 @@ clear
 dd_xitong() {
 		send_stats "重装系统"
 		dd_xitong_MollyLau() {
-			wget --no-check-certificate -qO InstallNET.sh "${gh_proxy}https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh" && chmod a+x InstallNET.sh
+			wget --no-check-certificate -qO InstallNET.sh "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/Tools/master/Linux_reinstall/InstallNET.sh" && chmod a+x InstallNET.sh
 
 		}
 
 		dd_xitong_bin456789() {
-			curl -O ${gh_proxy}https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh
+			curl -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/reinstall/main/reinstall.sh
 		}
 
 		dd_xitong_1() {
@@ -1914,6 +1914,12 @@ dd_xitong() {
 			echo -e "${gl_hong}注意: ${gl_bai}重装有风险失联，不放心者慎用。重装预计花费15分钟，请提前备份数据。"
 			echo -e "${hui}感谢MollyLau大佬和bin456789大佬的脚本支持！${gl_bai} "
 			echo "------------------------"
+			echo "原地址1"
+			echo "			wget --no-check-certificate -qO InstallNET.sh "${gh_proxy}https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh" && chmod a+x InstallNET.sh"
+			echo "原地址2"
+			echo "			curl -O ${gh_proxy}https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh"
+   			echo "------------------------"
+   			echo "133. Debian 13"
 			echo "1. Debian 12                  2. Debian 11"
 			echo "3. Debian 10                  4. Debian 9"
 			echo "------------------------"
@@ -1938,6 +1944,13 @@ dd_xitong() {
 			echo "------------------------"
 			read -e -p "请选择要重装的系统: " sys_choice
 			case "$sys_choice" in
+   			  133)
+				send_stats "重装debian 13"
+				dd_xitong_1
+				bash InstallNET.sh -debian 13
+				reboot
+				exit
+				;;
 			  1)
 				send_stats "重装debian 12"
 				dd_xitong_1
@@ -3899,6 +3912,9 @@ linux_Oracle() {
 		  clear
 		  echo "重装系统"
 		  echo "--------------------------------"
+    		  echo "原地址"
+    		  echo "			  bash <(wget --no-check-certificate -qO- "${gh_proxy}https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh") $xitong -v 64 -p $vpspasswd -port 22"
+    		  echo "--------------------------------"
 		  echo -e "${gl_hong}注意: ${gl_bai}重装有风险失联，不放心者慎用。重装预计花费15分钟，请提前备份数据。"
 		  read -e -p "确定继续吗？(Y/N): " choice
 
@@ -3924,7 +3940,7 @@ linux_Oracle() {
 
 			  read -e -p "请输入你重装后的密码: " vpspasswd
 			  install wget
-			  bash <(wget --no-check-certificate -qO- "${gh_proxy}https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh") $xitong -v 64 -p $vpspasswd -port 22
+			  bash <(wget --no-check-certificate -qO- "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/Note/master/InstallNET.sh") $xitong -v 64 -p $vpspasswd -port 22
 			  send_stats "甲骨文云重装系统脚本"
 			  ;;
 			[Nn])
@@ -5377,13 +5393,19 @@ linux_panel() {
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                      ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}"
-
-   
+	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 ${gl_huang}★${gl_bai}                   ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
+	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
+   	  echo -e "${gl_kjlan}------------------------"
+   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}            ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
+	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
-   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                          ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+      	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}102.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}                ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}104.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -5751,7 +5773,7 @@ linux_panel() {
 				echo ""
 
 				if docker inspect "$docker_name" &>/dev/null; then
-					yuming=$(cat /home/web/mail/mail.txt)
+					yuming=$(cat /home/docker/mail/mail.txt)
 					echo "访问地址: "
 					echo "https://$yuming"
 				fi
@@ -5766,8 +5788,8 @@ linux_panel() {
 				case $choice in
 					1)
 						read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
-						mkdir -p /home/web/mail
-						echo "$yuming" > /home/web/mail/mail.txt
+						mkdir -p /home/docker/mail
+						echo "$yuming" > /home/docker/mail/mail.txt
 						echo "------------------------"
 						ip_address
 						echo "先解析这些DNS记录"
@@ -5788,7 +5810,7 @@ linux_panel() {
 							--name mailserver \
 							--hostname "$yuming" \
 							-e TZ=Asia/Shanghai \
-							-v /home/web/mail/data:/data \
+							-v /home/docker/mail/data:/data \
 							-p 80:80 \
 							-p 443:443 \
 							-p 25:25 \
@@ -5813,12 +5835,12 @@ linux_panel() {
 					2)
 						docker rm -f mailserver
 						docker rmi -f analogic/poste.io
-						yuming=$(cat /home/web/mail/mail.txt)
+						yuming=$(cat /home/docker/mail/mail.txt)
 						docker run -d \
 							--name mailserver \
 							--hostname "$yuming" \
 							-e TZ=Asia/Shanghai \
-							-v /home/web/mail/data:/data \
+							-v /home/docker/mail/data:/data \
 							-p 80:80 \
 							-p 443:443 \
 							-p 25:25 \
@@ -5842,8 +5864,8 @@ linux_panel() {
 					3)
 						docker rm -f mailserver
 						docker rmi -f analogic/poste.io
-						rm /home/web/mail/mail.txt
-						rm -rf /home/web/mail/data
+						rm /home/docker/mail/mail.txt
+						rm -rf /home/docker/mail/data
 						echo "应用已卸载"
 						;;
 
@@ -6715,6 +6737,7 @@ nextcloud/all-in-one:latest"
 			  ;;
 
 
+
 		  42)
 
 
@@ -6725,7 +6748,7 @@ nextcloud/all-in-one:latest"
 							--name vaultwarden \
 							--restart always \
 							-p 3280:80 \
-							-v /home/web/vaultwarden/data:/data \
+							-v /home/docker/vaultwarden/data:/data \
 							vaultwarden/server"
 			docker_describe="一个开源的 Bitwarden 服务端实现，注册功能已开启"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
@@ -6757,7 +6780,7 @@ nextcloud/all-in-one:latest"
 				-e SMTP_SECURITY=starttls \
 				-e SMTP_USERNAME=${smtp_user} \
 				-e SMTP_PASSWORD=${smtp_pass} \
-				-v /home/web/vaultwarden/data:/data \
+				-v /home/docker/vaultwarden/data:/data \
 				vaultwarden/server"
 
 			docker_describe="Vaultwarden 禁止注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
@@ -6779,7 +6802,7 @@ nextcloud/all-in-one:latest"
 							-e SIGNUPS_ALLOWED=false \
 							--restart always \
 							-p 3280:80 \
-							-v /home/web/vaultwarden/data:/data \
+							-v /home/docker/vaultwarden/data:/data \
 							vaultwarden/server"
 			docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，无 SMTP 设置）"
 			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
@@ -6810,7 +6833,7 @@ nextcloud/all-in-one:latest"
 				-e SMTP_SECURITY=starttls \
 				-e SMTP_USERNAME=${smtp_user} \
 				-e SMTP_PASSWORD=${smtp_pass} \
-				-v /home/web/vaultwarden/data:/data \
+				-v /home/docker/vaultwarden/data:/data \
 				vaultwarden/server"
 
 			docker_describe="Vaultwarden 可以注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
@@ -6848,40 +6871,42 @@ nextcloud/all-in-one:latest"
 			  ;;
 
 
+          47)
+            send_stats "搭建网盘"
+            has_ipv4_has_ipv6
 
-		  47)
-			send_stats "搭建网盘"
-			has_ipv4_has_ipv6
+            docker_name=cloudreve
+            docker_port=5212
+            while true; do
+              check_docker_app
+              clear
+              echo -e "网盘服务 $check_docker"
+              echo "cloudreve是一个支持多家云存储的网盘系统"
+              echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
+              if docker inspect "$docker_name" &>/dev/null; then
+                check_docker_app_ip
+              fi
+              echo ""
 
-			docker_name=cloudreve
-			docker_port=5212
-			while true; do
-				check_docker_app
-				clear
-				echo -e "网盘服务 $check_docker"
-				echo "cloudreve是一个支持多家云存储的网盘系统"
-				echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
-				if docker inspect "$docker_name" &>/dev/null; then
-					check_docker_app_ip
-				fi
-				echo ""
+              echo "------------------------"
+              echo "1. 安装           2. 更新           3. 卸载"
+              echo "------------------------"
+              echo "0. 返回上一级"
+              echo "------------------------"
+              read -e -p "输入你的选择: " choice
 
-				echo "------------------------"
-				echo "1. 安装           2. 更新           3. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
+              case $choice in
+                1)
+                  install_docker
 
-				case $choice in
-					1)
-						install_docker
-						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
-						touch /home/web/wangpan/cloudreve/conf.ini
+		  [ ! -d /home/docker ] && mkdir -p /home/docker
 
-						chmod -R 777 /home/web/wangpan/data/aria2
+		  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
+                  touch /home/docker/wangpan/cloudreve/conf.ini
 
-						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+                  chmod -R 777 /home/docker/wangpan/data/aria2
+
+                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -6896,7 +6921,7 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-						cat > /home/web/wangpan/docker-compose.yml <<EOF
+                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -6906,11 +6931,10 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
-
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
 
   aria2:
     image: p3terx/aria2-pro
@@ -6922,29 +6946,29 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-						cd /home/web/wangpan && docker compose up -d
+                  cd /home/docker/wangpan && docker compose up -d
 
-						clear
-						echo "cloudreve已经安装完成"
-						check_docker_app_ip
-						sleep 3
-						docker logs cloudreve
-						echo ""
-						;;
-					2)
-						docker rm -f cloudreve aria2
-						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  clear
+                  echo "cloudreve已经安装完成"
+                  check_docker_app_ip
+                  sleep 3
+                  docker logs cloudreve
+                  echo ""
+                  ;;
+                2)
+                  docker rm -f cloudreve aria2
+                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
 
-						cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
-						touch /home/web/wangpan/cloudreve/conf.ini
+                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
+                  touch /home/docker/wangpan/cloudreve/conf.ini
 
-						chmod -R 777 /home/web/wangpan/data/aria2
+                  chmod -R 777 /home/docker/wangpan/data/aria2
 
-						cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -6959,7 +6983,7 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-						cat > /home/web/wangpan/docker-compose.yml <<EOF
+                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -6969,11 +6993,10 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
-
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/conf.ini:/cloudreve/conf.ini
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
 
   aria2:
     image: p3terx/aria2-pro
@@ -6985,66 +7008,67 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-						cd /home/web/wangpan && docker compose up -d
-						clear
-						echo "cloudreve已经更新完成"
-						check_docker_app_ip
-						sleep 3
-						docker logs cloudreve
-						echo ""
-						;;
-					3)
-						docker rm -f cloudreve aria2
-						docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-						rm -rf /home/web/wangpan
-						echo "应用已卸载"
-						;;
-					0)
-						break
-						;;
-					*)
-						break
-						;;
-				esac
-				break_end
-			done
-			;;
+                  cd /home/docker/wangpan && docker compose up -d
+                  clear
+                  echo "cloudreve已经更新完成"
+                  check_docker_app_ip
+                  sleep 3
+                  docker logs cloudreve
+                  echo ""
+                  ;;
+                3)
+                  docker rm -f cloudreve aria2
+                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  rm -rf /home/docker/wangpan
+                  echo "应用已卸载"
+                  ;;
+                0)
+                  break
+                  ;;
+                *)
+                  break
+                  ;;
+              esac
+              break_end
+            done
+            ;;
 
+          48)
+            send_stats "搭建Cloudreve从机（4.1.1）"
+            has_ipv4_has_ipv6
 
-			48)
-				send_stats "搭建Cloudreve从机（4.1.1）"
-				has_ipv4_has_ipv6
+            docker_name=cloudreve
+            docker_port=5212
+            while true; do
+              check_docker_app
+              clear
+              echo -e "网盘服务 $check_docker"
+              echo "Cloudreve 从机部署（支持 Aria2）"
+              echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
+              if docker inspect "$docker_name" &>/dev/null; then
+                check_docker_app_ip
+              fi
+              echo ""
 
-				docker_name=cloudreve
-				docker_port=5212
-				while true; do
-					check_docker_app
-					clear
-					echo -e "网盘服务 $check_docker"
-					echo "Cloudreve 从机部署（支持 Aria2）"
-					echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
-					if docker inspect "$docker_name" &>/dev/null; then
-						check_docker_app_ip
-					fi
-					echo ""
+              echo "------------------------"
+              echo "1. 安装           2. 更新           3. 卸载"
+              echo "------------------------"
+              echo "0. 返回上一级"
+              echo "------------------------"
+              read -e -p "输入你的选择: " choice
 
-					echo "------------------------"
-					echo "1. 安装           2. 更新           3. 卸载"
-					echo "------------------------"
-					echo "0. 返回上一级"
-					echo "------------------------"
-					read -e -p "输入你的选择: " choice
+              case $choice in
+                1)
+                  install_docker
 
-					case $choice in
-						1)
-							install_docker
-							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
+		  [ ! -d /home/docker ] && mkdir -p /home/docker
 
-							cat > /home/web/wangpan/cloudreve/config.ini <<EOF
+                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
+                  cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
 Listen = :5212
@@ -7058,7 +7082,7 @@ AllowMethods = OPTIONS,GET,POST
 AllowHeaders = *
 EOF
 
-							cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -7073,9 +7097,9 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-							chmod -R 777 /home/web/wangpan/data/aria2
+                  chmod -R 777 /home/docker/wangpan/data/aria2
 
-							cat > /home/web/wangpan/docker-compose.yml <<EOF
+                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -7086,10 +7110,10 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
-      - /home/web/wangpan/cloudreve/config.ini:/cloudreve/config.ini
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
 
   aria2:
     image: p3terx/aria2-pro
@@ -7101,27 +7125,26 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-							cd /home/web/wangpan && docker compose up -d
+                  cd /home/docker/wangpan && docker compose up -d
 
-							clear
-							echo "Cloudreve 已安装完成（从机模式）"
-							check_docker_app_ip
-							sleep 3
-							docker logs cloudreve
-							echo ""
-							;;
+                  clear
+                  echo "Cloudreve 已安装完成（从机模式）"
+                  check_docker_app_ip
+                  sleep 3
+                  docker logs cloudreve
+                  echo ""
+                  ;;
+                2)
+                  docker rm -f cloudreve aria2
+                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
 
-						2)
-							docker rm -f cloudreve aria2
-							docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
 
-							cd /home/web && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
-
-							cat > /home/web/wangpan/cloudreve/config.ini <<EOF
+                  cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
 [System]
 Mode = slave
 Listen = :5212
@@ -7135,7 +7158,7 @@ AllowMethods = OPTIONS,GET,POST
 AllowHeaders = *
 EOF
 
-							cat > /home/web/wangpan/aria2/config/aria2.conf <<EOF
+                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
 enable-rpc=true
 rpc-listen-port=6800
 rpc-secret=cloudreve
@@ -7150,9 +7173,9 @@ bt-enable-dht=true
 bt-enable-trackers=true
 EOF
 
-							chmod -R 777 /home/web/wangpan/data/aria2
+                  chmod -R 777 /home/docker/wangpan/data/aria2
 
-							cat > /home/web/wangpan/docker-compose.yml <<EOF
+                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
 version: '3'
 services:
   cloudreve:
@@ -7163,10 +7186,10 @@ services:
     ports:
       - "5212:5212"
     volumes:
-      - /home/web/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/web/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/web/wangpan/cloudreve/data:/cloudreve/data
-      - /home/web/wangpan/cloudreve/config.ini:/cloudreve/config.ini
+      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
+      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
+      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
+      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
 
   aria2:
     image: p3terx/aria2-pro
@@ -7178,38 +7201,38 @@ services:
     ports:
       - "6800:6800"
     volumes:
-      - /home/web/wangpan/aria2/config:/config
-      - /home/web/wangpan/data/aria2:/downloads
+      - /home/docker/wangpan/aria2/config:/config
+      - /home/docker/wangpan/data/aria2:/downloads
 EOF
 
-							cd /home/web/wangpan && docker compose up -d
+                  cd /home/docker/wangpan && docker compose up -d
 
-							clear
-							echo "Cloudreve 已更新完成（从机模式）"
-							check_docker_app_ip
-							sleep 3
-							docker logs cloudreve
-							echo ""
-							;;
+                  clear
+                  echo "Cloudreve 已更新完成（从机模式）"
+                  check_docker_app_ip
+                  sleep 3
+                  docker logs cloudreve
+                  echo ""
+                  ;;
+                3)
+                  docker rm -f cloudreve aria2
+                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  rm -rf /home/docker/wangpan
+                  echo "Cloudreve 应用已卸载"
+                  ;;
+                0)
+                  break
+                  ;;
+                *)
+                  break
+                  ;;
+              esac
+              break_end
+            done
+            ;;
 
-						3)
-							docker rm -f cloudreve aria2
-							docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-							rm -rf /home/web/wangpan
-							echo "Cloudreve 应用已卸载"
-							;;
 
-						0)
-							break
-							;;
 
-						*)
-							break
-							;;
-					esac
-					break_end
-				done
-				;;
 
 
 
@@ -7274,8 +7297,8 @@ EOF
 							-v /home/docker/emby/电影:/mnt/embydianying \
 							-v /home/docker/emby/电视剧:/mnt/embydianshiju \
 
-							-v /home/web/挂载/电视剧:/mnt/dianshiju \
-							-v /home/web/挂载/电影:/mnt/dianying \
+							-v /home/挂载/电视剧:/mnt/dianshiju \
+							-v /home/挂载/电影:/mnt/dianying \
 
 							-p 8096:8096 \
 							-p 8920:8920 \
@@ -7503,27 +7526,26 @@ EOF
 			done
 			;;
 
-   
-		  55)
-			if [ ! -d /home/web/openlist/ ]; then
-				mkdir -p /home/web/openlist/ > /dev/null 2>&1
+   		  55)
+			if [ ! -d /home/docker/openlist/ ]; then
+				mkdir -p /home/docker/openlist/ > /dev/null 2>&1
 			fi
 
-			wget -O /home/web/openlist/openlist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/web/openlist/openlist-linux-amd64.tar.gz -C /home/web/openlist/ > /dev/null 2>&1
-			chmod +x /home/web/openlist/openlist
+			wget -O /home/docker/openlist/openlist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-amd64.tar.gz > /dev/null 2>&1
+			tar -xzf /home/docker/openlist/openlist-linux-amd64.tar.gz -C /home/docker/openlist/ > /dev/null 2>&1
+			chmod +x /home/docker/openlist/openlist
 
-			nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &
+			nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &
 			sleep 5
 
 			# 提取密码与 IP
-			password=$(grep "initial password is:" /home/web/openlist/openlist.log | tail -n 1 | awk '{print $NF}')
+			password=$(grep "initial password is:" /home/docker/openlist/openlist.log | tail -n 1 | awk '{print $NF}')
 			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
 			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
 
 			# 添加开机启动定时任务（延迟10秒）
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &') | crontab -
+			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &' || (
+				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &') | crontab -
 			)
 
 			clear
@@ -7534,11 +7556,11 @@ EOF
 			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
    			echo "如果打不开手动放行5244端口ufw命令为ufw allow 5244/tcp"
 			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/web/openlist/openlist.log"
+			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/openlist/openlist.log"
 			echo ""
 			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 OpenList"
 			echo "命令内容为："
-			echo "nohup /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &"
+			echo "nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &"
 			echo ""
 			echo "------------------------"
 			echo "1. 安装            2. 更新            3. 卸载"
@@ -7552,7 +7574,7 @@ EOF
 			docker_name="openlist"
 			docker_img=""
 			docker_port=5244
-			docker_rum="setsid /home/web/openlist/openlist server > /home/web/openlist/openlist.log 2>&1 &"
+			docker_rum="setsid /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &"
 			docker_describe="OpenList 是一个支持多种存储挂载的文件列表程序"
 			docker_url=""
 			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
@@ -7560,6 +7582,324 @@ EOF
 			docker_app
 			  ;;
 
+
+		  56)
+			docker_name="umami"
+			docker_img="docker.umami.is/umami-software/umami:postgresql-latest"
+			docker_port=3000
+
+			# 自动创建目录
+			[ ! -d /home/docker/umami ] && mkdir -p /home/docker/umami
+			cd /home/docker/umami || exit 1
+
+			# 写入 docker-compose.yml
+			cat > docker-compose.yml <<EOF
+version: '3.8'
+
+services:
+  umami-db:
+    image: postgres:15
+    container_name: umami-db
+    restart: always
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: umami123
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+
+  umami:
+    image: docker.umami.is/umami-software/umami:postgresql-latest
+    container_name: umami
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://umami:umami123@umami-db:5432/umami
+      APP_SECRET: $(openssl rand -hex 16)
+    depends_on:
+      - umami-db
+EOF
+
+			# 启动容器
+			docker compose up -d
+
+			echo "------------------------"
+			echo "访问地址:"
+			echo "http://$(hostname -I | awk '{print $1}'):3000"
+			echo "http://$(curl -s ifconfig.me):${docker_port}"
+			echo "账号：admin 密码：umami"
+			echo "默认密码：umami123"
+			echo "------------------------"
+
+			docker_describe="Umami 网站流量统计系统，轻量、隐私友好"
+			docker_url="GitHub: https://github.com/umami-software/umami"
+			docker_use="默认访问地址：http://服务器IP:3000，账号：admin 密码：umami"
+			docker_passwd="umami123"
+			docker_app
+			  ;;
+		57)
+
+			clear
+			echo "Dify - 开源 AIGC 应用开发平台"
+			echo "GitHub 项目地址: https://github.com/langgenius/dify"
+			echo "功能介绍: 快速搭建属于自己的类 ChatGPT 平台，支持模型调用和 API 应用开发"
+			echo
+			echo "1. 安装 Dify"
+			echo "2. 备份 Dify 数据"
+			echo "3. 卸载 Dify"
+			echo "4. 恢复 Dify 数据"
+			read -p "请输入操作编号: " sub_choice
+
+			dify_dir="/home/docker/dify"
+			backup_dir="/home/docker"
+			backup_prefix="dify"
+			docker_compose_dir="${dify_dir}/docker"
+			docker_compose_file="${docker_compose_dir}/docker-compose.yaml"  # 注意是 .yaml 不是 .yml
+			docker_compose_env="${docker_compose_dir}/.env"
+			local_ip=$(hostname -I | awk '{print $1}')
+			ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+
+			case "$sub_choice" in
+				1)
+					mkdir -p /home/docker
+					cd /home/docker || exit
+
+					if [ -d "$dify_dir" ]; then
+						echo "检测到已有 Dify 目录，正在更新代码..."
+						cd "$dify_dir" || exit
+						git pull
+					else
+						echo "正在克隆 Dify 仓库..."
+						git clone https://github.com/langgenius/dify.git
+						cd "$dify_dir" || exit
+					fi
+
+					cd "$docker_compose_dir" || exit
+
+					# 复制 .env 配置文件（如果不存在就复制示例）
+					if [ ! -f "$docker_compose_env" ]; then
+						cp -f .env.example "$docker_compose_env"
+					fi
+
+					# 修改 .env 文件，设置端口变量为 8058 和 8443
+					sed -i "s/^NGINX_PORT=.*/NGINX_PORT=8058/" "$docker_compose_env"
+					sed -i "s/^NGINX_SSL_PORT=.*/NGINX_SSL_PORT=8443/" "$docker_compose_env"
+					sed -i "s/^EXPOSE_NGINX_PORT=.*/EXPOSE_NGINX_PORT=8058/" "$docker_compose_env"
+					sed -i "s/^EXPOSE_NGINX_SSL_PORT=.*/EXPOSE_NGINX_SSL_PORT=8443/" "$docker_compose_env"
+
+					# 确认docker-compose.yaml中ports字段是使用变量映射端口
+					# 这里不修改docker-compose.yaml的端口映射，默认使用环境变量
+
+					echo "启动 Dify 容器..."
+					if docker compose up -d; then
+						echo "------------------------"
+						echo "Dify 安装完成"
+						echo "访问地址: http://${local_ip}:8058"
+						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
+					else
+						echo "Dify 启动失败，请检查 Docker 和网络配置"
+					fi
+					;;
+
+				2)
+					if [ -d "$dify_dir" ]; then
+						timestamp=$(date +%Y%m%d%H%M%S)
+						backup_file="${backup_prefix}-${timestamp}.tar.gz"
+						tar -czf "${backup_dir}/${backup_file}" -C "$dify_dir" .
+						echo "备份完成: ${backup_dir}/${backup_file}"
+					else
+						echo "未检测到安装目录，无法备份"
+					fi
+					;;
+
+				3)
+					read -p "确认卸载 Dify？将删除 /home/docker/dify 目录及所有数据，且停止所有相关容器 [y/N]: " confirm
+					if [[ "$confirm" =~ ^[Yy]$ ]]; then
+						if [ -f "$docker_compose_file" ]; then
+							docker compose -f "$docker_compose_file" down
+						else
+							echo "docker-compose.yaml 文件不存在，跳过停止容器"
+						fi
+						rm -rf "$dify_dir"
+						echo "Dify 已卸载完成"
+					else
+						echo "操作已取消"
+					fi
+					;;
+
+				4)
+					echo "可用备份文件："
+					backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+					if [ ${#backups[@]} -eq 0 ]; then
+						echo "无可用备份"
+						break
+					fi
+
+					for i in "${!backups[@]}"; do
+						echo "$((i+1)). $(basename ${backups[$i]})"
+					done
+					read -p "请输入备份编号（留空恢复最新）: " sel
+
+					if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
+						restore_file="${backups[$((sel-1))]}"
+					else
+						restore_file="${backups[0]}"
+					fi
+
+					echo "恢复自: $(basename $restore_file)"
+
+					if [ -f "$docker_compose_file" ]; then
+						docker compose -f "$docker_compose_file" down
+					else
+						echo "docker-compose.yaml 文件不存在，跳过停止容器"
+					fi
+
+					rm -rf "$dify_dir"
+					mkdir -p "$dify_dir"
+
+					tar -xzf "$restore_file" -C "$dify_dir"
+
+					cd "$docker_compose_dir" || exit
+
+					echo "启动 Dify 容器..."
+					if docker compose up -d; then
+						echo "------------------------"
+						echo "Dify 已恢复"
+						echo "访问地址: http://${local_ip}:8058"
+						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
+					else
+						echo "Dify 启动失败，请检查 Docker 和网络配置"
+					fi
+					;;
+
+				*)
+					echo "无效选项"
+					;;
+			esac
+
+			read -p "按任意键继续..." -n1
+			;;
+		  58)
+		    clear
+		    echo "▶️ 正在启动caddy安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh)
+		    echo "✅ caddy安装完成。"
+		    ;;
+
+
+  59)
+  
+    # 放行端口规则
+    ufw allow 21115:21119/tcp
+    ufw allow 21116/udp
+    ufw reload
+
+
+
+    docker_name="hbbs"
+    docker_img="rustdesk/rustdesk-server"
+    docker_port=21116
+    docker_rum="docker run --name hbbs -v /root/rustdesk/amd64:/root -td --net=host --restart=always rustdesk/rustdesk-server hbbs"
+
+    docker_describe="rustdesk开源的远程桌面(服务端)，类似自己的向日葵私服。"
+    docker_url="官网介绍: https://rustdesk.com/zh-cn/"
+    docker_use="docker logs hbbs"
+    docker_passwd="echo \"把你的IP和key记录下，会在远程桌面客户端中用到。去44选项装中继端吧！\""
+    docker_app
+      ;;
+  
+  60)
+
+    # 放行端口规则
+    ufw allow 21115:21119/tcp
+    ufw allow 21116/udp
+    ufw reload
+
+
+
+    docker_name="hbbr"
+    docker_img="rustdesk/rustdesk-server"
+    docker_port=21116
+    docker_rum="docker run --name hbbr -v /root/rustdesk/amd64:/root -td --net=host --restart=always rustdesk/rustdesk-server hbbr"
+
+    docker_describe="rustdesk开源的远程桌面(中继端)，类似自己的向日葵私服。"
+    docker_url="官网介绍: https://rustdesk.com/zh-cn/"
+    docker_use="echo \"前往官网下载远程桌面的客户端: https://rustdesk.com/zh-cn/\""
+    docker_passwd=""
+    docker_app
+      ;;
+
+
+
+
+		  61) 
+			clear
+			echo "🔄 更新系统..."
+			apt update -y && apt upgrade -y
+
+			echo "📦 安装 unzip 和 npm..."
+			apt install -y unzip npm
+
+			INSTALL_DIR="/root/rustdesk"
+			DOWNLOAD_URL="https://github.com/rustdesk/rustdesk-server/releases/download/1.1.14/rustdesk-server-linux-amd64.zip"
+			TMP_DIR="/root/rustdesk"
+
+			echo "🗑 删除旧版本目录..."
+			rm -rf $INSTALL_DIR
+			mkdir -p $INSTALL_DIR
+
+			echo "🌐 下载 RustDesk Server..."
+			wget -O $TMP_DIR/rustdesk.zip "$DOWNLOAD_URL" || { echo "❌ 下载失败，检查链接或网络。"; exit 1; }
+
+			echo "📂 解压到 $INSTALL_DIR ..."
+			unzip -o $TMP_DIR/rustdesk.zip -d $INSTALL_DIR || { echo "❌ 解压失败。"; exit 1; }
+
+			# 检查解压后的目录结构
+			if [ ! -d "$INSTALL_DIR/amd64" ]; then
+				echo "❌ 解压后的目录结构不正确，未找到 /root/rustdesk/amd64"
+				exit 1
+			fi
+
+			echo "📦 安装 PM2..."
+			npm install -g pm2 || { echo "❌ 安装 PM2 失败。"; exit 1; }
+
+			echo "🚀 启动 hbbs / hbbr ..."
+			cd $INSTALL_DIR/amd64 || { echo "❌ 进入 RustDesk 目录失败。"; exit 1; }
+
+			pm2 delete hbbs >/dev/null 2>&1 || true
+			pm2 delete hbbr >/dev/null 2>&1 || true
+
+			pm2 start hbbs || { echo "❌ 启动 hbbs 失败。"; exit 1; }
+			pm2 start hbbr || { echo "❌ 启动 hbbr 失败。"; exit 1; }
+
+			echo "🧷 设置 PM2 开机启动..."
+			pm2 startup || { echo "❌ 设置 PM2 开机启动失败。"; exit 1; }
+			pm2 save || { echo "❌ 保存 PM2 配置失败。"; exit 1; }
+
+			echo "====================================="
+			echo "🎉 RustDesk Server 安装成功！"
+			echo "📌 安装目录：$INSTALL_DIR"
+			echo "📌 程序目录：$INSTALL_DIR/amd64"
+			echo "🚀 hbbs / hbbr 已启动并开机自启"
+			echo "====================================="
+
+			# 放行端口 21115-21119/tcp 和 21116/udp
+			echo "🔓 放行 RustDesk 所需的端口..."
+			sudo ufw allow 21115:21119/tcp
+			sudo ufw allow 21116/udp
+			sudo ufw reload
+
+			echo "⚡ 防火墙规则已更新，允许 RustDesk 所需的端口。"
+		  ;;
+
+
+		  62)
+		    clear
+		    echo "▶️ 正在运行安装x-ui一键脚本..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/deploy/main/install.sh)
+		    echo "✅ 安装x-ui脚本运行完成"
+		    ;;
 
 
 
@@ -8034,6 +8374,104 @@ EOF
 				esac
 			fi
 			;;
+
+		  100)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongbeifen.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+
+
+		  101)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongmima.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+		  102)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+		  103)
+		    clear
+		    echo "▶️ 正在准备使用 rsync 手动传送文件夹..."
+
+		    # 检查并安装 rsync
+		    if ! command -v rsync > /dev/null 2>&1; then
+		        echo "⏳ 未检测到 rsync，正在安装中..."
+		        apt update > /dev/null 2>&1
+		        apt install -y rsync > /dev/null 2>&1
+		        echo "✅ rsync 安装完成。"
+		    else
+		        echo "✅ rsync 已安装，跳过安装步骤。"
+
+		    fi
+		    echo "------------------------"
+
+		    echo -e "\033[1;33m📌 说明：\033[0m"
+		    echo -e "\033[1;32m✔ 不带斜杠（如 /home/web/wangpan）表示复制整个文件夹\033[0m"
+		    echo -e "\033[1;32m✔ 带斜杠（如 /home/web/wangpan/）表示只复制该文件夹的内容\033[0m"
+
+		    echo "------------------------"
+		    # 读取用户输入
+		    read -e -p "请输入本地目录路径（如 /home/web/wangpan/）: " local_path
+		    # 如果本地路径末尾没有 /，则自动添加
+		    [[ "$local_path" != */ ]] && local_path="${local_path}/"
+
+		    read -e -p "请输入远程 VPS 的 IP 地址（例如 1.1.1.1）: " remote_ip
+
+		    read -e -p "请输入远程目录路径（默认与本地一致，直接回车即可）: " remote_path
+		    if [ -z "$remote_path" ]; then
+		        remote_path="$local_path"
+		        echo "📂 未输入远程路径，已自动设置为与本地路径一致：$remote_path"
+		    fi
+
+
+		    # 检查远程 VPS 是否安装 rsync
+		    echo "🕵️ 正在检查远程 VPS 是否已安装 rsync..."
+		    ssh root@"$remote_ip" "command -v rsync > /dev/null 2>&1"
+		    if [ $? -ne 0 ]; then
+		        echo "⚙️ 远程 VPS 未安装 rsync，正在安装..."
+		        ssh root@"$remote_ip" "apt update > /dev/null 2>&1 && apt install -y rsync > /dev/null 2>&1"
+		        echo "✅ 远程 VPS 的 rsync 安装完成。"
+		    else
+		        echo "✅ 远程 VPS 已安装 rsync，跳过安装。"
+		    fi
+
+
+		    echo ""
+		    echo "🚀 开始传送："
+		    echo "从：$local_path"
+		    echo "到：root@$remote_ip:$remote_path"
+		    echo ""
+
+
+		    rsync -avz "$local_path" root@"$remote_ip":"$remote_path"
+
+		    echo ""
+		    echo "✅ 文件传送完成。"
+		    echo "------------------------"
+		    echo ""
+		    ;;
+
+
+		  104)
+		    clear
+		    echo "▶️ 正在启动定时远程备份与传送模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
+		    echo "✅ 远程备份与传送模块执行完成。"
+		    ;;
+
+
+
+
+
 
 
 
