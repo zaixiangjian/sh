@@ -7897,7 +7897,7 @@ EOF
 		  62)
 		    clear
 		    echo "▶️ 正在运行安装x-ui一键脚本..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/deploy/main/install.sh)
+		    bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
 		    echo "✅ 安装x-ui脚本运行完成"
 		    ;;
 
