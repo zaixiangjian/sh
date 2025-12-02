@@ -45,10 +45,6 @@ curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && ch
 自己配置网站文件内容
 
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh)
-```
-
-```bash
 curl -sS -O https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 ```
 
