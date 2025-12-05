@@ -50,8 +50,8 @@ create_backup_job() {
     rclone listremotes
     echo
 
-    read -p "请输入 Rclone 名称（例如 r2）: " remote_name
-    read -p "请输入存储桶名称（例如 bf19）: " bucket_name
+    read -p "Rclone名称输入上方已连接名称: " remote_name
+    read -p "请输入存储桶名称（S3或者R2起的名称）: " bucket_name
 
     # 生成 rclone copy 命令
     backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${dir_name}"
