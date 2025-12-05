@@ -8045,33 +8045,43 @@ EOF
     ;;
 
 
-		  64)
-			docker_name="r2beifen"
-			docker_img="garethgeorge/backrest:latest"
-			docker_port=9898
-			docker_rum="docker run -d \
-							--name r2beifen \
-							--hostname r2beifen \
-							--restart unless-stopped \
-							-v /root/backrest/data:/data \
-							-v /root/backrest/config:/config \
-							-v /root/backrest/cache:/cache \
-							-v /root/backrest/tmp:/tmp \
-							-v /root/.config/rclone:/root/.config/rclone \
-							-v /home:/userdata/home \
-							-e BACKREST_DATA=/data \
-							-e BACKREST_CONFIG=/config/config.json \
-							-e XDG_CACHE_HOME=/cache \
-							-e TMPDIR=/tmp \
-							-e TZ=Asia/Hongkong \
-							-p 9898:9898 \
-							garethgeorge/backrest:latest"
-			docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载"
-			docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+64)
+    docker_name="r2beifen"
+    docker_img="garethgeorge/backrest:latest"
+    docker_port=9898
+
+    # 获取宿主机时区
+    if [ -f /etc/timezone ]; then
+        host_tz=$(cat /etc/timezone)
+    else
+        host_tz=$(timedatectl show --property=Timezone --value)
+    fi
+
+    docker_rum="docker run -d \
+        --name $docker_name \
+        --hostname $docker_name \
+        --restart unless-stopped \
+        -v /root/backrest/data:/data \
+        -v /root/backrest/config:/config \
+        -v /root/backrest/cache:/cache \
+        -v /root/backrest/tmp:/tmp \
+        -v /root/.config/rclone:/root/.config/rclone \
+        -v /home:/userdata/home \
+        -e BACKREST_DATA=/data \
+        -e BACKREST_CONFIG=/config/config.json \
+        -e XDG_CACHE_HOME=/cache \
+        -e TMPDIR=/tmp \
+        -e TZ=$host_tz \
+        -p $docker_port:$docker_port \
+        $docker_img"
+
+    docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载，自动跟随宿主机时区"
+    docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest"
+    docker_use=""
+    docker_passwd=""
+    docker_app
+;;
+
 
 
 
