@@ -7992,6 +7992,15 @@ EOF
         echo
         echo "1. 安装 Rclone"
         echo "2. 获取配置文件路径"
+        echo "3号配置填写如下r2为名称"
+        echo "[r2]
+type = s3
+provider = Cloudflare
+access_key_id =密钥id
+secret_access_key =密钥
+endpoint =存储桶访问地址"
+
+
         echo "3. 修改配置文件"
         echo "4. 查看已添加的 Rclone 远程"
         echo "5. 添加目录备份任务 (生成 s3beifen.sh)"
