@@ -5399,6 +5399,7 @@ linux_panel() {
    	  echo -e "${gl_kjlan}------------------------"
    	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}            ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
 	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
+	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用 ${gl_huang}★${gl_bai}               ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -7901,6 +7902,117 @@ EOF
 		    echo "✅ 安装x-ui脚本运行完成"
 		    ;;
 
+		63)
+
+			clear
+			echo "Rclone - 强大的命令行文件同步工具"
+			echo "官网: https://rclone.org/"
+			echo
+			echo "1. 安装 Rclone"
+			echo "2. 获取配置文件路径"
+			echo "3. 修改配置文件"
+			echo "4. 卸载 Rclone"
+			echo "0. 退出脚本"
+			read -p "请输入操作编号: " sub_choice
+
+			case "$sub_choice" in
+				1)
+					echo "正在安装 Rclone..."
+
+					# 如果没有 sudo 则自动安装
+					if ! command -v sudo >/dev/null 2>&1; then
+						echo "未检测到 sudo，正在安装 sudo..."
+						apt update && apt install -y sudo
+					fi
+
+					# 安装 rclone
+					sudo -v ; curl https://rclone.org/install.sh | sudo bash
+
+					if command -v rclone >/dev/null 2>&1; then
+						echo "Rclone 安装成功"
+						rclone version
+					else
+						echo "安装失败，请检查网络或系统环境"
+					fi
+					;;
+
+				2)
+					echo "获取 Rclone 配置文件路径:"
+					rclone config file
+					echo
+					;;
+
+				3)
+					conf_path="/root/.config/rclone/rclone.conf"
+
+					echo "正在打开配置文件: $conf_path"
+					mkdir -p /root/.config/rclone
+
+					if [ ! -f "$conf_path" ]; then
+						echo "# 配置文件不存在，将自动创建…" 
+						touch "$conf_path"
+					fi
+
+					nano "$conf_path"
+					;;
+
+				4)
+					echo "即将卸载 Rclone（不会删除你的配置文件）"
+					read -p "确认卸载？[y/N]: " confirm
+
+					if [[ "$confirm" =~ ^[Yy]$ ]]; then
+						echo "正在卸载 rclone..."
+
+						# 删除 rclone 二进制文件
+						rm -f /usr/bin/rclone
+						rm -f /usr/local/bin/rclone
+
+						echo "卸载完成（配置文件已保留）"
+					else
+						echo "已取消操作"
+					fi
+					;;
+
+				0)
+					echo "已退出"
+					;;
+
+				*)
+					echo "无效选项"
+					;;
+			esac
+
+			read -p "按任意键继续..." -n1
+			;;
+
+
+		  64)
+			docker_name="r2beifen"
+			docker_img="garethgeorge/backrest:latest"
+			docker_port=9898
+			docker_rum="docker run -d \
+							--name r2beifen \
+							--hostname r2beifen \
+							--restart unless-stopped \
+							-v /root/backrest/data:/data \
+							-v /root/backrest/config:/config \
+							-v /root/backrest/cache:/cache \
+							-v /root/backrest/tmp:/tmp \
+							-v /root/.config/rclone:/root/.config/rclone \
+							-v /home:/userdata/home \
+							-e BACKREST_DATA=/data \
+							-e BACKREST_CONFIG=/config/config.json \
+							-e XDG_CACHE_HOME=/cache \
+							-e TMPDIR=/tmp \
+							-e TZ=Asia/Hongkong \
+							-p 9898:9898 \
+							garethgeorge/backrest:latest"
+			docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载"
+			docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest"
+			docker_use=""
+			docker_passwd=""
+			docker_app
+			  ;;
 
 
 
