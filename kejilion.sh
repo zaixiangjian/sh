@@ -8085,9 +8085,11 @@ endpoint =存储桶访问地址"
         $docker_img"
 
     docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载，自动跟随宿主机时区"
-    docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest"
-    docker_url="rclone:添加的名称:存储桶名称"
-    docker_url="rclone:r2:beifen"
+    docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest
+	添加仓库Repository URI具体如下
+	rclone:添加的名称:存储桶名称
+	rclone:r2:beifen"
+
     docker_use=""
     docker_passwd=""
     docker_app
