@@ -7904,73 +7904,135 @@ EOF
 
 		63)
 
+			# === 检测定时任务 ===
+			task6_file="/root/s3beifen.sh"
+			task7_file="/root/s3beifen1.sh"
+
+			task6_status="无"
+			task7_status="无"
+
+			crontab -l 2>/dev/null | grep -q "s3beifen.sh" && task6_status="有"
+			crontab -l 2>/dev/null | grep -q "s3beifen1.sh" && task7_status="有"
+
 			clear
 			echo "Rclone - 强大的命令行文件同步工具"
 			echo "官网: https://rclone.org/"
 			echo
+			echo "Rclone 定时任务："
+			echo "6号任务：$task6_status（文件：$task6_file）"
+			echo "7号任务：$task7_status（文件：$task7_file）"
+			echo
 			echo "1. 安装 Rclone"
 			echo "2. 获取配置文件路径"
 			echo "3. 修改配置文件"
-			echo "4. 卸载 Rclone"
+			echo "4. 查看已添加的 Rclone 远程"
+			echo "5. 目录复制（自动生成 rclone copy）"
+			echo "6. 添加定时任务（脚本：s3beifen.sh）"
+			echo "7. 添加定时任务（脚本：s3beifen1.sh）"
+			echo "9. 卸载 Rclone"
 			echo "0. 退出脚本"
 			read -p "请输入操作编号: " sub_choice
 
+			conf_path="/root/.config/rclone/rclone.conf"
+
 			case "$sub_choice" in
+
 				1)
 					echo "正在安装 Rclone..."
 
-					# 如果没有 sudo 则自动安装
 					if ! command -v sudo >/dev/null 2>&1; then
-						echo "未检测到 sudo，正在安装 sudo..."
+						echo "未检测到 sudo，正在安装..."
 						apt update && apt install -y sudo
 					fi
 
-					# 安装 rclone
 					sudo -v ; curl https://rclone.org/install.sh | sudo bash
-
-					if command -v rclone >/dev/null 2>&1; then
-						echo "Rclone 安装成功"
-						rclone version
-					else
-						echo "安装失败，请检查网络或系统环境"
-					fi
+					echo "安装完成"
 					;;
 
 				2)
-					echo "获取 Rclone 配置文件路径:"
 					rclone config file
-					echo
 					;;
 
 				3)
-					conf_path="/root/.config/rclone/rclone.conf"
-
-					echo "正在打开配置文件: $conf_path"
 					mkdir -p /root/.config/rclone
-
-					if [ ! -f "$conf_path" ]; then
-						echo "# 配置文件不存在，将自动创建…" 
-						touch "$conf_path"
-					fi
-
+					[ ! -f "$conf_path" ] && touch "$conf_path"
 					nano "$conf_path"
 					;;
 
 				4)
-					echo "即将卸载 Rclone（不会删除你的配置文件）"
-					read -p "确认卸载？[y/N]: " confirm
+					echo "已配置的远程："
+					rclone listremotes
+					;;
 
-					if [[ "$confirm" =~ ^[Yy]$ ]]; then
-						echo "正在卸载 rclone..."
+				5)
+					echo "目录复制功能"
+					read -p "请输入本地目录（默认 /home）： " local_dir
+					[ -z "$local_dir" ] && local_dir="/home"
 
-						# 删除 rclone 二进制文件
-						rm -f /usr/bin/rclone
-						rm -f /usr/local/bin/rclone
+					[[ "$local_dir" != */ ]] && local_dir="${local_dir}/"
 
-						echo "卸载完成（配置文件已保留）"
+					read -p "请输入远程名称（例如 r2）： " remote_name
+					[[ "$remote_name" != *: ]] && remote_name="${remote_name}:"
+
+					read -p "请输入存储桶名称： " bucket_name
+
+					# 取本地目录最后一段
+					subdir=$(basename "$local_dir")
+
+					# 拼接远程路径（跟随本地结构）
+					remote_path="${remote_name}${bucket_name}/home/${subdir}/"
+
+					echo "执行命令："
+					echo "rclone copy $local_dir $remote_path"
+					rclone copy "$local_dir" "$remote_path"
+					echo "复制完成"
+					;;
+
+				6|7)
+					# task 6 → s3beifen.sh
+					# task 7 → s3beifen1.sh
+					if [ "$sub_choice" = "6" ]; then
+						task_file="/root/s3beifen.sh"
+						task_name="6号"
 					else
-						echo "已取消操作"
+						task_file="/root/s3beifen1.sh"
+						task_name="7号"
 					fi
+
+					echo "$task_name 定时任务创建"
+					read -p "请输入需要备份的本地目录（默认 /home）： " local_dir
+					[ -z "$local_dir" ] && local_dir="/home"
+					[[ "$local_dir" != */ ]] && local_dir="${local_dir}/"
+
+					read -p "请输入 Rclone 远程名称（如 r2）： " remote_name
+					[[ "$remote_name" != *: ]] && remote_name="${remote_name}:"
+
+					read -p "请输入存储桶名称： " bucket_name
+
+					# 远程路径 home/自动跟随
+					subdir=$(basename "$local_dir")
+					remote_path="${remote_name}${bucket_name}/home/${subdir}/"
+
+					read -p "每几天运行一次： " period
+					read -p "几点执行（0-23）： " hour
+					read -p "几分执行（0-59）： " minute
+
+					# 创建脚本
+					cat > "$task_file" <<EOF
+#!/bin/bash
+rclone copy ${local_dir} ${remote_path}
+EOF
+					chmod +x "$task_file"
+
+					# 写入 crontab
+					(crontab -l 2>/dev/null; echo "$minute $hour */$period * * bash $task_file") | crontab -
+
+					echo "$task_name 定时任务添加完成"
+					;;
+
+				9)
+					rm -f /usr/bin/rclone /usr/local/bin/rclone
+					echo "已卸载（配置文件保留）"
 					;;
 
 				0)
