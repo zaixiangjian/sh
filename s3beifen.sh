@@ -17,28 +17,43 @@ show_cron_jobs() {
 
 # =========================================
 # 创建备份任务（5/6/7通用）
-# 参数：脚本文件名
 # =========================================
 create_backup_job() {
     script_name="$1"
 
     echo "======== 添加 Rclone 备份任务 ($script_name) ========"
 
-    # 输入目录
-    read -p "请输入要备份的本地目录（例如 /home/）： " local_dir
-    local_dir="${local_dir%/}/"   # 自动补齐末尾 /
+    read -p "请输入要备份的目录名（默认：home）: " in_dir
 
-    # 提取目录名
-    dir_name=$(basename "$local_dir")
+    # 默认 home
+    if [[ -z "$in_dir" ]]; then
+        in_dir="home"
+    fi
 
-    # 显示远程列表
+    # 自动生成目录格式：/home/
+    local_dir="/${in_dir%/}/"
+
+    echo "识别目录：$local_dir"
+
+    # 防止 "/"
+    if [[ "$local_dir" == "/" ]]; then
+        echo "❌ 不允许备份系统根目录 /"
+        return
+    fi
+
+    dir_name="${in_dir}"
+
+    echo "目录名称成功识别：$dir_name"
+
+    echo
     echo "当前 Rclone 远程："
     rclone listremotes
+    echo
 
-    read -p "请输入 Rclone 名称（例如 r2）： " remote_name
-    read -p "请输入存储桶名称（例如 bf19）： " bucket_name
+    read -p "请输入 Rclone 名称（例如 r2）: " remote_name
+    read -p "请输入存储桶名称（例如 bf19）: " bucket_name
 
-    # 生成命令
+    # 生成 rclone copy 命令
     backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${dir_name}"
 
     echo
@@ -53,32 +68,29 @@ create_backup_job() {
 
     echo "备份脚本已创建：/root/${script_name}"
 
-    # 立即执行一次
-    echo "开始执行一次备份……"
+    echo "先执行一次备份……"
     bash /root/${script_name}
 
     echo
-    echo "====== 设置定时任务 ======"
+    echo "======== 设置定时任务 ========"
 
-    read -p "每几天运行一次（0 表示按小时频率执行）： " period
+    read -p "每几天运行一次（0 = 每小时模式）: " period
 
     if [[ "$period" == "0" ]]; then
-        read -p "每几小时执行一次（例如 4）： " hours
-        read -p "几分执行（0-59）： " minute
-
+        read -p "每几小时运行一次（例如 4）: " hours
+        read -p "几分执行（0-59）: " minute
         cron_rule="$minute */$hours * * * /bin/bash /root/${script_name}"
     else
-        read -p "几点执行（0-23）： " hour
-        read -p "几分执行（0-59）： " minute
-
+        read -p "几点执行（0-23）: " hour
+        read -p "几分执行（0-59）: " minute
         cron_rule="$minute $hour */$period * * /bin/bash /root/${script_name}"
     fi
 
-    # 写入 crontab
-    (crontab -l 2>/dev/null; echo "$cron_rule") | crontab -
+    # 写入 crontab（先去掉已有相同脚本的任务）
+    (crontab -l 2>/dev/null | grep -v "/root/${script_name}"; echo "$cron_rule") | crontab -
 
     echo
-    echo "定时任务已写入："
+    echo "定时任务已添加："
     echo "$cron_rule"
     echo
 }
