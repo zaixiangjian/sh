@@ -863,87 +863,91 @@ EOF
 
 
 
-        11)
-          read -e -p "输入远程服务器IP: " useip
-          read -e -p "输入远程服务器密码: " usepasswd
+11)
+  read -e -p "输入远程服务器IP: " useip
+  read -e -p "输入远程服务器密码: " usepasswd
 
-          mkdir -p /home/docker
-          cd /home/docker || exit 1
+  mkdir -p /home/docker
+  cd /home/docker || exit 1
 
-          wget -q -O wangpan.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
-          chmod +x wangpan.sh
+  wget -q -O wangpan.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
+  chmod +x wangpan.sh
 
-          sed -i "s/vpsip/$useip/g" wangpan.sh
-          sed -i "s/vps密码/$usepasswd/g" wangpan.sh
+  sed -i "s/vpsip/$useip/g" wangpan.sh
+  sed -i "s/vps密码/$usepasswd/g" wangpan.sh
 
-          local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+  local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/home/docker/wangpan_tmp.sh"
-          OBFUSCATED_SCRIPT="/home/docker/wangpan_obf.sh"
-          OUTPUT_BIN="/home/docker/wangpan.x"
+  TMP_SCRIPT="/home/docker/wangpan_tmp.sh"
+  OBFUSCATED_SCRIPT="/home/docker/wangpan_obf.sh"
+  OUTPUT_BIN="/home/docker/wangpan.x"
 
-          cat > "$TMP_SCRIPT" <<EOF
+  cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-          cat wangpan.sh >> "$TMP_SCRIPT"
+  cat wangpan.sh >> "$TMP_SCRIPT"
 
-          bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
-          sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
-          shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
-          chmod +x "$OUTPUT_BIN"
-          strip "$OUTPUT_BIN" >/dev/null 2>&1
-          upx "$OUTPUT_BIN" >/dev/null 2>&1
+  bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+  sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+  shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+  chmod +x "$OUTPUT_BIN"
+  strip "$OUTPUT_BIN" >/dev/null 2>&1
+  upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
+  rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
 
-          echo "------------------------"
-          echo "选择备份频率："
-          echo "1. 每周备份"
-          echo "2. 每天固定时间备份"
-          echo "3. 每N天备份一次（精确到分钟）"
-          read -e -p "请输入选择编号: " dingshi
+  echo "------------------------"
+  echo "选择备份频率："
+  echo "1. 每周备份"
+  echo "2. 每天固定时间备份"
+  echo "3. 每N天备份一次（精确到分钟）"
+  read -e -p "请输入选择编号: " dingshi
 
-          case $dingshi in
-            1)
-              read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-              read -e -p "几点备份（0-23）: " hour
-              read -e -p "几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-                echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            2)
-              read -e -p "每天几点备份（0-23）: " hour
-              read -e -p "每天几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-                echo "已设置每天 ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            3)
-              read -e -p "每几天备份一次（如：2 表示每2天）: " interval
-              read -e -p "几点（0-23）: " hour
-              read -e -p "几分（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-                echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-              fi
-              ;;
-            *)
-              echo "无效输入"
-              ;;
-          esac
-          ;;
+  LOCK_FILE="/tmp/wangpan.lock"  # flock 锁文件
+
+  case $dingshi in
+    1)
+      read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+      read -e -p "几点备份（0-23）: " hour
+      read -e -p "几分备份（0-59）: " minute
+      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+      else
+        # 添加 flock 防止并发
+        (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+        echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
+      fi
+      ;;
+    2)
+      read -e -p "每天几点备份（0-23）: " hour
+      read -e -p "每天几分备份（0-59）: " minute
+      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+      else
+        (crontab -l 2>/dev/null; echo "$minute $hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+        echo "已设置每天 ${hour}点${minute}分进行备份"
+      fi
+      ;;
+    3)
+      read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+      read -e -p "几点（0-23）: " hour
+      read -e -p "几分（0-59）: " minute
+      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+      else
+        (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+        echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
+      fi
+      ;;
+    *)
+      echo "无效输入"
+      ;;
+  esac
+  ;;
+
 
 
         12)
