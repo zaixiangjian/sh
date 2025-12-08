@@ -1200,11 +1200,22 @@ EOF
   TMP_SCRIPT="/home/docker/quanbubeifei_tmp.sh"
   OBFUSCATED_SCRIPT="/home/docker/quanbubeifei_obf.sh"
   OUTPUT_BIN="/home/docker/quanbubeifei.x"
-
-  BACKUP_DIRS="/home/博客 /home/图床 /home/密码 /home/论坛"
   BACKUP_OUTPUT="/home/quanbubeifei.x"
 
-  # 生成临时脚本
+  # ------------------ 动态加载备份目录 ------------------
+  BACKUP_LIST_FILE="/home/backup_list.txt"
+  if [ ! -f "$BACKUP_LIST_FILE" ]; then
+    cat > "$BACKUP_LIST_FILE" <<EOF
+/home/博客
+/home/图床
+/home/密码
+/home/论坛
+EOF
+  fi
+
+  BACKUP_DIRS=$(tr "\n" " " < "$BACKUP_LIST_FILE")
+
+  # ------------------ 生成临时脚本 ------------------
   cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
@@ -1215,11 +1226,11 @@ EOF
 
   cat quanbubeifei.sh >> "$TMP_SCRIPT"
 
-  # 混淆
+  # ------------------ 混淆 ------------------
   bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
   sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
 
-  # 编译
+  # ------------------ 编译成二进制 ------------------
   shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
   chmod +x "$OUTPUT_BIN"
   strip "$OUTPUT_BIN" >/dev/null 2>&1
@@ -1230,7 +1241,7 @@ EOF
   echo "99 号程序已生成：$OUTPUT_BIN"
   echo "备份文件将保存到：$BACKUP_OUTPUT"
 
-  # 选择备份频率
+  # ------------------------ 定时任务 ------------------------
   echo "------------------------"
   echo "选择备份频率："
   echo "1. 每周备份"
@@ -1254,7 +1265,7 @@ EOF
       ;;
     2)
       read -e -p "每天几点备份（0-23）: " hour
-      read -e -p "每天几分备份（0-59）: " minute
+      read -e -p "每天几分（0-59）: " minute
       if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
         echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
       else
@@ -1278,7 +1289,7 @@ EOF
       ;;
   esac
 
-  # 开机自启
+  # ------------------ 开机自启 ------------------
   if crontab -l 2>/dev/null | grep -q "@reboot $OUTPUT_BIN"; then
       echo "开机自启任务已存在，跳过添加。"
   else
@@ -1286,7 +1297,7 @@ EOF
       echo "已设置开机自动后台运行 $OUTPUT_BIN"
   fi
 
-  # 立即后台运行
+  # ------------------ 立即后台运行 ------------------
   nohup $OUTPUT_BIN >/dev/null 2>&1 &
   echo "99 号任务已立即开始执行..."
 
