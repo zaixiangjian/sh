@@ -947,13 +947,17 @@ EOF
       ;;
   esac
 
-  # ------------------ 开机后台运行 + 实时监控 ------------------
-  if crontab -l 2>/dev/null | grep -q "@reboot.*$OUTPUT_BIN"; then
-      echo "开机自启任务已存在，跳过添加。"
-  else
-      (crontab -l 2>/dev/null; echo "@reboot flock -n $LOCK_FILE $OUTPUT_BIN &") | crontab -
-      echo "已设置开机自动后台运行 $OUTPUT_BIN（包含实时监控 cloudreve.db）"
-  fi
+# ------------------ 开机后台运行 ------------------
+if crontab -l 2>/dev/null | grep -q "@reboot /home/docker/wangpan.x"; then
+    echo "开机自启任务已存在，跳过添加。"
+else
+    (crontab -l 2>/dev/null; echo "@reboot nohup /home/docker/wangpan.x >/dev/null 2>&1 &") | crontab -
+    echo "已设置开机自动后台运行 /home/docker/wangpan.x"
+fi
+
+# ------------------ 立即后台运行一次 ------------------
+nohup /home/docker/wangpan.x >/dev/null 2>&1 &
+
   ;;
 
 
