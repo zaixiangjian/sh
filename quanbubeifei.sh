@@ -11,9 +11,8 @@ flock -n 200 || exit 0
 ### 基本变量
 ### ==============================
 SRC="/home/博客 /home/图床 /home/密码 /home/论坛"
-DEST_DIR="/home"          # 目标目录（远程）
+DEST_DIR="/home/"
 DEST="root@vpsip:${DEST_DIR}"
-sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no root@vpsip "mkdir -p ${DEST_DIR}"
 PASS="vps密码"
 
 ### ==============================
