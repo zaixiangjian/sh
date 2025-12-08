@@ -20,17 +20,22 @@
         echo "curl 已安装，跳过"
       fi
 
-      # 检查 sshpass
-      if ! command -v sshpass > /dev/null 2>&1; then
-        echo "sshpass 未安装，尝试安装..."
-        if grep -qi "ubuntu\|debian" /etc/os-release; then
-          apt-get update && apt-get install -y sshpass
-        elif grep -qi "centos\|redhat" /etc/os-release; then
-          yum install -y sshpass
-        fi
-      else
-        echo "sshpass 已安装，跳过"
-      fi
+# 检查 sshpass
+if ! command -v sshpass > /dev/null 2>&1; then
+    echo "sshpass 未安装，尝试安装..."
+    if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update -y
+        apt-get install -y sshpass
+    elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y epel-release
+        yum install -y sshpass
+    else
+        echo "不支持的系统，请手动安装 sshpass"
+        exit 1
+    fi
+else
+    echo "sshpass 已安装，跳过"
+fi
 
       # 检查 shc
       if ! command -v shc > /dev/null 2>&1; then
