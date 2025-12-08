@@ -1252,7 +1252,6 @@ EOF
 
   cat quanbubeifei.sh >> "$TMP_SCRIPT"
 
-  bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
   sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
   shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
   chmod +x "$OUTPUT_BIN"
