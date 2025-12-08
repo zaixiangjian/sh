@@ -908,6 +908,7 @@ EOF
 
   LOCK_FILE="/tmp/wangpan.lock"  # flock 锁文件
 
+  # ------------------ 定时任务 ------------------
   case $dingshi in
     1)
       read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
@@ -916,7 +917,6 @@ EOF
       if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
         echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
       else
-        # 添加 flock 防止并发
         (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
         echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
       fi
@@ -946,7 +946,16 @@ EOF
       echo "无效输入"
       ;;
   esac
+
+  # ------------------ 开机后台运行 + 实时监控 ------------------
+  if crontab -l 2>/dev/null | grep -q "@reboot.*$OUTPUT_BIN"; then
+      echo "开机自启任务已存在，跳过添加。"
+  else
+      (crontab -l 2>/dev/null; echo "@reboot flock -n $LOCK_FILE $OUTPUT_BIN &") | crontab -
+      echo "已设置开机自动后台运行 $OUTPUT_BIN（包含实时监控 cloudreve.db）"
+  fi
   ;;
+
 
 
 
