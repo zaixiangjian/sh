@@ -18,7 +18,8 @@ SSH_OPTS="-o StrictHostKeyChecking=no"
 ### ==============================
 ### 基本变量
 ### ==============================
-SRC="/home/博客 /home/图床 /home/密码 /home/论坛"
+SRC=( "/home/博客" "/home/图床" "/home/密码" "/home/论坛" )
+
 DEST_DIR="/home/"
 DEST="root@vpsip:${DEST_DIR}"
 PASS="vps密码"
