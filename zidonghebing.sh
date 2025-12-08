@@ -49,6 +49,46 @@ fi
         echo "shc 已安装，跳过"
       fi
 
+# -----------------------------
+# 检查 rsync
+# -----------------------------
+if ! command -v rsync >/dev/null 2>&1; then
+    echo "rsync 未安装，尝试安装..."
+    if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update -y
+        apt-get install -y rsync
+    elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y rsync
+    else
+        echo "不支持的系统，请手动安装 rsync"
+        exit 1
+    fi
+else
+    echo "rsync 已安装，跳过"
+fi
+
+# -----------------------------
+# 检查 ssh
+# -----------------------------
+if ! command -v ssh >/dev/null 2>&1; then
+    echo "ssh 未安装，尝试安装..."
+    if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update -y
+        apt-get install -y openssh-client
+    elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y openssh-clients
+    else
+        echo "不支持的系统，请手动安装 ssh"
+        exit 1
+    fi
+else
+    echo "ssh 已安装，跳过"
+fi
+
+
+
+
+
       # 检查 upx
       if ! command -v upx > /dev/null 2>&1; then
         echo "upx 未安装，尝试安装..."
