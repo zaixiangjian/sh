@@ -1232,35 +1232,34 @@ EOF
   mkdir -p /home
   cd /home || exit 1
 
-  # 下载最新脚本
-  wget -q -O quanbubeifei.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifei.sh
+  wget -q -O quanbubeifei.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifei.sh
   chmod +x quanbubeifei.sh
 
-  # 替换远程服务器信息
   sed -i "s/vpsip/$useip/g" quanbubeifei.sh
   sed -i "s/vps密码/$usepasswd/g" quanbubeifei.sh
 
   local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-  TMP_SCRIPT="/home/quanbubeifei_tmp.sh"
-  OUTPUT_BIN="/home/quanbubeifei.x"   # 最终生成路径
+  TMP_SCRIPT="/home/docker/quanbubeifei_tmp.sh"
+  OBFUSCATED_SCRIPT="/home/quanbubeifei_obf.sh"
+  OUTPUT_BIN="/home/quanbubeifei.x"
 
-  # 创建临时脚本，限制IP
   cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-[[ "\$IP" == "$local_ip" ]] || exit 1
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
   cat quanbubeifei.sh >> "$TMP_SCRIPT"
 
-  # 打包成单文件可执行程序
-  shc -r -f "$TMP_SCRIPT" -o "$OUTPUT_BIN"
+  bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+  sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+  shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
   chmod +x "$OUTPUT_BIN"
   strip "$OUTPUT_BIN" >/dev/null 2>&1
   upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-  rm -f "$TMP_SCRIPT" quanbubeifei.sh
+  rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" quanbubeifei.sh
 
   echo "------------------------"
   echo "选择备份频率："
@@ -1310,18 +1309,18 @@ EOF
       ;;
   esac
 
-  # ------------------ 开机后台运行 ------------------
-  if crontab -l 2>/dev/null | grep -q "@reboot $OUTPUT_BIN"; then
-      echo "开机自启任务已存在，跳过添加。"
-  else
-      (crontab -l 2>/dev/null; echo "@reboot nohup $OUTPUT_BIN >/dev/null 2>&1 &") | crontab -
-      echo "已设置开机自动后台运行 $OUTPUT_BIN"
-  fi
+# ------------------ 开机后台运行 ------------------
+if crontab -l 2>/dev/null | grep -q "@reboot /home/quanbubeifei.x"; then
+    echo "开机自启任务已存在，跳过添加。"
+else
+    (crontab -l 2>/dev/null; echo "@reboot nohup /home/quanbubeifei.x >/dev/null 2>&1 &") | crontab -
+    echo "已设置开机自动后台运行 /home/quanbubeifei.x"
+fi
 
-  # ------------------ 立即后台运行一次 ------------------
-  nohup $OUTPUT_BIN >/dev/null 2>&1 &
+# ------------------ 立即后台运行一次 ------------------
+nohup /home/quanbubeifei.x >/dev/null 2>&1 &
 
-;;
+  ;;
 
 
 
