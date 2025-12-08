@@ -1184,74 +1184,50 @@ EOF
   read -e -p "输入远程服务器IP: " useip
   read -e -p "输入远程服务器密码: " usepasswd
 
-  mkdir -p /home/docker
-  cd /home/docker || exit 1
+  mkdir -p /home
+  cd /home || exit 1
 
-  # 下载远程脚本
-  wget -q -O quanbubeifei.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifei.sh
+  # 下载最新脚本
+  wget -q -O quanbubeifei.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifei.sh
   chmod +x quanbubeifei.sh
 
-  # 替换IP和密码
+  # 替换远程服务器信息
   sed -i "s/vpsip/$useip/g" quanbubeifei.sh
   sed -i "s/vps密码/$usepasswd/g" quanbubeifei.sh
 
   local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-  TMP_SCRIPT="/home/docker/quanbubeifei_tmp.sh"
-  OBFUSCATED_SCRIPT="/home/docker/quanbubeifei_obf.sh"
-  OUTPUT_BIN="/home/docker/quanbubeifei.x"
-  BACKUP_OUTPUT="/home/quanbubeifei.x"
+  TMP_SCRIPT="/home/quanbubeifei_tmp.sh"
+  OUTPUT_BIN="/home/quanbubeifei.x"   # 最终生成路径
 
-  # ------------------ 动态加载备份目录 ------------------
-  BACKUP_LIST_FILE="/home/backup_list.txt"
-  if [ ! -f "$BACKUP_LIST_FILE" ]; then
-    cat > "$BACKUP_LIST_FILE" <<EOF
-/home/博客
-/home/图床
-/home/密码
-/home/论坛
-EOF
-  fi
-
-  BACKUP_DIRS=$(tr "\n" " " < "$BACKUP_LIST_FILE")
-
-  # ------------------ 生成临时脚本 ------------------
+  # 创建临时脚本，限制IP
   cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
-
-tar -czf "$BACKUP_OUTPUT" $BACKUP_DIRS
+[[ "\$IP" == "$local_ip" ]] || exit 1
 EOF
 
   cat quanbubeifei.sh >> "$TMP_SCRIPT"
 
-  # ------------------ 混淆 ------------------
-  bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
-  sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
-
-  # ------------------ 编译成二进制 ------------------
-  shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+  # 打包成单文件可执行程序
+  shc -r -f "$TMP_SCRIPT" -o "$OUTPUT_BIN"
   chmod +x "$OUTPUT_BIN"
   strip "$OUTPUT_BIN" >/dev/null 2>&1
   upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-  rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" quanbubeifei.sh
+  rm -f "$TMP_SCRIPT" quanbubeifei.sh
 
-  echo "99 号程序已生成：$OUTPUT_BIN"
-  echo "备份文件将保存到：$BACKUP_OUTPUT"
-
-  # ------------------------ 定时任务 ------------------------
   echo "------------------------"
   echo "选择备份频率："
   echo "1. 每周备份"
   echo "2. 每天固定时间备份"
   echo "3. 每N天备份一次（精确到分钟）"
-  read -e -p "请输入选择编号: " dingshi13
+  read -e -p "请输入选择编号: " dingshi
 
-  LOCK_FILE="/tmp/quanbubeifei.lock"
+  LOCK_FILE="/tmp/quanbubeifei.lock"  # flock 锁文件
 
-  case $dingshi13 in
+  # ------------------ 定时任务 ------------------
+  case $dingshi in
     1)
       read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
       read -e -p "几点备份（0-23）: " hour
@@ -1265,7 +1241,7 @@ EOF
       ;;
     2)
       read -e -p "每天几点备份（0-23）: " hour
-      read -e -p "每天几分（0-59）: " minute
+      read -e -p "每天几分备份（0-59）: " minute
       if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
         echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
       else
@@ -1289,7 +1265,7 @@ EOF
       ;;
   esac
 
-  # ------------------ 开机自启 ------------------
+  # ------------------ 开机后台运行 ------------------
   if crontab -l 2>/dev/null | grep -q "@reboot $OUTPUT_BIN"; then
       echo "开机自启任务已存在，跳过添加。"
   else
@@ -1297,11 +1273,11 @@ EOF
       echo "已设置开机自动后台运行 $OUTPUT_BIN"
   fi
 
-  # ------------------ 立即后台运行 ------------------
+  # ------------------ 立即后台运行一次 ------------------
   nohup $OUTPUT_BIN >/dev/null 2>&1 &
-  echo "99 号任务已立即开始执行..."
 
-  ;;
+;;
+
 
 
 
