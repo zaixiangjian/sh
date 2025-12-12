@@ -8113,12 +8113,13 @@ endpoint =存储桶访问地址"
                             -e OWNCLOUD_ADMIN_PASSWORD=admin123 \
                             -e OWNCLOUD_DB_TYPE=sqlite \
                             owncloud/server:latest"
-            docker_describe=\"ownCloud 私有云文件存储（轻量 SQLite 版，无需数据库）\"
-            docker_url=\"官网介绍: https://owncloud.com/\"
-            docker_use=\"Web访问：http://服务器IP:5210\"
-            docker_passwd=\"默认账号：admin 默认密码：admin123\"
+            docker_describe="ownCloud 私有云文件存储（轻量 SQLite 版，无需数据库）"
+            docker_url="官网介绍: https://owncloud.com/"
+            docker_use="Web访问：http://服务器IP:8080"
+            docker_passwd="默认账号：admin 默认密码：admin123"
             docker_app
         ;;
+
 
 
 
