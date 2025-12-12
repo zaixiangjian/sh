@@ -5401,7 +5401,9 @@ linux_panel() {
 	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
 	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用 ${gl_huang}★${gl_bai}               ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
+	  echo -e "${gl_kjlan}65.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
       	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
@@ -8096,6 +8098,27 @@ endpoint =存储桶访问地址"
 ;;
 
 
+        65)
+            docker_name="owncloud"
+            docker_img="owncloud/server:latest"
+            docker_port=5210
+            docker_rum="docker run -d \
+                            --name owncloud \
+                            --restart=unless-stopped \
+                            -p 5210:8080 \
+                            -v /home/docker/owncloud/data:/mnt/data \
+                            -e OWNCLOUD_DOMAIN=localhost \
+                            -e OWNCLOUD_TRUSTED_DOMAINS=localhost \
+                            -e OWNCLOUD_ADMIN_USERNAME=admin \
+                            -e OWNCLOUD_ADMIN_PASSWORD=admin123 \
+                            -e OWNCLOUD_DB_TYPE=sqlite \
+                            owncloud/server:latest"
+            docker_describe=\"ownCloud 私有云文件存储（轻量 SQLite 版，无需数据库）\"
+            docker_url=\"官网介绍: https://owncloud.com/\"
+            docker_use=\"Web访问：http://服务器IP:5210\"
+            docker_passwd=\"默认账号：admin 默认密码：admin123\"
+            docker_app
+        ;;
 
 
 
@@ -8125,7 +8148,8 @@ endpoint =存储桶访问地址"
 
 
 
-		  66)
+
+		  77)
 
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
