@@ -6447,7 +6447,7 @@ linux_panel() {
 --publish 80:80 \
 --publish 8080:8080 \
 --publish 8443:8443 \
---volume /home/nextcloud_aio:/mnt/docker-aio-config \
+--volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
 --volume /var/run/docker.sock:/var/run/docker.sock:ro \
 nextcloud/all-in-one:latest"
 			docker_describe="Nextcloud AIO 是官方推荐的多合一部署方式，简化了 Nextcloud 的部署和维护"
@@ -6456,7 +6456,6 @@ nextcloud/all-in-one:latest"
 			docker_passwd=""
 			docker_app
 			  ;;
-
 
 
 
