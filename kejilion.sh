@@ -8102,23 +8102,41 @@ endpoint =存储桶访问地址"
             docker_name="owncloud"
             docker_img="owncloud/server:latest"
             docker_port=5210
+
+            # 交互式输入 IP
+            read -p "请输入服务器访问 IP（回车自动获取本机IP）: " input_ip
+            if [ -z "$input_ip" ]; then
+                # 自动获取本机公网 IP
+                input_ip=$(curl -s https://api.ipify.org)
+                echo "自动获取本机IP为: $input_ip"
+            fi
+
+            # 输入访问域名，默认 www.wangpan.dev
+            read -p "请输入访问域名（回车使用默认 www.wangpan.dev）: " input_domain
+            if [ -z "$input_domain" ]; then
+                input_domain="www.wangpan.dev"
+                echo "使用默认域名: $input_domain"
+            fi
+
             docker_rum="docker run -d \
-                            --name owncloud \
-                            --restart=unless-stopped \
-                            -p 5210:8080 \
-                            -v /home/docker/owncloud/data:/mnt/data \
-                            -e OWNCLOUD_DOMAIN=localhost \
-                            -e OWNCLOUD_TRUSTED_DOMAINS=localhost \
-                            -e OWNCLOUD_ADMIN_USERNAME=admin \
-                            -e OWNCLOUD_ADMIN_PASSWORD=admin123 \
-                            -e OWNCLOUD_DB_TYPE=sqlite \
-                            owncloud/server:latest"
-            docker_describe="ownCloud 私有云文件存储（轻量 SQLite 版，无需数据库）"
+                      --name owncloud \
+                      --restart=unless-stopped \
+                      -p 5210:8080 \
+                      -v /home/docker/owncloud/data:/mnt/data \
+                      -e OWNCLOUD_DOMAIN=$input_ip,$input_domain \
+                      -e OWNCLOUD_TRUSTED_DOMAINS=$input_ip,$input_domain \
+                      -e OWNCLOUD_ADMIN_USERNAME=admin \
+                      -e OWNCLOUD_ADMIN_PASSWORD=admin123 \
+                      -e OWNCLOUD_DB_TYPE=sqlite \
+                      owncloud/server:latest"
+
+            docker_describe="ownCloud 私有云文件存储，支持网页访问，SQLite 轻量版"
             docker_url="官网介绍: https://owncloud.com/"
-            docker_use="Web访问：http://服务器IP:8080"
+            docker_use="Web访问：http://$input_ip:5210 或 http://$input_domain:5210"
             docker_passwd="默认账号：admin 默认密码：admin123"
             docker_app
         ;;
+
 
 
 
