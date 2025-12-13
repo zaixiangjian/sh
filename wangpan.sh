@@ -1,41 +1,93 @@
 #!/bin/bash
 
-### ==============================
-### 防止脚本重复运行（flock）
-### ==============================
+########################################
+# 防止重复运行（flock）
+########################################
 LOCKFILE="/tmp/wangpan.lock"
-exec 200>$LOCKFILE
-flock -n 200 || exit 0   # 如果已有进程运行，直接退出，不输出
+exec 200>"$LOCKFILE"
+flock -n 200 || exit 0
 
-### ==============================
-### 基本变量
-### ==============================
-SRC="/home/docker/wangpan/"
+########################################
+# 基本配置（安装脚本用 sed 自动替换）
+########################################
+SRC="/home/docker/wangpan"
 FILE_TO_WATCH="/home/docker/wangpan/cloudreve/data/cloudreve.db"
-DEST="root@vpsip:$SRC"
-PASS="vps密码"
+REMOTE_IP="vpsip"
+REMOTE_USER="root"
+REMOTE_PASS="vps密码"
+DEST="${REMOTE_USER}@${REMOTE_IP}:${SRC}"
+LOG_FILE="/home/docker/wangpan.log"
 
-### ==============================
-### 保证远程目录存在
-### ==============================
-sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no root@vpsip "mkdir -p $SRC"
+########################################
+# 日志函数
+########################################
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
 
-### ==============================
-### 执行初次同步（整目录）
-### ==============================
-sshpass -p "$PASS" rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no" "$SRC/" "$DEST/"
+log "==== wangpan 启动 ===="
 
-### ==============================
-### 实时监控 cloudreve.db 变化
-### ==============================
-
-# 安装 inotifywait 如果不存在
-if ! command -v inotifywait >/dev/null 2>&1; then
-    apt update -y >/dev/null 2>&1
-    apt install -y inotify-tools >/dev/null 2>&1
+########################################
+# 基础检查
+########################################
+if [ ! -d "$SRC" ]; then
+    log "本地目录不存在：$SRC"
+    exit 1
 fi
 
-# 实时监控，修改时自动同步，不输出日志
-inotifywait -m -e modify "$FILE_TO_WATCH" 2>/dev/null | while read -r path action file; do
-    sshpass -p "$PASS" rsync -avz -e "ssh -o StrictHostKeyChecking=no" "$SRC/" "$DEST/" >/dev/null 2>&1
+if [ ! -f "$FILE_TO_WATCH" ]; then
+    log "监控文件不存在：$FILE_TO_WATCH"
+    exit 1
+fi
+
+########################################
+# 依赖检查与安装
+########################################
+need_cmds=(sshpass rsync inotifywait)
+for cmd in "${need_cmds[@]}"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        log "缺少命令 $cmd，正在安装"
+        apt update -y >>"$LOG_FILE" 2>&1
+        apt install -y sshpass rsync inotify-tools >>"$LOG_FILE" 2>&1
+        break
+    fi
+done
+
+########################################
+# 确保远程目录存在
+########################################
+log "检查并创建远程目录"
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no \
+    "${REMOTE_USER}@${REMOTE_IP}" "mkdir -p '$SRC'" >>"$LOG_FILE" 2>&1
+
+########################################
+# 启动时全量同步一次（整个网盘目录）
+########################################
+log "开始初次全量同步"
+sshpass -p "$REMOTE_PASS" rsync -az --delete \
+    -e "ssh -o StrictHostKeyChecking=no" \
+    "$SRC/" "$DEST/" >>"$LOG_FILE" 2>&1
+log "初次全量同步完成"
+
+########################################
+# 实时监控 cloudreve.db（改进版：更可靠、更高效）
+########################################
+log "开始实时监控数据库文件及其相关临时文件（data 目录）"
+
+inotifywait -m -e close_write,attrib,create,move_to,delete \
+    -r "/home/docker/wangpan/cloudreve/data" --exclude '.*(cache|tmp).*' |
+while read -r path action file; do
+    if [[ "$file" == "cloudreve.db" || "$file" == "cloudreve.db-wal" || "$file" == "cloudreve.db-shm" ]]; then
+        log "检测到数据库相关事件: $action $path$file ，执行数据库同步"
+        
+        sshpass -p "$REMOTE_PASS" rsync -az --checksum \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            "$FILE_TO_WATCH" "${REMOTE_USER}@${REMOTE_IP}:${SRC}/cloudreve/data/cloudreve.db" >>"$LOG_FILE" 2>&1
+        
+        if [ $? -eq 0 ]; then
+            log "数据库同步成功"
+        else
+            log "数据库同步失败，请检查网络或密码"
+        fi
+    fi
 done
