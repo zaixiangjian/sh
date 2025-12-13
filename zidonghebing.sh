@@ -916,17 +916,17 @@ EOF
           mkdir -p /home/docker
           cd /home/docker || exit 1
 
-          wget -q -O zixuanmulu.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
-          chmod +x zixuanmulu.sh
+          wget -q -O wangpan.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
+          chmod +x wangpan.sh
 
-          sed -i "s/vpsip/$useip/g" zixuanmulu.sh
-          sed -i "s/vps密码/$usepasswd/g" zixuanmulu.sh
+          sed -i "s/vpsip/$useip/g" wangpan.sh
+          sed -i "s/vps密码/$usepasswd/g" wangpan.sh
 
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-          TMP_SCRIPT="/home/docker/zixuanmulu_tmp.sh"
-          OBFUSCATED_SCRIPT="/home/docker/zixuanmulu_obf.sh"
-          OUTPUT_BIN="/home/docker/zixuanmulu.x"
+          TMP_SCRIPT="/home/docker/wangpan_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/docker/wangpan_obf.sh"
+          OUTPUT_BIN="/home/docker/wangpan.x"
 
           cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -934,7 +934,7 @@ IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-          cat zixuanmulu.sh >> "$TMP_SCRIPT"
+          cat wangpan.sh >> "$TMP_SCRIPT"
 
           bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
           sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
@@ -943,7 +943,7 @@ EOF
           strip "$OUTPUT_BIN" >/dev/null 2>&1
           upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" zixuanmulu.sh
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
 
           echo "------------------------"
           echo "选择备份频率："
