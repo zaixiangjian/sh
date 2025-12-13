@@ -1,28 +1,7 @@
 #!/bin/bash
 
-CONF_FILE="/root/.wanpan.conf"
-
-# 判断是否已有记录
-if [ -f "$CONF_FILE" ]; then
-    SRC=$(cat "$CONF_FILE")
-    echo "自动使用上次目录: $SRC"
-else
-    # 第一次运行时让用户输入
-    read -e -p "请输入要同步的本地目录 (默认: /home/docker/wangpan/): " SRC
-    SRC=${SRC:-/home/docker/wangpan/}
-    echo "$SRC" > "$CONF_FILE"
-fi
-
-# 如果本地目录不存在，则自动创建
-if [ ! -d "$SRC" ]; then
-    echo "本地目录 $SRC 不存在，正在创建..."
-    mkdir -p "$SRC"
-    echo "本地目录已创建：$SRC"
-fi
-
-# 保存目录（保证手动修改也能更新记录）
-echo "$SRC" > "$CONF_FILE"
-
+# 本地目录
+SRC="/home/docker/wangpan/"
 # 远程服务器目录，与本地一致
 DEST="root@vpsip:$SRC"
 
