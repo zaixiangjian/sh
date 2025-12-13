@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONF_FILE="/root/.zixuanmulu.conf"
+CONF_FILE="/root/.wanpan.conf"
 
 # 判断是否已有记录
 if [ -f "$CONF_FILE" ]; then
