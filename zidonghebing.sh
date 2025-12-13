@@ -912,48 +912,142 @@ EOF
 11)
   read -e -p "输入远程服务器IP: " useip
   read -e -p "输入远程服务器密码: " usepasswd
-
   mkdir -p /home/docker
   cd /home/docker || exit 1
+  
+  # 直接写入改进后的 wangpan.sh（不再 wget 原始，可能过时）
+  cat > wangpan.sh <<'EOF'
+#!/bin/bash
 
-  wget -q -O wangpan.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
+########################################
+# 防止重复运行（flock）
+########################################
+LOCKFILE="/tmp/wangpan.lock"
+exec 200>"$LOCKFILE"
+flock -n 200 || exit 0
+
+########################################
+# 基本配置（安装脚本用 sed 自动替换）
+########################################
+SRC="/home/docker/wangpan"
+FILE_TO_WATCH="/home/docker/wangpan/cloudreve/data/cloudreve.db"
+REMOTE_IP="vpsip"
+REMOTE_USER="root"
+REMOTE_PASS="vps密码"
+DEST="${REMOTE_USER}@${REMOTE_IP}:${SRC}"
+LOG_FILE="/home/docker/wangpan.log"
+
+########################################
+# 日志函数
+########################################
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+log "==== wangpan 启动 ===="
+
+########################################
+# 基础检查
+########################################
+if [ ! -d "$SRC" ]; then
+    log "本地目录不存在：$SRC"
+    exit 1
+fi
+
+if [ ! -f "$FILE_TO_WATCH" ]; then
+    log "监控文件不存在：$FILE_TO_WATCH"
+    exit 1
+fi
+
+########################################
+# 依赖检查与安装
+########################################
+need_cmds=(sshpass rsync inotifywait)
+for cmd in "${need_cmds[@]}"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        log "缺少命令 $cmd，正在安装"
+        apt update -y >>"$LOG_FILE" 2>&1
+        apt install -y sshpass rsync inotify-tools >>"$LOG_FILE" 2>&1
+        break
+    fi
+done
+
+########################################
+# 确保远程目录存在
+########################################
+log "检查并创建远程目录"
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no \
+    "${REMOTE_USER}@${REMOTE_IP}" "mkdir -p '$SRC'" >>"$LOG_FILE" 2>&1
+
+########################################
+# 启动时全量同步一次（整个网盘目录）
+########################################
+log "开始初次全量同步"
+sshpass -p "$REMOTE_PASS" rsync -az --delete \
+    -e "ssh -o StrictHostKeyChecking=no" \
+    "$SRC/" "$DEST/" >>"$LOG_FILE" 2>&1
+log "初次全量同步完成"
+
+########################################
+# 实时监控 cloudreve.db（改进版：更可靠、更高效）
+########################################
+log "开始实时监控数据库文件及其相关临时文件（data 目录）"
+
+inotifywait -m -e close_write,attrib,create,move_to,delete \
+    -r "/home/docker/wangpan/cloudreve/data" --exclude '.*(cache|tmp).*' |
+while read -r path action file; do
+    if [[ "$file" == "cloudreve.db" || "$file" == "cloudreve.db-wal" || "$file" == "cloudreve.db-shm" ]]; then
+        log "检测到数据库相关事件: $action $path$file ，执行数据库同步"
+        
+        sshpass -p "$REMOTE_PASS" rsync -az --checksum \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            "$FILE_TO_WATCH" "${REMOTE_USER}@${REMOTE_IP}:${SRC}/cloudreve/data/cloudreve.db" >>"$LOG_FILE" 2>&1
+        
+        if [ $? -eq 0 ]; then
+            log "数据库同步成功"
+        else
+            log "数据库同步失败，请检查网络或密码"
+        fi
+    fi
+done
+EOF
+
   chmod +x wangpan.sh
-
+  
+  # 用用户输入替换占位符
   sed -i "s/vpsip/$useip/g" wangpan.sh
   sed -i "s/vps密码/$usepasswd/g" wangpan.sh
-
+  
   local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-
   TMP_SCRIPT="/home/docker/wangpan_tmp.sh"
   OBFUSCATED_SCRIPT="/home/docker/wangpan_obf.sh"
   OUTPUT_BIN="/home/docker/wangpan.x"
-
+  
   cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
-
   cat wangpan.sh >> "$TMP_SCRIPT"
-
+  
   bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
   sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
   shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
   chmod +x "$OUTPUT_BIN"
   strip "$OUTPUT_BIN" >/dev/null 2>&1
   upx "$OUTPUT_BIN" >/dev/null 2>&1
-
+  
   rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
-
+  
   echo "------------------------"
   echo "选择备份频率："
   echo "1. 每周备份"
   echo "2. 每天固定时间备份"
   echo "3. 每N天备份一次（精确到分钟）"
   read -e -p "请输入选择编号: " dingshi
-
-  LOCK_FILE="/tmp/wangpan.lock"  # flock 锁文件
-
+  
+  LOCK_FILE="/tmp/wangpan.lock" # flock 锁文件
+  
   # ------------------ 定时任务 ------------------
   case $dingshi in
     1)
@@ -992,18 +1086,17 @@ EOF
       echo "无效输入"
       ;;
   esac
-
-# ------------------ 开机后台运行 ------------------
-if crontab -l 2>/dev/null | grep -q "@reboot /home/docker/wangpan.x"; then
-    echo "开机自启任务已存在，跳过添加。"
-else
-    (crontab -l 2>/dev/null; echo "@reboot nohup /home/docker/wangpan.x >/dev/null 2>&1 &") | crontab -
-    echo "已设置开机自动后台运行 /home/docker/wangpan.x"
-fi
-
-# ------------------ 立即后台运行一次 ------------------
-nohup /home/docker/wangpan.x >/dev/null 2>&1 &
-
+  
+  # ------------------ 开机后台运行 ------------------
+  if crontab -l 2>/dev/null | grep -q "@reboot /home/docker/wangpan.x"; then
+      echo "开机自启任务已存在，跳过添加。"
+  else
+      (crontab -l 2>/dev/null; echo "@reboot nohup /home/docker/wangpan.x >/dev/null 2>&1 &") | crontab -
+      echo "已设置开机自动后台运行 /home/docker/wangpan.x"
+  fi
+  
+  # ------------------ 立即后台运行一次 ------------------
+  nohup /home/docker/wangpan.x >/dev/null 2>&1 &
   ;;
 
 
