@@ -909,196 +909,87 @@ EOF
 
 
 
-11)
-  read -e -p "输入远程服务器IP: " useip
-  read -e -p "输入远程服务器密码: " usepasswd
-  mkdir -p /home/docker
-  cd /home/docker || exit 1
-  
-  # 直接写入最新版 wangpan.sh（不再依赖可能未更新的 GitHub 版本）
-  cat > wangpan.sh <<'EOF'
-#!/bin/bash
+        11)
+          read -e -p "输入远程服务器IP: " useip
+          read -e -p "输入远程服务器密码: " usepasswd
 
-########################################
-# 防止重复运行（flock）
-########################################
-LOCKFILE="/tmp/wangpan.lock"
-exec 200>"$LOCKFILE"
-flock -n 200 || exit 0
+          mkdir -p /home/docker
+          cd /home/docker || exit 1
 
-########################################
-# 基本配置（安装脚本用 sed 自动替换）
-########################################
-SRC="/home/docker/wangpan"
-FILE_TO_WATCH="/home/docker/wangpan/cloudreve/data/cloudreve.db"
-REMOTE_IP="vpsip"
-REMOTE_USER="root"
-REMOTE_PASS="vps密码"
-DEST="${REMOTE_USER}@${REMOTE_IP}:${SRC}"
-LOG_FILE="/home/docker/wangpan.log"
+          wget -q -O zixuanmulu.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/wangpan.sh
+          chmod +x zixuanmulu.sh
 
-########################################
-# 日志函数
-########################################
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
-}
+          sed -i "s/vpsip/$useip/g" zixuanmulu.sh
+          sed -i "s/vps密码/$usepasswd/g" zixuanmulu.sh
 
-log "==== wangpan 启动 ===="
+          local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-########################################
-# 基础检查
-########################################
-if [ ! -d "$SRC" ]; then
-    log "本地目录不存在：$SRC"
-    exit 1
-fi
+          TMP_SCRIPT="/home/docker/zixuanmulu_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/docker/zixuanmulu_obf.sh"
+          OUTPUT_BIN="/home/docker/zixuanmulu.x"
 
-if [ ! -f "$FILE_TO_WATCH" ]; then
-    log "监控文件不存在：$FILE_TO_WATCH"
-    exit 1
-fi
-
-########################################
-# 依赖检查与安装
-########################################
-need_cmds=(sshpass rsync inotifywait)
-for cmd in "${need_cmds[@]}"; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        log "缺少命令 $cmd，正在安装"
-        apt update -y >>"$LOG_FILE" 2>&1
-        apt install -y sshpass rsync inotify-tools >>"$LOG_FILE" 2>&1
-        break
-    fi
-done
-
-########################################
-# 确保远程目录存在
-########################################
-log "检查并创建远程目录"
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no \
-    "${REMOTE_USER}@${REMOTE_IP}" "mkdir -p '$SRC/cloudreve/data'" >>"$LOG_FILE" 2>&1
-
-########################################
-# 启动时全量同步一次（整个网盘目录）
-########################################
-log "开始初次全量同步（整个网盘目录）"
-sshpass -p "$REMOTE_PASS" rsync -az --delete \
-    -e "ssh -o StrictHostKeyChecking=no" \
-    "$SRC/" "$DEST/" >>"$LOG_FILE" 2>&1
-log "初次全量同步完成"
-
-########################################
-# 实时监控 cloudreve.db（支持 WAL 和 rollback journal 模式）
-########################################
-log "开始实时监控数据库文件及其临时文件（data 目录）"
-
-inotifywait -m -e close_write,attrib,create,move_to,delete \
-    -r "/home/docker/wangpan/cloudreve/data" --exclude '.*(cache|tmp).*' |
-while read -r path action file; do
-    # 支持 WAL 模式 (-wal, -shm) 和 rollback journal 模式 (-journal) 以及主文件
-    if [[ "$file" == "cloudreve.db" || "$file" == "cloudreve.db-wal" || \
-          "$file" == "cloudreve.db-shm" || "$file" == "cloudreve.db-journal" ]]; then
-        
-        log "检测到数据库相关事件: $action $path$file ，立即同步主数据库文件"
-        
-        sshpass -p "$REMOTE_PASS" rsync -az \
-            -e "ssh -o StrictHostKeyChecking=no" \
-            "$FILE_TO_WATCH" "${REMOTE_USER}@${REMOTE_IP}:${SRC}/cloudreve/data/cloudreve.db" >>"$LOG_FILE" 2>&1
-        
-        if [ $? -eq 0 ]; then
-            log "数据库同步成功（主文件已更新到远程）"
-        else
-            log "数据库同步失败！请检查网络、密码、权限或远程路径"
-        fi
-    fi
-done
-EOF
-
-  chmod +x wangpan.sh
-  
-  # 替换占位符
-  sed -i "s/vpsip/$useip/g" wangpan.sh
-  sed -i "s/vps密码/$usepasswd/g" wangpan.sh
-  
-  local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-  TMP_SCRIPT="/home/docker/wangpan_tmp.sh"
-  OBFUSCATED_SCRIPT="/home/docker/wangpan_obf.sh"
-  OUTPUT_BIN="/home/docker/wangpan.x"
-  
-  cat > "$TMP_SCRIPT" <<EOF
+          cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
-  cat wangpan.sh >> "$TMP_SCRIPT"
-  
-  bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
-  sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
-  shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
-  chmod +x "$OUTPUT_BIN"
-  strip "$OUTPUT_BIN" >/dev/null 2>&1
-  upx "$OUTPUT_BIN" >/dev/null 2>&1
-  
-  rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
-  
-  echo "------------------------"
-  echo "选择备份频率："
-  echo "1. 每周备份"
-  echo "2. 每天固定时间备份"
-  echo "3. 每N天备份一次（精确到分钟）"
-  read -e -p "请输入选择编号: " dingshi
-  
-  LOCK_FILE="/tmp/wangpan.lock"
-  
-  case $dingshi in
-    1)
-      read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-      read -e -p "几点备份（0-23）: " hour
-      read -e -p "几分备份（0-59）: " minute
-      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-      else
-        (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-      fi
-      ;;
-    2)
-      read -e -p "每天几点备份（0-23）: " hour
-      read -e -p "每天几分备份（0-59）: " minute
-      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-      else
-        (crontab -l 2>/dev/null; echo "$minute $hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        echo "已设置每天 ${hour}点${minute}分进行备份"
-      fi
-      ;;
-    3)
-      read -e -p "每几天备份一次（如：2 表示每2天）: " interval
-      read -e -p "几点（0-23）: " hour
-      read -e -p "几分（0-59）: " minute
-      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-      else
-        (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-      fi
-      ;;
-    *)
-      echo "无效输入"
-      ;;
-  esac
-  
-  if crontab -l 2>/dev/null | grep -q "@reboot /home/docker/wangpan.x"; then
-      echo "开机自启任务已存在，跳过添加。"
-  else
-      (crontab -l 2>/dev/null; echo "@reboot nohup /home/docker/wangpan.x >/dev/null 2>&1 &") | crontab -
-      echo "已设置开机自动后台运行 /home/docker/wangpan.x"
-  fi
-  
-  nohup /home/docker/wangpan.x >/dev/null 2>&1 &
-  ;;
 
+          cat zixuanmulu.sh >> "$TMP_SCRIPT"
+
+          bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+          sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+          shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+          chmod +x "$OUTPUT_BIN"
+          strip "$OUTPUT_BIN" >/dev/null 2>&1
+          upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" zixuanmulu.sh
+
+          echo "------------------------"
+          echo "选择备份频率："
+          echo "1. 每周备份"
+          echo "2. 每天固定时间备份"
+          echo "3. 每N天备份一次（精确到分钟）"
+          read -e -p "请输入选择编号: " dingshi
+
+          case $dingshi in
+            1)
+              read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+              read -e -p "几点备份（0-23）: " hour
+              read -e -p "几分备份（0-59）: " minute
+              if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+              else
+                (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
+                echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
+              fi
+              ;;
+            2)
+              read -e -p "每天几点备份（0-23）: " hour
+              read -e -p "每天几分备份（0-59）: " minute
+              if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+              else
+                (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
+                echo "已设置每天 ${hour}点${minute}分进行备份"
+              fi
+              ;;
+            3)
+              read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+              read -e -p "几点（0-23）: " hour
+              read -e -p "几分（0-59）: " minute
+              if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+              else
+                (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
+                echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
+              fi
+              ;;
+            *)
+              echo "无效输入"
+              ;;
+          esac
+          ;;
 
 
 
