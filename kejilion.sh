@@ -6928,7 +6928,7 @@ EOF
 version: '3'
 services:
   cloudreve:
-    image: cloudreve/cloudreve:4.1.1
+    image: cloudreve/cloudreve:4.10.1
     container_name: cloudreve
     restart: always
     ports:
@@ -6964,7 +6964,7 @@ EOF
                   ;;
                 2)
                   docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  docker rmi -f cloudreve/cloudreve:4.10.1 p3terx/aria2-pro
 
                   cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
                   touch /home/docker/wangpan/cloudreve/conf.ini
@@ -6990,7 +6990,7 @@ EOF
 version: '3'
 services:
   cloudreve:
-    image: cloudreve/cloudreve:4.1.1
+    image: cloudreve/cloudreve:4.10.1
     container_name: cloudreve
     restart: always
     ports:
@@ -7025,7 +7025,7 @@ EOF
                   ;;
                 3)
                   docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  docker rmi -f cloudreve/cloudreve:4.10.1 p3terx/aria2-pro
                   rm -rf /home/docker/wangpan
                   echo "应用已卸载"
                   ;;
