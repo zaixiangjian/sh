@@ -5407,8 +5407,8 @@ linux_panel() {
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
       	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}102.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}                ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-   	  echo -e "${gl_kjlan}104.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -8628,8 +8628,8 @@ EOF
 
 		  102)
 		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
+		    echo "▶️ 正在启动win10ltls模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
 		    ;;
 
@@ -8698,16 +8698,16 @@ EOF
 
 		  104)
 		    clear
+		    echo "▶️ 正在启动105脚本必装模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
+		    echo "✅ 动105脚本必装模块执行完成。"
+		    ;;
+		  105)
+		    clear
 		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
 		    ;;
-
-
-
-
-
-
 
 
 
