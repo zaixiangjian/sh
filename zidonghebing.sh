@@ -36,7 +36,7 @@ if ! command -v sshpass > /dev/null 2>&1; then
 else
     echo "sshpass 已安装，跳过"
 fi
-# -----------------------------
+
       # 检查 shc
       if ! command -v shc > /dev/null 2>&1; then
         echo "shc 未安装，尝试安装..."
@@ -48,9 +48,6 @@ fi
       else
         echo "shc 已安装，跳过"
       fi
-# -----------------------------
-
-
 
 # -----------------------------
 # 检查 rsync
@@ -169,8 +166,7 @@ done
       echo "12. 自定义目录传送修改/root/.zixuanmulu.conf目录文件"
       echo "13. 在github修改目录https://github.com/zaixiangjian/sh/blob/main/zixuanmulu2.sh"
       echo "------------------------"
-      echo "14. 恢复网盘 cloudreve 数据备份"
-      echo "15.外部网盘传送数据备份+自动监控文件变更备份传送"
+      echo "14.外部网盘传送数据备份+自动监控文件变更备份传送"
       echo "------------------------"
       read -e -p "请选择操作编号: " action
 
@@ -1183,69 +1179,7 @@ EOF
 
 
 
-    14)
-      echo "------------------------"
-      echo "恢复 网盘 数据库备份..."
-      
-      # 停止 Vaultwarden 容器
-      docker stop cloudreve
-      echo cloudreve 已停止"
-
-      # 列出 /home/网盘 目录中的所有备份文件
-      backup_dir="/home/网盘"
-      backups=$(ls -t $backup_dir/mima_*.tar.gz)
-
-      if [ -z "$backups" ]; then
-        echo "没有找到备份文件，无法恢复！"
-        exit 1
-      fi
-
-      echo "备份文件列表："
-      echo "------------------------"
-      i=1
-      for backup in $backups; do
-        echo "$i. $backup"
-        i=$((i+1))
-      done
-
-      # 提示用户选择备份文件（默认为最新备份）
-      read -e -p "请输入要恢复的备份编号（回车恢复最新）： " restore_choice
-
-      if [ -z "$restore_choice" ]; then
-        # 如果用户回车，则恢复最新备份
-        restore_file=$(echo "$backups" | head -n 1)
-      else
-        # 否则恢复用户指定的备份
-        restore_file=$(echo "$backups" | sed -n "${restore_choice}p")
-      fi
-
-      if [ -z "$restore_file" ]; then
-        echo "无效的选择，恢复失败！"
-        exit 1
-      fi
-
-      echo "正在恢复备份：$restore_file"
-
-      # 解压备份文件
-      tar -xvzf "$restore_file" -C /home/docker
-
-      # 检查解压是否成功
-      if [ $? -eq 0 ]; then
-        echo "备份恢复成功！"
-      else
-        echo "备份恢复失败！"
-        exit 1
-      fi
-
-      # 重启 cloudreve 容器
-      docker start cloudreve
-      echo "cloudreve 已重启"
-
-      ;;
-
-
-
-15)
+14)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1290,9 +1224,9 @@ EOF
 
     case $dingshi in
       1)
-        read -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-        read -p "几点备份（0-23）: " hour
-        read -p "几分备份（0-59）: " minute
+        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+        read -e -p "几点备份（0-23）: " hour
+        read -e -p "几分备份（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
         else
@@ -1301,8 +1235,8 @@ EOF
         fi
         ;;
       2)
-        read -p "每天几点备份（0-23）: " hour
-        read -p "每天几分备份（0-59）: " minute
+        read -e -p "每天几点备份（0-23）: " hour
+        read -e -p "每天几分备份（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
         else
@@ -1311,9 +1245,9 @@ EOF
         fi
         ;;
       3)
-        read -p "每几天备份一次（如：2 表示每2天）: " interval
-        read -p "几点（0-23）: " hour
-        read -p "几分（0-59）: " minute
+        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+        read -e -p "几点（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
         else
@@ -1433,7 +1367,6 @@ EOF
           echo "操作取消"
     ;;
 esac
-
 
 
 
