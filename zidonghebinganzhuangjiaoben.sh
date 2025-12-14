@@ -161,3 +161,10 @@ fi
       else
         echo "bash-obfuscate 已安装，跳过"
       fi
+
+
+
+          echo "操作取消"
+    ;;
+esac
+
