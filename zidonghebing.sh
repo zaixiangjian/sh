@@ -50,23 +50,7 @@ fi
       fi
 # -----------------------------
 
-# 检查是否已安装 shc
-if command -v shc > /dev/null 2>&1; then
-    echo "shc 已安装，跳过"
-    exit 0
-fi
 
-echo "shc 未安装，开始安装..."
-
-# 安装依赖
-if grep -qi "ubuntu\|debian" /etc/os-release; then
-    apt update
-    apt install -y gcc make wget tar
-elif grep -qi "centos\|redhat" /etc/os-release; then
-    yum install -y gcc make wget tar
-else
-    echo "不支持的系统，请手动安装 shc"
-    exit 1
 fi
 
 # 下载源码
