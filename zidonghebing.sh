@@ -167,6 +167,7 @@ done
       echo "13. 在github修改目录https://github.com/zaixiangjian/sh/blob/main/zixuanmulu2.sh"
       echo "------------------------"
       echo "14.外部网盘传送数据备份+自动监控文件变更备份传送"
+      echo "15.网盘数据恢复"
       echo "------------------------"
       read -e -p "请选择操作编号: " action
 
@@ -1314,7 +1315,65 @@ EOF
 
 
 
+    15)
+      echo "------------------------"
+      echo "恢复 cloudreve 数据库备份..."
+      
+      # 停止 cloudreve 容器
+      docker stop cloudreve
+      echo "cloudreve 已停止"
 
+      # 列出 /home/密码 目录中的所有备份文件
+      backup_dir="/home/网盘"
+      backups=$(ls -t $backup_dir/wangpan_*.tar.gz)
+
+      if [ -z "$backups" ]; then
+        echo "没有找到备份文件，无法恢复！"
+        exit 1
+      fi
+
+      echo "备份文件列表："
+      echo "------------------------"
+      i=1
+      for backup in $backups; do
+        echo "$i. $backup"
+        i=$((i+1))
+      done
+
+      # 提示用户选择备份文件（默认为最新备份）
+      read -e -p "请输入要恢复的备份编号（回车恢复最新）： " restore_choice
+
+      if [ -z "$restore_choice" ]; then
+        # 如果用户回车，则恢复最新备份
+        restore_file=$(echo "$backups" | head -n 1)
+      else
+        # 否则恢复用户指定的备份
+        restore_file=$(echo "$backups" | sed -n "${restore_choice}p")
+      fi
+
+      if [ -z "$restore_file" ]; then
+        echo "无效的选择，恢复失败！"
+        exit 1
+      fi
+
+      echo "正在恢复备份：$restore_file"
+
+      # 解压备份文件
+      tar -xvzf "$restore_file" -C /home/docker
+
+      # 检查解压是否成功
+      if [ $? -eq 0 ]; then
+        echo "备份恢复成功！"
+      else
+        echo "备份恢复失败！"
+        exit 1
+      fi
+
+      # 重启 cloudreve 容器
+      docker start cloudreve
+      echo "cloudreve 已重启"
+
+      ;;
 
 
 
