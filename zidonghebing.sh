@@ -51,27 +51,6 @@ fi
 # -----------------------------
 
 
-fi
-
-# 下载源码
-cd /tmp
-wget -O shc-4.0.3.tar.gz https://github.com/neurobin/shc/archive/refs/tags/4.0.3.tar.gz
-
-# 解压并编译
-tar xf shc-4.0.3.tar.gz
-cd shc-4.0.3/src
-gcc -o shc shc.c
-
-# 安装到系统路径
-cp shc /usr/local/bin/
-
-# 测试
-if command -v shc > /dev/null 2>&1; then
-    echo "shc 安装成功！"
-else
-    echo "shc 安装失败！"
-    exit 1
-fi
 
 # -----------------------------
 # 检查 rsync
