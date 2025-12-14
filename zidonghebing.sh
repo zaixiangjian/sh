@@ -1290,9 +1290,9 @@ EOF
 
     case $dingshi in
       1)
-        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-        read -e -p "几点备份（0-23）: " hour
-        read -e -p "几分备份（0-59）: " minute
+        read -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+        read -p "几点备份（0-23）: " hour
+        read -p "几分备份（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
         else
@@ -1301,8 +1301,8 @@ EOF
         fi
         ;;
       2)
-        read -e -p "每天几点备份（0-23）: " hour
-        read -e -p "每天几分备份（0-59）: " minute
+        read -p "每天几点备份（0-23）: " hour
+        read -p "每天几分备份（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
         else
@@ -1311,9 +1311,9 @@ EOF
         fi
         ;;
       3)
-        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
-        read -e -p "几点（0-23）: " hour
-        read -e -p "几分（0-59）: " minute
+        read -p "每几天备份一次（如：2 表示每2天）: " interval
+        read -p "几点（0-23）: " hour
+        read -p "几分（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
         else
