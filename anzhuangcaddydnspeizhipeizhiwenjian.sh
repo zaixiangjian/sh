@@ -1,7 +1,8 @@
 #!/bin/bash
 # Caddy + Cloudflare DNS 一键管理脚本
-# Author: ChatGPT
 # 适用于 Debian / Ubuntu
+
+set -e
 
 CADDY_BIN="/usr/local/bin/caddy"
 CADDY_DIR="/etc/caddy"
@@ -20,20 +21,28 @@ check_root() {
   fi
 }
 
+# ===== 启动即检测配置 =====
+echo "=============================="
+echo " Caddy 配置检测"
+if [ -f "$CADDY_FILE" ] && [ -s "$CADDY_FILE" ]; then
+  echo "✅ 已检测到配置文件：$CADDY_FILE"
+else
+  echo "⚠️  未检测到有效的 Caddy 配置：$CADDY_FILE"
+fi
+echo "=============================="
+
 add_api() {
   echo -e "${color_info}添加 Cloudflare API 环境变量${color_end}"
   read -p "请输入变量名（默认 CF_API_TOKEN）：" api_name
   api_name=${api_name:-CF_API_TOKEN}
+
   read -p "请输入 API Token（必填）：" api_value
   if [ -z "$api_value" ]; then
     echo -e "${color_err}API Token 不能为空${color_end}"
     return
   fi
 
-  mkdir -p "$CADDY_DIR"
-  grep -q "^export $api_name=" /etc/profile 2>/dev/null && \
-    sed -i "/^export $api_name=/d" /etc/profile
-
+  sed -i "/^export $api_name=/d" /etc/profile 2>/dev/null || true
   echo "export $api_name=\"$api_value\"" >> /etc/profile
   export "$api_name=$api_value"
 
@@ -42,44 +51,48 @@ add_api() {
 
 add_reverse_proxy() {
   echo -e "${color_info}添加反向代理配置${color_end}"
+
   read -p "请输入域名和端口（如 www.123.com:2053）：" domain_port
-  if [ -z "$domain_port" ]; then
-    echo -e "${color_err}域名端口不能为空${color_end}"
-    return
-  fi
+  [ -z "$domain_port" ] && echo "不能为空" && return
 
   read -p "反代地址（默认 127.0.0.1）：" proxy_host
   proxy_host=${proxy_host:-127.0.0.1}
 
   read -p "反代端口（必填）：" proxy_port
-  if [ -z "$proxy_port" ]; then
-    echo -e "${color_err}反代端口不能为空${color_end}"
-    return
-  fi
+  [ -z "$proxy_port" ] && echo "不能为空" && return
 
   mkdir -p "$CADDY_DIR"
 
-  cat >> "$CADDY_FILE" <<EOF
+  cat >> "$CADDY_FILE" <<'EOF'
 
-$domain_port {
+DOMAIN_PLACEHOLDER {
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }
-    reverse_proxy $proxy_host:$proxy_port {
+    reverse_proxy PROXY_PLACEHOLDER {
         header_up X-Real-IP {http.request.header.CF-Connecting-IP}
         header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
     }
 }
 EOF
 
-  echo -e "${color_ok}反向代理已写入 $CADDY_FILE${color_end}"
+  sed -i \
+    -e "s|DOMAIN_PLACEHOLDER|$domain_port|" \
+    -e "s|PROXY_PLACEHOLDER|$proxy_host:$proxy_port|" \
+    "$CADDY_FILE"
+
+  systemctl restart caddy || true
+  echo -e "${color_ok}反向代理已添加${color_end}"
 }
 
 create_service() {
   echo -e "${color_info}创建 caddy systemd 服务${color_end}"
-  read -p "请输入 API 环境变量名（默认 CF_API_TOKEN）：" api_name
+
+  read -p "API 变量名（默认 CF_API_TOKEN）：" api_name
   api_name=${api_name:-CF_API_TOKEN}
-  read -p "请输入 API Token：" api_value
+
+  read -p "API Token：" api_value
+  [ -z "$api_value" ] && echo "不能为空" && return
 
   cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -97,7 +110,7 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable caddy >/dev/null 2>&1
+  systemctl enable caddy
   systemctl restart caddy
   systemctl status caddy --no-pager
 }
@@ -113,81 +126,47 @@ stop_caddy() {
 }
 
 check_dns_module() {
-  $CADDY_BIN list-modules | grep dns || echo "未发现 DNS 模块"
-}
-
-check_config_exist() {
-  echo -e "${color_info}检查 Caddy 配置文件${color_end}"
-  if [ -f "$CONFIG_FILE" ] && [ -s "$CONFIG_FILE" ]; then
-    echo -e "${color_ok}已存在配置：$CONFIG_FILE${color_end}"
-    echo "--------------------------------"
-    sed -n '1,200p' "$CONFIG_FILE"
-  else
-    echo -e "${color_err}未发现任何 Caddy 配置${color_end}"
-  fi
+  echo "DNS 模块检测："
+  $CADDY_BIN list-modules | grep dns || echo "❌ 未发现 DNS 模块"
 }
 
 delete_reverse_proxy() {
-  CONFIG_FILE="$CADDY_FILE"
-  if [ ! -f "$CONFIG_FILE" ]; then
-    echo "⚠️  Caddyfile 不存在"
-    return
-  fi
+  [ ! -f "$CADDY_FILE" ] && echo "Caddyfile 不存在" && return
 
   mapfile -t BLOCKS < <(awk '
-  BEGIN { block="" }
-  /^[^ 	].*\{/ { block=$0; next }
-  block != "" {
-    block=block"
-"$0
+  /^[^ \t].*\{/ { block=$0 }
+  block {
+    block = block "\n" $0
     if ($0 ~ /^}/) {
       print block
       block=""
     }
-  }
-  ' "$CONFIG_FILE")
+  }' "$CADDY_FILE")
 
-  if [ ${#BLOCKS[@]} -eq 0 ]; then
-    echo "⚠️  没有找到可删除的配置块。"
-    return
-  fi
+  [ ${#BLOCKS[@]} -eq 0 ] && echo "没有可删除的配置" && return
 
   echo "请选择要删除的域名："
   for i in "${!BLOCKS[@]}"; do
-    DOMAIN_LINE=$(echo "${BLOCKS[$i]}" | head -n 1 | sed 's/{.*//;s/ *$//')
-    echo "$((i+1)). $DOMAIN_LINE"
+    echo "$((i+1)). $(echo "${BLOCKS[$i]}" | head -n1 | sed 's/{.*//')"
   done
 
-  read -p "请输入序号: " SELECTED
-  INDEX=$((SELECTED - 1))
+  read -p "请输入序号：" n
+  idx=$((n-1))
 
-  if [ "$INDEX" -ge 0 ] && [ "$INDEX" -lt "${#BLOCKS[@]}" ]; then
-    DOMAIN_TO_DELETE=$(echo "${BLOCKS[$INDEX]}" | head -n 1 | sed 's/{.*//;s/ *$//')
-    echo "🗑 正在删除配置域名：$DOMAIN_TO_DELETE"
+  [ "$idx" -lt 0 ] || [ "$idx" -ge "${#BLOCKS[@]}" ] && echo "无效选择" && return
 
-    awk -v domain="$DOMAIN_TO_DELETE" '
-    BEGIN { skip=0 }
-    {
-        if (skip==0) {
-            if ($0 ~ domain) {
-                skip=1
-                next
-            }
-            print
-        } else {
-            if ($0 ~ /^}/) {
-                skip=0
-                next
-            }
-        }
-    }
-    ' "$CONFIG_FILE" > /tmp/caddy_tmp && mv /tmp/caddy_tmp "$CONFIG_FILE"
+  domain=$(echo "${BLOCKS[$idx]}" | head -n1 | sed 's/{.*//')
+  echo "🗑 删除：$domain"
 
-    systemctl restart caddy
-    systemctl status caddy --no-pager
-  else
-    echo "❌ 无效的选择。"
-  fi
+  awk -v d="$domain" '
+  BEGIN{skip=0}
+  {
+    if ($0 ~ d && skip==0) {skip=1;next}
+    if (skip && $0 ~ /^}/) {skip=0;next}
+    if (!skip) print
+  }' "$CADDY_FILE" > /tmp/caddy.tmp && mv /tmp/caddy.tmp "$CADDY_FILE"
+
+  systemctl restart caddy
 }
 
 menu() {
@@ -201,9 +180,8 @@ menu() {
   echo "4. 重载 Caddy"
   echo "5. 停止 Caddy"
   echo "6. 重载 systemd 并启动"
-  echo "7. 查看是否已有 Caddy 配置"
+  echo "7. 查看 Caddy DNS 模块"
   echo "8. 删除反向代理配置"
-  echo "9. 查看 Caddy DNS 模块""
   echo "0. 退出"
   echo "=============================="
 }
@@ -221,6 +199,7 @@ while true; do
     5) stop_caddy ;;
     6) systemctl daemon-reload && systemctl restart caddy && systemctl status caddy --no-pager ;;
     7) check_dns_module ;;
+    8) delete_reverse_proxy ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
