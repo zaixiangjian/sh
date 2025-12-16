@@ -5401,7 +5401,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
 	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用 ${gl_huang}★${gl_bai}               ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}65.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}66.  ${gl_bai}安装caddy DNS版"
+	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版 ${gl_huang}★${gl_bai}                 ${gl_kjlan}66.  ${gl_bai}caddy DNS配置版"
+	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8097,8 +8098,23 @@ endpoint =存储桶访问地址"
     docker_app
 ;;
 
+		  65)
+		    clear
+		    echo "▶️ 正在启动caddy DNS版 安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhi.sh)
+		    echo "✅ caddy DNS版 安装完成。"
+		    ;;
 
-        65)
+		  66)
+		    clear
+		    echo "▶️ 正在启动caddy DNS版 安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhipeizhiwenjian.sh)
+		    echo "✅ caddy DNS版 安装完成。"
+		    ;;
+
+
+
+        67)
             # 交互式输入
             read -p "请输入 ownCloud 访问 IP（回车自动获取公网IP）: " user_ip
             if [ -z "$user_ip" ]; then
@@ -8137,12 +8153,7 @@ endpoint =存储桶访问地址"
         ;;
 
 
-		  66)
-		    clear
-		    echo "▶️ 正在启动caddy DNS版 安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhi.sh)
-		    echo "✅ caddy DNS版 安装完成。"
-		    ;;
+
 
 
 
