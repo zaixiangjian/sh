@@ -2,7 +2,7 @@
 
 # caddydns.sh - 一键安装带 Cloudflare DNS 插件的 Caddy（适用于 Debian/Ubuntu 系统）
 # 支持 amd64 和 arm64 架构
-# 使用 xcaddy 编译最新版 Caddy，并集成 github.com/caddy-dns/cloudflare 模块
+# 使用 Go 安装 xcaddy（更可靠，避免预编译版本下载问题），然后编译最新版 Caddy，并集成 github.com/caddy-dns/cloudflare 模块
 # 作者：Grok 生成
 # 用法：sudo bash caddydns.sh
 
@@ -19,40 +19,19 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# 更新软件包列表并安装必要依赖
-echo "更新软件源并安装依赖..."
+# 更新软件包列表并安装必要依赖，包括 Go 和 git
+echo "更新软件源并安装依赖（包括 Go）..."
 apt update
-apt install -y curl wget tar git build-essential
+apt install -y curl wget tar git build-essential golang-go
 
-# 检测系统架构
-ARCH=$(uname -m)
-case $ARCH in
-  x86_64)
-    XCADDY_ARCH="amd64"
-    ;;
-  aarch64)
-    XCADDY_ARCH="arm64"
-    ;;
-  *)
-    echo "错误：不支持的架构 $ARCH"
-    exit 1
-    ;;
-esac
+# 使用 Go 安装最新 xcaddy
+echo "使用 Go 安装最新 xcaddy..."
+go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
 
-# 下载最新 xcaddy 预编译二进制文件（当前最新版本 v0.4.5）
-echo "下载 xcaddy（适用于 linux $XCADDY_ARCH）..."
-XCADDY_VERSION="v0.4.5"
-XCADDY_TAR="xcaddy_${XCADDY_VERSION#_}_linux_${XCADDY_ARCH}.tar.gz"
-wget "https://github.com/caddyserver/xcaddy/releases/download/${XCADDY_VERSION}/${XCADDY_TAR}"
-
-# 解压并安装 xcaddy
+# 移动 xcaddy 到 /usr/local/bin
 echo "安装 xcaddy 到 /usr/local/bin ..."
-tar -xzvf "$XCADDY_TAR" xcaddy
-mv xcaddy /usr/local/bin/
+mv "$HOME/go/bin/xcaddy" /usr/local/bin/
 chmod +x /usr/local/bin/xcaddy
-
-# 清理下载文件
-rm "$XCADDY_TAR"
 
 # 使用 xcaddy 编译带 Cloudflare DNS 插件的 Caddy（自动使用最新 Caddy 版本）
 echo "正在使用 xcaddy 编译 Caddy（集成 Cloudflare DNS 插件）..."
@@ -64,7 +43,7 @@ echo "安装 caddy 到 /usr/local/bin ..."
 mv caddy /usr/local/bin/
 chmod +x /usr/local/bin/caddy
 
-# 验证安装完成
+# 验证安装
 echo "安装完成！"
 echo "Caddy 版本："
 caddy version
