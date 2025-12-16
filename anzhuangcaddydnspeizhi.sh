@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # caddydns.sh - 一键安装带 Cloudflare DNS 插件的 Caddy（适用于 Debian/Ubuntu 系统）
 # 支持 amd64 和 arm64 架构
 # 使用 xcaddy 编译最新版 Caddy，并集成 github.com/caddy-dns/cloudflare 模块
