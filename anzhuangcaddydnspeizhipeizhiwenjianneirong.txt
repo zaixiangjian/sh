@@ -1,0 +1,198 @@
+
+使用66安装或者下面命令安装caddy DNS
+----------------------------------------------------------------------------------------------------------------------------------------------------
+安装依赖
+
+在 Debian/Ubuntu 系统上：
+
+sudo apt update
+sudo apt install -y curl git wget build-essential
+
+官方预编译版本下载
+
+wget https://github.com/caddyserver/xcaddy/releases/download/v0.4.5/xcaddy_0.4.5_linux_amd64.tar.gz
+
+
+解压并安装：
+
+tar -xzvf xcaddy_0.4.5_linux_amd64.tar.gz
+sudo mv xcaddy /usr/local/bin/
+sudo chmod +x /usr/local/bin/xcaddy
+
+
+Go 安装方式：
+需要先装 Go（官方要求 Go 1.20+）
+
+sudo apt update
+sudo apt install -y golang-go git
+
+然后：
+
+go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+
+
+移动命令
+
+sudo mv ~/go/bin/xcaddy /usr/local/bin/
+
+
+安装好 xcaddy 以后：执行
+
+xcaddy build \
+  --with github.com/caddy-dns/cloudflare
+
+编译完成后会生成 caddy 可执行文件。移动到系统路径：
+
+sudo mv caddy /usr/local/bin/
+sudo chmod +x /usr/local/bin/caddy
+
+
+查看已编译的 DNS 插件Caddy 支持的 DNS 插件列表可以直接用命令查看：
+
+caddy list-modules | grep dns
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+安装完成后可直接执行写入api
+
+export CF_API_TOKEN="你的Cloudflare_API_Token"
+
+
+编辑 Caddy 配置文件或者手动修改/etc/caddy目录
+
+sudo nano /etc/caddy/Caddyfile
+
+内容为---------------------------------------------------------------------------------------------------
+
+www.123.com:2053 {
+
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:5212 {
+        header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+    }
+}
+
+---------------------------------------------------------------------------------------------------
+
+
+Caddyfile 放到正确位置
+
+mkdir -p /etc/caddy
+mv /root/Caddyfile /etc/caddy/Caddyfile
+
+
+手动创建 caddy.service（官方推荐版本）
+创建服务文件
+
+nano /etc/systemd/system/caddy.service
+
+
+内容为需要自己更改api
+---------------------------------------------------------------------------------------------------
+
+[Service]
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
+Environment=CF_API_TOKEN=t8b6wjN-hH89YTmDBL-RiG0OVzAfSJe1thdeyPRX
+
+---------------------------------------------------------------------------------------------------
+
+重载 systemd 并启动：
+
+systemctl daemon-reload
+systemctl restart caddy
+systemctl status caddy
+
+
+systemd命令
+启动服务
+
+systemctl start caddy
+
+查看状态：
+systemctl status caddy
+
+停止服务
+
+systemctl stop caddy
+
+再次查看状态：
+
+systemctl status caddy
+
+重启服务
+停止后立即启动用于修改配置或 systemd 服务文件后生效
+
+systemctl restart caddy
+
+推荐查看状态：
+
+systemctl status caddy
+
+
+设置开机自动启动
+
+systemctl enable caddy
+
+禁止开机启动
+
+systemctl disable caddy
+
+
+
+其他配置
+
+---------------------------------------------------------------------------------------------------
+
+[Unit]
+Description=Caddy Web Server
+Documentation=https://caddyserver.com/docs/
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=root
+Group=root
+
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+PrivateTmp=true
+ProtectSystem=full
+
+Environment=CF_API_TOKEN=t8b6wjN-hH89YTmDBL-RiG0OVzAfSJe1thdeyPRX
+
+[Install]
+WantedBy=multi-user.target
+
+---------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
