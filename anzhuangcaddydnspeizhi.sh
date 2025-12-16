@@ -64,7 +64,7 @@ echo "安装 caddy 到 /usr/local/bin ..."
 mv caddy /usr/local/bin/
 chmod +x /usr/local/bin/caddy
 
-# 验证安装
+# 验证安装完成
 echo "安装完成！"
 echo "Caddy 版本："
 caddy version
