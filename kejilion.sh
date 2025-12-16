@@ -5401,7 +5401,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
 	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用 ${gl_huang}★${gl_bai}               ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版 ${gl_huang}★${gl_bai}                 ${gl_kjlan}66.  ${gl_bai}caddy DNS配置版"
+	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}                 ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
 	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
