@@ -21,16 +21,26 @@ check_root() {
   fi
 }
 
-# ===== 启动即检测配置 =====
-echo "=============================="
-echo " Caddy 配置检测"
-if [ -f "$CADDY_FILE" ] && [ -s "$CADDY_FILE" ]; then
-  echo "✅ 已检测到配置文件：$CADDY_FILE"
-else
-  echo "⚠️  未检测到有效的 Caddy 配置：$CADDY_FILE"
-fi
-echo "=============================="
+# =========================
+# 自动显示 Caddyfile 配置
+# =========================
+show_caddy_config() {
+  echo "=============================="
+  echo " Caddy 当前配置 ($CADDY_FILE)"
+  echo "=============================="
 
+  if [ -f "$CADDY_FILE" ] && [ -s "$CADDY_FILE" ]; then
+    sed 's/^/  /' "$CADDY_FILE"
+  else
+    echo "  ⚠️ 暂无配置（文件不存在或为空）"
+  fi
+
+  echo "=============================="
+}
+
+# =========================
+# 添加 Cloudflare API
+# =========================
 add_api() {
   echo -e "${color_info}添加 Cloudflare API 环境变量${color_end}"
   read -p "请输入变量名（默认 CF_API_TOKEN）：" api_name
@@ -49,6 +59,9 @@ add_api() {
   echo -e "${color_ok}已添加环境变量 $api_name${color_end}"
 }
 
+# =========================
+# 添加反向代理配置
+# =========================
 add_reverse_proxy() {
   echo -e "${color_info}添加反向代理配置${color_end}"
 
@@ -85,6 +98,9 @@ EOF
   echo -e "${color_ok}反向代理已添加${color_end}"
 }
 
+# =========================
+# 创建 / 重建 systemd 服务
+# =========================
 create_service() {
   echo -e "${color_info}创建 caddy systemd 服务${color_end}"
 
@@ -115,6 +131,9 @@ EOF
   systemctl status caddy --no-pager
 }
 
+# =========================
+# 重载 / 停止 Caddy
+# =========================
 reload_caddy() {
   systemctl restart caddy
   systemctl status caddy --no-pager
@@ -125,11 +144,17 @@ stop_caddy() {
   echo -e "${color_ok}Caddy 已停止${color_end}"
 }
 
+# =========================
+# 查看 DNS 模块
+# =========================
 check_dns_module() {
   echo "DNS 模块检测："
   $CADDY_BIN list-modules | grep dns || echo "❌ 未发现 DNS 模块"
 }
 
+# =========================
+# 删除反代配置
+# =========================
 delete_reverse_proxy() {
   [ ! -f "$CADDY_FILE" ] && echo "Caddyfile 不存在" && return
 
@@ -169,8 +194,10 @@ delete_reverse_proxy() {
   systemctl restart caddy
 }
 
+# =========================
+# 菜单
+# =========================
 menu() {
-  clear
   echo "=============================="
   echo " Caddy + Cloudflare 管理脚本"
   echo "=============================="
@@ -186,9 +213,14 @@ menu() {
   echo "=============================="
 }
 
+# =========================
+# 主循环
+# =========================
 check_root
 
 while true; do
+  clear
+  show_caddy_config    # 自动显示当前配置或提示暂无
   menu
   read -p "请选择操作编号：" choice
   case "$choice" in
