@@ -63,6 +63,8 @@ echo "2. 使用 acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN} 配置 DNS-01 挑
 echo "3. 设置 CLOUDFLARE_API_TOKEN 环境变量或在 Caddyfile 中配置"
 echo "4. 运行：sudo caddy run --config /etc/caddy/Caddyfile"
 echo "更多文档：https://caddyserver.com/docs/ 和 https://github.com/caddy-dns/cloudflare"
-
+echo "=========================================="
+echo "详细文档"
+echo "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/anzhuangcaddydnspeizhipeizhiwenjianneirong.txt"
 echo "=========================================="
 echo "安装完毕！"
