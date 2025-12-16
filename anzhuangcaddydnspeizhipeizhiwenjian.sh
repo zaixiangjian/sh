@@ -194,6 +194,17 @@ delete_reverse_proxy() {
   systemctl restart caddy
 }
 
+edit_caddyfile() {
+  echo -e "${color_info}正在编辑 Caddy 配置文件: $CADDY_FILE${color_end}"
+  nano "$CADDY_FILE"
+  systemctl restart caddy
+  echo -e "${color_ok}编辑完成并已重启 Caddy${color_end}"
+}
+
+
+
+
+
 # =========================
 # 菜单
 # =========================
@@ -209,6 +220,7 @@ menu() {
   echo "6. 重载 systemd 并启动"
   echo "7. 查看 Caddy DNS 模块"
   echo "8. 删除反向代理配置"
+  echo "9. 编辑 Caddy 配置文件"
   echo "0. 退出"
   echo "=============================="
 }
@@ -232,6 +244,7 @@ while true; do
     6) systemctl daemon-reload && systemctl restart caddy && systemctl status caddy --no-pager ;;
     7) check_dns_module ;;
     8) delete_reverse_proxy ;;
+    9) edit_caddyfile ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
