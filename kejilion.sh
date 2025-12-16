@@ -8107,9 +8107,9 @@ endpoint =存储桶访问地址"
 
 		  66)
 		    clear
-		    echo "▶️ 正在启动caddy DNS版 安装..."
+		    echo "▶️ 正在启动caddy DNS配置版..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhipeizhiwenjian.sh)
-		    echo "✅ caddy DNS版 安装完成。"
+		    echo "✅ caddy DNS配置版 。"
 		    ;;
 
 
