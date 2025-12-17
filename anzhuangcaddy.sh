@@ -65,6 +65,22 @@ EOF
     format_and_reload
 }
 
+function m3u8yunxing() {
+    read -p "请输入你的域名（例如 www.14.com）: " DOMAIN
+
+    cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
+
+$DOMAIN {
+    root * /home/m3u8-app
+    file_server
+    header Access-Control-Allow-Origin *
+}
+EOF
+
+    format_and_reload
+}
+
+
 function list_config() {
     echo "=============================="
     echo "        🛠 Caddy 管理脚本"
@@ -210,6 +226,9 @@ function menu() {
     echo "5. 停止 Caddy"
     echo "6. 添加 TLS Skip Verify 反向代理"
     echo "7. 删除指定域名配置"
+
+    echo "88. 添加M3U8反代配置"
+    
     echo "0. 退出"
     echo "=============================="
     read -p "请输入选项: " choice
@@ -222,6 +241,7 @@ function menu() {
         5) stop_caddy ;;
         6) add_tls_skip_verify ;;
         7) delete_config ;;
+        88) m3u8yunxing ;;
         0) exit 0 ;;
         *) echo "❌ 无效选项，请重试" ;;
     esac
