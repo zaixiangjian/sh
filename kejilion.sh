@@ -5397,13 +5397,14 @@ linux_panel() {
 	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
 	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
    	  echo -e "${gl_kjlan}------------------------"
-   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}            ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
+   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}           ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
 	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
 	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用 ${gl_huang}★${gl_bai}               ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}         ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
-	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}               ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
-	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}        ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
+	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}                    ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
+	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                      ${gl_kjlan}70.  ${gl_bai}安装盘搜"
+	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8180,6 +8181,47 @@ endpoint =存储桶访问地址"
 	  ;;
 
 
+
+	  70)
+	      docker_name="pansou"
+	      docker_img="ghcr.io/fish2018/pansou-web"
+	      docker_port=8107
+	      docker_rum="docker run -d \
+	                      --name pansou \
+	                      --restart always \
+	                      -p ${docker_port}:80 \
+	                      -v /home/docker/pansou/data:/app/data \
+	                      -v /home/docker/pansou/logs:/app/logs \
+	                      -e ENABLED_PLUGINS=hunhepan,jikepan,panwiki,pansearch,panta,qupansou,susu,thepiratebay,wanou,xuexizhinan,panyq,zhizhen,labi,muou,ouge,shandian,duoduo,huban,cyg,erxiao,miaoso,fox4k,pianku,clmao,wuji,cldi,xiaozhang,libvio,leijing,xb6v,xys,ddys,hdmoli,yuhuage,u3c3,javdb,clxiong,jutoushe,sdso,xiaoji,xdyh,haisou,bixin,djgou,nyaa,xinjuc,aikanzy,qupanshe,xdpan,discourse,yunsou,ahhhhfs,nsgame,gying \
+	                      ${docker_img}"
+	      docker_describe="PanSou 是一个高性能的网盘资源搜索 API 服务。"
+	      docker_url="官网介绍: https://github.com/fish2018/pansou"
+	      docker_use=""
+	      docker_passwd=""
+	      docker_app
+	  ;;
+
+
+
+	  71)
+	      docker_name="zfile"
+	      docker_img="zhaojun1998/zfile:latest"
+	      docker_port=8109
+	      docker_rum="docker run -d \
+	                      --name zfile \
+	                      --restart always \
+	                      -p ${docker_port}:8080 \
+	                      -v /home/docker/zfile/db:/root/.zfile-v4/db \
+	                      -v /home/docker/zfile/logs:/root/.zfile-v4/logs \
+	                      -v /home/docker/zfile/file:/data/file \
+	                      -v /home/docker/zfile/application.properties:/root/.zfile-v4/application.properties \
+	                      ${docker_img}"
+	      docker_describe="是一个适用于个人或小团队的在线网盘程序。"
+	      docker_url="官网介绍: https://github.com/zfile-dev/zfile"
+	      docker_use=""
+	      docker_passwd=""
+	      docker_app
+	  ;;
 
 
 
