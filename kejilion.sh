@@ -5403,7 +5403,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}         ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
 	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}               ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
-	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱"
+	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
