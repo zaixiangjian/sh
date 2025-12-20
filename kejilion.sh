@@ -5403,6 +5403,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}         ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
 	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}               ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
+	  echo -e "${gl_kjlan}68.  ${gl_bai}}it-tools工具箱"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8160,6 +8161,23 @@ endpoint =存储桶访问地址"
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/m3u8xiazai.sh)
 		    echo "✅ 安装M38u8完成 。"
 		    ;;
+
+	  69)
+	      docker_name="it-tools"
+	      docker_img="corentinth/it-tools:latest"
+	      docker_port=8064
+	      docker_rum="docker run -d \
+	                      --name it-tools \
+	                      --restart always \
+	                      -p ${docker_port}:80 \
+	                      -v /home/docker/it-tools/data:/data \
+	                      ${docker_img}"
+	      docker_describe="对开发人员和 IT 工作者来说非常有用的工具"
+	      docker_url="官网介绍: https://github.com/CorentinTh/it-tools"
+	      docker_use=""
+	      docker_passwd=""
+	      docker_app
+	  ;;
 
 
 
