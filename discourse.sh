@@ -1,6 +1,6 @@
 #!/bin/bash
-# 一键安装 Discourse 脚本
-# 适用于 Ubuntu/Debian 系统
+# Discourse 一键安装 / 重建脚本
+# root 用户运行
 
 # 检查是否为 root
 if [ "$(id -u)" -ne 0 ]; then
@@ -8,23 +8,42 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "更新系统并安装依赖..."
-apt update -y
-apt install -y sudo curl git netcat-openbsd docker.io
+echo "请选择操作："
+echo "1) 安装 Discourse"
+echo "2) 重新构建容器"
+read -rp "请输入 1 或 2: " choice
 
-# 启动 Docker 并设置开机自启
-systemctl enable docker
-systemctl start docker
+if [ "$choice" = "1" ]; then
+    echo "更新系统并安装依赖..."
+    apt update -y
+    apt install -y sudo curl git netcat-openbsd docker.io
 
-echo "克隆 Discourse Docker 仓库..."
-git clone https://github.com/discourse/discourse_docker.git /var/discourse
-cd /var/discourse || exit
+    echo "启动 Docker 并设置开机自启..."
+    systemctl enable docker
+    systemctl start docker
 
-chmod 700 containers
+    echo "克隆 Discourse Docker 仓库..."
+    git clone https://github.com/discourse/discourse_docker.git /var/discourse
+    cd /var/discourse || exit
+    chmod 700 containers
 
-echo "准备执行 Discourse 安装..."
-echo "请根据提示输入你的域名、邮箱及 SMTP 等信息。"
-./discourse-setup
+    echo "执行 Discourse 安装..."
+    ./discourse-setup
 
-echo "安装完成！如果需要重新构建容器，请运行："
-echo "cd /var/discourse && ./launcher rebuild app"
+    echo "安装完成！"
+    echo "如果需要重新构建容器，请运行脚本并选择 2。"
+
+elif [ "$choice" = "2" ]; then
+    if [ -d /var/discourse ]; then
+        cd /var/discourse || exit
+        echo "开始重建 Discourse 容器..."
+        ./launcher rebuild app
+        echo "重建完成！"
+    else
+        echo "/var/discourse 不存在，请先安装 Discourse。"
+        exit 1
+    fi
+else
+    echo "无效选择，退出脚本。"
+    exit 1
+fi
