@@ -1,49 +1,201 @@
 #!/bin/bash
-# Discourse 一键安装 / 重建脚本
+# Discourse 多实例管理脚本（升级版）
 # root 用户运行
+set -e
 
-# 检查是否为 root
+# 实例目录与容器名映射
+INSTANCES=(
+  "/var/discourse app"      # 官方
+  "/var/discourse1 app1"    # 配置1
+  "/var/discourse2 app2"    # 配置2
+)
+
+# 检查 root
 if [ "$(id -u)" -ne 0 ]; then
   echo "请使用 root 权限运行此脚本！"
   exit 1
 fi
 
-echo "请选择操作："
-echo "1) 安装 Discourse"
-echo "2) 重新构建容器"
-read -rp "请输入 1 或 2: " choice
-
-if [ "$choice" = "1" ]; then
+# 安装依赖
+function install_dependencies() {
     echo "更新系统并安装依赖..."
     apt update -y
     apt install -y sudo curl git netcat-openbsd docker.io
-
-    echo "启动 Docker 并设置开机自启..."
     systemctl enable docker
     systemctl start docker
+}
 
-    echo "克隆 Discourse Docker 仓库..."
-    git clone https://github.com/discourse/discourse_docker.git /var/discourse
-    cd /var/discourse || exit
+# 停止所有 Discourse 实例（用于安装前）
+function stop_all_instances() {
+    for i in 0 1 2; do
+        dir=$(echo "${INSTANCES[$i]}" | awk '{print $1}')
+        container=$(echo "${INSTANCES[$i]}" | awk '{print $2}')
+        if [ -d "$dir" ]; then
+            cd "$dir" || continue
+            ./launcher stop "$container" 2>/dev/null || true
+            echo "🛑 已停止实例 $container"
+        fi
+    done
+}
+
+# 停止 Caddy
+function stop_caddy() {
+    if systemctl is-active --quiet caddy; then
+        echo "🛑 Caddy 正在运行，先停止..."
+        systemctl stop caddy
+    fi
+}
+
+# 安装单个实例
+function install_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ -d "$dir" ]; then
+        echo "⚠️ 目录 $dir 已存在，跳过安装"
+        return
+    fi
+
+    echo "安装实例 $container 到目录 $dir..."
+    git clone https://github.com/discourse/discourse_docker.git "$dir"
+    cd "$dir" || exit
     chmod 700 containers
 
-    echo "执行 Discourse 安装..."
+    echo "请为 $container 配置域名、端口和邮箱等信息："
     ./discourse-setup
 
-    echo "安装完成！"
-    echo "如果需要重新构建容器，请运行脚本并选择 2。"
+    echo "✅ 实例 $container 安装完成"
+}
 
-elif [ "$choice" = "2" ]; then
-    if [ -d /var/discourse ]; then
-        cd /var/discourse || exit
-        echo "开始重建 Discourse 容器..."
-        ./launcher rebuild app
-        echo "重建完成！"
-    else
-        echo "/var/discourse 不存在，请先安装 Discourse。"
-        exit 1
+# 重建实例
+function rebuild_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ ! -d "$dir" ]; then
+        echo "❌ 目录 $dir 不存在，请先安装"
+        return
     fi
-else
-    echo "无效选择，退出脚本。"
-    exit 1
-fi
+
+    cd "$dir" || exit
+    echo "🔄 重建容器 $container..."
+    ./launcher rebuild "$container"
+    echo "✅ 容器 $container 重建完成"
+}
+
+# 停止实例
+function stop_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ ! -d "$dir" ]; then
+        echo "❌ 目录 $dir 不存在"
+        return
+    fi
+
+    cd "$dir" || exit
+    echo "🛑 停止容器 $container..."
+    ./launcher stop "$container" 2>/dev/null || echo "容器 $container 未运行"
+}
+
+# 启动实例
+function start_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ ! -d "$dir" ]; then
+        echo "❌ 目录 $dir 不存在"
+        return
+    fi
+
+    cd "$dir" || exit
+    echo "▶️ 启动容器 $container..."
+    ./launcher start "$container"
+}
+
+# 重启 Caddy
+function restart_caddy() {
+    echo "🔁 重启 Caddy..."
+    systemctl restart caddy
+    echo "✅ Caddy 已重启"
+}
+
+# 选择实例序号
+function select_instance() {
+    echo "请选择实例："
+    echo "1) 官方"
+    echo "2) 配置1"
+    echo "3) 配置2"
+    read -rp "请输入序号 (1-3): " sel
+    case $sel in
+        1|2|3) echo $((sel-1)) ;;
+        *) echo "-1" ;;
+    esac
+}
+
+# 主菜单
+while true; do
+    echo "=============================="
+    echo "🛠 Discourse 多实例管理"
+    echo "1) 安装三套实例"
+    echo "2) 重建实例"
+    echo "3) 停止实例"
+    echo "4) 启动实例"
+    echo "5) 重启 Caddy"
+    echo "0) 退出"
+    echo "=============================="
+    read -rp "请输入选项: " choice
+
+    case "$choice" in
+        1)
+            install_dependencies
+            stop_all_instances
+            stop_caddy
+            # 按顺序安装三套实例
+            for i in 0 1 2; do
+                install_instance "$i"
+            done
+            ;;
+        2)
+            idx=$(select_instance)
+            if [ "$idx" -ge 0 ]; then
+                rebuild_instance "$idx"
+            else
+                echo "❌ 无效选择"
+            fi
+            ;;
+        3)
+            idx=$(select_instance)
+            if [ "$idx" -ge 0 ]; then
+                stop_instance "$idx"
+            else
+                echo "❌ 无效选择"
+            fi
+            ;;
+        4)
+            idx=$(select_instance)
+            if [ "$idx" -ge 0 ]; then
+                start_instance "$idx"
+            else
+                echo "❌ 无效选择"
+            fi
+            ;;
+        5)
+            restart_caddy
+            ;;
+        0)
+            exit 0
+            ;;
+        *)
+            echo "❌ 无效选项"
+            ;;
+    esac
+done
