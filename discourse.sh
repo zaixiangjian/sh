@@ -109,6 +109,13 @@ function restart_caddy() {
     echo "✅ Caddy 已重启"
 }
 
+# 停止 Caddy
+function stop_caddy() {
+    echo "🛑 停止 Caddy..."
+    systemctl stop caddy
+    echo "✅ Caddy 已停止"
+}
+
 # 菜单
 while true; do
     echo "=============================="
@@ -119,13 +126,17 @@ while true; do
     echo "4) 启动 官方原版"
     echo "5) 启动 app1"
     echo "6) 启动 app2"
-    echo "7) 重启 Caddy"
-    echo "8) 重建 官方原版"
-    echo "9) 重建 app1"
-    echo "10) 重建 app2"
-    echo "11) 停止 官方原版"
-    echo "12) 停止 app1"
-    echo "13) 停止 app2"
+    echo "=============================="
+    echo "7) 重建 官方原版"
+    echo "8) 重建 app1"
+    echo "9) 重建 app2"
+    echo "=============================="
+    echo "10) 停止 官方原版"
+    echo "11) 停止 app1"
+    echo "12) 停止 app2"
+    echo "=============================="
+    echo "13) 重启 Caddy"
+    echo "14) 停止 Caddy"
     echo "0) 退出"
     echo "=============================="
     read -rp "请输入选项: " choice
@@ -137,13 +148,14 @@ while true; do
         4) start_instance 0 ;;
         5) start_instance 1 ;;
         6) start_instance 2 ;;
-        7) restart_caddy ;;
-        8) rebuild_instance 0 ;;
-        9) rebuild_instance 1 ;;
-        10) rebuild_instance 2 ;;
-        11) stop_instance 0 ;;
-        12) stop_instance 1 ;;
-        13) stop_instance 2 ;;
+        7) rebuild_instance 0 ;;
+        8) rebuild_instance 1 ;;
+        9) rebuild_instance 2 ;;
+        10) stop_instance 0 ;;
+        11) stop_instance 1 ;;
+        12) stop_instance 2 ;;
+        13) restart_caddy ;;
+        14) stop_caddy ;;
         0) exit 0 ;;
         *) echo "❌ 无效选项" ;;
     esac
