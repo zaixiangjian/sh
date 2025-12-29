@@ -1,5 +1,5 @@
 #!/bin/bash
-# Discourse 多实例管理脚本（官方原版 + app1 + app2）
+# Discourse 多实例管理脚本（安装时停止运行实例，重建不检测）
 # root 用户运行
 set -e
 
@@ -17,7 +17,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 安装系统依赖
-function install_dependencies() {
+install_dependencies() {
     echo "更新系统并安装依赖..."
     apt update -y
     apt install -y sudo curl git netcat-openbsd docker.io
@@ -25,11 +25,10 @@ function install_dependencies() {
     systemctl start docker
 }
 
-# 检测并停止正在运行的实例（仅安装时调用）
-function stop_running_instances() {
+# 安装时检测并停止运行实例（app、app1、app2）和 Caddy
+stop_running_instances() {
     echo "检查并停止运行的 Discourse 实例..."
     for i in "${!INSTANCES[@]}"; do
-        local dir container
         dir=$(echo "${INSTANCES[$i]}" | awk '{print $1}')
         container=$(echo "${INSTANCES[$i]}" | awk '{print $2}')
         if [ -d "$dir" ]; then
@@ -48,8 +47,8 @@ function stop_running_instances() {
     fi
 }
 
-# 安装单个实例
-function install_instance() {
+# 安装实例
+install_instance() {
     local index=$1
     local dir container
     dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
@@ -58,37 +57,27 @@ function install_instance() {
     install_dependencies
     stop_running_instances
 
-    # 如果目录不存在则克隆，否则使用现有目录
+    # 克隆或进入目录
     if [ ! -d "$dir" ]; then
         echo "安装实例 $container 到目录 $dir..."
         git clone https://github.com/discourse/discourse_docker.git "$dir"
         cd "$dir" || exit
         chmod 700 containers
     else
-        echo "⚠️ 目录 $dir 已存在，使用现有目录继续安装 $container"
+        echo "⚠️ 目录 $dir 已存在，进入目录继续安装 $container"
         cd "$dir" || exit
     fi
 
-    # 官方原版用 discourse-setup
+    # 官方原版保持 app 容器名，用 discourse-setup
     if [ "$container" == "app" ]; then
         echo "请为 $container 配置域名、端口和邮箱等信息："
         ./discourse-setup
     else
-        # app1/app2 直接创建最简yml并 bootstrap
+        # app1/app2 使用官方完整 yml，修改容器名
         yml="containers/${container}.yml"
         if [ ! -f "$yml" ]; then
-            cat > "$yml" <<EOF
-templates:
-  - "templates/postgres.template.yml"
-  - "templates/redis.template.yml"
-  - "templates/web.template.yml"
-
-expose:
-  - "80:80"
-  - "443:443"
-
-container_name: $container
-EOF
+            cp containers/app.yml "$yml"
+            sed -i "s/container_name: app/container_name: $container/" "$yml"
         fi
         echo "🔧 正在安装 $container..."
         ./launcher bootstrap "$container"
@@ -99,7 +88,7 @@ EOF
 }
 
 # 重建实例（不检测运行状态）
-function rebuild_instance() {
+rebuild_instance() {
     local index=$1
     local dir container
     dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
@@ -117,7 +106,7 @@ function rebuild_instance() {
 }
 
 # 启动实例
-function start_instance() {
+start_instance() {
     local index=$1
     local dir container
     dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
@@ -134,7 +123,7 @@ function start_instance() {
 }
 
 # 停止实例
-function stop_instance() {
+stop_instance() {
     local index=$1
     local dir container
     dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
@@ -151,14 +140,14 @@ function stop_instance() {
 }
 
 # 重启 Caddy
-function restart_caddy() {
+restart_caddy() {
     echo "🔁 重启 Caddy..."
     systemctl restart caddy
     echo "✅ Caddy 已重启"
 }
 
 # 停止 Caddy
-function stop_caddy() {
+stop_caddy() {
     echo "🛑 停止 Caddy..."
     systemctl stop caddy
     echo "✅ Caddy 已停止"
@@ -167,7 +156,7 @@ function stop_caddy() {
 # 菜单
 while true; do
     echo "=============================="
-    echo "🛠 Discourse 多实例分开管理"
+    echo "🛠 Discourse 多实例管理"
     echo "1) 安装 官方原版"
     echo "2) 安装 app1"
     echo "3) 安装 app2"
@@ -175,9 +164,9 @@ while true; do
     echo "5) 启动 app1"
     echo "6) 启动 app2"
     echo ""
-    echo "7) 重建 官方原版"
-    echo "8) 重建 app1"
-    echo "9) 重建 app2"
+    echo "7) 重建 官方原版 (/var/discourse)"
+    echo "8) 重建 app1 (/var/discourse1)"
+    echo "9) 重建 app2 (/var/discourse2)"
     echo "10) 停止 官方原版"
     echo "11) 停止 app1"
     echo "12) 停止 app2"
