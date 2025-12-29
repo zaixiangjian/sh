@@ -1,11 +1,11 @@
 #!/bin/bash
-# Discourse 多实例分开管理脚本（安装时自动停止运行实例，支持多容器名）
+# Discourse 多实例管理脚本（官方原版 + app1 + app2）
 # root 用户运行
 set -e
 
 # 实例目录与容器名映射
 INSTANCES=(
-  "/var/discourse app"      # 官方
+  "/var/discourse app"      # 官方原版
   "/var/discourse1 app1"    # 配置1
   "/var/discourse2 app2"    # 配置2
 )
@@ -16,7 +16,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# 安装依赖
+# 安装系统依赖
 function install_dependencies() {
     echo "更新系统并安装依赖..."
     apt update -y
@@ -25,8 +25,9 @@ function install_dependencies() {
     systemctl start docker
 }
 
-# 停止所有运行实例和 Caddy（仅安装时调用）
+# 检测并停止正在运行的实例（仅安装时调用）
 function stop_running_instances() {
+    echo "检查并停止运行的 Discourse 实例..."
     for i in "${!INSTANCES[@]}"; do
         local dir container
         dir=$(echo "${INSTANCES[$i]}" | awk '{print $1}')
@@ -40,47 +41,14 @@ function stop_running_instances() {
         fi
     done
 
+    # 停止 Caddy
     if systemctl is-active --quiet caddy; then
         echo "🛑 Caddy 正在运行，先停止..."
         systemctl stop caddy
     fi
 }
 
-# 停止单个实例
-function stop_instance() {
-    local index=$1
-    local dir container
-    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
-    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
-
-    if [ ! -d "$dir" ]; then
-        echo "❌ 目录 $dir 不存在"
-        return
-    fi
-
-    cd "$dir" || return
-    ./launcher stop "$container" 2>/dev/null || true
-    echo "🛑 实例 $container 已停止"
-}
-
-# 启动实例
-function start_instance() {
-    local index=$1
-    local dir container
-    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
-    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
-
-    if [ ! -d "$dir" ]; then
-        echo "❌ 目录 $dir 不存在"
-        return
-    fi
-
-    cd "$dir" || exit
-    ./launcher start "$container"
-    echo "▶️ 实例 $container 已启动"
-}
-
-# 安装单个实例（安装时会先停止运行实例和 Caddy）
+# 安装单个实例
 function install_instance() {
     local index=$1
     local dir container
@@ -90,23 +58,28 @@ function install_instance() {
     install_dependencies
     stop_running_instances
 
-    if [ -d "$dir" ]; then
-        echo "⚠️ 目录 $dir 已存在，跳过安装 $container"
-        return
+    # 如果目录不存在则克隆，否则使用现有目录
+    if [ ! -d "$dir" ]; then
+        echo "安装实例 $container 到目录 $dir..."
+        git clone https://github.com/discourse/discourse_docker.git "$dir"
+        cd "$dir" || exit
+        chmod 700 containers
+    else
+        echo "⚠️ 目录 $dir 已存在，使用现有目录继续安装 $container"
+        cd "$dir" || exit
     fi
 
-    echo "安装实例 $container 到目录 $dir..."
-    git clone https://github.com/discourse/discourse_docker.git "$dir"
-    cd "$dir" || exit
-    chmod 700 containers
-
-    # 为不同实例生成不同容器名
+    # 处理容器名
     if [ "$container" != "app" ]; then
-        cp containers/app.yml containers/"$container".yml
-        sed -i "s/container_name: app/container_name: $container/" containers/"$container".yml
+        if [ ! -f "containers/$container.yml" ]; then
+            cp containers/app.yml containers/"$container".yml
+            sed -i "s/container_name: app/container_name: $container/" containers/"$container".yml
+        fi
+        echo "🔧 正在安装 $container..."
         ./launcher bootstrap "$container"
         ./launcher start "$container"
     else
+        echo "请为 $container 配置域名、端口和邮箱等信息："
         ./discourse-setup
     fi
 
@@ -129,6 +102,40 @@ function rebuild_instance() {
     echo "🔧 重建容器 $container..."
     ./launcher rebuild "$container"
     echo "✅ 容器 $container 重建完成"
+}
+
+# 启动实例
+function start_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ ! -d "$dir" ]; then
+        echo "❌ 目录 $dir 不存在"
+        return
+    fi
+
+    cd "$dir" || exit
+    ./launcher start "$container"
+    echo "▶️ 实例 $container 已启动"
+}
+
+# 停止实例
+function stop_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ ! -d "$dir" ]; then
+        echo "❌ 目录 $dir 不存在"
+        return
+    fi
+
+    cd "$dir" || exit
+    ./launcher stop "$container" 2>/dev/null || true
+    echo "🛑 实例 $container 已停止"
 }
 
 # 重启 Caddy
