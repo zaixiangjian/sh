@@ -1,5 +1,5 @@
 #!/bin/bash
-# Discourse 多实例分开管理脚本（安装时自动停止运行实例）
+# Discourse 多实例分开管理脚本（安装时自动停止运行实例，支持多容器名）
 # root 用户运行
 set -e
 
@@ -25,7 +25,7 @@ function install_dependencies() {
     systemctl start docker
 }
 
-# 检测并停止运行实例（仅在安装时调用）
+# 停止所有运行实例和 Caddy（仅安装时调用）
 function stop_running_instances() {
     for i in "${!INSTANCES[@]}"; do
         local dir container
@@ -40,7 +40,6 @@ function stop_running_instances() {
         fi
     done
 
-    # 停止 Caddy
     if systemctl is-active --quiet caddy; then
         echo "🛑 Caddy 正在运行，先停止..."
         systemctl stop caddy
@@ -101,8 +100,15 @@ function install_instance() {
     cd "$dir" || exit
     chmod 700 containers
 
-    echo "请为 $container 配置域名、端口和邮箱等信息："
-    ./discourse-setup
+    # 为不同实例生成不同容器名
+    if [ "$container" != "app" ]; then
+        cp containers/app.yml containers/"$container".yml
+        sed -i "s/container_name: app/container_name: $container/" containers/"$container".yml
+        ./launcher bootstrap "$container"
+        ./launcher start "$container"
+    else
+        ./discourse-setup
+    fi
 
     echo "✅ 实例 $container 安装完成"
 }
