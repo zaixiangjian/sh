@@ -1,5 +1,5 @@
 #!/bin/bash
-# Discourse 多实例分开管理脚本（手动停止实例版）
+# Discourse 多实例分开管理脚本（安装时自动停止运行实例）
 # root 用户运行
 set -e
 
@@ -23,6 +23,28 @@ function install_dependencies() {
     apt install -y sudo curl git netcat-openbsd docker.io
     systemctl enable docker
     systemctl start docker
+}
+
+# 检测并停止运行实例（仅在安装时调用）
+function stop_running_instances() {
+    for i in "${!INSTANCES[@]}"; do
+        local dir container
+        dir=$(echo "${INSTANCES[$i]}" | awk '{print $1}')
+        container=$(echo "${INSTANCES[$i]}" | awk '{print $2}')
+        if [ -d "$dir" ]; then
+            cd "$dir" || continue
+            if ./launcher status "$container" &>/dev/null; then
+                echo "🛑 实例 $container 正在运行，先停止..."
+                ./launcher stop "$container"
+            fi
+        fi
+    done
+
+    # 停止 Caddy
+    if systemctl is-active --quiet caddy; then
+        echo "🛑 Caddy 正在运行，先停止..."
+        systemctl stop caddy
+    fi
 }
 
 # 停止单个实例
@@ -59,7 +81,7 @@ function start_instance() {
     echo "▶️ 实例 $container 已启动"
 }
 
-# 安装单个实例
+# 安装单个实例（安装时会先停止运行实例和 Caddy）
 function install_instance() {
     local index=$1
     local dir container
@@ -67,6 +89,7 @@ function install_instance() {
     container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
 
     install_dependencies
+    stop_running_instances
 
     if [ -d "$dir" ]; then
         echo "⚠️ 目录 $dir 已存在，跳过安装 $container"
@@ -84,7 +107,7 @@ function install_instance() {
     echo "✅ 实例 $container 安装完成"
 }
 
-# 重建实例
+# 重建实例（不检测运行状态）
 function rebuild_instance() {
     local index=$1
     local dir container
@@ -126,15 +149,13 @@ while true; do
     echo "4) 启动 官方原版"
     echo "5) 启动 app1"
     echo "6) 启动 app2"
-    echo "=============================="
+    echo ""
     echo "7) 重建 官方原版"
     echo "8) 重建 app1"
     echo "9) 重建 app2"
-    echo "=============================="
     echo "10) 停止 官方原版"
     echo "11) 停止 app1"
     echo "12) 停止 app2"
-    echo "=============================="
     echo "13) 重启 Caddy"
     echo "14) 停止 Caddy"
     echo "0) 退出"
