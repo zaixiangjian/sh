@@ -74,7 +74,7 @@ function install_instance() {
         echo "请为 $container 配置域名、端口和邮箱等信息："
         ./discourse-setup
     else
-        # app1/app2 直接创建最简yml并 bootstrap
+        # app1/app2 直接创建最简 yml 并 bootstrap
         yml="containers/${container}.yml"
         if [ ! -f "$yml" ]; then
             cat > "$yml" <<EOF
@@ -110,8 +110,8 @@ function rebuild_instance() {
         return
     fi
 
+    echo "🔧 重建容器 $container（目录: $dir）..."
     cd "$dir" || exit
-    echo "🔧 重建容器 $container..."
     ./launcher rebuild "$container"
     echo "✅ 容器 $container 重建完成"
 }
@@ -168,16 +168,16 @@ function stop_caddy() {
 while true; do
     echo "=============================="
     echo "🛠 Discourse 多实例分开管理"
-    echo "1) 安装 官方原版"
-    echo "2) 安装 app1"
-    echo "3) 安装 app2"
+    echo "1) 安装 官方原版 (/var/discourse -> app)"
+    echo "2) 安装 app1 (/var/discourse1 -> app1)"
+    echo "3) 安装 app2 (/var/discourse2 -> app2)"
     echo "4) 启动 官方原版"
     echo "5) 启动 app1"
     echo "6) 启动 app2"
     echo ""
-    echo "7) 重建 官方原版"
-    echo "8) 重建 app1"
-    echo "9) 重建 app2"
+    echo "7) 重建 官方原版 (/var/discourse -> app)"
+    echo "8) 重建 app1 (/var/discourse1 -> app1)"
+    echo "9) 重建 app2 (/var/discourse2 -> app2)"
     echo "10) 停止 官方原版"
     echo "11) 停止 app1"
     echo "12) 停止 app2"
