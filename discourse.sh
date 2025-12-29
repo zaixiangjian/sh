@@ -1,5 +1,5 @@
 #!/bin/bash
-# Discourse 多实例分开管理脚本
+# Discourse 多实例分开管理脚本（含重建功能）
 # root 用户运行
 set -e
 
@@ -89,6 +89,28 @@ function start_instance() {
     ./launcher start "$container"
 }
 
+# 重建实例
+function rebuild_instance() {
+    local index=$1
+    local dir container
+    dir=$(echo "${INSTANCES[$index]}" | awk '{print $1}')
+    container=$(echo "${INSTANCES[$index]}" | awk '{print $2}')
+
+    if [ ! -d "$dir" ]; then
+        echo "❌ 目录 $dir 不存在，无法重建"
+        return
+    fi
+
+    # 先停止实例和 Caddy
+    stop_all_instances
+    stop_caddy
+
+    cd "$dir" || exit
+    echo "🔧 重建容器 $container..."
+    ./launcher rebuild "$container"
+    echo "✅ 容器 $container 重建完成"
+}
+
 # 重启 Caddy
 function restart_caddy() {
     echo "🔁 重启 Caddy..."
@@ -107,6 +129,9 @@ while true; do
     echo "5) 启动 app1"
     echo "6) 启动 app2"
     echo "7) 重启 Caddy"
+    echo "8) 重建 官方原版"
+    echo "9) 重建 app1"
+    echo "10) 重建 app2"
     echo "0) 退出"
     echo "=============================="
     read -rp "请输入选项: " choice
@@ -119,6 +144,9 @@ while true; do
         5) start_instance 1 ;;
         6) start_instance 2 ;;
         7) restart_caddy ;;
+        8) rebuild_instance 0 ;;
+        9) rebuild_instance 1 ;;
+        10) rebuild_instance 2 ;;
         0) exit 0 ;;
         *) echo "❌ 无效选项" ;;
     esac
