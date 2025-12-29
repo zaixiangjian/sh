@@ -69,18 +69,30 @@ function install_instance() {
         cd "$dir" || exit
     fi
 
-    # 处理容器名
-    if [ "$container" != "app" ]; then
-        if [ ! -f "containers/$container.yml" ]; then
-            cp containers/app.yml containers/"$container".yml
-            sed -i "s/container_name: app/container_name: $container/" containers/"$container".yml
+    # 官方原版用 discourse-setup
+    if [ "$container" == "app" ]; then
+        echo "请为 $container 配置域名、端口和邮箱等信息："
+        ./discourse-setup
+    else
+        # app1/app2 直接创建最简yml并 bootstrap
+        yml="containers/${container}.yml"
+        if [ ! -f "$yml" ]; then
+            cat > "$yml" <<EOF
+templates:
+  - "templates/postgres.template.yml"
+  - "templates/redis.template.yml"
+  - "templates/web.template.yml"
+
+expose:
+  - "80:80"
+  - "443:443"
+
+container_name: $container
+EOF
         fi
         echo "🔧 正在安装 $container..."
         ./launcher bootstrap "$container"
         ./launcher start "$container"
-    else
-        echo "请为 $container 配置域名、端口和邮箱等信息："
-        ./discourse-setup
     fi
 
     echo "✅ 实例 $container 安装完成"
@@ -194,4 +206,3 @@ while true; do
         *) echo "❌ 无效选项" ;;
     esac
 done
-
