@@ -5,26 +5,64 @@ set -e
 CONFIG_FILE="/etc/caddy/Caddyfile"
 
 function install_caddy() {
-    echo "🔄 安装 Caddy 中..."
+    echo "🔄 安装 Caddy（官方二进制，兼容 Debian trixie）中..."
+
     apt update
-    apt install -y sudo curl gpg apt-transport-https debian-keyring debian-archive-keyring
+    apt install -y sudo curl ca-certificates
 
-    echo "📥 添加 GPG 密钥..."
-    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-        | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    ARCH="$(dpkg --print-architecture)"
+    case "$ARCH" in
+        amd64) CADDY_ARCH="amd64" ;;
+        arm64) CADDY_ARCH="arm64" ;;
+        *)
+            echo "❌ 不支持的架构: $ARCH"
+            exit 1
+            ;;
+    esac
 
-    echo "📦 添加软件源..."
-    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-        | sudo tee /etc/apt/sources.list.d/caddy-stable.list > /dev/null
+    echo "📥 下载 Caddy 二进制 (${CADDY_ARCH})..."
+    curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}" \
+        -o /usr/bin/caddy
 
-    echo "📦 安装 Caddy..."
-    sudo apt update
-    sudo apt install -y caddy
+    chmod +x /usr/bin/caddy
 
-    echo "🧹 初始化空配置文件..."
-    sudo bash -c "echo '' > $CONFIG_FILE"
+    echo "👤 创建 caddy 用户..."
+    id -u caddy &>/dev/null || useradd --system --gid nogroup \
+        --home /var/lib/caddy --shell /usr/sbin/nologin caddy
 
-    echo "✅ 安装完成！"
+    echo "📂 创建目录..."
+    mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
+    chown -R caddy:nogroup /var/lib/caddy /var/log/caddy
+
+    [ -f "$CONFIG_FILE" ] || touch "$CONFIG_FILE"
+
+    echo "⚙️ 安装 systemd 服务..."
+    cat <<'EOF' > /etc/systemd/system/caddy.service
+[Unit]
+Description=Caddy
+After=network.target
+
+[Service]
+User=caddy
+Group=nogroup
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reexec
+    systemctl daemon-reload
+    systemctl enable --now caddy
+
+    echo "✅ Caddy 安装完成"
     caddy version
 }
 
