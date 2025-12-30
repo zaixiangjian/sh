@@ -4,7 +4,7 @@
 mkdir -p /home/论坛备份
 
 # Create a tar archive of the web directory and save it in /home/论坛备份/
-tar czvf /home/论坛备份/V_$(date +"%Y-%m-%d-%H%M%S").tar.gz -C /var/ discourse
+tar czvf /home/论坛备份/J_$(date +"%Y-%m-%d-%H%M%S").tar.gz -C /var/ discourse
 
 # Transfer the latest tar archive to another VPS
 # 如果你确认这是你自己的服务器，并且知道密钥变化是正常的，可以这样处理：
