@@ -172,6 +172,7 @@ done
       echo "------------------------"
       echo "98.V 论坛备份"
       echo "99.J 论坛备份"
+      echo "100.全部备份传送"
       echo "------------------------"
       read -e -p "请选择操作编号: " action
 
@@ -1625,6 +1626,120 @@ EOF
 
 
 
+  100)
+    read -e -p "输入远程服务器IP: " useip
+    read -e -p "输入远程服务器密码: " usepasswd
+
+    mkdir -p /home/quanbubeifen_build
+    cd /home/quanbubeifen_build || exit 1
+
+    wget -q -O quanbubeifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifen.sh
+    chmod +x quanbubeifen.sh
+
+    sed -i "s/vpsip/$useip/g" quanbubeifen.sh
+    sed -i "s/vps密码/$usepasswd/g" quanbubeifen.sh
+
+    local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+
+    TMP_SCRIPT="/home/quanbubeifen_build/tmp.sh"
+    OBFUSCATED_SCRIPT="/home/quanbubeifen_build/obf.sh"
+    OUTPUT_BIN="/home/quanbubeifen.x"
+
+    cat > "$TMP_SCRIPT" <<EOF
+#!/bin/bash
+IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
+EOF
+
+    cat quanbubeifen.sh >> "$TMP_SCRIPT"
+
+    bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+    sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+    shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+    chmod +x "$OUTPUT_BIN"
+    strip "$OUTPUT_BIN" >/dev/null 2>&1
+    upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+    rm -rf /home/quanbubeifen_build
+
+    echo "------------------------"
+    echo "选择备份频率："
+    echo "1. 每周备份"
+    echo "2. 每天备份"
+    echo "3. 每几天备份一次"
+    read -e -p "请输入选择编号: " dingshi
+
+    case $dingshi in
+      1)
+        read -e -p "选择每周备份的星期几 (0-6): " weekday
+        read -e -p "几点（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
+        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
+        ;;
+      2)
+        read -e -p "每天几点（0-23）: " hour
+        read -e -p "每天几分（0-59）: " minute
+        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
+        ;;
+      3)
+        read -e -p "每几天一次: " interval
+        read -e -p "几点（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
+        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
+        ;;
+    esac
+
+    # -------- 目录变更即时监控 --------
+
+    if ! command -v inotifywait >/dev/null 2>&1; then
+      if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update && apt-get install -y inotify-tools
+      elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y inotify-tools
+      fi
+    fi
+
+    # 创建监控脚本（最终位置）
+    cat > /home/jiankong.sh << 'EOF'
+#!/bin/bash
+
+WATCH_DIR="/home/密码"
+
+inotifywait -m -r -e modify,create,delete,move "$WATCH_DIR" |
+while read path action file; do
+    echo "检测到变更: $path$file ($action)"
+    /home/quanbubeifen.x
+done
+EOF
+
+    chmod +x /home/jiankong.sh
+
+    # systemd 服务
+    cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
+[Unit]
+Description=目录监控即时传送 (/home/密码)
+After=network.target
+
+[Service]
+ExecStart=/home/jiankong.sh
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reexec
+    systemctl daemon-reload
+    systemctl enable quanbubeifen-watch
+    systemctl restart quanbubeifen-watch
+
+    echo "--------------------------------"
+    echo "✔ 执行文件：/home/quanbubeifen.x"
+    echo "✔ 监控脚本：/home/jiankong.sh"
+    echo "✔ 监控目录：/home/密码"
+    echo "✔ 变更即刻传送"
+    ;;
 
 
 
