@@ -1482,19 +1482,19 @@ EOF
           cd /home/论坛备份 || exit 1
 
           # 下载备份脚本（统一文件名）
-          wget -q -O discoursebeifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/discoursebeifenj.sh
-          chmod +x discoursebeifen.sh
+          wget -q -O discoursebeifen1.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/discoursebeifenv.sh
+          chmod +x discoursebeifen1.sh
 
           # 替换变量
-          sed -i "s/vpsip/$useip/g" discoursebeifen.sh
-          sed -i "s/vps密码/$usepasswd/g" discoursebeifen.sh
+          sed -i "s/vpsip/$useip/g" discoursebeifen1.sh
+          sed -i "s/vps密码/$usepasswd/g" discoursebeifen1.sh
 
           # 获取本机 IP（用于限制执行）
           local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
           TMP_SCRIPT="/home/论坛备份/beifen_tmp.sh"
           OBFUSCATED_SCRIPT="/home/论坛备份/beifen_obf.sh"
-          OUTPUT_BIN="/home/论坛备份/discoursebeifen.x"
+          OUTPUT_BIN="/home/论坛备份/discoursebeifen1.x"
 
           # 写入 IP 校验头
           cat > "$TMP_SCRIPT" <<EOF
@@ -1504,7 +1504,7 @@ IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 EOF
 
           # 拼接真实备份逻辑
-          cat discoursebeifen.sh >> "$TMP_SCRIPT"
+          cat discoursebeifen1.sh >> "$TMP_SCRIPT"
 
           # 混淆 + 编译
           bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
@@ -1515,7 +1515,7 @@ EOF
           upx "$OUTPUT_BIN" >/dev/null 2>&1
 
           # 清理中间文件
-          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" discoursebeifen.sh
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" discoursebeifen1.sh
 
           echo "------------------------"
           echo "选择备份频率："
