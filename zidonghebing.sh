@@ -1482,7 +1482,7 @@ EOF
           cd /home/论坛备份 || exit 1
 
           # 下载备份脚本（统一文件名）
-          wget -q -O discoursebeifen1.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/discoursebeifenv.sh
+          wget -q -O discoursebeifen1.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/discoursebeifenj.sh
           chmod +x discoursebeifen1.sh
 
           # 替换变量
