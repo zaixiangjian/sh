@@ -1702,23 +1702,34 @@ EOF
       fi
     fi
 
-    # 创建监控脚本（最终位置）
-    cat > /home/jiankong.sh << 'EOF'
+# 创建监控脚本（最终位置）
+cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/密码"
+LOG_FILE="/var/log/quanbubeifen-watch.log"
 
-inotifywait -m -r -e modify,create,delete,move "$WATCH_DIR" |
-while read path action file; do
-    echo "检测到变更: $path$file ($action)"
-    /home/quanbubeifen.x
+echo "[$(date)] 监控启动" >> "$LOG_FILE"
+
+inotifywait -m \
+  -e close_write,create,move \
+  --format '%e %f' \
+  "$WATCH_DIR" | while read event file; do
+
+    echo "[$(date)] 检测到事件: $event 文件: $file" >> "$LOG_FILE"
+
+    # 防止频繁触发
+    sleep 2
+
+    /home/quanbubeifen.x >> "$LOG_FILE" 2>&1
+
 done
 EOF
 
-    chmod +x /home/jiankong.sh
+chmod +x /home/jiankong.sh
 
-    # systemd 服务
-    cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
+# systemd 服务
+cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
 [Unit]
 Description=目录监控即时传送 (/home/密码)
 After=network.target
@@ -1727,21 +1738,25 @@ After=network.target
 ExecStart=/home/jiankong.sh
 Restart=always
 User=root
+WorkingDirectory=/root
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reexec
-    systemctl daemon-reload
-    systemctl enable quanbubeifen-watch
-    systemctl restart quanbubeifen-watch
+systemctl daemon-reexec
+systemctl daemon-reload
+systemctl enable quanbubeifen-watch
+systemctl restart quanbubeifen-watch
 
-    echo "--------------------------------"
-    echo "✔ 执行文件：/home/quanbubeifen.x"
-    echo "✔ 监控脚本：/home/jiankong.sh"
-    echo "✔ 监控目录：/home/密码"
-    echo "✔ 变更即刻传送"
+echo "--------------------------------"
+echo "✔ 执行文件：/home/quanbubeifen.x"
+echo "✔ 监控脚本：/home/jiankong.sh"
+echo "✔ 监控目录：/home/密码"
+echo "✔ 变更即刻传送"
     ;;
 
 
