@@ -155,20 +155,20 @@ done
       echo "5. 测试某个传送任务"
       echo "------------------------"
       echo "6. 论坛传送任务"
-      echo "66. 论坛传送任务1"
+      echo "7. 论坛传送任务1"
       echo "------------------------"
-      echo "7. 恢复 Vaultwarden 数据备份"
-      echo "8. Vaultwarden数据备份+自动监控文件变更备份传送"
-      echo "9. 密码传送备份"
+      echo "8. 恢复 Vaultwarden 数据备份"
+      echo "9. Vaultwarden数据备份+自动监控文件变更备份传送"
+      echo "10. 密码传送备份"
       echo "------------------------"
-      echo "10. 图床备份"
+      echo "11. 图床备份"
       echo "------------------------"
-      echo "11. 网盘传送"
-      echo "12. 自定义目录传送修改/root/.zixuanmulu.conf目录文件"
-      echo "13. 在github修改目录https://github.com/zaixiangjian/sh/blob/main/zixuanmulu2.sh"
+      echo "12. 网盘传送"
+      echo "13. 自定义目录传送修改/root/.zixuanmulu.conf目录文件"
+      echo "14. 在github修改目录https://github.com/zaixiangjian/sh/blob/main/zixuanmulu2.sh"
       echo "------------------------"
-      echo "14.外部网盘传送数据备份+自动监控文件变更备份传送"
-      echo "15.网盘数据恢复"
+      echo "15.外部网盘传送数据备份+自动监控文件变更备份传送"
+      echo "16.网盘数据恢复"
       echo "------------------------"
       echo "98.V 论坛备份"
       echo "99.J 论坛备份"
@@ -419,10 +419,69 @@ EOF
           ;;
 
 
+        7) 
+          mkdir -p /home
+          cd /home || exit 1
+
+          wget -q -O luntanbeifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/luntanbeifen1.sh
+          chmod +x luntanbeifen.sh
+
+          read -e -p "输入远程服务器IP: " useip
+          read -e -p "输入远程服务器密码: " usepasswd
+
+          sed -i "s/vpsip/$useip/g" luntanbeifen.sh
+          sed -i "s/vps密码/$usepasswd/g" luntanbeifen.sh
+
+          local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+
+          TMP_SCRIPT="/home/luntanbeifen_tmp.sh"
+          OBFUSCATED_SCRIPT="/home/luntanbeifen_obf.sh"
+          OUTPUT_BIN="/home/luntanbeifen.x"
+
+          cat > "$TMP_SCRIPT" <<EOF
+#!/bin/bash
+IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
+EOF
+
+          cat luntanbeifen.sh >> "$TMP_SCRIPT"
+
+          bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+          sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+          shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+          chmod +x "$OUTPUT_BIN"
+          strip "$OUTPUT_BIN" >/dev/null 2>&1
+          upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" luntanbeifen.sh
+
+
+          # 新增：选择间隔天数传送
+          read -e -p "每几天传送一次（如：2 表示每2天）: " interval
+          read -e -p "每天几点传送（0-23）: " chuan_hour
+          read -e -p "每天几分传送（0-59）: " chuan_min
+
+          if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+            echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
+          else
+            # 如果用户设置了间隔天数，则使用类似 "*/N" 的格式
+            if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
+              (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour */$interval * * $OUTPUT_BIN") | crontab -
+              echo "已设置每${interval}天 ${chuan_hour}点${chuan_min}分进行传送"
+            else
+              (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * $OUTPUT_BIN") | crontab -
+              echo "已设置每天 ${chuan_hour}点${chuan_min}分自动传送"
+            fi
+          fi
+          ;;
 
 
 
-    7)
+
+
+
+
+    8)
       echo "------------------------"
       echo "恢复 Vaultwarden 数据库备份..."
       
@@ -486,7 +545,7 @@ EOF
 
 
 
-  8)
+  9)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -646,7 +705,7 @@ EOF
 
 
 
-9)
+10)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -829,7 +888,7 @@ EOF
 
 
 
-        10)
+        11)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
@@ -915,7 +974,7 @@ EOF
 
 
 
-11)
+12)
   read -e -p "输入远程服务器IP: " useip
   read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1014,7 +1073,7 @@ nohup /home/docker/wangpan.x >/dev/null 2>&1 &
 
 
 
-        12)
+        13)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1100,7 +1159,7 @@ EOF
 
 
 
-        13)
+        14)
           read -e -p "输入远程服务器IP: " useip
           read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1184,7 +1243,7 @@ EOF
 
 
 
-14)
+15)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1319,7 +1378,7 @@ EOF
 
 
 
-    15)
+    16)
       echo "------------------------"
       echo "恢复 cloudreve 数据库备份..."
       
@@ -1565,61 +1624,6 @@ EOF
           ;;
 
 
-        66) 
-          mkdir -p /home
-          cd /home || exit 1
-
-          wget -q -O luntanbeifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/luntanbeifen1.sh
-          chmod +x luntanbeifen.sh
-
-          read -e -p "输入远程服务器IP: " useip
-          read -e -p "输入远程服务器密码: " usepasswd
-
-          sed -i "s/vpsip/$useip/g" luntanbeifen.sh
-          sed -i "s/vps密码/$usepasswd/g" luntanbeifen.sh
-
-          local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-
-          TMP_SCRIPT="/home/luntanbeifen_tmp.sh"
-          OBFUSCATED_SCRIPT="/home/luntanbeifen_obf.sh"
-          OUTPUT_BIN="/home/luntanbeifen.x"
-
-          cat > "$TMP_SCRIPT" <<EOF
-#!/bin/bash
-IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
-EOF
-
-          cat luntanbeifen.sh >> "$TMP_SCRIPT"
-
-          bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
-          sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
-          shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
-          chmod +x "$OUTPUT_BIN"
-          strip "$OUTPUT_BIN" >/dev/null 2>&1
-          upx "$OUTPUT_BIN" >/dev/null 2>&1
-
-          rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" luntanbeifen.sh
-
-
-          # 新增：选择间隔天数传送
-          read -e -p "每几天传送一次（如：2 表示每2天）: " interval
-          read -e -p "每天几点传送（0-23）: " chuan_hour
-          read -e -p "每天几分传送（0-59）: " chuan_min
-
-          if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-            echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
-          else
-            # 如果用户设置了间隔天数，则使用类似 "*/N" 的格式
-            if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
-              (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour */$interval * * $OUTPUT_BIN") | crontab -
-              echo "已设置每${interval}天 ${chuan_hour}点${chuan_min}分进行传送"
-            else
-              (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * $OUTPUT_BIN") | crontab -
-              echo "已设置每天 ${chuan_hour}点${chuan_min}分自动传送"
-            fi
-          fi
-          ;;
 
 
 
