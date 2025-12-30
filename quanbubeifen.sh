@@ -7,13 +7,13 @@ SSH_PORT=22
 # 要传送的文件和目录
 SRC_LIST=(
   /home/beifen.sh
-  /home/博客
-  /home/图床
-  /home/密码
-  /home/论坛
-  /home/论坛1
-  /home/论坛备份
-  /home/论坛备份1
+  /home/博客/
+  /home/图床/
+  /home/密码/
+  /home/论坛/
+  /home/论坛1/
+  /home/论坛备份/
+  /home/论坛备份1/
 )
 
 for SRC in "${SRC_LIST[@]}"; do
