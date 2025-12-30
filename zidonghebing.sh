@@ -172,7 +172,10 @@ done
       echo "------------------------"
       echo "98.V 论坛备份"
       echo "99.J 论坛备份"
+      echo "------------------------"
       echo "100.全部备份传送"
+      echo "使用100前先用远程连接一次更换为远程 IP "
+      echo "ssh-keygen -f "/root/.ssh/known_hosts" -R "1.1.1.1""
       echo "------------------------"
       read -e -p "请选择操作编号: " action
 
