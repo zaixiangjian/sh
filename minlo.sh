@@ -16,6 +16,7 @@ set -e
 
 MC_ALIAS="myminio"
 MC_CONNECTED=0
+CONFIG_DIR="/tmp/mc-temp"
 
 # =======================
 # 安装 mc
@@ -47,26 +48,44 @@ connect_s3() {
         read -p "请输入 Root 用户名: " MINIO_ROOT_USER
         read -s -p "请输入 Root 密码: " MINIO_ROOT_PASSWORD
         echo
-        mc alias set $MC_ALIAS $MINIO_ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD --api S3v4 --config-dir /tmp/mc-temp
+        mc alias set $MC_ALIAS $MINIO_ENDPOINT $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD \
+           --api S3v4 --config-dir $CONFIG_DIR --insecure
     elif [[ "$CONNECT_TYPE" == "2" ]]; then
         read -p "请输入 Access Key: " ACCESS_KEY
         read -s -p "请输入 Secret Key: " SECRET_KEY
         echo
-        mc alias set $MC_ALIAS $MINIO_ENDPOINT $ACCESS_KEY $SECRET_KEY --api S3v4 --config-dir /tmp/mc-temp
+        mc alias set $MC_ALIAS $MINIO_ENDPOINT $ACCESS_KEY $SECRET_KEY \
+           --api S3v4 --config-dir $CONFIG_DIR --insecure
     else
         echo "无效选项"
         return
     fi
 
-    MC_CONNECTED=1
-    echo "✅ 已连接到 $MINIO_ENDPOINT（不保存到本地配置）"
+    # 检查连接
+    if mc admin info $MC_ALIAS --config-dir $CONFIG_DIR >/dev/null 2>&1; then
+        echo "✅ 已成功连接到 $MINIO_ENDPOINT"
+        MC_CONNECTED=1
+    else
+        echo "❌ 连接失败，请检查用户名/密码/端口"
+        MC_CONNECTED=0
+    fi
+}
+
+# =======================
+# 检查是否已连接
+# =======================
+check_connected() {
+    if [[ $MC_CONNECTED -ne 1 ]]; then
+        echo "❌ 请先通过选项 2 连接 S3"
+        return 1
+    fi
 }
 
 # =======================
 # 列出已有 S3 用户（只显示用户名）
 # =======================
 list_users() {
-    USERS=$(mc admin user list $MC_ALIAS 2>/dev/null | awk 'NR>1 {print $2}')
+    USERS=$(mc admin user list $MC_ALIAS --config-dir $CONFIG_DIR 2>/dev/null | awk 'NR>1 {print $2}')
     echo "==> 当前已有 S3 用户列表："
     if [[ -z "$USERS" ]]; then
         echo "(暂无用户)"
@@ -79,11 +98,12 @@ list_users() {
 # 添加 S3 用户
 # =======================
 add_s3_user() {
+    check_connected || return
     list_users
     read -p "请输入新 S3 用户名: " NEW_USER
     NEW_USER_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
     echo "==> 添加用户 $NEW_USER ..."
-    mc admin user add $MC_ALIAS $NEW_USER $NEW_USER_PASS
+    mc admin user add $MC_ALIAS $NEW_USER $NEW_USER_PASS --config-dir $CONFIG_DIR
     echo "✅ S3 用户 $NEW_USER 创建完成，密码: $NEW_USER_PASS"
 }
 
@@ -91,16 +111,18 @@ add_s3_user() {
 # 创建 API (Service Account)
 # =======================
 create_api() {
+    check_connected || return
     list_users
     read -p "请输入 S3 用户名: " USERNAME
-    if ! mc admin user list $MC_ALIAS | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
+    if ! mc admin user list $MC_ALIAS --config-dir $CONFIG_DIR | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
         echo "用户 $USERNAME 不存在，请先创建 S3 用户"
         return
     fi
 
     ACCESS_KEY=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
     SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
-    mc admin user svcacct add $MC_ALIAS $USERNAME --access-key $ACCESS_KEY --secret-key $SECRET_KEY
+    mc admin user svcacct add $MC_ALIAS $USERNAME --access-key $ACCESS_KEY --secret-key $SECRET_KEY \
+       --config-dir $CONFIG_DIR
 
     echo "✅ 创建的 API 信息："
     echo "Access Key: $ACCESS_KEY"
@@ -111,10 +133,11 @@ create_api() {
 # 赋予访问权限
 # =======================
 attach_permission() {
+    check_connected || return
     list_users
     read -p "请输入要赋权限的 S3 用户名: " USERNAME
     echo "==> 赋予 $USERNAME 全局 readwrite 权限 ..."
-    mc admin policy attach $MC_ALIAS readwrite --user $USERNAME
+    mc admin policy attach $MC_ALIAS readwrite --user $USERNAME --config-dir $CONFIG_DIR
     echo "✅ 权限已赋予 $USERNAME"
 }
 
@@ -122,29 +145,30 @@ attach_permission() {
 # 重置 API (删除旧 Key + 新生成)
 # =======================
 reset_api() {
+    check_connected || return
     list_users
     read -p "请输入 S3 用户名: " USERNAME
-    if ! mc admin user list $MC_ALIAS | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
+    if ! mc admin user list $MC_ALIAS --config-dir $CONFIG_DIR | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
         echo "用户 $USERNAME 不存在，请先创建 S3 用户"
         return
     fi
 
-    # 显示当前 API Key
-    API_LIST=$(mc admin user svcacct list $MC_ALIAS $USERNAME 2>/dev/null | awk 'NR>1 {print $1}')
+    API_LIST=$(mc admin user svcacct list $MC_ALIAS $USERNAME --config-dir $CONFIG_DIR 2>/dev/null | awk 'NR>1 {print $1}')
     echo "==> 当前 $USERNAME 的 API 列表："
     if [[ -z "$API_LIST" ]]; then
         echo "(该用户还没有 API，将自动创建新的)"
     else
         echo "$API_LIST"
         for key in $API_LIST; do
-            mc admin user svcacct remove $MC_ALIAS $USERNAME --access-key $key
+            mc admin user svcacct remove $MC_ALIAS $USERNAME --access-key $key --config-dir $CONFIG_DIR
         done
         echo "✅ 已删除旧 API Key"
     fi
 
     NEW_ACCESS_KEY=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
     NEW_SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
-    mc admin user svcacct add $MC_ALIAS $USERNAME --access-key $NEW_ACCESS_KEY --secret-key $NEW_SECRET_KEY
+    mc admin user svcacct add $MC_ALIAS $USERNAME --access-key $NEW_ACCESS_KEY --secret-key $NEW_SECRET_KEY \
+       --config-dir $CONFIG_DIR
 
     echo "✅ 重置后的 API 信息："
     echo "Access Key: $NEW_ACCESS_KEY"
@@ -155,13 +179,14 @@ reset_api() {
 # 删除 S3 用户
 # =======================
 delete_user() {
+    check_connected || return
     list_users
     read -p "请输入要删除的 S3 用户名: " USERNAME
-    if ! mc admin user list $MC_ALIAS | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
+    if ! mc admin user list $MC_ALIAS --config-dir $CONFIG_DIR | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
         echo "用户 $USERNAME 不存在"
         return
     fi
-    mc admin user remove $MC_ALIAS $USERNAME
+    mc admin user remove $MC_ALIAS $USERNAME --config-dir $CONFIG_DIR
     echo "✅ 用户 $USERNAME 已删除"
 }
 
