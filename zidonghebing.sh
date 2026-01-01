@@ -163,7 +163,7 @@ done
       echo "------------------------"
       echo "11. 图床备份"
       echo "------------------------"
-      echo "12. 网盘传送每2分钟执行一次"
+      echo "12. 网盘传送自动监控变更传送"
       echo "13. 自定义目录传送修改/root/.zixuanmulu.conf目录文件"
       echo "14. 在github修改目录https://github.com/zaixiangjian/sh/blob/main/zixuanmulu2.sh"
       echo "------------------------"
