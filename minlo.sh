@@ -1,11 +1,8 @@
 #!/bin/bash
-# =====================================================
-# 一键安装 MinIO 客户端 mc + S3 用户 / API 管理脚本
-# =====================================================
-
 set -e
 
 MC_ALIAS="myminio"
+MC_CONNECTED=0
 
 # =======================
 # 安装 mc
@@ -13,12 +10,13 @@ MC_ALIAS="myminio"
 install_mc() {
     echo "==> 安装 MinIO 客户端 mc..."
     if ! command -v mc &>/dev/null; then
-        wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
+        wget https://dl.min.io/client/mc/release/linux-amd64/mc -O /usr/local/bin/mc
         chmod +x /usr/local/bin/mc
+        echo "mc 安装完成：$(mc --version)"
+    else
+        echo "mc 已安装：$(mc --version)"
     fi
-    echo "mc 版本：$(mc --version)"
 }
-
 # =======================
 # 连接 MinIO（仅 Root）
 # =======================
