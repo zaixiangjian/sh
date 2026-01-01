@@ -5406,6 +5406,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                      ${gl_kjlan}70.  ${gl_bai}安装盘搜"
 	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
 	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
+	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
       	  echo -e "${gl_kjlan}------------------------"
@@ -8227,6 +8229,40 @@ endpoint =存储桶访问地址"
 		    clear
 		    echo "▶️ 安装discourse论坛..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/discourse.sh)
+		    echo "✅ 安装discourse论坛 。"
+		    ;;
+
+
+73)
+    docker_name="minio"
+    docker_img="minio/minio:latest"
+    docker_port=9000
+    docker_console_port=9001
+    # 自动生成 20 位随机强密码（只包含大小写字母和数字）
+    MINIO_ROOT_USER="admin"
+    MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
+    
+    docker_rum="docker run -d \
+                    --name minio \
+                    --restart always \
+                    -p ${docker_port}:9000 \
+                    -p ${docker_console_port}:9001 \
+                    -v /home/docker/minio/data:/data \
+                    -e MINIO_ROOT_USER=${MINIO_ROOT_USER} \
+                    -e MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} \
+                    ${docker_img} server /data --console-address :${docker_console_port}"
+    
+    docker_describe="MinIO 是一个高性能的分布式对象存储服务，兼容 S3 API，适合个人或团队使用。"
+    docker_url="官网介绍: https://min.io"
+    docker_use=""
+    docker_passwd="${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}"
+    docker_app
+;;
+
+		  74)
+		    clear
+		    echo "▶️ 安装discourse论坛..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/minlo.sh)
 		    echo "✅ 安装discourse论坛 。"
 		    ;;
 
