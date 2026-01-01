@@ -49,49 +49,39 @@ add_s3_user() {
     echo "S3 用户 $NEW_USER 创建完成，密码: $NEW_USER_PASS"
 }
 
-create_api() {
-    read -p "请输入 S3 用户名: " USERNAME
-
-    # 随机生成 Access Key 和 Secret Key
-    ACCESS_KEY=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
-    SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
-
-    echo "==> 创建 API (Access Key + Secret Key) ..."
-    mc admin user svcacct add myminio $USERNAME $ACCESS_KEY $SECRET_KEY 2>/dev/null || \
-        mc admin user svcacct add myminio $USERNAME  # 防止已存在报错
-
-    echo "生成的 API 信息："
-    echo "Access Key: $ACCESS_KEY"
-    echo "Secret Key: $SECRET_KEY"
-}
-
-attach_permission() {
-    echo "==> 当前已有 S3 用户列表："
-    mc admin user list myminio | grep -v "Status" || echo "(暂无用户)"
-    
-    read -p "请输入要赋权限的 S3 用户名: " USERNAME
-    echo "==> 赋予 $USERNAME 全局 readwrite 权限 ..."
-    mc admin policy attach myminio readwrite --user $USERNAME
-    echo "权限已赋予 $USERNAME"
-}
-
 reset_api() {
     read -p "请输入 S3 用户名: " USERNAME
 
     # 列出用户现有子密钥
     echo "==> 当前 $USERNAME 的 API 列表："
-    mc admin user svcacct list myminio $USERNAME | grep "Access Key"
+    API_LIST=$(mc admin user svcacct list myminio $USERNAME | grep "Access Key" | awk '{print $1}')
+    
+    if [[ -z "$API_LIST" ]]; then
+        echo "(该用户还没有 API，先创建一个)"
+        # 自动生成一个新 API
+        NEW_ACCESS_KEY=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
+        NEW_SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+        mc admin user svcacct add myminio $USERNAME $NEW_ACCESS_KEY $NEW_SECRET_KEY
+        echo "✅ 创建的新 API 信息："
+        echo "Access Key: $NEW_ACCESS_KEY"
+        echo "Secret Key: $NEW_SECRET_KEY"
+        return
+    fi
 
-    # 输入 Access Key 进行重置
+    echo "$API_LIST"
     read -p "请输入要重置的 Access Key: " OLD_KEY
 
-    # 随机生成新 Key
+    # 删除旧 Key
+    mc admin user svcacct remove myminio $OLD_KEY
+
+    # 生成新的 Key
     NEW_ACCESS_KEY=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
     NEW_SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
 
-    mc admin user svcacct reset myminio $OLD_KEY --access-key $NEW_ACCESS_KEY --secret-key $NEW_SECRET_KEY
+    # 创建新的 Service Account
+    mc admin user svcacct add myminio $USERNAME $NEW_ACCESS_KEY $NEW_SECRET_KEY
 
-    echo "重置后的 API 信息："
+    echo "✅ 重置后的 API 信息："
     echo "Access Key: $NEW_ACCESS_KEY"
     echo "Secret Key: $NEW_SECRET_KEY"
 }
