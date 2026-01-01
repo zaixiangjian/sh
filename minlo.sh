@@ -63,11 +63,11 @@ connect_s3() {
 }
 
 # =======================
-# 列出已有 S3 用户
+# 列出已有 S3 用户（显示完整 STATUS USERNAME POLICY）
 # =======================
 list_users() {
     echo "==> 当前已有 S3 用户列表："
-    if mc admin user list $MC_ALIAS 2>/dev/null | awk 'NR>1 {print $2}'; then
+    if mc admin user list $MC_ALIAS 2>/dev/null | tail -n +2; then
         true
     else
         echo "(暂无用户)"
@@ -92,7 +92,7 @@ add_s3_user() {
 create_api() {
     list_users
     read -p "请输入 S3 用户名: " USERNAME
-    if ! mc admin user list $MC_ALIAS | awk '{print $2}' | grep -qw "$USERNAME"; then
+    if ! mc admin user list $MC_ALIAS | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
         echo "用户 $USERNAME 不存在，请先创建 S3 用户"
         return
     fi
@@ -123,7 +123,7 @@ attach_permission() {
 reset_api() {
     list_users
     read -p "请输入 S3 用户名: " USERNAME
-    if ! mc admin user list $MC_ALIAS | awk '{print $2}' | grep -qw "$USERNAME"; then
+    if ! mc admin user list $MC_ALIAS | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
         echo "用户 $USERNAME 不存在，请先创建 S3 用户"
         return
     fi
@@ -155,7 +155,7 @@ reset_api() {
 delete_user() {
     list_users
     read -p "请输入要删除的 S3 用户名: " USERNAME
-    if ! mc admin user list $MC_ALIAS | awk '{print $2}' | grep -qw "$USERNAME"; then
+    if ! mc admin user list $MC_ALIAS | awk 'NR>1 {print $2}' | grep -qw "$USERNAME"; then
         echo "用户 $USERNAME 不存在"
         return
     fi
