@@ -976,9 +976,6 @@ EOF
           ;;
 
 
-
-
-
 12)
   read -e -p "输入远程服务器IP: " useip
   read -e -p "输入远程服务器密码: " usepasswd
@@ -1001,7 +998,7 @@ EOF
   cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
-[[ "\$IP" == "$local_ip" ]] || exit 1
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
   cat wangpan.sh >> "$TMP_SCRIPT"
@@ -1016,30 +1013,63 @@ EOF
   rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" wangpan.sh
 
   echo "------------------------"
-  read -e -p "请输入每几分钟运行一次（如 2）： " interval
-  [ "$interval" -lt 1 ] && interval=1
+  echo "选择备份频率："
+  echo "1. 每周备份"
+  echo "2. 每天固定时间备份"
+  echo "3. 每N天备份一次（精确到分钟）"
+  read -e -p "请输入选择编号: " dingshi
 
-  LOCK_FILE="/tmp/wangpan.lock"
-  CRON_CMD="*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN"
+  LOCK_FILE="/tmp/wangpan.lock"  # flock 锁文件
 
-  # 防重复添加
-  if crontab -l 2>/dev/null | grep -Fq "$OUTPUT_BIN"; then
-    echo "任务已存在，跳过添加"
-  else
-    (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
-    echo "已设置：每 $interval 分钟运行（自动防重复执行）"
-  fi
+  # ------------------ 定时任务 ------------------
+  case $dingshi in
+    1)
+      read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+      read -e -p "几点备份（0-23）: " hour
+      read -e -p "几分备份（0-59）: " minute
+      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+      else
+        (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+        echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
+      fi
+      ;;
+    2)
+      read -e -p "每天几点备份（0-23）: " hour
+      read -e -p "每天几分备份（0-59）: " minute
+      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+      else
+        (crontab -l 2>/dev/null; echo "$minute $hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+        echo "已设置每天 ${hour}点${minute}分进行备份"
+      fi
+      ;;
+    3)
+      read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+      read -e -p "几点（0-23）: " hour
+      read -e -p "几分（0-59）: " minute
+      if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+      else
+        (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+        echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
+      fi
+      ;;
+    *)
+      echo "无效输入"
+      ;;
+  esac
 
 # ------------------ 开机后台运行 ------------------
-if crontab -l 2>/dev/null | grep -q "@reboot $OUTPUT_BIN"; then
+if crontab -l 2>/dev/null | grep -q "@reboot /home/docker/wangpan.x"; then
     echo "开机自启任务已存在，跳过添加。"
 else
-    (crontab -l 2>/dev/null; echo "@reboot nohup $OUTPUT_BIN >/dev/null 2>&1 &") | crontab -
-    echo "已设置开机自动后台运行 $OUTPUT_BIN"
+    (crontab -l 2>/dev/null; echo "@reboot nohup /home/docker/wangpan.x >/dev/null 2>&1 &") | crontab -
+    echo "已设置开机自动后台运行 /home/docker/wangpan.x"
 fi
 
 # ------------------ 立即后台运行一次 ------------------
-nohup $OUTPUT_BIN >/dev/null 2>&1 &
+nohup /home/docker/wangpan.x >/dev/null 2>&1 &
 
   ;;
 
