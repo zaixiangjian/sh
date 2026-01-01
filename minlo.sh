@@ -93,35 +93,6 @@ attach_permission() {
 }
 
 # =======================
-# 重置 API
-# =======================
-reset_api() {
-    list_users
-    read -p "请输入 S3 用户名: " USERNAME
-
-    if ! mc admin user list $MC_ALIAS | awk '{print $2}' | grep -qw "$USERNAME"; then
-        echo "❌ 用户不存在"
-        return
-    fi
-
-    echo "==> 清理旧 API..."
-    mc admin user svcacct list $MC_ALIAS $USERNAME 2>/dev/null | awk '{print $1}' | while read k; do
-        mc admin user svcacct remove $MC_ALIAS $k
-    done
-
-    AK=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
-    SK=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
-
-    mc admin user svcacct add $MC_ALIAS $USERNAME \
-        --access-key $AK \
-        --secret-key $SK
-
-    echo "✅ API 已重置"
-    echo "Access Key: $AK"
-    echo "Secret Key: $SK"
-}
-
-# =======================
 # 删除 S3 用户
 # =======================
 delete_user() {
@@ -138,6 +109,19 @@ delete_user() {
 }
 
 # =======================
+# 卸载 mc
+# =======================
+uninstall_mc() {
+    if command -v mc &>/dev/null; then
+        rm -f /usr/local/bin/mc
+        echo "✅ mc 已卸载"
+    else
+        echo "⚠️ mc 未安装，无需卸载"
+    fi
+}
+
+
+# =======================
 # 主菜单
 # =======================
 while true; do
@@ -149,8 +133,8 @@ while true; do
     echo "3) 添加 S3 用户"
     echo "4) 创建 API"
     echo "5) 赋予访问权限"
-    echo "6) 重置 API"
-    echo "7) 删除 S3 用户"
+    echo "6) 删除 S3 用户"
+    echo "7) 卸载 mc"
     echo "0) 退出"
     echo "=============================="
 
@@ -161,8 +145,8 @@ while true; do
         3) add_s3_user ;;
         4) create_api ;;
         5) attach_permission ;;
-        6) reset_api ;;
-        7) delete_user ;;
+        6) delete_user ;;
+        7) uninstall_mc ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo "无效选项" ;;
     esac
