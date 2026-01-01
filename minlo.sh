@@ -28,7 +28,9 @@ install_mc() {
 }
 
 add_s3_user() {
-    read -p "请输入 MinIO Server Endpoint (例如 http://127.0.0.1:9000): " MINIO_ENDPOINT
+    read -p "请输入地址 Endpoint 默认(http://127.0.0.1:9000): " MINIO_ENDPOINT
+    MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://127.0.0.1:9000}
+    echo "使用 MinIO Endpoint: $MINIO_ENDPOINT"
     read -p "请输入 Root 用户名: " MINIO_ROOT_USER
     read -s -p "请输入 Root 密码: " MINIO_ROOT_PASSWORD
     echo
