@@ -63,14 +63,15 @@ connect_s3() {
 }
 
 # =======================
-# 列出已有 S3 用户（显示完整 STATUS USERNAME POLICY）
+# 列出已有 S3 用户（只显示用户名）
 # =======================
 list_users() {
+    USERS=$(mc admin user list $MC_ALIAS 2>/dev/null | awk 'NR>1 {print $2}')
     echo "==> 当前已有 S3 用户列表："
-    if mc admin user list $MC_ALIAS 2>/dev/null | tail -n +2; then
-        true
-    else
+    if [[ -z "$USERS" ]]; then
         echo "(暂无用户)"
+    else
+        echo "$USERS"
     fi
 }
 
@@ -128,8 +129,9 @@ reset_api() {
         return
     fi
 
-    echo "==> 当前 $USERNAME 的 API 列表："
+    # 显示当前 API Key
     API_LIST=$(mc admin user svcacct list $MC_ALIAS $USERNAME 2>/dev/null | awk 'NR>1 {print $1}')
+    echo "==> 当前 $USERNAME 的 API 列表："
     if [[ -z "$API_LIST" ]]; then
         echo "(该用户还没有 API，将自动创建新的)"
     else
