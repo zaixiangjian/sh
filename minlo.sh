@@ -104,32 +104,22 @@ reset_api() {
         return
     fi
 
-    echo "==> 查找并删除旧 API..."
+    echo "==> 清理旧 API..."
+    mc admin user svcacct list $MC_ALIAS $USERNAME 2>/dev/null | awk '{print $1}' | while read k; do
+        mc admin user svcacct remove $MC_ALIAS $k
+    done
 
-    OLD_KEYS=$(mc admin user svcacct list $MC_ALIAS $USERNAME 2>/dev/null \
-        | awk 'NR>1 {print $1}')
-
-    if [[ -z "$OLD_KEYS" ]]; then
-        echo "（该用户暂无 API，将直接创建新的）"
-    else
-        for key in $OLD_KEYS; do
-            echo "删除旧 API: $key"
-            mc admin user svcacct remove $MC_ALIAS $key
-        done
-    fi
-
-    NEW_AK=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
-    NEW_SK=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+    AK=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
+    SK=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
 
     mc admin user svcacct add $MC_ALIAS $USERNAME \
-        --access-key $NEW_AK \
-        --secret-key $NEW_SK
+        --access-key $AK \
+        --secret-key $SK
 
-    echo "✅ API 重置完成"
-    echo "Access Key: $NEW_AK"
-    echo "Secret Key: $NEW_SK"
+    echo "✅ API 已重置"
+    echo "Access Key: $AK"
+    echo "Secret Key: $SK"
 }
-
 
 # =======================
 # 删除 S3 用户
