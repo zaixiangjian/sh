@@ -1,4 +1,3 @@
 #!/bin/bash
 
-sshpass -p 'vps密码' scp -r -o StrictHostKeyChecking=no -P 22 \
-/home/docker/minio/ root@vpsip:/home/docker/minio/
+sshpass -p 'vps密码' ssh -o StrictHostKeyChecking=no -p 22 root@vpsip "mkdir -p /home/docker/minio"
