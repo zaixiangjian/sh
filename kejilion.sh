@@ -8261,9 +8261,9 @@ endpoint =存储桶访问地址"
 
 		  74)
 		    clear
-		    echo "▶️ 安装discourse论坛..."
+		    echo "▶️ 安装minio..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/minlo.sh)
-		    echo "✅ 安装discourse论坛 。"
+		    echo "✅ 安装minio..."
 		    ;;
 
 
