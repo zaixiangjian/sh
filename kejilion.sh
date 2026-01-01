@@ -8243,10 +8243,10 @@ endpoint =存储桶访问地址"
     MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
     
     docker_rum="docker run -d \
-                    --name minio \
+                    --name ${docker_name} \
                     --restart always \
-                    -p ${docker_port}:9000 \
-                    -p ${docker_console_port}:9001 \
+                    -p 127.0.0.1:${docker_port}:9000 \
+                    -p 127.0.0.1:${docker_console_port}:9001 \
                     -v /home/docker/minio/data:/data \
                     -e MINIO_ROOT_USER=${MINIO_ROOT_USER} \
                     -e MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} \
