@@ -8238,13 +8238,9 @@ endpoint =存储桶访问地址"
     docker_img="minio/minio:latest"
     docker_port=9000
     docker_console_port=9001
-
     # 自动生成 20 位随机强密码（只包含大小写字母和数字）
     MINIO_ROOT_USER="admin"
     MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
-    
-    # 自动生成 32 字节 Base64 KMS Master Key，用于服务端加密
-    MINIO_KMS_MASTER_KEY=$(head -c 32 /dev/urandom | base64)
     
     docker_rum="docker run -d \
                     --name minio \
@@ -8254,13 +8250,12 @@ endpoint =存储桶访问地址"
                     -v /home/docker/minio/data:/data \
                     -e MINIO_ROOT_USER=${MINIO_ROOT_USER} \
                     -e MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} \
-                    -e MINIO_KMS_MASTER_KEY=${MINIO_KMS_MASTER_KEY} \
                     ${docker_img} server /data --console-address :${docker_console_port}"
     
-    docker_describe="MinIO 是一个高性能的分布式对象存储服务，兼容 S3 API，支持服务端加密（SSE），适合个人或团队使用。"
+    docker_describe="MinIO 是一个高性能的分布式对象存储服务，兼容 S3 API，适合个人或团队使用。"
     docker_url="官网介绍: https://min.io"
     docker_use=""
-    docker_passwd="${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD} | KMS Master Key: ${MINIO_KMS_MASTER_KEY}"
+    docker_passwd="${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}"
     docker_app
 ;;
 
