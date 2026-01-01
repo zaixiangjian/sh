@@ -112,9 +112,16 @@ delete_user() {
 uninstall_mc() {
     if command -v mc &>/dev/null; then
         rm -f /usr/local/bin/mc
-        echo "✅ mc 已卸载"
+        echo "✅ mc 可执行文件已删除"
     else
-        echo "⚠️ mc 未安装，无需卸载"
+        echo "⚠️ mc 未安装，无需删除可执行文件"
+    fi
+
+    if [ -d "$HOME/.mc" ]; then
+        rm -rf "$HOME/.mc"
+        echo "✅ mc 配置文件已删除：$HOME/.mc"
+    else
+        echo "⚠️ 未找到 mc 配置文件"
     fi
 }
 
