@@ -107,15 +107,14 @@ reset_api() {
     echo "==> 查找并删除旧 API..."
 
     OLD_KEYS=$(mc admin user svcacct list $MC_ALIAS $USERNAME 2>/dev/null \
-        | grep "Access Key" \
-        | awk '{print $3}')
+        | awk 'NR>1 {print $1}')
 
     if [[ -z "$OLD_KEYS" ]]; then
         echo "（该用户暂无 API，将直接创建新的）"
     else
         for key in $OLD_KEYS; do
+            echo "删除旧 API: $key"
             mc admin user svcacct remove $MC_ALIAS $key
-            echo "已删除旧 API: $key"
         done
     fi
 
