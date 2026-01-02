@@ -19,9 +19,8 @@ SRC_LIST=(
 for SRC in "${SRC_LIST[@]}"; do
   echo "开始传送: $SRC"
 
-  sshpass -p "$REMOTE_PASS" rsync -avz \
-    -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" \
-    "$SRC" root@"$REMOTE_IP":"$SRC"
+sshpass -p "$REMOTE_PASS" rsync -avz --delete -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" "$SRC" root@"$REMOTE_IP":"$SRC"
+
 
 done
 
