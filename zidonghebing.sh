@@ -1733,32 +1733,15 @@ EOF
 
     rm -rf /home/quanbubeifen_build
 
-    echo "------------------------"
-    echo "选择备份频率："
-    echo "1. 每周备份"
-    echo "2. 每天备份"
-    echo "3. 每几天备份一次"
-    read -e -p "请输入选择编号: " dingshi
+    # -------- 定时任务：每几分钟运行一次（防重复） --------
 
-    case $dingshi in
-      1)
-        read -e -p "选择每周备份的星期几 (0-6): " weekday
-        read -e -p "几点（0-23）: " hour
-        read -e -p "几分（0-59）: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-        ;;
-      2)
-        read -e -p "每天几点（0-23）: " hour
-        read -e -p "每天几分（0-59）: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-        ;;
-      3)
-        read -e -p "每几天一次: " interval
-        read -e -p "几点（0-23）: " hour
-        read -e -p "几分（0-59）: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-        ;;
-    esac
+    echo "------------------------"
+    read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
+
+    LOCK_FILE="/tmp/quanbubeifen.lock"
+
+    (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
+     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
 
     # -------- 目录变更即时监控 --------
 
@@ -1824,6 +1807,7 @@ echo "--------------------------------"
 echo "✔ 执行文件：/home/quanbubeifen.x"
 echo "✔ 监控脚本：/home/jiankong.sh"
 echo "✔ 监控目录：/home/密码"
+echo "✔ 定时任务：每 $interval 分钟（防重复）"
 echo "✔ 变更即刻传送"
     ;;
 
