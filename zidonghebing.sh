@@ -173,6 +173,7 @@ done
       echo "------------------------"
       echo "98.V 论坛备份"
       echo "99.J 论坛备份"
+      echo "999. 论坛恢复检测/home目录解压到/var只需要kejilion.sh  11 72  2重建即可"
       echo "------------------------"
       echo "100.全部备份传送"
       echo "使用100前先用远程连接一次更换为远程 IP "
@@ -1649,6 +1650,63 @@ EOF
               ;;
           esac
           ;;
+
+
+999)
+    echo "------------------------"
+    echo "检查并解压 .tar.gz 文件..."
+
+    # 设置待检测的目录和解压目标目录
+    home_dir="/home"
+    dest_dir="/var"
+
+    # 查找 home 目录下的所有 .tar.gz 文件
+    tar_files=$(ls -t $home_dir/*.tar.gz)
+
+    # 如果没有找到任何备份文件
+    if [ -z "$tar_files" ]; then
+        echo "没有找到 .tar.gz 文件，无法解压！"
+        exit 1
+    fi
+
+    echo "备份文件列表："
+    echo "------------------------"
+    i=1
+    for file in $tar_files; do
+        echo "$i. $file"
+        i=$((i+1))
+    done
+
+    # 提示用户选择备份文件（默认为最新备份）
+    read -e -p "请输入要解压的备份编号（回车解压最新）： " restore_choice
+
+    if [ -z "$restore_choice" ]; then
+        # 如果用户回车，则解压最新的文件
+        restore_file=$(echo "$tar_files" | head -n 1)
+    else
+        # 否则恢复用户指定的备份
+        restore_file=$(echo "$tar_files" | sed -n "${restore_choice}p")
+    fi
+
+    if [ -z "$restore_file" ]; then
+        echo "无效的选择，解压失败！"
+        exit 1
+    fi
+
+    echo "正在解压备份：$restore_file"
+
+    # 解压文件到 /var 目录
+    tar -xvzf "$restore_file" -C $dest_dir
+
+    # 检查解压是否成功
+    if [ $? -eq 0 ]; then
+        echo "文件解压成功！"
+    else
+        echo "文件解压失败！"
+        exit 1
+    fi
+    ;;
+
 
 
 
