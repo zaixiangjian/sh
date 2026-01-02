@@ -586,55 +586,20 @@ EOF
 
     rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" beifen.sh
 
+    # -------- 定时任务：每几分钟运行一次（防重复执行） --------
+
     echo "------------------------"
-    echo "选择备份频率："
-    echo "1. 每周备份"
-    echo "2. 每天备份"
-    echo "3. 每几天备份一次"
-    read -e -p "请输入选择编号: " dingshi
+    read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
 
-    case $dingshi in
-      1)
-        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-        read -e -p "几点备份（0-23）: " hour
-        read -e -p "几分备份（0-59）: " minute
-        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-        else
-          (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-          echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-        fi
-        ;;
-      2)
-        read -e -p "每天几点备份（0-23）: " hour
-        read -e -p "每天几分备份（0-59）: " minute
-        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-        else
-          (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-          echo "已设置每天 ${hour}点${minute}分进行备份"
-        fi
-        ;;
-      3)
-        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
-        read -e -p "几点（0-23）: " hour
-        read -e -p "几分（0-59）: " minute
-        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-        else
-          (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-          echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-        fi
-        ;;
-      *)
-        echo "无效输入"
-        ;;
-    esac
+    LOCK_FILE="/tmp/vaultwarden_beifen.lock"
 
-    # ----------- 新增：Vaultwarden 监控服务安装启动 -------------
+    (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
+     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+
+    # ----------- Vaultwarden 监控服务安装启动（保持不变） -------------
+
     echo "开始安装 Vaultwarden 监控服务..."
 
-    # 安装 inotify-tools
     if ! command -v inotifywait > /dev/null 2>&1; then
       echo "inotify-tools 未安装，尝试安装..."
       if grep -qi "ubuntu\|debian" /etc/os-release; then
@@ -646,30 +611,21 @@ EOF
       echo "inotify-tools 已安装，跳过"
     fi
 
-    # 创建 jiankong.sh 监控脚本
     cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
-# 设置监控的数据库文件
 WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
 
-# 使用 inotifywait 监控数据库文件的变化
 inotifywait -m -e modify,create,delete $WATCH_FILES |
 while read path action file; do
     echo "Change detected in file: $file (Action: $action)"
-    
-    
-    
-    
-    
-    # 在文件变化时运行备份脚本
+
     /home/docker/vaultwarden/beifen.x
 done
 EOF
 
     chmod +x /home/docker/vaultwarden/jiankong.sh
 
-    # 创建 systemd 服务文件
     cat > /etc/systemd/system/vaultwarden-watch.service << EOF
 [Unit]
 Description=Vaultwarden 数据库监控备份
@@ -686,7 +642,6 @@ WorkingDirectory=/home/docker/vaultwarden/
 WantedBy=multi-user.target
 EOF
 
-    # 启用并启动服务
     systemctl daemon-reexec
     systemctl daemon-reload
     systemctl enable vaultwarden-watch
