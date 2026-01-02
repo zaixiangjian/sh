@@ -402,30 +402,27 @@ EOF
 
     rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" luntanbeifen.sh
 
-    # 新增：选择间隔天数传送
+    # 新增：选择每几分钟传送一次
     read -e -p "每几分钟传送一次（如：1 / 5 / 10）: " interval
-    read -e -p "每天几点传送（0-23）: " chuan_hour
-    read -e -p "每天几分传送（0-59）: " chuan_min
 
     LOCK_FILE="/tmp/luntanbeifen.lock"
 
     if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
         echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
     else
-        # 如果用户设置了间隔天数，则使用类似 "*/N" 的格式
+        # 使用用户输入的分钟间隔来设置定时任务
         if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
-            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-            echo "已设置每${interval}分钟 ${chuan_hour}点${chuan_min}分进行传送"
+            (crontab -l 2>/dev/null; echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+            echo "已设置每${interval}分钟执行一次传送任务"
         else
-            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-            echo "已设置每天 ${chuan_hour}点${chuan_min}分自动传送"
+            echo "无效的间隔输入"
         fi
     fi
     ;;
 
 
 
-7)
+7) 
     mkdir -p /home
     cd /home || exit 1
 
@@ -461,26 +458,24 @@ EOF
 
     rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" luntanbeifen.sh
 
-    # 新增：选择间隔天数传送
-    read -e -p "每几分钟传送一次（如：2 表示每2分钟）: " interval
-    read -e -p "每天几点传送（0-23）: " chuan_hour
-    read -e -p "每天几分传送（0-59）: " chuan_min
+    # 新增：选择每几分钟传送一次
+    read -e -p "每几分钟传送一次（如：1 / 5 / 10）: " interval
 
     LOCK_FILE="/tmp/luntanbeifen.lock"
 
     if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
         echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
     else
-        # 如果用户设置了间隔时间（分钟），则使用类似 "*/N" 的格式
+        # 如果用户设置了分钟间隔，则使用 "*/N" 格式
         if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
-            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-            echo "已设置每${interval}分钟 ${chuan_hour}点${chuan_min}分进行传送"
+            (crontab -l 2>/dev/null; echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+            echo "已设置每${interval}分钟执行一次传送任务"
         else
-            (crontab -l 2>/dev/null; echo "$chuan_min $chuan_hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-            echo "已设置每天 ${chuan_hour}点${chuan_min}分自动传送"
+            echo "无效的间隔输入"
         fi
     fi
     ;;
+
 
 
 
