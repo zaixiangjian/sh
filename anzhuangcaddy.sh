@@ -229,14 +229,14 @@ function delete_config() {
 
 
 
-function backup_caddy() {
+backup_caddy() {
     echo -e "${GREEN}▶️ 开始打包 Caddy 到 $BACKUP_FILE ...${RESET}"
     cd / || die "无法切换到根目录"
     tar -czvf "$BACKUP_FILE" etc/caddy var/lib/caddy/.local/share/caddy etc/systemd/system/caddy.service usr/bin/caddy
     echo -e "${GREEN}✅ 打包完成${RESET}"
 }
 
-function restore_caddy() {
+restore_caddy() {
     [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
     file "$BACKUP_FILE" | grep -q gzip || die "备份文件不是 gzip 格式"
 
@@ -264,7 +264,7 @@ function restore_caddy() {
     echo -e "${GREEN}✅ 恢复完成${RESET}"
 }
 
-function update_caddy() {
+update_caddy() {
     echo "🔄 更新 Caddy..."
     systemctl stop caddy
     ARCH=$(uname -m)
@@ -277,7 +277,7 @@ function update_caddy() {
     echo "✅ 更新完成"
 }
 
-function show_version() {
+show_version() {
     if [ -x "$(command -v caddy)" ]; then
         caddy version
     else
