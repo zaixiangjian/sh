@@ -1674,10 +1674,10 @@ EOF
 
     if [ -z "$restore_choice" ]; then
         # 如果用户回车，则解压最新的文件
-        restore_file=$(echo "$tar_files" | head -n 1)
+        restore_file=$(echo "$tar_files" | head -n 1 | xargs basename)
     else
         # 否则恢复用户指定的备份
-        restore_file=$(echo "$tar_files" | sed -n "${restore_choice}p")
+        restore_file=$(echo "$tar_files" | sed -n "${restore_choice}p" | xargs basename)
     fi
 
     if [ -z "$restore_file" ]; then
@@ -1688,7 +1688,7 @@ EOF
     echo "正在解压备份：$restore_file"
 
     # 解压文件到 /var 目录
-    tar -xvzf "$restore_file" -C $dest_dir
+    tar -xvzf "$home_dir/$restore_file" -C $dest_dir
 
     # 检查解压是否成功
     if [ $? -eq 0 ]; then
