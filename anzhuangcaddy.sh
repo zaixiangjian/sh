@@ -231,10 +231,17 @@ function delete_config() {
 
 backup_caddy() {
     echo -e "${GREEN}▶️ 开始打包 Caddy 到 $BACKUP_FILE ...${RESET}"
-    cd / || die "无法切换到根目录"
-    tar -czvf "$BACKUP_FILE" etc/caddy var/lib/caddy/.local/share/caddy etc/systemd/system/caddy.service usr/bin/caddy
+    if [ ! -d "/etc/caddy" ] || [ ! -d "/var/lib/caddy/.local/share/caddy" ]; then
+        echo "❌ 必要的目录不存在，打包失败。"
+        exit 1
+    fi
+    sudo tar -czvf "$BACKUP_FILE" /etc/caddy /var/lib/caddy/.local/share/caddy /etc/systemd/system/caddy.service /usr/bin/caddy || {
+        echo "❌ 打包失败，请检查目录和权限。"
+        exit 1
+    }
     echo -e "${GREEN}✅ 打包完成${RESET}"
 }
+
 
 restore_caddy() {
     [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
@@ -243,14 +250,19 @@ restore_caddy() {
     echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
     systemctl stop caddy 2>/dev/null
 
-    cd / || die "无法切换到根目录"
-    tar -xzvf "$BACKUP_FILE" || die "解压失败"
+    # 检查恢复目标目录
+    sudo mkdir -p /etc/caddy /var/lib/caddy || die "无法创建目标目录"
+
+    echo "恢复文件路径: $BACKUP_FILE"
+    echo "正在解压备份文件..."
+
+    sudo tar -xzvf "$BACKUP_FILE" -C / || die "解压失败"
 
     ensure_user
     ensure_service
 
-    chown -R caddy:nogroup /var/lib/caddy
-    chmod -R 700 /var/lib/caddy
+    sudo chown -R caddy:nogroup /var/lib/caddy
+    sudo chmod -R 700 /var/lib/caddy
 
     # 验证关键文件
     [ -f /etc/caddy/Caddyfile ] || die "恢复失败：/etc/caddy/Caddyfile 不存在"
