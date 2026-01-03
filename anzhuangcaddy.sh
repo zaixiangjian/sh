@@ -343,22 +343,22 @@ function menu() {
     echo "=============================="
     echo "1. 安装 Caddy"
     echo "2. 添加普通反向代理"
-    echo "3. 卸载 Caddy"
-    echo "4. 重启 Caddy"
-    echo "5. 停止 Caddy"
-    echo "6. 添加 TLS Skip Verify 反向代理"
-    echo "7. 删除指定域名配置"
+    echo "3. 重启 Caddy"
+    echo "4. 停止 Caddy"
+    echo "5. 添加 TLS Skip Verify 反向代理"
+    echo "6. 删除指定域名配置"
 
 
 
     echo "=============================="
-    echo "8. 打包 Caddy"
-    echo "9. 解压恢复"
-    echo "10. 更新 Caddy"
-    echo "11. 查看当前版本"
+    echo "7. 打包 Caddy"
+    echo "8. 解压恢复"
+    echo "9. 更新 Caddy"
+    echo "10. 查看当前版本"
     echo "=============================="
 
     echo "88. 添加M3U8反代配置"
+    echo "99. 卸载 Caddy"
     echo "证书路径是"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
     
