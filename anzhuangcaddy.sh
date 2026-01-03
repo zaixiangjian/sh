@@ -181,7 +181,9 @@ add_tls_skip_verify() {
 
 $DOMAIN {
     reverse_proxy https://127.0.0.1:$PORT {
-        transport http { tls_insecure_skip_verify }
+        transport http {
+            tls_insecure_skip_verify
+        }
         header_up X-Real-IP {http.request.header.CF-Connecting-IP}
         header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
     }
