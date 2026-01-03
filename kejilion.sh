@@ -8347,7 +8347,7 @@ endpoint =存储桶访问地址"
 			systemctl enable mariadb
 
 			# 生成随机 root 密码
-			root_pass="RootPass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
+			root_pass="RootPass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
 
 			# 设置 root 密码
 			mysql -uroot <<EOF
@@ -8358,7 +8358,7 @@ EOF
 			# 创建数据库名和用户及密码
 			db_name="edge_admin"
 			db_user="edge_admin"
-			db_pass="EdgePass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
+			db_pass="EdgePass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
 
 			# 创建数据库及用户
 			mysql -uroot -p"${root_pass}" <<EOF
