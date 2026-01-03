@@ -275,7 +275,11 @@ update_caddy() {
 }
 
 show_version() {
-    [ -x "$CADDY_BIN" ] && "$CADDY_BIN" version || echo "Caddy 未安装"
+    if [ -x "$(command -v caddy)" ]; then
+        caddy version
+    else
+        echo "Caddy 未安装"
+    fi
 }
 
 
