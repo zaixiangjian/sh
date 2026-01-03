@@ -5,9 +5,7 @@ set -e
 # 全局变量
 ##########################
 
-BACKUP_DIR="/home"
-BACKUP_FILE="$BACKUP_DIR/caddy_backup.tar.gz"
-
+BACKUP_FILE="/home/caddy_backup.tar.gz"
 CADDY_DATA="/var/lib/caddy/.local/share/caddy"
 CADDY_BIN="/usr/bin/caddy"
 CADDY_SERVICE="/etc/systemd/system/caddy.service"
@@ -74,17 +72,14 @@ format_and_reload() {
 }
 
 ##########################
-# 备份 / 恢复 / 管理
+# 备份 / 恢复
 ##########################
 
 backup_caddy() {
-    echo -e "${GREEN}▶️ 开始打包 Caddy...${RESET}"
-    tar -czvf "$BACKUP_FILE" \
-        "$CADDY_CONF" \
-        "$CADDY_DATA" \
-        "$CADDY_SERVICE" \
-        "$CADDY_BIN"
-    echo -e "${GREEN}✅ 打包完成：$BACKUP_FILE${RESET}"
+    echo -e "${GREEN}▶️ 开始打包 Caddy 到 $BACKUP_FILE ...${RESET}"
+    cd / || die "无法切换到根目录"
+    tar -czvf "$BACKUP_FILE" etc/caddy var/lib/caddy/.local/share/caddy etc/systemd/system/caddy.service usr/bin/caddy
+    echo -e "${GREEN}✅ 打包完成${RESET}"
 }
 
 restore_caddy() {
@@ -94,14 +89,18 @@ restore_caddy() {
     echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
     systemctl stop caddy 2>/dev/null
 
-    # 直接解压到系统目录
-    tar -xzvf "$BACKUP_FILE" -C / || die "解压失败"
+    cd / || die "无法切换到根目录"
+    tar -xzvf "$BACKUP_FILE" || die "解压失败"
 
     ensure_user
     ensure_service
 
     chown -R caddy:nogroup /var/lib/caddy
     chmod -R 700 /var/lib/caddy
+
+    # 验证关键文件
+    [ -f /etc/caddy/Caddyfile ] || die "恢复失败：/etc/caddy/Caddyfile 不存在"
+    [ -d /var/lib/caddy/.local/share/caddy ] || die "恢复失败：Caddy 数据目录不存在"
 
     systemctl daemon-reexec
     systemctl daemon-reload
@@ -111,52 +110,67 @@ restore_caddy() {
     echo -e "${GREEN}✅ 恢复完成${RESET}"
 }
 
-reload_caddy() { echo -e "${GREEN}▶️ 重载 Caddy 配置...${RESET}"; systemctl reload caddy || die "Caddy 重载失败"; echo -e "${GREEN}✅ 配置已重载${RESET}"; }
-start_caddy() { echo -e "${GREEN}▶️ 启动 Caddy...${RESET}"; systemctl start caddy || die "Caddy 启动失败"; systemctl status caddy --no-pager; }
-stop_caddy() { echo -e "${GREEN}▶️ 停止 Caddy...${RESET}"; systemctl stop caddy || die "Caddy 已停止"; echo -e "${GREEN}✅ Caddy 已停止${RESET}"; }
-view_logs() { echo -e "${GREEN}▶️ 实时查看 Caddy 日志（Ctrl+C 停止）...${RESET}"; journalctl -u caddy -f; }
-status_caddy() { echo -e "${GREEN}▶️ 查看 Caddy 实时状态...${RESET}"; systemctl status caddy; }
+##########################
+# 启动 / 停止 / 重载 / 日志 / 状态
+##########################
 
-update_caddy() {
-    echo -e "${GREEN}▶️ 更新 Caddy 到最新版本...${RESET}"
-    systemctl stop caddy
-    ARCH=$(uname -m)
-    [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
-    [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
-    curl -sL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o /usr/bin/caddy
-    chmod +x /usr/bin/caddy
-    systemctl daemon-reload
-    systemctl start caddy
-    echo -e "${GREEN}✅ Caddy 已更新到最新版本${RESET}"
-}
-
-show_version() {
-    echo -e "${GREEN}▶️ 当前 Caddy 版本:${RESET}"
-    [ -x "$CADDY_BIN" ] && "$CADDY_BIN" version || echo -e "${RED}Caddy 未安装${RESET}"
-}
+start_caddy() { echo -e "${GREEN}▶️ 启动 Caddy...${RESET}"; systemctl start caddy || die "启动失败"; systemctl status caddy --no-pager; }
+stop_caddy() { echo -e "${GREEN}▶️ 停止 Caddy...${RESET}"; systemctl stop caddy || die "停止失败"; echo -e "${GREEN}✅ 已停止${RESET}"; }
+reload_caddy() { echo -e "${GREEN}▶️ 重载配置...${RESET}"; systemctl reload caddy || die "重载失败"; echo -e "${GREEN}✅ 已生效${RESET}"; }
+view_logs() { echo -e "${GREEN}▶️ 查看实时日志（Ctrl+C 退出）...${RESET}"; journalctl -u caddy -f; }
+status_caddy() { echo -e "${GREEN}▶️ 查看状态...${RESET}"; systemctl status caddy; }
 
 ##########################
-# 安装 / 配置 / 反向代理
+# 安装 / 更新 / 版本
 ##########################
 
 install_caddy_official() {
-    echo "🔄 安装 Caddy（官方二进制）..."
+    echo "🔄 安装 Caddy 官方二进制..."
     apt update
-    apt install -y curl ca-certificates
+    apt install -y sudo curl ca-certificates
+
     ARCH="$(dpkg --print-architecture)"
-    [[ "$ARCH" == "amd64" ]] && CADDY_ARCH="amd64"
-    [[ "$ARCH" == "arm64" ]] && CADDY_ARCH="arm64"
+    case "$ARCH" in
+        amd64) CADDY_ARCH="amd64" ;;
+        arm64) CADDY_ARCH="arm64" ;;
+        *) die "不支持架构: $ARCH" ;;
+    esac
+
+    echo "📥 下载 Caddy..."
     curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}" -o /usr/bin/caddy
     chmod +x /usr/bin/caddy
+
     ensure_user
     mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
     chown -R caddy:nogroup /var/lib/caddy /var/log/caddy
     [ -f "$CONFIG_FILE" ] || touch "$CONFIG_FILE"
+
     ensure_service
     systemctl enable --now caddy
-    echo "✅ Caddy 安装完成"
+    echo "✅ 安装完成"
     caddy version
 }
+
+update_caddy() {
+    echo "🔄 更新 Caddy..."
+    systemctl stop caddy
+    ARCH=$(uname -m)
+    [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
+    [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
+    curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH&idempotency=$(date +%s)" -o /usr/bin/caddy
+    chmod +x /usr/bin/caddy
+    systemctl daemon-reload
+    systemctl start caddy
+    echo "✅ 更新完成"
+}
+
+show_version() {
+    [ -x "$CADDY_BIN" ] && "$CADDY_BIN" version || echo "Caddy 未安装"
+}
+
+##########################
+# 配置管理 / 反代
+##########################
 
 add_domain() {
     read -p "请输入域名: " DOMAIN
@@ -226,10 +240,8 @@ uninstall_caddy() {
     systemctl stop caddy
     apt remove --purge -y caddy
     rm -f "$CONFIG_FILE"
-    echo "✅ Caddy 已卸载"
+    echo "✅ 已卸载"
 }
-
-restart_caddy() { systemctl restart caddy; echo "✅ Caddy 已重启"; }
 
 ##########################
 # 菜单
@@ -239,7 +251,7 @@ check_root
 
 while true; do
     echo "=============================="
-    echo " Caddy 一键管理工具（修复打包/解压）"
+    echo " Caddy 一键管理工具（修复版）"
     echo "=============================="
     echo "1) 打包 Caddy"
     echo "2) 解压恢复"
@@ -279,6 +291,6 @@ while true; do
         25) uninstall_caddy ;;
         88) m3u8yunxing ;;
         0) exit 0 ;;
-        *) echo "❌ 无效选项，请重试" ;;
+        *) echo "❌ 无效选项" ;;
     esac
 done
