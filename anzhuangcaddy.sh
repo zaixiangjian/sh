@@ -315,8 +315,8 @@ function menu() {
     echo "6. 删除指定域名配置"
 
 
-    echo "7) 更新 Caddy"
-    echo "8) 查看当前版本"
+    echo "7. 更新 Caddy"
+    echo "8. 查看当前版本"
     echo "=============================="
     echo "88. 添加M3U8反代配置"
     echo "99. 卸载 Caddy"
