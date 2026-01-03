@@ -229,43 +229,6 @@ function delete_config() {
 
 
 
-backup_caddy() {
-  echo -e "${GREEN}▶️ 开始打包 Caddy...${RESET}"
-  mkdir -p "$BACKUP_DIR"
-
-  tar -czvf "$BACKUP_FILE" \
-    "$CADDY_CONF" \
-    "$CADDY_DATA" \
-    "$CADDY_SERVICE" \
-    "$CADDY_BIN"
-
-  echo -e "${GREEN}✅ 打包完成：$BACKUP_FILE${RESET}"
-}
-
-
-restore_caddy() {
-  [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
-  file "$BACKUP_FILE" | grep -q gzip || die "备份文件不是 gzip 格式"
-
-  echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
-
-  systemctl stop caddy 2>/dev/null
-
-  mkdir -p /var/lib/caddy
-  tar -xzvf "$BACKUP_FILE" -C / || die "解压失败"
-
-  ensure_user
-  ensure_service
-
-  chown -R caddy:nogroup /var/lib/caddy
-  chmod -R 700 /var/lib/caddy
-
-  systemctl daemon-reexec
-  systemctl daemon-reload
-  systemctl enable caddy
-
-  echo -e "${GREEN}✅ 恢复完成${RESET}"
-}
 
 update_caddy() {
     echo "🔄 更新 Caddy..."
@@ -352,19 +315,15 @@ function menu() {
     echo "6. 删除指定域名配置"
 
 
-
+    echo "7) 更新 Caddy"
+    echo "8) 查看当前版本"
     echo "=============================="
-    echo "7. 打包 Caddy"
-    echo "8. 解压恢复"
-    echo "9. 更新 Caddy"
-    echo "10. 查看当前版本"
-    echo "=============================="
-
     echo "88. 添加M3U8反代配置"
     echo "99. 卸载 Caddy"
+    echo "打包恢复请使用75号配置"
     echo "证书路径是"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
-    
+    echo "=============================="
     echo "0. 退出"
     echo "=============================="
     read -p "请输入选项: " choice
@@ -376,14 +335,8 @@ function menu() {
         4) stop_caddy ;;
         5) add_tls_skip_verify ;;
         6) delete_config ;;
-
-
-        7) backup_caddy ;;
-        8) restore_caddy ;;
-        9) update_caddy ;;
-        10) show_version ;;
-
-
+        7) update_caddy ;;
+        8) show_version ;;
 
         88) m3u8yunxing ;;
         99) uninstall_caddy ;;
