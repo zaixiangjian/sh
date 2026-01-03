@@ -5,12 +5,12 @@ set -e
 # 全局变量
 ##########################
 
+CONFIG_FILE="/etc/caddy/Caddyfile"
 BACKUP_FILE="/home/caddy_backup.tar.gz"
 CADDY_DATA="/var/lib/caddy/.local/share/caddy"
 CADDY_BIN="/usr/bin/caddy"
 CADDY_SERVICE="/etc/systemd/system/caddy.service"
 CADDY_CONF="/etc/caddy"
-CONFIG_FILE="/etc/caddy/Caddyfile"
 
 GREEN="\033[32m"
 RED="\033[31m"
@@ -253,42 +253,34 @@ while true; do
     echo "=============================="
     echo " Caddy 一键管理工具（修复版）"
     echo "=============================="
-    echo "1) 打包 Caddy"
-    echo "2) 解压恢复"
-    echo "3) 启动 Caddy"
-    echo "4) 重载配置"
-    echo "5) 实时日志"
-    echo "6) 查看实时状态"
-    echo "7) 启动"
-    echo "8) 停止"
-    echo "9) 更新 Caddy"
-    echo "10) 查看当前版本"
-    echo "21) 安装 Caddy"
-    echo "22) 添加普通反向代理"
-    echo "23) 添加 TLS Skip Verify 反向代理"
-    echo "24) 删除指定域名配置"
-    echo "25) 卸载 Caddy"
-    echo "88) 添加 M3U8 反代配置"
+    echo "1. 安装 Caddy"
+    echo "2. 添加普通反向代理"
+    echo "3. 卸载 Caddy"
+    echo "4. 重启 Caddy"
+    echo "5. 停止 Caddy"
+    echo "6. 添加 TLS Skip Verify 反向代理"
+    echo "7. 删除指定域名配置"
+    echo "8) 打包 Caddy"
+    echo "9) 解压恢复"
+    echo "10) 更新 Caddy"
+    echo "11) 查看当前版本"
+    echo "88. 添加M3U8反代配置"
     echo "0) 退出"
     echo "=============================="
     read -p "请输入选项: " choice
 
     case "$choice" in
-        1) backup_caddy ;;
-        2) restore_caddy ;;
-        3) start_caddy ;;
+        1) install_caddy_official ;;
+        2) add_domain ;;
+        3) uninstall_caddy ;;
         4) reload_caddy ;;
-        5) view_logs ;;
-        6) status_caddy ;;
-        7) start_caddy ;;
-        8) stop_caddy ;;
-        9) update_caddy ;;
-        10) show_version ;;
-        21) install_caddy_official ;;
-        22) add_domain ;;
-        23) add_tls_skip_verify ;;
-        24) delete_config ;;
-        25) uninstall_caddy ;;
+        5) stop_caddy ;;
+        6) add_tls_skip_verify ;;
+        7) delete_config ;;
+        8) backup_caddy ;;
+        9) restore_caddy ;;
+        10) update_caddy ;;
+        11) show_version ;;
         88) m3u8yunxing ;;
         0) exit 0 ;;
         *) echo "❌ 无效选项" ;;
