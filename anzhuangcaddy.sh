@@ -80,24 +80,41 @@ format_and_reload() {
 backup_caddy() {
     echo -e "${GREEN}▶️ 开始打包 Caddy...${RESET}"
     mkdir -p "$BACKUP_DIR"
-    tar -czvf "$BACKUP_FILE" "$CADDY_CONF" "$CADDY_DATA" "$CADDY_SERVICE" "$CADDY_BIN"
+    tar -czvf "$BACKUP_FILE" \
+        -C /etc caddy \
+        -C /var/lib/caddy/.local/share caddy \
+        -C /etc/systemd/system caddy.service \
+        -C /usr/bin caddy
     echo -e "${GREEN}✅ 打包完成：$BACKUP_FILE${RESET}"
 }
 
 restore_caddy() {
     [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
     file "$BACKUP_FILE" | grep -q gzip || die "备份文件不是 gzip 格式"
+
     echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
     systemctl stop caddy 2>/dev/null
-    mkdir -p /var/lib/caddy
-    tar -xzvf "$BACKUP_FILE" -C / || die "解压失败"
+
+    TMP_DIR=$(mktemp -d)
+    tar -xzf "$BACKUP_FILE" -C "$TMP_DIR" || die "解压失败"
+
+    # 恢复配置文件
+    cp -r "$TMP_DIR/etc/caddy" /etc/
+    cp -r "$TMP_DIR/caddy" /var/lib/caddy/.local/share/
+    cp "$TMP_DIR/caddy.service" /etc/systemd/system/ 2>/dev/null
+    cp "$TMP_DIR/caddy" /usr/bin/ 2>/dev/null
+
+    # 确保用户和权限
     ensure_user
-    ensure_service
     chown -R caddy:nogroup /var/lib/caddy
     chmod -R 700 /var/lib/caddy
+
     systemctl daemon-reexec
     systemctl daemon-reload
     systemctl enable caddy
+    systemctl start caddy
+
+    rm -rf "$TMP_DIR"
     echo -e "${GREEN}✅ 恢复完成${RESET}"
 }
 
