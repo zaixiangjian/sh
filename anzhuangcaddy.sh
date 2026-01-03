@@ -230,50 +230,41 @@ function delete_config() {
 
 
 backup_caddy() {
-    echo -e "${GREEN}▶️ 开始打包 Caddy 到 $BACKUP_FILE ...${RESET}"
-    if [ ! -d "/etc/caddy" ] || [ ! -d "/var/lib/caddy/.local/share/caddy" ]; then
-        echo "❌ 必要的目录不存在，打包失败。"
-        exit 1
-    fi
-    sudo tar -czvf "$BACKUP_FILE" /etc/caddy /var/lib/caddy/.local/share/caddy /etc/systemd/system/caddy.service /usr/bin/caddy || {
-        echo "❌ 打包失败，请检查目录和权限。"
-        exit 1
-    }
-    echo -e "${GREEN}✅ 打包完成${RESET}"
+  echo -e "${GREEN}▶️ 开始打包 Caddy...${RESET}"
+  mkdir -p "$BACKUP_DIR"
+
+  tar -czvf "$BACKUP_FILE" \
+    "$CADDY_CONF" \
+    "$CADDY_DATA" \
+    "$CADDY_SERVICE" \
+    "$CADDY_BIN"
+
+  echo -e "${GREEN}✅ 打包完成：$BACKUP_FILE${RESET}"
 }
 
 
 restore_caddy() {
-    [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
-    file "$BACKUP_FILE" | grep -q gzip || die "备份文件不是 gzip 格式"
+  [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
+  file "$BACKUP_FILE" | grep -q gzip || die "备份文件不是 gzip 格式"
 
-    echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
-    systemctl stop caddy 2>/dev/null
+  echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
 
-    # 检查恢复目标目录
-    sudo mkdir -p /etc/caddy /var/lib/caddy || die "无法创建目标目录"
+  systemctl stop caddy 2>/dev/null
 
-    echo "恢复文件路径: $BACKUP_FILE"
-    echo "正在解压备份文件..."
+  mkdir -p /var/lib/caddy
+  tar -xzvf "$BACKUP_FILE" -C / || die "解压失败"
 
-    sudo tar -xzvf "$BACKUP_FILE" -C / || die "解压失败"
+  ensure_user
+  ensure_service
 
-    ensure_user
-    ensure_service
+  chown -R caddy:nogroup /var/lib/caddy
+  chmod -R 700 /var/lib/caddy
 
-    sudo chown -R caddy:nogroup /var/lib/caddy
-    sudo chmod -R 700 /var/lib/caddy
+  systemctl daemon-reexec
+  systemctl daemon-reload
+  systemctl enable caddy
 
-    # 验证关键文件
-    [ -f /etc/caddy/Caddyfile ] || die "恢复失败：/etc/caddy/Caddyfile 不存在"
-    [ -d /var/lib/caddy/.local/share/caddy ] || die "恢复失败：Caddy 数据目录不存在"
-
-    systemctl daemon-reexec
-    systemctl daemon-reload
-    systemctl enable caddy
-    systemctl start caddy
-
-    echo -e "${GREEN}✅ 恢复完成${RESET}"
+  echo -e "${GREEN}✅ 恢复完成${RESET}"
 }
 
 update_caddy() {
