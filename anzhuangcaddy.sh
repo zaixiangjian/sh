@@ -221,6 +221,83 @@ function delete_config() {
     fi
 }
 
+
+
+
+
+
+backup_caddy() {
+    echo -e "${GREEN}▶️ 开始打包 Caddy 到 $BACKUP_FILE ...${RESET}"
+    cd / || die "无法切换到根目录"
+    tar -czvf "$BACKUP_FILE" etc/caddy var/lib/caddy/.local/share/caddy etc/systemd/system/caddy.service usr/bin/caddy
+    echo -e "${GREEN}✅ 打包完成${RESET}"
+}
+
+restore_caddy() {
+    [ -f "$BACKUP_FILE" ] || die "未找到备份文件 $BACKUP_FILE"
+    file "$BACKUP_FILE" | grep -q gzip || die "备份文件不是 gzip 格式"
+
+    echo -e "${GREEN}▶️ 开始恢复 Caddy...${RESET}"
+    systemctl stop caddy 2>/dev/null
+
+    cd / || die "无法切换到根目录"
+    tar -xzvf "$BACKUP_FILE" || die "解压失败"
+
+    ensure_user
+    ensure_service
+
+    chown -R caddy:nogroup /var/lib/caddy
+    chmod -R 700 /var/lib/caddy
+
+    # 验证关键文件
+    [ -f /etc/caddy/Caddyfile ] || die "恢复失败：/etc/caddy/Caddyfile 不存在"
+    [ -d /var/lib/caddy/.local/share/caddy ] || die "恢复失败：Caddy 数据目录不存在"
+
+    systemctl daemon-reexec
+    systemctl daemon-reload
+    systemctl enable caddy
+    systemctl start caddy
+
+    echo -e "${GREEN}✅ 恢复完成${RESET}"
+}
+
+update_caddy() {
+    echo "🔄 更新 Caddy..."
+    systemctl stop caddy
+    ARCH=$(uname -m)
+    [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
+    [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
+    curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH&idempotency=$(date +%s)" -o /usr/bin/caddy
+    chmod +x /usr/bin/caddy
+    systemctl daemon-reload
+    systemctl start caddy
+    echo "✅ 更新完成"
+}
+
+show_version() {
+    [ -x "$CADDY_BIN" ] && "$CADDY_BIN" version || echo "Caddy 未安装"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function uninstall_caddy() {
     echo "⚠️ 正在卸载 Caddy..."
     sudo systemctl stop caddy
@@ -265,6 +342,11 @@ function menu() {
     echo "6. 添加 TLS Skip Verify 反向代理"
     echo "7. 删除指定域名配置"
 
+    echo "8. 打包 Caddy"
+    echo "9. 解压恢复"
+    echo "10. 更新 Caddy"
+    echo "11. 查看当前版本"
+
     echo "88. 添加M3U8反代配置"
     
     echo "0. 退出"
@@ -279,6 +361,15 @@ function menu() {
         5) stop_caddy ;;
         6) add_tls_skip_verify ;;
         7) delete_config ;;
+
+
+        8) backup_caddy ;;
+        9) restore_caddy ;;
+        10) update_caddy ;;
+        11) show_version ;;
+
+
+
         88) m3u8yunxing ;;
         0) exit 0 ;;
         *) echo "❌ 无效选项，请重试" ;;
