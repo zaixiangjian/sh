@@ -176,7 +176,9 @@ done
       echo "999. 论坛恢复检测/home目录解压到/var只需要kejilion.sh  11 72  2重建即可"
       echo "------------------------"
       echo "100.全部备份传送"
-      echo "使用100前先用远程连接一次更换为远程 IP "
+      echo "200.全部备份顺序传送防止频率限制"
+      echo "------------------------"
+      echo "使用100与200前先用远程连接一次更换为远程 IP "
       echo "ssh-keygen -f "/root/.ssh/known_hosts" -R "1.1.1.1""
       echo "------------------------"
       read -e -p "请选择操作编号: " action
@@ -1763,7 +1765,6 @@ cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/密码"
-LOG_FILE="/var/log/quanbubeifen-watch.log"
 
 echo "[$(date)] 监控启动" >> "$LOG_FILE"
 
@@ -1772,13 +1773,12 @@ inotifywait -m \
   --format '%e %f' \
   "$WATCH_DIR" | while read event file; do
 
-    echo "[$(date)] 检测到事件: $event 文件: $file" >> "$LOG_FILE"
 
     # 防止频繁触发
     sleep 2
 
-    /home/quanbubeifen.x >> "$LOG_FILE" 2>&1
-
+    /home/quanbubeifen.x
+    /home/quanbubeifen2.x
 done
 EOF
 
@@ -1818,8 +1818,120 @@ echo "✔ 变更即刻传送"
 
 
 
+200)
+    read -e -p "输入远程服务器IP: " useip
+    read -e -p "输入远程服务器密码: " usepasswd
+
+    mkdir -p /home/quanbubeifen_build
+    cd /home/quanbubeifen_build || exit 1
+
+    # 下载远程脚本并保存为本地文件
+    wget -q -O quanbubeifen2.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifen2.sh
+    chmod +x quanbubeifen2.sh
+
+    # 替换远程 IP 和密码
+    sed -i "s/vpsip/$useip/g" quanbubeifen2.sh
+    sed -i "s/vps密码/$usepasswd/g" quanbubeifen2.sh
+
+    local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+
+    TMP_SCRIPT="/home/quanbubeifen_build/tmp.sh"
+    OBFUSCATED_SCRIPT="/home/quanbubeifen_build/obf.sh"
+    OUTPUT_BIN="/home/quanbubeifen2.x"   # 修改本地生成执行文件名
+
+    cat > "$TMP_SCRIPT" <<EOF
+#!/bin/bash
+IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
+EOF
+
+    # 这里必须改为下载的最新文件名
+    cat quanbubeifen2.sh >> "$TMP_SCRIPT"
+
+    bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+    sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+    shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+    chmod +x "$OUTPUT_BIN"
+    strip "$OUTPUT_BIN" >/dev/null 2>&1
+    upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+    rm -rf /home/quanbubeifen_build
+
+    # -------- 定时任务：每几分钟运行一次（防重复） --------
+
+    echo "------------------------"
+    read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
+
+    LOCK_FILE="/tmp/quanbubeifen.lock"
+
+    (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
+     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+
+    # -------- 目录变更即时监控 --------
+
+    if ! command -v inotifywait >/dev/null 2>&1; then
+      if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update && apt-get install -y inotify-tools
+      elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y inotify-tools
+      fi
+    fi
+
+# 创建监控脚本（最终位置）
+cat > /home/jiankong.sh << 'EOF'
+#!/bin/bash
+
+WATCH_DIR="/home/密码"
+
+echo "[$(date)] 监控启动" >> "$LOG_FILE"
+
+inotifywait -m \
+  -e close_write,create,move \
+  --format '%e %f' \
+  "$WATCH_DIR" | while read event file; do
 
 
+    # 防止频繁触发
+    sleep 2
+
+    /home/quanbubeifen.x
+    /home/quanbubeifen2.x
+done
+EOF
+
+    chmod +x /home/jiankong.sh
+
+# systemd 服务
+cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
+[Unit]
+Description=目录监控即时传送 (/home/密码)
+After=network.target
+
+[Service]
+ExecStart=/home/jiankong.sh
+Restart=always
+User=root
+WorkingDirectory=/root
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reexec
+    systemctl daemon-reload
+    systemctl enable quanbubeifen-watch
+    systemctl restart quanbubeifen-watch
+
+    echo "--------------------------------"
+    echo "✔ 执行文件：/home/quanbubeifen2.x"
+    echo "✔ 监控脚本：/home/jiankong.sh"
+    echo "✔ 监控目录：/home/密码"
+    echo "✔ 定时任务：每 $interval 分钟（防重复）"
+    echo "✔ 变更即刻传送"
+    ;;
 
 
 
