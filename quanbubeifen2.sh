@@ -32,7 +32,7 @@ trap 'rm -f "$LOCKFILE" "$PIDFILE"' EXIT
 REMOTE_IP="vpsip"
 REMOTE_PASS="vps密码"
 SSH_PORT=22
-WAIT_SECONDS=10
+WAIT_SECONDS=5
 
 SRC_LIST=(
   /home/beifen.sh
@@ -53,7 +53,11 @@ for SRC in "${SRC_LIST[@]}"; do
         sshpass -p "$REMOTE_PASS" rsync -avz \
             -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" \
             "$SRC" root@"$REMOTE_IP":"$SRC"
+
+
         sleep "$WAIT_SECONDS"
+
+
     else
         echo "[$(date)] 文件或目录不存在，跳过: $SRC"
     fi
