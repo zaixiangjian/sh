@@ -3,20 +3,25 @@
 LOCKFILE="/tmp/vaultwarden_beifen.lock"
 PIDFILE="/tmp/vaultwarden_beifen.pid"
 
-# 假锁检测
-if [ -f "$PIDFILE" ]; then
-    old_pid=$(cat "$PIDFILE")
-    if ! ps -p "$old_pid" >/dev/null 2>&1; then
-        echo "检测到假锁死，自动清理"
-        rm -f "$LOCKFILE" "$PIDFILE"
+# 假锁检测：如果 LOCKFILE 存在，但 PID 文件不存在，直接清理
+if [ -f "$LOCKFILE" ]; then
+    if [ -f "$PIDFILE" ]; then
+        old_pid=$(cat "$PIDFILE")
+        if ! kill -0 "$old_pid" 2>/dev/null; then
+            echo "检测到假锁死，自动清理"
+            rm -f "$LOCKFILE" "$PIDFILE"
+        fi
+    else
+        echo "锁文件存在但 PID 文件不存在，自动清理"
+        rm -f "$LOCKFILE"
     fi
 fi
 
 # 加锁
 exec 200>"$LOCKFILE"
-flock -n 200 || { echo "另一个备份正在运行，退出"; exit 0; }
+flock -n 200 || { echo "另一个传输正在运行，退出"; exit 0; }
 
-# 记录当前 PID
+# 写入当前 PID
 echo $$ > "$PIDFILE"
 trap 'rm -f "$LOCKFILE" "$PIDFILE"' EXIT
 
