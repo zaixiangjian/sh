@@ -4,28 +4,31 @@ REMOTE_IP="vpsip"
 REMOTE_PASS="vps密码"
 SSH_PORT=22
 
-LOCK_FILE="/tmp/quanbubeifen.lock"
-PID_FILE="/tmp/quanbubeifen.pid"
+LOCKFILE="/tmp/quanbubeifen.lock"
+PIDFILE="/tmp/quanbubeifen.pid"
 
-# ===== 第一步：清理假死锁（在 flock 之前）=====
-if [ -f "$PID_FILE" ]; then
-  old_pid=$(cat "$PID_FILE")
-  if ! ps -p "$old_pid" >/dev/null 2>&1; then
-    echo "检测到假死锁，自动清理"
-    rm -f "$LOCK_FILE" "$PID_FILE"
-  fi
+# 假锁检测：如果 LOCKFILE 存在，但 PID 文件不存在，直接清理
+if [ -f "$LOCKFILE" ]; then
+    if [ -f "$PIDFILE" ]; then
+        old_pid=$(cat "$PIDFILE")
+        if ! kill -0 "$old_pid" 2>/dev/null; then
+            echo "检测到假锁死，自动清理"
+            rm -f "$LOCKFILE" "$PIDFILE"
+        fi
+    else
+        echo "锁文件存在但 PID 文件不存在，自动清理"
+        rm -f "$LOCKFILE"
+    fi
 fi
 
-# ===== 第二步：尝试加锁 =====
-exec 200>"$LOCK_FILE"
-flock -n 200 || {
-  echo "另一个传输正在运行，退出"
-  exit 1
-}
+# 加锁
+exec 200>"$LOCKFILE"
+flock -n 200 || { echo "另一个传输正在运行，退出"; exit 0; }
 
-# ===== 第三步：记录 PID =====
-echo $$ > "$PID_FILE"
-trap 'rm -f "$LOCK_FILE" "$PID_FILE"' EXIT
+# 写入当前 PID
+echo $$ > "$PIDFILE"
+trap 'rm -f "$LOCKFILE" "$PIDFILE"' EXIT
+
 
 # ===== 你的原始传输逻辑（完全不动）=====
 SRC_LIST=(
