@@ -7,26 +7,27 @@ SSH_PORT=22
 LOCK_FILE="/tmp/quanbubeifen.lock"
 PID_FILE="/tmp/quanbubeifen.pid"
 
-# ===== 防假死锁 =====
+# ===== 第一步：清理假死锁（在 flock 之前）=====
 if [ -f "$PID_FILE" ]; then
   old_pid=$(cat "$PID_FILE")
   if ! ps -p "$old_pid" >/dev/null 2>&1; then
-    echo "检测到假死锁，清理"
+    echo "检测到假死锁，自动清理"
     rm -f "$LOCK_FILE" "$PID_FILE"
   fi
 fi
 
-# ===== 获取锁 =====
+# ===== 第二步：尝试加锁 =====
 exec 200>"$LOCK_FILE"
 flock -n 200 || {
   echo "另一个传输正在运行，退出"
   exit 1
 }
 
+# ===== 第三步：记录 PID =====
 echo $$ > "$PID_FILE"
 trap 'rm -f "$LOCK_FILE" "$PID_FILE"' EXIT
 
-# ===== 原有逻辑，完全不变 =====
+# ===== 你的原始传输逻辑（完全不动）=====
 SRC_LIST=(
   /home/beifen.sh
   /home/博客/
