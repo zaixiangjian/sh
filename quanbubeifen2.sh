@@ -22,12 +22,28 @@ SRC_LIST=(
   /home/论坛备份1/
 )
 
-# 锁文件
+# 锁文件和 PID 文件
 LOCK_FILE="/tmp/quanbubeifen-rsync.lock"
+PID_FILE="/tmp/quanbubeifen-rsync.pid"
+
+# -------------------- 防假锁死 --------------------
+if [ -f "$PID_FILE" ]; then
+    old_pid=$(cat "$PID_FILE")
+    if ! ps -p "$old_pid" >/dev/null 2>&1; then
+        echo "检测到假锁死，自动清理锁文件"
+        rm -f "$LOCK_FILE" "$PID_FILE"
+    fi
+fi
 
 # -------------------- 单 SSH 会话传输 --------------------
 (
+    # 尝试加锁
+    exec 200>"$LOCK_FILE"
     flock -n 200 || { echo "另一个传输正在运行，退出"; exit 1; }
+
+    # 记录当前进程 PID
+    echo $$ > "$PID_FILE"
+    trap 'rm -f "$LOCK_FILE" "$PID_FILE"' EXIT
 
     echo "[$(date)] 开始传输所有目录到 $REMOTE_IP（保持原路径）"
 
