@@ -32,7 +32,14 @@ trap 'rm -f "$LOCKFILE" "$PIDFILE"' EXIT
 REMOTE_IP="vpsip"
 REMOTE_PASS="vps密码"
 SSH_PORT=22
+
+
+
+# 延迟传送
 WAIT_SECONDS=5
+
+
+
 
 SRC_LIST=(
   /home/beifen.sh
