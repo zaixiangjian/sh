@@ -50,7 +50,7 @@ echo "[$(date)] 开始传输所有目录到 $REMOTE_IP（保持原路径）"
 for SRC in "${SRC_LIST[@]}"; do
     if [ -e "$SRC" ]; then
         echo "传输: $SRC -> $REMOTE_IP:$SRC"
-        sshpass -p "$REMOTE_PASS" rsync -avz --delete \
+        sshpass -p "$REMOTE_PASS" rsync -avz \
             -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=no" \
             "$SRC" root@"$REMOTE_IP":"$SRC"
         sleep "$WAIT_SECONDS"
