@@ -4,8 +4,24 @@
 ### 防止脚本重复运行（flock）
 ### ==============================
 LOCKFILE="/tmp/wangpan.lock"
-exec 200>$LOCKFILE
-flock -n 200 || exit 0   # 如果已有进程运行，直接退出，不输出
+PIDFILE="/tmp/wangpan.pid"
+
+# 假锁检测
+if [ -f "$PIDFILE" ]; then
+    old_pid=$(cat "$PIDFILE")
+    if ! ps -p "$old_pid" >/dev/null 2>&1; then
+        echo "检测到假锁死，自动清理"
+        rm -f "$LOCKFILE" "$PIDFILE"
+    fi
+fi
+
+# 加锁
+exec 200>"$LOCKFILE"
+flock -n 200 || { echo "另一个备份正在运行，退出"; exit 0; }
+
+# 记录当前 PID
+echo $$ > "$PIDFILE"
+trap 'rm -f "$LOCKFILE" "$PIDFILE"' EXIT
 
 ### ==============================
 ### 基本变量
