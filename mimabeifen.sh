@@ -1,5 +1,27 @@
 #!/bin/bash
 
+LOCKFILE="/tmp/vaultwarden_beifen.lock"
+PIDFILE="/tmp/vaultwarden_beifen.pid"
+
+# 假锁检测
+if [ -f "$PIDFILE" ]; then
+    old_pid=$(cat "$PIDFILE")
+    if ! ps -p "$old_pid" >/dev/null 2>&1; then
+        echo "检测到假锁死，自动清理"
+        rm -f "$LOCKFILE" "$PIDFILE"
+    fi
+fi
+
+# 加锁
+exec 200>"$LOCKFILE"
+flock -n 200 || { echo "另一个备份正在运行，退出"; exit 0; }
+
+# 记录当前 PID
+echo $$ > "$PIDFILE"
+trap 'rm -f "$LOCKFILE" "$PIDFILE"' EXIT
+
+
+
 # Create the backup directory if it doesn't exist
 mkdir -p /home/密码/
 
