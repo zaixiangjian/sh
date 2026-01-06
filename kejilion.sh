@@ -8278,7 +8278,7 @@ endpoint =存储桶访问地址"
 76)
 
 # 随机生成 ADMIN_TOKEN
-ADMIN_TOKEN=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+ADMIN_TOKEN=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c20)
 
 # 自动获取本机 IP（取第一个非 127.0.0.1 的 IP）
 HOST_IP=$(hostname -I | awk '{print $1}')
