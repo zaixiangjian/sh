@@ -546,38 +546,33 @@ EOF
 
 
 
-9)
+  9)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
     mkdir -p /home/docker/vaultwarden
     cd /home/docker/vaultwarden || exit 1
 
-    # 下载 mimachuansong.sh
-    wget -q -O mimachuansong.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong.sh
-    chmod +x mimachuansong.sh
+    wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimabeifen.sh
+    chmod +x beifen.sh
 
-    # 替换远程服务器IP和密码
-    sed -i "s/vpsip/$useip/g" mimachuansong.sh
-    sed -i "s/vps密码/$usepasswd/g" mimachuansong.sh
+    sed -i "s/vpsip/$useip/g" beifen.sh
+    sed -i "s/vps密码/$usepasswd/g" beifen.sh
 
-    # 获取本地IP，用于限制执行
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/docker/vaultwarden/mimachuansong_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/mimachuansong_obf.sh"
-    OUTPUT_BIN="/home/docker/vaultwarden/mimachuansong.x"
+    TMP_SCRIPT="/home/docker/vaultwarden/beifen_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/beifen_obf.sh"
+    OUTPUT_BIN="/home/docker/vaultwarden/beifen.x"
 
-    # 添加IP限制
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-    cat mimachuansong.sh >> "$TMP_SCRIPT"
+    cat beifen.sh >> "$TMP_SCRIPT"
 
-    # 混淆和编译为可执行文件
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
     sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
     shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
@@ -585,7 +580,7 @@ EOF
     strip "$OUTPUT_BIN" >/dev/null 2>&1
     upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" mimachuansong.sh
+    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" beifen.sh
 
     echo "------------------------"
     echo "选择备份频率："
@@ -632,7 +627,7 @@ EOF
         ;;
     esac
 
-    # ----------- Vaultwarden 监控服务安装启动 -------------
+    # ----------- 新增：Vaultwarden 监控服务安装启动 -------------
     echo "开始安装 Vaultwarden 监控服务..."
 
     # 安装 inotify-tools
@@ -647,33 +642,38 @@ EOF
       echo "inotify-tools 已安装，跳过"
     fi
 
-    # 创建 mimachuansong.sh 监控脚本
-    cat > /home/docker/vaultwarden/mimachuansong.sh << 'EOF'
+    # 创建 jiankong.sh 监控脚本
+    cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
 # 设置监控的数据库文件
 WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
+
 # 使用 inotifywait 监控数据库文件的变化
 inotifywait -m -e modify,create,delete $WATCH_FILES |
 while read path action file; do
     echo "Change detected in file: $file (Action: $action)"
-    /home/docker/vaultwarden/mimachuansong.x
+    
+    
+    
+    
+    
+    # 在文件变化时运行备份脚本
+    /home/docker/vaultwarden/beifen.x
 done
 EOF
 
-    chmod +x /home/docker/vaultwarden/mimachuansong.sh
+    chmod +x /home/docker/vaultwarden/jiankong.sh
 
-    # 创建 systemd 服务文件，使用新名字避免冲突
-    SERVICE_NAME="vaultwarden-mimachuansong.service"
-
-    cat > /etc/systemd/system/$SERVICE_NAME << EOF
+    # 创建 systemd 服务文件
+    cat > /etc/systemd/system/vaultwarden-watch.service << EOF
 [Unit]
-Description=Vaultwarden 数据库监控备份 (mimachuansong)
+Description=Vaultwarden 数据库监控备份
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/docker/vaultwarden/mimachuansong.sh
+ExecStart=/home/docker/vaultwarden/jiankong.sh
 Restart=always
 User=root
 WorkingDirectory=/home/docker/vaultwarden/
@@ -685,11 +685,11 @@ EOF
     # 启用并启动服务
     systemctl daemon-reexec
     systemctl daemon-reload
-    systemctl enable $SERVICE_NAME
-    systemctl restart $SERVICE_NAME
+    systemctl enable vaultwarden-watch
+    systemctl restart vaultwarden-watch
 
-    echo "Vaultwarden 监控服务已启动并设为开机自启，服务名: $SERVICE_NAME"
-    systemctl status $SERVICE_NAME --no-pager
+    echo "Vaultwarden 监控服务已启动并设为开机自启。"
+    systemctl status vaultwarden-watch --no-pager
     ;;
 
 
