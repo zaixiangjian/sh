@@ -631,33 +631,39 @@ EOF
 
 
 
-  9)
+
+9)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
     mkdir -p /home/docker/vaultwarden
     cd /home/docker/vaultwarden || exit 1
 
-    wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimabeifen.sh
-    chmod +x beifen.sh
+    # 下载 mimachuansong.sh
+    wget -q -O mimachuansong.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong.sh
+    chmod +x mimachuansong.sh
 
-    sed -i "s/vpsip/$useip/g" beifen.sh
-    sed -i "s/vps密码/$usepasswd/g" beifen.sh
+    # 替换远程服务器IP和密码
+    sed -i "s/vpsip/$useip/g" mimachuansong.sh
+    sed -i "s/vps密码/$usepasswd/g" mimachuansong.sh
 
+    # 获取本地IP，用于限制执行
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/docker/vaultwarden/beifen_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/beifen_obf.sh"
-    OUTPUT_BIN="/home/docker/vaultwarden/beifen.x"
+    TMP_SCRIPT="/home/docker/vaultwarden/mimachuansong_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/mimachuansong_obf.sh"
+    OUTPUT_BIN="/home/docker/vaultwarden/mimachuansong.x"
 
+    # 添加IP限制
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-    cat beifen.sh >> "$TMP_SCRIPT"
+    cat mimachuansong.sh >> "$TMP_SCRIPT"
 
+    # 混淆和编译为可执行文件
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
     sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
     shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
@@ -665,22 +671,57 @@ EOF
     strip "$OUTPUT_BIN" >/dev/null 2>&1
     upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" beifen.sh
-
-    # -------- 定时任务：每几分钟运行一次（防重复执行） --------
+    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" mimachuansong.sh
 
     echo "------------------------"
-    read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
+    echo "选择备份频率："
+    echo "1. 每周备份"
+    echo "2. 每天备份"
+    echo "3. 每几天备份一次"
+    read -e -p "请输入选择编号: " dingshi
 
-    LOCK_FILE="/tmp/vaultwarden_beifen.lock"
+    case $dingshi in
+      1)
+        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+        read -e -p "几点备份（0-23）: " hour
+        read -e -p "几分备份（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
+          echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
+        fi
+        ;;
+      2)
+        read -e -p "每天几点备份（0-23）: " hour
+        read -e -p "每天几分备份（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
+          echo "已设置每天 ${hour}点${minute}分进行备份"
+        fi
+        ;;
+      3)
+        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+        read -e -p "几点（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
+          echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
+        fi
+        ;;
+      *)
+        echo "无效输入"
+        ;;
+    esac
 
-    (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
-     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-
-    # ----------- Vaultwarden 监控服务安装启动（保持不变） -------------
-
+    # ----------- Vaultwarden 监控服务安装启动 -------------
     echo "开始安装 Vaultwarden 监控服务..."
 
+    # 安装 inotify-tools
     if ! command -v inotifywait > /dev/null 2>&1; then
       echo "inotify-tools 未安装，尝试安装..."
       if grep -qi "ubuntu\|debian" /etc/os-release; then
@@ -692,29 +733,33 @@ EOF
       echo "inotify-tools 已安装，跳过"
     fi
 
-    cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
+    # 创建 mimachuansong.sh 监控脚本
+    cat > /home/docker/vaultwarden/mimachuansong.sh << 'EOF'
 #!/bin/bash
 
+# 设置监控的数据库文件
 WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
-
+# 使用 inotifywait 监控数据库文件的变化
 inotifywait -m -e modify,create,delete $WATCH_FILES |
 while read path action file; do
     echo "Change detected in file: $file (Action: $action)"
-
-    /home/docker/vaultwarden/beifen.x
+    /home/docker/vaultwarden/mimachuansong.x
 done
 EOF
 
-    chmod +x /home/docker/vaultwarden/jiankong.sh
+    chmod +x /home/docker/vaultwarden/mimachuansong.sh
 
-    cat > /etc/systemd/system/vaultwarden-watch.service << EOF
+    # 创建 systemd 服务文件，使用新名字避免冲突
+    SERVICE_NAME="vaultwarden-mimachuansong.service"
+
+    cat > /etc/systemd/system/$SERVICE_NAME << EOF
 [Unit]
-Description=Vaultwarden 数据库监控备份
+Description=Vaultwarden 数据库监控备份 (mimachuansong)
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/docker/vaultwarden/jiankong.sh
+ExecStart=/home/docker/vaultwarden/mimachuansong.sh
 Restart=always
 User=root
 WorkingDirectory=/home/docker/vaultwarden/
@@ -723,16 +768,15 @@ WorkingDirectory=/home/docker/vaultwarden/
 WantedBy=multi-user.target
 EOF
 
+    # 启用并启动服务
     systemctl daemon-reexec
     systemctl daemon-reload
-    systemctl enable vaultwarden-watch
-    systemctl restart vaultwarden-watch
+    systemctl enable $SERVICE_NAME
+    systemctl restart $SERVICE_NAME
 
-    echo "Vaultwarden 监控服务已启动并设为开机自启。"
-    systemctl status vaultwarden-watch --no-pager
+    echo "Vaultwarden 监控服务已启动并设为开机自启，服务名: $SERVICE_NAME"
+    systemctl status $SERVICE_NAME --no-pager
     ;;
-
-
 
 
 
