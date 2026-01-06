@@ -481,65 +481,151 @@ EOF
 
 
 
-    8)
-      echo "------------------------"
-      echo "恢复 Vaultwarden 数据库备份..."
-      
-      # 停止 Vaultwarden 容器
-      docker stop vaultwarden
-      echo "Vaultwarden 已停止"
+  8)
+    read -e -p "输入远程服务器IP: " useip
+    read -e -p "输入远程服务器密码: " usepasswd
 
-      # 列出 /home/密码 目录中的所有备份文件
-      backup_dir="/home/密码"
-      backups=$(ls -t $backup_dir/mima_*.tar.gz)
+    mkdir -p /home/docker/vaultwarden
+    cd /home/docker/vaultwarden || exit 1
 
-      if [ -z "$backups" ]; then
-        echo "没有找到备份文件，无法恢复！"
-        exit 1
+    wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimabeifen.sh
+    chmod +x beifen.sh
+
+    sed -i "s/vpsip/$useip/g" beifen.sh
+    sed -i "s/vps密码/$usepasswd/g" beifen.sh
+
+    local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+
+    TMP_SCRIPT="/home/docker/vaultwarden/beifen_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/beifen_obf.sh"
+    OUTPUT_BIN="/home/docker/vaultwarden/beifen.x"
+
+    cat > "$TMP_SCRIPT" <<EOF
+#!/bin/bash
+IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
+EOF
+
+    cat beifen.sh >> "$TMP_SCRIPT"
+
+    bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+    sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+    shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+    chmod +x "$OUTPUT_BIN"
+    strip "$OUTPUT_BIN" >/dev/null 2>&1
+    upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" beifen.sh
+
+    echo "------------------------"
+    echo "选择备份频率："
+    echo "1. 每周备份"
+    echo "2. 每天备份"
+    echo "3. 每几天备份一次"
+    read -e -p "请输入选择编号: " dingshi
+
+    case $dingshi in
+      1)
+        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+        read -e -p "几点备份（0-23）: " hour
+        read -e -p "几分备份（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
+          echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
+        fi
+        ;;
+      2)
+        read -e -p "每天几点备份（0-23）: " hour
+        read -e -p "每天几分备份（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
+          echo "已设置每天 ${hour}点${minute}分进行备份"
+        fi
+        ;;
+      3)
+        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+        read -e -p "几点（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
+          echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
+        fi
+        ;;
+      *)
+        echo "无效输入"
+        ;;
+    esac
+
+    # ----------- 新增：Vaultwarden 监控服务安装启动 -------------
+    echo "开始安装 Vaultwarden 监控服务..."
+
+    # 安装 inotify-tools
+    if ! command -v inotifywait > /dev/null 2>&1; then
+      echo "inotify-tools 未安装，尝试安装..."
+      if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update && apt-get install -y inotify-tools
+      elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y inotify-tools
       fi
+    else
+      echo "inotify-tools 已安装，跳过"
+    fi
 
-      echo "备份文件列表："
-      echo "------------------------"
-      i=1
-      for backup in $backups; do
-        echo "$i. $backup"
-        i=$((i+1))
-      done
+    # 创建 jiankong.sh 监控脚本
+    cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
+#!/bin/bash
 
-      # 提示用户选择备份文件（默认为最新备份）
-      read -e -p "请输入要恢复的备份编号（回车恢复最新）： " restore_choice
+# 设置监控的数据库文件
+WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
 
-      if [ -z "$restore_choice" ]; then
-        # 如果用户回车，则恢复最新备份
-        restore_file=$(echo "$backups" | head -n 1)
-      else
-        # 否则恢复用户指定的备份
-        restore_file=$(echo "$backups" | sed -n "${restore_choice}p")
-      fi
+# 使用 inotifywait 监控数据库文件的变化
+inotifywait -m -e modify,create,delete $WATCH_FILES |
+while read path action file; do
+    echo "Change detected in file: $file (Action: $action)"
+    
+    
+    
+    
+    
+    # 在文件变化时运行备份脚本
+    /home/docker/vaultwarden/beifen.x
+done
+EOF
 
-      if [ -z "$restore_file" ]; then
-        echo "无效的选择，恢复失败！"
-        exit 1
-      fi
+    chmod +x /home/docker/vaultwarden/jiankong.sh
 
-      echo "正在恢复备份：$restore_file"
+    # 创建 systemd 服务文件
+    cat > /etc/systemd/system/vaultwarden-watch.service << EOF
+[Unit]
+Description=Vaultwarden 数据库监控备份
+After=network.target
 
-      # 解压备份文件
-      tar -xvzf "$restore_file" -C /home/docker
+[Service]
+Type=simple
+ExecStart=/home/docker/vaultwarden/jiankong.sh
+Restart=always
+User=root
+WorkingDirectory=/home/docker/vaultwarden/
 
-      # 检查解压是否成功
-      if [ $? -eq 0 ]; then
-        echo "备份恢复成功！"
-      else
-        echo "备份恢复失败！"
-        exit 1
-      fi
+[Install]
+WantedBy=multi-user.target
+EOF
 
-      # 重启 Vaultwarden 容器
-      docker start vaultwarden
-      echo "Vaultwarden 已重启"
+    # 启用并启动服务
+    systemctl daemon-reexec
+    systemctl daemon-reload
+    systemctl enable vaultwarden-watch
+    systemctl restart vaultwarden-watch
 
-      ;;
+    echo "Vaultwarden 监控服务已启动并设为开机自启。"
+    systemctl status vaultwarden-watch --no-pager
+    ;;
 
 
 
