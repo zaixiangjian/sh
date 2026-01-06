@@ -5407,7 +5407,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
-	  echo -e "${gl_kjlan}75.  ${gl_bai}Caddy备份与恢复 ${gl_huang}★${gl_bai}                   ${gl_kjlan}76.  ${gl_bai}vaultwarden添加管理员"
+	  echo -e "${gl_kjlan}75.  ${gl_bai}Caddy备份与恢复 ${gl_huang}★${gl_bai}                     ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8294,7 +8294,7 @@ docker_rum="docker run -d \
                 -p 3280:80 \
                 -v /home/docker/vaultwarden/data:/data \
                 vaultwarden/server"
-docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，自动生成管理员 Token，无 SMTP 设置）"
+docker_describe="更改false改为true可注册，一个开源的 Bitwarden 服务端实现（禁止注册，自动生成管理员 Token，无 SMTP 设置）"
 docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
 docker_use="echo \"✅ Vaultwarden 管理员 Token: $ADMIN_TOKEN\" && echo \"🌐 Web 访问: http://$HOST_IP:3280\""
 docker_passwd=""
