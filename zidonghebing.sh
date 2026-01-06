@@ -646,23 +646,53 @@ EOF
     cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
-# 设置监控的数据库文件
-WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
+WATCH_DIR="/home/docker/vaultwarden/data"
+FILES="db.sqlite3 db.sqlite3-wal db.sqlite3-shm"
+BIN="/home/docker/vaultwarden/beifen.x"
+LOCK_FILE="/tmp/mimabeifen.lock"
+DELAY=5
+INTERVAL=10   # 轮询兜底间隔秒
 
-# 使用 inotifywait 监控数据库文件的变化
-inotifywait -m -e modify,create,delete $WATCH_FILES |
-while read path action file; do
-    echo "Change detected in file: $file (Action: $action)"
-    
-    
-    
-    
-    
-    # 在文件变化时运行备份脚本
-    /home/docker/vaultwarden/beifen.x
+mkdir -p /tmp
+[ ! -s "$LOCK_FILE" ] && echo "lock" > "$LOCK_FILE"
+
+last_hash=""
+
+trigger_backup() {
+    (
+        sleep $DELAY
+        flock -n 200 || exit 0
+        echo "执行备份..."
+        "$BIN"
+        echo "备份完成"
+    ) 200>"$LOCK_FILE"
+}
+
+calc_hash() {
+    sha1sum $(for f in $FILES; do echo "$WATCH_DIR/$f"; done 2>/dev/null) 2>/dev/null | sha1sum | awk '{print $1}'
+}
+
+# ---------- inotify 监听 ----------
+inotifywait -m -e modify,create,delete,move "$WATCH_DIR" 2>/dev/null |
+while read -r path action file; do
+    case "$file" in
+        db.sqlite3* )
+            trigger_backup &
+            ;;
+    esac
+done &
+
+# ---------- 轮询兜底 ----------
+while true; do
+    new_hash=$(calc_hash)
+    if [ -n "$new_hash" ] && [ "$new_hash" != "$last_hash" ]; then
+        echo "轮询检测到变化"
+        last_hash="$new_hash"
+        trigger_backup &
+    fi
+    sleep $INTERVAL
 done
 EOF
-
     chmod +x /home/docker/vaultwarden/jiankong.sh
 
     # 创建 systemd 服务文件
