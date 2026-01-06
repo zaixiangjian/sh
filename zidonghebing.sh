@@ -653,7 +653,9 @@ LOCK_FILE="/tmp/mimabeifen.lock"
 DELAY=5
 INTERVAL=10   # 轮询兜底间隔秒
 
+
 mkdir -p /tmp
+# ---------- 初始化锁文件 ----------
 [ ! -s "$LOCK_FILE" ] && echo "lock" > "$LOCK_FILE"
 
 last_hash=""
