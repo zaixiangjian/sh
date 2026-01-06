@@ -697,13 +697,6 @@ EOF
 
 
 
-
-
-
-
-
-
-
 10)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
@@ -758,128 +751,94 @@ EOF
         read -e -p "几点备份（0-23）: " hour
         read -e -p "几分备份（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+          echo "备份任务已存在，跳过添加"
         else
           (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-          echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
         fi
         ;;
       2)
         read -e -p "每天几点备份（0-23）: " hour
         read -e -p "每天几分备份（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+          echo "备份任务已存在，跳过添加"
         else
           (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-          echo "已设置每天 ${hour}点${minute}分进行备份"
         fi
         ;;
       3)
-        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
+        read -e -p "每几天备份一次: " interval
         read -e -p "几点（0-23）: " hour
         read -e -p "几分（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
+          echo "备份任务已存在，跳过添加"
         else
           (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-          echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
         fi
-        ;;
-      *)
-        echo "无效输入"
         ;;
     esac
 
-    # ----------- Vaultwarden 监控服务安装启动 -------------
-    echo "开始安装 Vaultwarden 监控服务..."
+    echo "开始安装目录监控传送服务..."
 
-    # 安装 inotify-tools
-    if ! command -v inotifywait > /dev/null 2>&1; then
-      echo "inotify-tools 未安装，尝试安装..."
+    if ! command -v inotifywait >/dev/null 2>&1; then
       if grep -qi "ubuntu\|debian" /etc/os-release; then
         apt-get update && apt-get install -y inotify-tools
       elif grep -qi "centos\|redhat" /etc/os-release; then
         yum install -y inotify-tools
       fi
-    else
-      echo "inotify-tools 已安装，跳过"
     fi
 
-    # 创建 mimachuansong.sh 监控脚本
-    cat > /home/docker/vaultwarden/mimachuansong.sh << 'EOF'
+    # 创建监控脚本（防重复执行 + 防死锁）
+    cat > /home/docker/vaultwarden/mimajiankongchuansong.sh << 'EOF'
 #!/bin/bash
 
-# 设置监控的数据库文件
-WATCH_FILES="/home/docker/vaultwarden/data/db.sqlite3 /home/docker/vaultwarden/data/db.sqlite3-shm /home/docker/vaultwarden/data/db.sqlite3-wal"
-# 使用 inotifywait 监控数据库文件的变化
-inotifywait -m -e modify,create,delete $WATCH_FILES |
+WATCH_DIR="/home/密码"
+BIN="/home/docker/vaultwarden/mimachuansong.x"
+LOCK_FILE="/tmp/mimachuansong.lock"
+
+[ -d "$WATCH_DIR" ] || exit 1
+
+cleanup() {
+  rm -f "$LOCK_FILE"
+}
+trap cleanup EXIT INT TERM
+
+inotifywait -m -r -e modify,create,delete,move "$WATCH_DIR" |
 while read path action file; do
-    echo "Change detected in file: $file (Action: $action)"
-    /home/docker/vaultwarden/mimachuansong.x
+    (
+      flock -n 200 || exit 0
+      "$BIN"
+    ) 200>"$LOCK_FILE"
 done
 EOF
 
-    chmod +x /home/docker/vaultwarden/mimachuansong.sh
+    chmod +x /home/docker/vaultwarden/mimajiankongchuansong.sh
 
-    # 创建 systemd 服务文件，使用新名字避免冲突
-    SERVICE_NAME="vaultwarden-mimachuansong.service"
+    SERVICE_NAME="vaultwarden-mimajiankongchuansong.service"
 
     cat > /etc/systemd/system/$SERVICE_NAME << EOF
 [Unit]
-Description=Vaultwarden 数据库监控备份 (mimachuansong)
+Description=目录监控传送服务
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/docker/vaultwarden/mimachuansong.sh
+ExecStart=/home/docker/vaultwarden/mimajiankongchuansong.sh
 Restart=always
+RestartSec=5
 User=root
-WorkingDirectory=/home/docker/vaultwarden/
+WorkingDirectory=/home/docker/vaultwarden
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # 启用并启动服务
     systemctl daemon-reexec
     systemctl daemon-reload
     systemctl enable $SERVICE_NAME
     systemctl restart $SERVICE_NAME
 
-    echo "Vaultwarden 监控服务已启动并设为开机自启，服务名: $SERVICE_NAME"
     systemctl status $SERVICE_NAME --no-pager
     ;;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
