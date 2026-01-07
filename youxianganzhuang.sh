@@ -153,7 +153,6 @@ install_mailcow() {
     echo "@"
     echo "v=spf1 mx a -all"
     echo "------------------------------------------------"
-
     echo "名称: _dmarc"
     echo "值"
     echo "v=DMARC1; p=reject; pct=100; aspf=s; adkim=s; fo=1; rua=mailto:noreply@你的域名.com"
