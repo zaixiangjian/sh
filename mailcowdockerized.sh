@@ -3,7 +3,7 @@ set -e
 
 INSTALL_DIR="/home/docker"
 MAILCOW_DIR="${INSTALL_DIR}/mailcow-dockerized"
-BACKUP_DIR="/home/mailcow-beifen"
+BACKUP_DIR="/home/mail"
 
 # 检查是否 root
 if [ "$EUID" -ne 0 ]; then
@@ -129,7 +129,7 @@ backup_mailcow() {
 
 # 恢复
 restore_mailcow() {
-    FILE=$(ls /home/mailcow-beifen*.tar.gz 2>/dev/null | tail -n1)
+    FILE=$(ls /home/mail*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
         echo "❌ 找不到备份文件"
         read -rp "按回车继续..." _
@@ -141,8 +141,19 @@ restore_mailcow() {
         read -rp "按回车继续..." _
         return
     fi
+
     echo "📦 恢复中..."
-    tar xzf "$FILE" -C /home/
+    # 确保安装目录存在
+    mkdir -p "${INSTALL_DIR}"
+    tar xzf "$FILE" -C "${INSTALL_DIR}"
+
+    # 检查目录是否存在
+    if [ ! -d "${MAILCOW_DIR}" ]; then
+        echo "❌ 恢复失败: ${MAILCOW_DIR} 不存在"
+        read -rp "按回车继续..." _
+        return
+    fi
+
     cd "${MAILCOW_DIR}"
     echo "🚀 启动 Mailcow..."
     docker compose up -d
