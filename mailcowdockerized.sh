@@ -76,9 +76,43 @@ install_mailcow() {
 
     cd "${MAILCOW_DIR}"
 
-    echo "⚙️ 运行 Mailcow 配置生成脚本..."
-    bash generate_config.sh
+    # —— 交互式输入部分（更新） —— #
 
+    # 强制输入 MAILCOW_HOSTNAME
+    while true; do
+        read -rp "请输入 Mailcow 域名（如 mail.example.com，必填）: " MAILCOW_HOSTNAME
+        if [ -n "$MAILCOW_HOSTNAME" ]; then
+            break
+        fi
+        echo "❌ 域名不能为空，请重新输入"
+    done
+
+    # 时区默认 Asia/Shanghai
+    read -rp "请输入时区（默认 Asia/Shanghai）: " TIMEZONE
+    TIMEZONE=${TIMEZONE:-Asia/Shanghai}
+
+    # 是否禁用 ClamAV
+    read -rp "是否禁用 ClamAV（小内存 VPS 推荐 Y）[Y/n]: " DISABLE_CLAMAV
+    DISABLE_CLAMAV=${DISABLE_CLAMAV:-Y}
+
+    echo
+    echo "➡ 域名: $MAILCOW_HOSTNAME"
+    echo "➡ 时区: $TIMEZONE"
+    echo "➡ 禁用 ClamAV: $DISABLE_CLAMAV"
+    echo
+
+    # —— 继续原来的安装流程 —— #
+
+    echo "⚙️ 运行 Mailcow 配置生成脚本..."
+    export MAILCOW_HOSTNAME TIMEZONE
+    yes | bash generate_config.sh
+
+    # 根据选择禁用 ClamAV
+    if [[ "$DISABLE_CLAMAV" =~ ^[Yy]$ ]]; then
+        sed -i 's/^SKIP_CLAMD=.*/SKIP_CLAMD=y/' mailcow.conf
+    fi
+
+    # 拉取镜像并启动
     echo "📦 拉取 Docker 镜像..."
     docker compose pull
 
@@ -94,9 +128,38 @@ install_mailcow() {
     echo "📂 安装目录: ${MAILCOW_DIR}"
     echo ""
     echo "🌐 管理后台: https://${MAILCOW_HOSTNAME}/admin"
-    echo "默认管理员账号: admin"
-    echo "默认密码: moohoo"
+    echo "账号: admin"
+    echo "密码: moohoo"
     echo "请尽快修改密码"
+    echo "------------------------------------------------"
+    echo "DNS配置"
+    echo "A记录"
+    echo "名称: mail"
+    echo "值: 1.1.1.1"
+    echo "------------------------------------------------"
+    echo "CNAME有两个配置"
+    echo "名称: autodiscover"
+    echo "值: ${MAILCOW_HOSTNAME}"
+    echo "------------------------------------------------"
+    echo "名称: autoconfig"
+    echo "值: ${MAILCOW_HOSTNAME}"
+    echo "------------------------------------------------"
+    echo "MX"
+    echo "名称: @"
+    echo "${MAILCOW_HOSTNAME}"
+    echo "优先级10"
+    echo "------------------------------------------------"
+    echo "TXT"
+    echo "@"
+    echo "v=spf1 mx a -all"
+    echo "------------------------------------------------"
+
+    echo "名称: _dmarc"
+    echo "值: v=DMARC1; p=none; pct=100; rua=mailto:port@你的域名.com"
+    echo "------------------------------------------------"
+    echo "dkim._domainkey"
+    echo "查看你的域名获取"
+    echo "${MAILCOW_HOSTNAME}/admin/mailbox"
     echo "------------------------------------------------"
     read -rp "按回车继续..." _
 }
