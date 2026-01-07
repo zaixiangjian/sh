@@ -76,7 +76,10 @@ MAILCOW_HOSTNAME=$(grep '^MAILCOW_HOSTNAME=' mailcow.conf | cut -d= -f2)
 
 
 # 10. 完成提示
-echo "------------------------------------------------"
+echo "开源地址"
+echo "https://github.com/mailcow/mailcow-dockerized"
+echo "官网地址"
+echo "https://mailcow.email/"
 echo "✅ Mailcow 安装完成！"
 echo "📂 安装目录: ${MAILCOW_DIR}"
 echo ""
