@@ -5408,9 +5408,10 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}Caddy备份与恢复 ${gl_huang}★${gl_bai}                     ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
+	  echo -e "${gl_kjlan}77.  ${gl_bai}mailcow-dockerized邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}77.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
-   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
+   	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
       	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
@@ -8302,25 +8303,30 @@ docker_app
 ;;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 		  77)
+		    clear
+		    echo "▶️ mailcow-dockerized邮箱安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailcowdockerized.sh)
+		    echo "✅ mailcow-dockerized邮箱安装完成..."
+		    ;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		  90)
 
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -8421,14 +8427,14 @@ EOF
 		  ;;
 
 
-		  80)
+		  91)
 			clear
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
 		  ;;
 
 
-		  88)
+		  92)
 			echo "正在添加本地 hosts 解析..."
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
