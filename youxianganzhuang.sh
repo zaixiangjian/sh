@@ -155,7 +155,7 @@ install_mailcow() {
     echo "------------------------------------------------"
     echo "名称: _dmarc"
     echo "值"
-    echo "v=DMARC1; p=reject; pct=100; aspf=s; adkim=s; fo=1; rua=mailto:noreply@你的域名.com"
+    echo "v=DMARC1; p=reject; aspf=s; adkim=s; fo=1; rua=mailto:noreply@你的域名.com"
     echo "------------------------------------------------"
     echo "dkim._domainkey"
     echo "查看你的域名获取"
