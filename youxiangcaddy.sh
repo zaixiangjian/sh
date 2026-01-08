@@ -24,6 +24,43 @@ fi
 # ------------------------------
 show_menu() {
     clear
+
+
+
+
+
+# ------------------------------
+# 查询并显示证书同步定时任务（不关心日志）
+# ------------------------------
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+echo "=============================="
+# Caddy 同步脚本
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/usr/local/bin/mailcow_caddy_sync.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ Caddy 证书同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ Caddy 证书同步定时任务不存在"
+fi
+
+# ZSFZ 同步脚本
+ZSFZ_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhi_sync.sh" | head -n 1)
+if [ -n "$ZSFZ_LINE" ]; then
+    echo "✅ ZSFZ 证书同步定时任务已存在:"
+    echo "   $ZSFZ_LINE"
+else
+    echo "⚠️ ZSFZ 证书同步定时任务不存在"
+fi
+echo "=============================="
+
+
+
+
+
+
+
+
+
     echo "=============================="
     echo " Mailcow + Caddy 管理脚本"
     echo "=============================="
@@ -35,11 +72,35 @@ show_menu() {
     echo "=============================="
     echo "或使用nano直接编辑"
     echo "nano /home/docker/mailcow-dockerized/mailcow.conf"
+
     echo "=============================="
+    echo "查看证书是否生效"
+    echo "cd /home/docker/mailcow-dockerized"
+    echo "openssl x509 -in data/assets/ssl/cert.pem -noout -fingerprint -sha256"
+    echo "=============================="
+    echo "openssl x509 \
+-in /home/docker/mailcow-dockerized/data/assets/ssl/cert.pem \
+-noout -subject -issuer -dates"
+    echo "Postfix 容器查询"
+    echo "docker exec mailcowdockerized-postfix-mailcow-1 \
+openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
+    echo "=============================="
+    echo "Dovecot 容器查询"
+    echo "docker exec mailcowdockerized-dovecot-mailcow-1 \
+openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
+    echo "=============================="
+
+
+
+
+
     echo "1) 安装 Mailcow + Caddy"
     echo "2) 更新 Mailcow"
     echo "3) 备份 Mailcow"
     echo "4) 恢复 Mailcow"
+
+    echo "5) 自动复制证书"
+
     echo "9) 卸载 Mailcow"
     echo "0) 退出"
     echo "=============================="
@@ -52,6 +113,7 @@ read_choice() {
         2) update_mailcow ;;
         3) backup_mailcow ;;
         4) restore_mailcow ;;
+        5) sync_certificates ;;
         9) uninstall_mailcow ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo "无效选项"; sleep 1 ;;
@@ -191,7 +253,7 @@ EOF
     # ------------------------------
     # 配置 cron 定时任务每天凌晨 2 点同步证书
     # ------------------------------
-    (crontab -l 2>/dev/null; echo "0 2 * * * ${CADDY_SYNC_SCRIPT} >> /var/log/mailcow_cert_sync.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "0 2 * * * ${CADDY_SYNC_SCRIPT} > /dev/null 2>&1") | crontab -
 
     echo "✅ 安装完成！Mailcow + Caddy 已就绪"
     echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
@@ -211,22 +273,17 @@ update_mailcow() {
     read -rp "按回车继续..." _
 }
 
-
-# ------------------------------
-# 备份函数（含 Caddy 配置，不含日志）
-# ------------------------------
 backup_mailcow() {
     echo "📦 开始备份 Mailcow + Caddy（不含日志）..."
 
-    # 备份文件路径
+    MAILCOW_DIR="/home/docker/mailcow-dockerized"
     BACKUP_FILE="/home/caddy-$(date +%F_%H%M%S).tar.gz"
 
-    # 确认
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消备份"; return; }
 
-    # 打包备份（保持绝对路径）
-    tar czf "$BACKUP_FILE" \
+    # 使用运维级参数，保证可跨机器恢复
+    tar --numeric-owner --xattrs --acls -czf "$BACKUP_FILE" \
         -C "/" etc/caddy \
         -C "/" var/lib/caddy \
         -C "/" home/docker/mailcow-dockerized
@@ -235,14 +292,12 @@ backup_mailcow() {
     read -rp "按回车继续..." _
 }
 
-# ------------------------------
-# 恢复函数（含 Caddy 配置，不恢复日志）
-# ------------------------------
 restore_mailcow() {
-    # 自动选择 /home 下最新备份文件
+    MAILCOW_DIR="/home/docker/mailcow-dockerized"
+
     FILE=$(ls -t /home/caddy-*.tar.gz 2>/dev/null | head -n1)
     if [ -z "$FILE" ]; then
-        echo "❌ 找不到备份文件 (/home 下)"
+        echo "❌ 找不到备份文件 (/home/caddy-*.tar.gz)"
         read -rp "按回车继续..." _
         return
     fi
@@ -250,48 +305,46 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow + Caddy 配置 (y/N): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消恢复"; return; }
 
+    echo "⏹ 停止服务..."
+    systemctl stop caddy 2>/dev/null || true
+    if command -v docker >/dev/null 2>&1 && [ -d "$MAILCOW_DIR" ]; then
+        docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down 2>/dev/null || true
+    fi
 
-    echo "📦 检查 Caddy 是否安装..."
+    echo "📦 检查运行环境..."
+    command -v docker >/dev/null 2>&1 || { echo "❌ Docker 未安装"; return; }
+    command -v docker compose >/dev/null 2>&1 || { echo "❌ docker compose 不存在"; return; }
+
     if ! command -v caddy >/dev/null 2>&1; then
-        echo "⚠️ Caddy 未安装，正在自动安装..."
-        export DEBIAN_FRONTEND=noninteractive
+        echo "⚠️ Caddy 未安装，正在安装..."
         apt update
         apt install -y -o Dpkg::Options::="--force-confold" caddy
     fi
 
-    # 确保 caddy 用户存在
     if ! id -u caddy >/dev/null 2>&1; then
-        echo "⚠️ 创建 caddy 用户和组..."
         groupadd -f caddy
         useradd -r -g caddy -d /var/lib/caddy -s /usr/sbin/nologin caddy
     fi
 
-    echo "📦 开始恢复 Mailcow + Caddy 配置..."
+    echo "📦 开始恢复数据..."
+    mkdir -p /etc/caddy /var/lib/caddy /home/docker
+    tar --numeric-owner --xattrs --acls -xzf "$FILE" -C /
 
-    # 停止服务
-    systemctl stop caddy 2>/dev/null || true
-    [ -d "${MAILCOW_DIR}" ] && docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down 2>/dev/null || true
-
-    # 确保目录存在
-    mkdir -p /etc/caddy /var/lib/caddy /home/docker/mailcow-dockerized
-
-    # 恢复配置（保持绝对路径）
-    tar xzf "$FILE" -C /
-
-    # 修复权限
+    echo "🔐 修复 Caddy 权限..."
     chown -R caddy:caddy /etc/caddy /var/lib/caddy
 
-    # 启动 Mailcow
-    cd "${MAILCOW_DIR}" || { echo "❌ ${MAILCOW_DIR} 不存在"; return; }
+    echo "🚀 启动 Mailcow..."
+    cd "$MAILCOW_DIR" || { echo "❌ ${MAILCOW_DIR} 不存在"; return; }
     docker compose up -d
 
-    # 启动 Caddy
+    echo "🌐 启动 Caddy..."
     systemctl enable caddy
     systemctl restart caddy
 
     echo "✅ 恢复完成！Mailcow + Caddy 已启动"
     read -rp "按回车继续..." _
 }
+
 
 
 # ------------------------------
@@ -309,6 +362,85 @@ uninstall_mailcow() {
     echo "✅ Mailcow 已卸载"
     read -rp "按回车继续..." _
 }
+
+
+
+
+
+
+
+
+
+# ------------------------------
+# 证书同步函数（菜单选项 5）
+# ------------------------------
+sync_certificates() {
+    read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
+    if [ -z "$ZSFZ_DOMAIN" ]; then
+        echo "❌ 域名不能为空"
+        return
+    fi
+
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhi_sync.sh"
+
+    # 生成同步脚本（手动执行，无日志）
+    cat > "$ZSFZ_SYNC" <<EOF
+#!/usr/bin/env bash
+# 自动复制 Mailcow SSL 证书（手动执行）
+set -e
+
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${ZSFZ_DOMAIN}"
+CADDY_CERTS_BASE="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory"
+
+CERT_DIR=\$(find "\$CADDY_CERTS_BASE" -type d -name "\$MAILCOW_HOSTNAME" | head -n1)
+if [ ! -d "\$CERT_DIR" ]; then exit 1; fi
+
+CRT_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.key"
+
+if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then exit 1; fi
+
+mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+
+MD5_CURRENT_CERT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}' || echo "")
+MD5_NEW_CERT=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
+
+if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+    docker restart \$(docker ps -qaf name=postfix-mailcow) \\
+                   \$(docker ps -qaf name=dovecot-mailcow) \\
+                   \$(docker ps -qaf name=nginx-mailcow)
+fi
+EOF
+
+    chmod +x "$ZSFZ_SYNC"
+
+    # 安装定时任务（每天凌晨 2 点执行，无日志）
+    CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
+    if [ -z "$CRON_EXISTS" ]; then
+        (crontab -l 2>/dev/null; echo "0 2 * * * ${ZSFZ_SYNC}") | crontab -
+        echo "✅ 定时任务已安装，每天凌晨 2 点自动执行（无日志）"
+    else
+        echo "✅ 定时任务已存在"
+    fi
+
+    echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
+    read -rp "按回车继续..." _
+}
+
+
+
+
+
+
+
+
+
 
 # ------------------------------
 # 主循环
