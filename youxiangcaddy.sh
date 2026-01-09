@@ -356,7 +356,7 @@ backup_mailcow() {
     echo "📦 开始备份 Mailcow + Caddy（不含日志）..."
 
     # 备份文件路径
-    BACKUP_FILE="/home/caddy-$(date +%F_%H%M%S).tar.gz"
+    BACKUP_FILE="/home/mailcaddy-$(date +%F_%H%M%S).tar.gz"
 
     # 确认
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
@@ -388,9 +388,9 @@ restore_mailcow() {
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
 
     # 自动选择 /home 下最新备份文件
-    FILE=$(ls -t /home/caddy-*.tar.gz 2>/dev/null | head -n1)
+    FILE=$(ls -t /home/mailcaddy-*.tar.gz 2>/dev/null | head -n1)
     if [ -z "$FILE" ]; then
-        echo "❌ 找不到备份文件 (/home/caddy-*.tar.gz)"
+        echo "❌ 找不到备份文件 (/home/mailcaddy-*.tar.gz)"
         read -rp "按回车继续..." _
         return
     fi
