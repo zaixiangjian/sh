@@ -191,9 +191,9 @@ install_mailcow() {
     sed -i "s|^MAILCOW_HOSTNAME=.*|MAILCOW_HOSTNAME=${MAILCOW_HOSTNAME}|" mailcow.conf
     sed -i "s|^SKIP_LETS_ENCRYPT=.*|SKIP_LETS_ENCRYPT=y|" mailcow.conf
     sed -i "s|^HTTP_BIND=.*|HTTP_BIND=127.0.0.1|" mailcow.conf
-    sed -i "s|^HTTP_PORT=.*|HTTP_PORT=8080|" mailcow.conf
+    sed -i "s|^HTTP_PORT=.*|HTTP_PORT=8880|" mailcow.conf
     sed -i "s|^HTTPS_BIND=.*|HTTPS_BIND=127.0.0.1|" mailcow.conf
-    sed -i "s|^HTTPS_PORT=.*|HTTPS_PORT=8443|" mailcow.conf
+    sed -i "s|^HTTPS_PORT=.*|HTTPS_PORT=2053|" mailcow.conf
     if [[ "$DISABLE_CLAMAV" =~ ^[Yy]$ ]]; then
         sed -i 's/^SKIP_CLAMD=.*/SKIP_CLAMD=y/' mailcow.conf
     fi
@@ -219,7 +219,7 @@ install_mailcow() {
     # 生成 Caddyfile
     cat > /etc/caddy/Caddyfile <<EOF
 ${MAILCOW_HOSTNAME} autodiscover.${MAILCOW_HOSTNAME} autoconfig.${MAILCOW_HOSTNAME} {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:8880
 }
 
 
