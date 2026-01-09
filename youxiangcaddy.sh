@@ -87,7 +87,7 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
     echo "1) 安装 Mailcow + Caddy"
     echo "2) 更新 Mailcow"
     echo "3) 备份 Mailcow"
-    echo "4) 恢复 Mailcow"
+    echo "4) 恢复 手动创建/home/docker 安装docker"
 
     echo "5) 自动复制证书"
 
