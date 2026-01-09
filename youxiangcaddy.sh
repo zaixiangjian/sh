@@ -401,11 +401,11 @@ restore_mailcow() {
 # ------------------------------
 # 安装每日 2 点执行的 cron（防止重复，安全写入）
 # ------------------------------
-CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhu.sh"
+CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhi.sh"
 
 TMP_CRON=$(mktemp)
 crontab -l 2>/dev/null > "$TMP_CRON" || true
-grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhu.sh" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
+grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
 crontab "$TMP_CRON"
 rm -f "$TMP_CRON"
 
