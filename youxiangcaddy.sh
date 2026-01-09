@@ -9,7 +9,7 @@ MAILCOW_DIR="${INSTALL_DIR}/mailcow-dockerized"
 BACKUP_DIR="/home/caddy"
 CADDYFILE_DIR="/etc/caddy"
 CADDY_LOG_DIR="/var/log/caddy"
-CADDY_SYNC_SCRIPT="/usr/local/bin/mailcow_caddy_sync.sh"
+CADDY_SYNC_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
 
 # ------------------------------
 # 检查 root 用户
@@ -45,7 +45,7 @@ else
 fi
 
 # ZSFZ 同步脚本
-ZSFZ_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhi_sync.sh" | head -n 1)
+ZSFZ_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" | head -n 1)
 if [ -n "$ZSFZ_LINE" ]; then
     echo "✅ ZSFZ 证书同步定时任务已存在:"
     echo "   $ZSFZ_LINE"
