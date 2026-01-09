@@ -44,15 +44,6 @@ else
     echo "⚠️ Caddy 证书同步定时任务不存在"
 fi
 
-# ZSFZ 同步脚本
-ZSFZ_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" | head -n 1)
-if [ -n "$ZSFZ_LINE" ]; then
-    echo "✅ ZSFZ 证书同步定时任务已存在:"
-    echo "   $ZSFZ_LINE"
-else
-    echo "⚠️ ZSFZ 证书同步定时任务不存在"
-fi
-echo "=============================="
 
 
 
