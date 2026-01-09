@@ -8306,14 +8306,14 @@ docker_app
 		  77)
 		    clear
 		    echo "▶️ mailcow-dockerized邮箱安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/youxianganzhuang.sh)
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginx.sh)
 		    echo "✅ mailcow-dockerized邮箱安装完成..."
 		    ;;
 
 		  78)
 		    clear
 		    echo "▶️ mailcow-dockerized邮箱安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/youxiangcaddy.sh)
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailcaddy.sh)
 		    echo "✅ mailcow-dockerized邮箱安装完成..."
 		    ;;
 
