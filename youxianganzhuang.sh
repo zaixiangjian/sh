@@ -191,7 +191,7 @@ backup_mailcow() {
         return
     fi
     echo "📦 备份中..."
-    tar czf "${BACKUP_DIR}-$(date +%F).tar.gz" -C "${INSTALL_DIR}" mailcow-dockerized
+    tar czf "${BACKUP_DIR}-$(date +%F_%H%M%S).tar.gz" -C "${INSTALL_DIR}" mailcow-dockerized
     echo "✅ 备份完成: ${BACKUP_DIR}-$(date +%F).tar.gz"
     read -rp "按回车继续..." _
 }
