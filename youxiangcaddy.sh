@@ -36,7 +36,7 @@ show_menu() {
 CURRENT_CRON=$(crontab -l 2>/dev/null || true)
 echo "=============================="
 # Caddy 同步脚本
-CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/usr/local/bin/mailcow_caddy_sync.sh" | head -n 1)
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshuruzhi2.sh" | head -n 1)
 if [ -n "$CADDY_LINE" ]; then
     echo "✅ Caddy 证书同步定时任务已存在:"
     echo "   $CADDY_LINE"
@@ -229,36 +229,54 @@ EOF
     systemctl enable caddy
     systemctl restart caddy
 
-    # ------------------------------
-    # 生成 Caddy -> Mailcow 证书同步脚本
-    # ------------------------------
-    cat > "${CADDY_SYNC_SCRIPT}" <<EOF
+# ------------------------------
+# 生成 Caddy -> Mailcow 证书同步脚本
+# ------------------------------
+ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshuruzhi2.sh"
+
+cat > "$ZSFZ2_SCRIPT" <<EOF
 #!/usr/bin/env bash
+set -e
+
 MAILCOW_DIR="${MAILCOW_DIR}"
 MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
 CADDY_CERTS_DIR="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/\$MAILCOW_HOSTNAME"
 
-MD5_CURRENT_CERT=\$(md5sum \$MAILCOW_DIR/data/assets/ssl/cert.pem | awk '{print \$1}')
-MD5_NEW_CERT=\$(md5sum \$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.crt | awk '{print \$1}')
+CRT_FILE="\$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.key"
 
-if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
-    cp \$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.crt \$MAILCOW_DIR/data/assets/ssl/cert.pem
-    cp \$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.key \$MAILCOW_DIR/data/assets/ssl/key.pem
-    mkdir -p \$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME
-    cp \$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.crt \$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem
-    cp \$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.key \$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem
-    docker restart \$(docker ps -qaf name=postfix-mailcow) \$(docker ps -qaf name=dovecot-mailcow) \$(docker ps -qaf name=nginx-mailcow)
+[ -f "\$CRT_FILE" ] || exit 0
+[ -f "\$KEY_FILE" ] || exit 0
+
+MD5_CURRENT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}')
+MD5_NEW=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
+
+if [ "\$MD5_CURRENT" != "\$MD5_NEW" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+
+    mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+    docker restart \$(docker ps -qaf name=postfix-mailcow) \
+                   \$(docker ps -qaf name=dovecot-mailcow) \
+                   \$(docker ps -qaf name=nginx-mailcow)
 fi
 EOF
-    chmod +x "${CADDY_SYNC_SCRIPT}"
 
-    # ------------------------------
-    # 配置 cron 定时任务每天凌晨 2 点同步证书
-    # ------------------------------
-    (crontab -l 2>/dev/null; echo "0 2 * * * ${CADDY_SYNC_SCRIPT} >> /var/log/mailcow_cert_sync.log 2>&1") | crontab -
+chmod +x "$ZSFZ2_SCRIPT"
 
-    echo "✅ 安装完成！Mailcow + Caddy 已就绪"
-    echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
+# ------------------------------
+# 配置 cron（每天凌晨 2 点执行，无日志）
+# ------------------------------
+CRON_LINE="0 2 * * * /bin/bash $ZSFZ2_SCRIPT"
+
+crontab -l 2>/dev/null | grep -F "$ZSFZ2_SCRIPT" >/dev/null \
+  || (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+
+echo "✅ 安装完成！Mailcow + Caddy 已就绪"
+echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
 }
 
 
