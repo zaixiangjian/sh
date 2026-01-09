@@ -364,9 +364,14 @@ backup_mailcow() {
 
     # 打包备份（保持绝对路径）
     tar czf "$BACKUP_FILE" \
-        -C "/" etc/caddy \
-        -C "/" var/lib/caddy \
-        -C "/" home/docker/mailcow-dockerized
+        -C /home/docker mailcow-dockerized/mailcow.conf \
+        -C /home/docker mailcow-dockerized/docker-compose.yml \
+        -C /home/docker mailcow-dockerized/data \
+        -C /var/lib/docker/volumes mailcowdockerized_vmail-vol-1/_data \
+        -C /var/lib/docker/volumes mailcowdockerized_mysql-vol-1/_data \
+        -C /var/lib/docker/volumes mailcowdockerized_rspamd-vol-1/_data \
+        -C /etc caddy \
+        -C /var/lib caddy
 
     echo "✅ 备份完成: $BACKUP_FILE"
     read -rp "按回车继续..." _
