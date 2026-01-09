@@ -194,6 +194,7 @@ install_mailcow() {
     sed -i "s|^HTTP_PORT=.*|HTTP_PORT=8880|" mailcow.conf
     sed -i "s|^HTTPS_BIND=.*|HTTPS_BIND=127.0.0.1|" mailcow.conf
     sed -i "s|^HTTPS_PORT=.*|HTTPS_PORT=2053|" mailcow.conf
+    sed -i "s|^HTTP_REDIRECT=.*|HTTP_REDIRECT=n|" mailcow.conf
     if [[ "$DISABLE_CLAMAV" =~ ^[Yy]$ ]]; then
         sed -i 's/^SKIP_CLAMD=.*/SKIP_CLAMD=y/' mailcow.conf
     fi
