@@ -232,7 +232,7 @@ EOF
 # ------------------------------
 # 生成 Caddy -> Mailcow 证书同步脚本
 # ------------------------------
-ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhu.sh"
+ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
 
 cat > "$ZSFZ2_SCRIPT" <<EOF
 #!/usr/bin/env bash
@@ -286,6 +286,14 @@ crontab "$TMP_CRON"
 
 # 删除临时文件
 rm -f "$TMP_CRON"
+
+
+# 清屏输出
+  clear
+
+
+
+
 
 
 
