@@ -29,6 +29,7 @@ show_menu() {
 
 
 
+
 # ------------------------------
 # 查询并显示证书同步定时任务（不关心日志）
 # ------------------------------
@@ -92,8 +93,6 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
 
 
 
-
-
     echo "1) 安装 Mailcow + Caddy"
     echo "2) 更新 Mailcow"
     echo "3) 备份 Mailcow"
@@ -113,7 +112,9 @@ read_choice() {
         2) update_mailcow ;;
         3) backup_mailcow ;;
         4) restore_mailcow ;;
+
         5) sync_certificates ;;
+
         9) uninstall_mailcow ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo "无效选项"; sleep 1 ;;
@@ -253,7 +254,7 @@ EOF
     # ------------------------------
     # 配置 cron 定时任务每天凌晨 2 点同步证书
     # ------------------------------
-    (crontab -l 2>/dev/null; echo "0 2 * * * ${CADDY_SYNC_SCRIPT} > /dev/null 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "0 2 * * * ${CADDY_SYNC_SCRIPT} >> /var/log/mailcow_cert_sync.log 2>&1") | crontab -
 
     echo "✅ 安装完成！Mailcow + Caddy 已就绪"
     echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
@@ -273,17 +274,22 @@ update_mailcow() {
     read -rp "按回车继续..." _
 }
 
+
+# ------------------------------
+# 备份函数（含 Caddy 配置，不含日志）
+# ------------------------------
 backup_mailcow() {
     echo "📦 开始备份 Mailcow + Caddy（不含日志）..."
 
-    MAILCOW_DIR="/home/docker/mailcow-dockerized"
+    # 备份文件路径
     BACKUP_FILE="/home/caddy-$(date +%F_%H%M%S).tar.gz"
 
+    # 确认
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消备份"; return; }
 
-    # 使用运维级参数，保证可跨机器恢复
-    tar --numeric-owner --xattrs --acls -czf "$BACKUP_FILE" \
+    # 打包备份（保持绝对路径）
+    tar czf "$BACKUP_FILE" \
         -C "/" etc/caddy \
         -C "/" var/lib/caddy \
         -C "/" home/docker/mailcow-dockerized
@@ -292,12 +298,14 @@ backup_mailcow() {
     read -rp "按回车继续..." _
 }
 
+# ------------------------------
+# 恢复函数（含 Caddy 配置，不恢复日志）
+# ------------------------------
 restore_mailcow() {
-    MAILCOW_DIR="/home/docker/mailcow-dockerized"
-
+    # 自动选择 /home 下最新备份文件
     FILE=$(ls -t /home/caddy-*.tar.gz 2>/dev/null | head -n1)
     if [ -z "$FILE" ]; then
-        echo "❌ 找不到备份文件 (/home/caddy-*.tar.gz)"
+        echo "❌ 找不到备份文件 (/home 下)"
         read -rp "按回车继续..." _
         return
     fi
@@ -305,46 +313,48 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow + Caddy 配置 (y/N): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消恢复"; return; }
 
-    echo "⏹ 停止服务..."
-    systemctl stop caddy 2>/dev/null || true
-    if command -v docker >/dev/null 2>&1 && [ -d "$MAILCOW_DIR" ]; then
-        docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down 2>/dev/null || true
-    fi
 
-    echo "📦 检查运行环境..."
-    command -v docker >/dev/null 2>&1 || { echo "❌ Docker 未安装"; return; }
-    command -v docker compose >/dev/null 2>&1 || { echo "❌ docker compose 不存在"; return; }
-
+    echo "📦 检查 Caddy 是否安装..."
     if ! command -v caddy >/dev/null 2>&1; then
-        echo "⚠️ Caddy 未安装，正在安装..."
+        echo "⚠️ Caddy 未安装，正在自动安装..."
+        export DEBIAN_FRONTEND=noninteractive
         apt update
         apt install -y -o Dpkg::Options::="--force-confold" caddy
     fi
 
+    # 确保 caddy 用户存在
     if ! id -u caddy >/dev/null 2>&1; then
+        echo "⚠️ 创建 caddy 用户和组..."
         groupadd -f caddy
         useradd -r -g caddy -d /var/lib/caddy -s /usr/sbin/nologin caddy
     fi
 
-    echo "📦 开始恢复数据..."
-    mkdir -p /etc/caddy /var/lib/caddy /home/docker
-    tar --numeric-owner --xattrs --acls -xzf "$FILE" -C /
+    echo "📦 开始恢复 Mailcow + Caddy 配置..."
 
-    echo "🔐 修复 Caddy 权限..."
+    # 停止服务
+    systemctl stop caddy 2>/dev/null || true
+    [ -d "${MAILCOW_DIR}" ] && docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down 2>/dev/null || true
+
+    # 确保目录存在
+    mkdir -p /etc/caddy /var/lib/caddy /home/docker/mailcow-dockerized
+
+    # 恢复配置（保持绝对路径）
+    tar xzf "$FILE" -C /
+
+    # 修复权限
     chown -R caddy:caddy /etc/caddy /var/lib/caddy
 
-    echo "🚀 启动 Mailcow..."
-    cd "$MAILCOW_DIR" || { echo "❌ ${MAILCOW_DIR} 不存在"; return; }
+    # 启动 Mailcow
+    cd "${MAILCOW_DIR}" || { echo "❌ ${MAILCOW_DIR} 不存在"; return; }
     docker compose up -d
 
-    echo "🌐 启动 Caddy..."
+    # 启动 Caddy
     systemctl enable caddy
     systemctl restart caddy
 
     echo "✅ 恢复完成！Mailcow + Caddy 已启动"
     read -rp "按回车继续..." _
 }
-
 
 
 # ------------------------------
@@ -362,11 +372,6 @@ uninstall_mailcow() {
     echo "✅ Mailcow 已卸载"
     read -rp "按回车继续..." _
 }
-
-
-
-
-
 
 
 
@@ -432,6 +437,8 @@ EOF
     echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
     read -rp "按回车继续..." _
 }
+
+
 
 
 
