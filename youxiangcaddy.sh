@@ -377,21 +377,26 @@ backup_mailcow() {
     read -rp "按回车继续..." _
 }
 
+
+
 # ------------------------------
 # 恢复函数（含 Caddy 配置，不恢复日志）
 # ------------------------------
+
 restore_mailcow() {
+
+    MAILCOW_DIR="/home/docker/mailcow-dockerized"
+
     # 自动选择 /home 下最新备份文件
     FILE=$(ls -t /home/caddy-*.tar.gz 2>/dev/null | head -n1)
     if [ -z "$FILE" ]; then
-        echo "❌ 找不到备份文件 (/home 下)"
+        echo "❌ 找不到备份文件 (/home/caddy-*.tar.gz)"
         read -rp "按回车继续..." _
         return
     fi
 
     read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow + Caddy 配置 (y/N): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消恢复"; return; }
-
 
     echo "📦 检查 Caddy 是否安装..."
     if ! command -v caddy >/dev/null 2>&1; then
@@ -408,62 +413,65 @@ restore_mailcow() {
         useradd -r -g caddy -d /var/lib/caddy -s /usr/sbin/nologin caddy
     fi
 
-    echo "📦 开始恢复 Mailcow + Caddy 配置..."
-
-    # 停止服务
+    echo "🛑 停止 Caddy..."
     systemctl stop caddy 2>/dev/null || true
-    [ -d "${MAILCOW_DIR}" ] && docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down 2>/dev/null || true
 
-    # 确保目录存在
-    mkdir -p /etc/caddy /var/lib/caddy /home/docker/mailcow-dockerized
+    echo "🛑 停止 Mailcow（如果存在）..."
+    if [ -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
+        cd "${MAILCOW_DIR}" || true
+        docker compose down
+    fi
 
-    # 恢复配置（保持绝对路径）
+    echo "📁 准备目录..."
+    mkdir -p \
+        /etc/caddy \
+        /var/lib/caddy \
+        "${MAILCOW_DIR}"
+
+    echo "📦 解压恢复备份..."
     tar xzf "$FILE" -C /
 
-    # 修复权限
+    # ====== 关键校验（非常重要） ======
+    if [ ! -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
+        echo "❌ docker-compose.yml 未成功恢复，终止"
+        return
+    fi
+
+    if [ ! -f "${MAILCOW_DIR}/mailcow.conf" ]; then
+        echo "❌ mailcow.conf 未成功恢复，终止"
+        return
+    fi
+
+    echo "🔐 修复 Caddy 权限..."
     chown -R caddy:caddy /etc/caddy /var/lib/caddy
 
-    # 启动 Mailcow
-    cd "${MAILCOW_DIR}" || { echo "❌ ${MAILCOW_DIR} 不存在"; return; }
+    echo "🔒 锁定 mailcow.conf（防止被更新覆盖）"
+    chattr +i "${MAILCOW_DIR}/mailcow.conf" 2>/dev/null || true
+
+    echo "🚀 启动 Mailcow..."
+    cd "${MAILCOW_DIR}" || {
+        echo "❌ 无法进入 ${MAILCOW_DIR}"
+        return
+    }
     docker compose up -d
 
-    # 启动 Caddy
+    echo "🚀 启动 Caddy..."
     systemctl enable caddy
     systemctl restart caddy
 
+    # ------------------------------
+    # 安装每日 2 点执行的 cron（防重复）
+    # ------------------------------
+    CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhi.sh"
 
-
-# ------------------------------
-# 安装每日 2 点执行的 cron（防止重复，安全写入）
-# ------------------------------
-CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhi.sh"
-
-TMP_CRON=$(mktemp)
-crontab -l 2>/dev/null > "$TMP_CRON" || true
-grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
-crontab "$TMP_CRON"
-rm -f "$TMP_CRON"
-
-
+    TMP_CRON=$(mktemp)
+    crontab -l 2>/dev/null > "$TMP_CRON" || true
+    grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" \
+        || echo "$CRON_LINE" >> "$TMP_CRON"
+    crontab "$TMP_CRON"
+    rm -f "$TMP_CRON"
 
     echo "✅ 恢复完成！Mailcow + Caddy 已启动"
-    read -rp "按回车继续..." _
-}
-
-
-# ------------------------------
-# 卸载函数
-# ------------------------------
-uninstall_mailcow() {
-    read -rp "⚠️ 确认卸载 Mailcow？(y/yes): " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "取消卸载"
-        return
-    fi
-    cd "${MAILCOW_DIR}" || return
-    docker compose down
-    rm -rf "${MAILCOW_DIR}"
-    echo "✅ Mailcow 已卸载"
     read -rp "按回车继续..." _
 }
 
