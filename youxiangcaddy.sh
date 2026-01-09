@@ -370,7 +370,7 @@ backup_mailcow() {
         -C / home/docker/mailcow-dockerized \
         /var/lib/docker/volumes/mailcowdockerized_vmail-vol-1/_data \
         /var/lib/docker/volumes/mailcowdockerized_mysql-vol-1/_data \
-        /var/lib/docker/volumes/mailcowdockerized_rspamd-vol-1/_data \
+        /var/lib/docker/volumes/mailcowdockerized_rspamd-vol-1/_data
 
 
     echo "✅ 备份完成: $BACKUP_FILE"
@@ -429,12 +429,12 @@ restore_mailcow() {
         "${MAILCOW_DIR}"
 
 
-    # 解除锁
-    chattr -i "${MAILCOW_DIR}/mailcow.conf" 2>/dev/null || true
+    # 解除整个 mailcow-dockerized 目录下的不可变锁
+    find "$MAILCOW_DIR" -type f -exec chattr -i {} \; 2>/dev/null
 
 
-    echo "📦 解压恢复备份..."
-    tar xzf "$FILE" -C / --overwrite
+    echo "📦 解压恢复备份...解压覆盖"
+    tar xzf "$FILE" -C /
 
 
 
