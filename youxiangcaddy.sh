@@ -367,7 +367,7 @@ backup_mailcow() {
     tar czf "$BACKUP_FILE" \
         -C "/" etc/caddy \
         -C "/" var/lib/caddy \
-        -C "/" home/docker/mailcow-dockerized
+        -C / home/docker/mailcow-dockerized \
         /var/lib/docker/volumes/mailcowdockerized_vmail-vol-1/_data \
         /var/lib/docker/volumes/mailcowdockerized_mysql-vol-1/_data \
         /var/lib/docker/volumes/mailcowdockerized_rspamd-vol-1/_data \
