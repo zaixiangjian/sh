@@ -191,7 +191,7 @@ backup_mailcow() {
         return
     fi
 
-    BACKUP_FILE="/home/nginx-$(date +%F_%H%M%S).tar.gz"
+    BACKUP_FILE="/home/mailnginx-$(date +%F_%H%M%S).tar.gz"
 
     echo "📦 开始备份 Mailcow + Docker 卷数据..."
 
@@ -218,7 +218,7 @@ backup_mailcow() {
 
 # 恢复
 restore_mailcow() {
-    FILE=$(ls /home/nginx-*.tar.gz 2>/dev/null | tail -n1)
+    FILE=$(ls /home/mailnginx-*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
         echo "❌ 找不到备份文件"
         read -rp "按回车继续..." _
