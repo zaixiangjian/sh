@@ -190,20 +190,41 @@ backup_mailcow() {
         read -rp "按回车继续..." _
         return
     fi
-    echo "📦 备份中..."
-    tar czf "${BACKUP_DIR}-$(date +%F).tar.gz" -C "${INSTALL_DIR}" mailcow-dockerized
-    echo "✅ 备份完成: ${BACKUP_DIR}-$(date +%F).tar.gz"
+
+    BACKUP_FILE="/home/nginx-$(date +%F_%H%M%S).tar.gz"
+
+    echo "📦 开始备份 Mailcow + Docker 卷数据..."
+
+    # 创建临时目录
+    TMP_DIR=$(mktemp -d)
+    echo "🗂️ 复制主程序到临时目录..."
+    cp -r "${MAILCOW_DIR}" "$TMP_DIR/"
+
+    echo "🐳 导出 Docker 卷数据..."
+    for VOL in vmail mysql rspamd; do
+        docker run --rm -v mailcowdockerized_${VOL}-vol-1:/${VOL} -v "$TMP_DIR":/backup alpine \
+            sh -c "tar czf /backup/${VOL}.tar.gz -C /${VOL} ."
+    done
+
+    echo "📦 打包全部到 $BACKUP_FILE ..."
+    tar czf "$BACKUP_FILE" -C "$TMP_DIR" .
+
+    echo "✅ 备份完成: $BACKUP_FILE"
+    # 删除临时目录
+    rm -rf "$TMP_DIR"
     read -rp "按回车继续..." _
 }
 
+
 # 恢复
 restore_mailcow() {
-    FILE=$(ls /home/mail*.tar.gz 2>/dev/null | tail -n1)
+    FILE=$(ls /home/nginx-*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
         echo "❌ 找不到备份文件"
         read -rp "按回车继续..." _
         return
     fi
+
     read -rp "⚠️ 确认恢复 ${FILE}？此操作会覆盖当前安装！(yes/no): " confirm
     if [ "$confirm" != "yes" ]; then
         echo "取消恢复"
@@ -211,21 +232,33 @@ restore_mailcow() {
         return
     fi
 
-    echo "📦 恢复中..."
-    # 确保安装目录存在
-    mkdir -p "${INSTALL_DIR}"
+
+
+
+
+    echo "🔓 解除不可变锁..."
+    find "${MAILCOW_DIR}" -type f -exec chattr -i {} \; 2>/dev/null || true
+
+    echo "📦 直接解压覆盖主程序..."
     tar xzf "$FILE" -C "${INSTALL_DIR}"
 
-    # 检查目录是否存在
-    if [ ! -d "${MAILCOW_DIR}" ]; then
-        echo "❌ 恢复失败: ${MAILCOW_DIR} 不存在"
-        read -rp "按回车继续..." _
-        return
+echo "📦 恢复 Docker 卷数据..."
+for VOL in vmail mysql rspamd; do
+    VOL_FILE="${INSTALL_DIR}/mailcow-dockerized/${VOL}.tar.gz"
+    if [ -f "$VOL_FILE" ]; then
+        docker volume create mailcowdockerized_${VOL}-vol-1 >/dev/null 2>&1 || true
+        docker run --rm \
+          -v mailcowdockerized_${VOL}-vol-1:/${VOL} \
+          -v "${INSTALL_DIR}/mailcow-dockerized":/backup alpine \
+          sh -c "tar xzf /backup/$(basename "$VOL_FILE") -C /${VOL}"
+        rm -f "$VOL_FILE"
     fi
+done
 
-    cd "${MAILCOW_DIR}"
     echo "🚀 启动 Mailcow..."
+    cd "${MAILCOW_DIR}"
     docker compose up -d
+
     echo "✅ 恢复完成"
     read -rp "按回车继续..." _
 }
