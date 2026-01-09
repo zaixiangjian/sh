@@ -268,19 +268,32 @@ EOF
 chmod +x "$ZSFZ2_SCRIPT"
 
 # ------------------------------
-# 配置 cron（每天凌晨 2 点执行，无日志）
+# 配置 cron（每两小时执行，无日志，去重）
 # ------------------------------
-CRON_LINE="0 2 * * * $ZSFZ2_SCRIPT"
+CRON_LINE="0 */2 * * * $ZSFZ2_SCRIPT"
 
-# 检查是否已经存在
-if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ2_SCRIPT"; then
-    # 如果不存在，则追加
-    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
-fi
+# 使用临时文件安全写入 cron
+TMP_CRON=$(mktemp)
+
+# 导出现有 crontab（如果为空，文件就是空）
+crontab -l 2>/dev/null > "$TMP_CRON" || true
+
+# 去重，如果不存在才追加
+grep -Fq "$ZSFZ2_SCRIPT" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
+
+# 写回 crontab
+crontab "$TMP_CRON"
+
+# 删除临时文件
+rm -f "$TMP_CRON"
+
+
+
 
 
 echo "✅ 安装完成！Mailcow + Caddy 已就绪"
 echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
+read -rp "按回车继续..." _
 }
 
 
