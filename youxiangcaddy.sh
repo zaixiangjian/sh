@@ -36,7 +36,7 @@ show_menu() {
 CURRENT_CRON=$(crontab -l 2>/dev/null || true)
 echo "=============================="
 # Caddy 同步脚本
-CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshuruzhi2.sh" | head -n 1)
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" | head -n 1)
 if [ -n "$CADDY_LINE" ]; then
     echo "✅ Caddy 证书同步定时任务已存在:"
     echo "   $CADDY_LINE"
@@ -232,7 +232,7 @@ EOF
 # ------------------------------
 # 生成 Caddy -> Mailcow 证书同步脚本
 # ------------------------------
-ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshuruzhi2.sh"
+ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhu.sh"
 
 cat > "$ZSFZ2_SCRIPT" <<EOF
 #!/usr/bin/env bash
@@ -270,7 +270,7 @@ chmod +x "$ZSFZ2_SCRIPT"
 # ------------------------------
 # 配置 cron（每天凌晨 2 点执行，无日志）
 # ------------------------------
-CRON_LINE="0 2 * * * /bin/bash $ZSFZ2_SCRIPT"
+CRON_LINE="0 2 * * * $ZSFZ2_SCRIPT"
 
 crontab -l 2>/dev/null | grep -F "$ZSFZ2_SCRIPT" >/dev/null \
   || (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
@@ -405,7 +405,7 @@ sync_certificates() {
         return
     fi
 
-    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhi_sync.sh"
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhi.sh"
 
     # 生成同步脚本（手动执行，无日志）
     cat > "$ZSFZ_SYNC" <<EOF
@@ -446,8 +446,10 @@ EOF
 
     # 安装定时任务（每天凌晨 2 点执行，无日志）
     CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
-    if [ -z "$CRON_EXISTS" ]; then
-        (crontab -l 2>/dev/null; echo "0 2 * * * ${ZSFZ_SYNC}") | crontab -
+    if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
+        (crontab -l 2>/dev/null; echo "0 2 * * * $ZSFZ_SYNC") | crontab -
+
+
         echo "✅ 定时任务已安装，每天凌晨 2 点自动执行（无日志）"
     else
         echo "✅ 定时任务已存在"
