@@ -272,8 +272,12 @@ chmod +x "$ZSFZ2_SCRIPT"
 # ------------------------------
 CRON_LINE="0 2 * * * $ZSFZ2_SCRIPT"
 
-crontab -l 2>/dev/null | grep -F "$ZSFZ2_SCRIPT" >/dev/null \
-  || (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+# 检查是否已经存在
+if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ2_SCRIPT"; then
+    # 如果不存在，则追加
+    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+fi
+
 
 echo "✅ 安装完成！Mailcow + Caddy 已就绪"
 echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
