@@ -363,15 +363,15 @@ backup_mailcow() {
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消备份"; return; }
 
     # 打包备份（保持绝对路径）
+
     tar czf "$BACKUP_FILE" \
-        -C /home/docker mailcow-dockerized/mailcow.conf \
-        -C /home/docker mailcow-dockerized/docker-compose.yml \
-        -C /home/docker mailcow-dockerized/data \
-        -C /var/lib/docker/volumes mailcowdockerized_vmail-vol-1/_data \
-        -C /var/lib/docker/volumes mailcowdockerized_mysql-vol-1/_data \
-        -C /var/lib/docker/volumes mailcowdockerized_rspamd-vol-1/_data \
-        -C /etc caddy \
-        -C /var/lib caddy
+        -C "/" etc/caddy \
+        -C "/" var/lib/caddy \
+        -C "/" home/docker/mailcow-dockerized
+        /var/lib/docker/volumes/mailcowdockerized_vmail-vol-1/_data \
+        /var/lib/docker/volumes/mailcowdockerized_mysql-vol-1/_data \
+        /var/lib/docker/volumes/mailcowdockerized_rspamd-vol-1/_data \
+
 
     echo "✅ 备份完成: $BACKUP_FILE"
     read -rp "按回车继续..." _
@@ -428,8 +428,15 @@ restore_mailcow() {
         /var/lib/caddy \
         "${MAILCOW_DIR}"
 
+
+    # 解除锁
+    chattr -i "${MAILCOW_DIR}/mailcow.conf" 2>/dev/null || true
+
+
     echo "📦 解压恢复备份..."
-    tar xzf "$FILE" -C /
+    tar xzf "$FILE" -C / --overwrite
+
+
 
     # ====== 关键校验（非常重要） ======
     if [ ! -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
