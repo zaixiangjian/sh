@@ -270,7 +270,7 @@ chmod +x "$ZSFZ2_SCRIPT"
 # ------------------------------
 # 配置 cron（每两小时执行，无日志，去重）
 # ------------------------------
-CRON_LINE="0 */2 * * * $ZSFZ2_SCRIPT"
+CRON_LINE="0 2 * * * $ZSFZ2_SCRIPT"
 
 # 使用临时文件安全写入 cron
 TMP_CRON=$(mktemp)
@@ -387,6 +387,21 @@ restore_mailcow() {
     # 启动 Caddy
     systemctl enable caddy
     systemctl restart caddy
+
+
+
+# ------------------------------
+# 安装每日 2 点执行的 cron（防止重复，安全写入）
+# ------------------------------
+CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhu.sh"
+
+TMP_CRON=$(mktemp)
+crontab -l 2>/dev/null > "$TMP_CRON" || true
+grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhu.sh" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
+crontab "$TMP_CRON"
+rm -f "$TMP_CRON"
+
+
 
     echo "✅ 恢复完成！Mailcow + Caddy 已启动"
     read -rp "按回车继续..." _
