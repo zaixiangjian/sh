@@ -288,8 +288,8 @@ crontab "$TMP_CRON"
 rm -f "$TMP_CRON"
 
 
-# 清屏输出
-  clear
+    # 清屏输出
+    clear
 
 
 
@@ -297,11 +297,50 @@ rm -f "$TMP_CRON"
 
 
 
+    echo "------------------------------------------------"
+    echo "✅ Mailcow 安装完成！"
+    echo "📂 安装目录: ${MAILCOW_DIR}"
+    echo "------------------------------------------------"
+    echo "DNS配置"
+    echo "A记录"
+    echo "名称: mail"
+    echo "值: 1.1.1.1"
+    echo "------------------------------------------------"
+    echo "CNAME有两个配置"
+    echo "名称: autodiscover"
+    echo "值: ${MAILCOW_HOSTNAME}"
+    echo "------------------------------------------------"
+    echo "名称: autoconfig"
+    echo "值: ${MAILCOW_HOSTNAME}"
+    echo "------------------------------------------------"
+    echo "MX"
+    echo "名称: @"
+    echo "${MAILCOW_HOSTNAME}"
+    echo "优先级10"
+    echo "------------------------------------------------"
+    echo "TXT"
+    echo "@"
+    echo "v=spf1 mx a -all"
+    echo "------------------------------------------------"
+    echo "名称: _dmarc"
+    echo "值"
+    echo "v=DMARC1; p=reject; aspf=s; adkim=s; fo=1; rua=mailto:noreply@你的域名.com"
+    echo "------------------------------------------------"
+    echo "dkim._domainkey"
+    echo "查看你的域名获取"
+    echo "https://${MAILCOW_HOSTNAME}/admin/mailbox"
+    echo "------------------------------------------------"
+    echo "✅ 安装完成！Mailcow + Caddy 已就绪"
+    echo "https://${MAILCOW_HOSTNAME}/admin"
+    echo "账号: admin"
+    echo "密码: moohoo"
+    echo "请尽快修改密码"
+    echo "------------------------------------------------"
 
 
-echo "✅ 安装完成！Mailcow + Caddy 已就绪"
-echo "管理后台: https://${MAILCOW_HOSTNAME}/admin"
-read -rp "按回车继续..." _
+
+
+    read -rp "按回车继续..." _
 }
 
 
