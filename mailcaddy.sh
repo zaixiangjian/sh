@@ -410,6 +410,41 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow + Caddy 配置 (y/N): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消恢复"; return; }
 
+
+
+    # ------------------------------
+    # 检查 Docker 是否安装
+    # ------------------------------
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "⚠️ Docker 未安装，正在自动安装..."
+        install_docker() {
+            echo "🔄 安装 Docker..."
+            apt update
+            apt install -y ca-certificates curl gnupg lsb-release
+
+            mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+              $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+            apt update
+            apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+            systemctl enable docker
+            systemctl start docker
+            echo "✅ Docker 安装完成"
+            docker --version
+        }
+        install_docker
+    else
+        echo "✅ Docker 已安装"
+    fi
+
+
+
+
     echo "📦 检查 Caddy 是否安装..."
     if ! command -v caddy >/dev/null 2>&1; then
         echo "⚠️ Caddy 未安装，正在自动安装..."
