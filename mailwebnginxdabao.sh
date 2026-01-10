@@ -45,7 +45,12 @@ fi
     echo "1) 安装 Mailcow"
     echo "2) 更新 Mailcow"
     echo "3) 备份 Mailcow"
-    echo "4) 恢复 不能安装科技lion网站与数据库，只能安装nginx"
+    echo "=============================="
+    echo "⚠️ 千万不能添加网站⚠️ "
+    echo "4) 恢复备份，安装科技lion的nginx，只能安装nginx不能添加网站⚠️ "
+    echo "⚠️ 千万不能添加网站⚠️ "
+    echo "=============================="
+
     echo "9) 卸载 Mailcow"
     echo "0) 退出"
     echo "=============================="
