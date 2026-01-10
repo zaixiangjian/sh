@@ -443,6 +443,29 @@ EOF
 }
 
 
+# 卸载
+uninstall_mailcow() {
+    read -rp "⚠️ 确认卸载 Mailcow？(yes/no): " confirm
+    if [ "$confirm" != "yes" ]; then
+        echo "取消卸载"
+        read -rp "按回车继续..." _
+        return
+    fi
+    cd "${MAILCOW_DIR}" || return
+    echo "🛑 停止容器..."
+    docker compose down
+    echo "🗑️ 删除目录..."
+    rm -rf "${MAILCOW_DIR}"
+    echo "✅ 卸载完成"
+    read -rp "按回车继续..." _
+}
+
+
+
+
+
+
+
 
 # ------------------------------
 # 主循环
