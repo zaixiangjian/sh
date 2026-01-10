@@ -386,7 +386,7 @@ fi
     echo "🚀 启动 Mailcow..."
     cd "$MAILCOW_DIR"
     docker compose up -d
-
+    docker restart nginx
 
 
     # 安装每日 2 点执行的 cron（防重复）
