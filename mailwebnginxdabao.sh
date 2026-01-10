@@ -278,98 +278,132 @@ update_mailcow() {
 # 备份函数（含 Caddy 配置，不含日志）
 # ------------------------------
 backup_mailcow() {
-    echo "📦 开始备份 Mailcow + Caddy（不含日志）..."
+    echo "📦 开始备份 Mailcow + /home/web + Docker 卷（不含日志）..."
+    TIMESTAMP=$(date +%F_%H%M%S)
+    BACKUP_FILE="/home/mailrongqinginx-${TIMESTAMP}.tar.gz"
 
-    # 备份文件路径
-    BACKUP_FILE="/home/mailrongqinginx-$(date +%F_%H%M%S).tar.gz"
-
-    # 确认
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消备份"; return; }
 
-    # 打包备份（保持绝对路径）
+    TMP_DIR=$(mktemp -d)
 
-    tar czf "$BACKUP_FILE" \
-        -C / home/web \
-        -C / home/docker/mailcow-dockerized \
-        /var/lib/docker/volumes/mailcowdockerized_vmail-vol-1/_data \
-        /var/lib/docker/volumes/mailcowdockerized_mysql-vol-1/_data \
-        /var/lib/docker/volumes/mailcowdockerized_rspamd-vol-1/_data
+    # 复制 Mailcow 和 web 到临时目录
+    mkdir -p "$TMP_DIR/home"
+    cp -a /home/docker/mailcow-dockerized "$TMP_DIR/home/"
+    cp -a /home/web "$TMP_DIR/home/"
 
+    # 保存 Docker 卷
+    mkdir -p "$TMP_DIR/volumes_backup"
+    for VOL in vmail mysql rspamd; do
+        docker run --rm \
+          -v mailcowdockerized_${VOL}-vol-1:/${VOL} \
+          -v "$TMP_DIR/volumes_backup":/backup alpine \
+          tar czf /backup/${VOL}.tar.gz -C /${VOL} .
+    done
 
+    # 打包所有内容
+    tar czf "$BACKUP_FILE" -C "$TMP_DIR" .
+
+    rm -rf "$TMP_DIR"
     echo "✅ 备份完成: $BACKUP_FILE"
     read -rp "按回车继续..." _
 }
 
-
 # ------------------------------
 # 恢复函数（含 Caddy 配置，不恢复日志）
 # ------------------------------
-
 restore_mailcow() {
-
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
-
-    # 自动选择 /home 下最新备份文件
-    FILE=$(ls -t /home/mailrongqinginx-*.tar.gz 2>/dev/null | head -n1)
+    FILE=$(ls /home/mailrongqinginx-*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
-        echo "❌ 找不到备份文件 (/home/mailrongqinginnginx-*.tar.gz)"
-        read -rp "按回车继续..." _
-        return
+        echo "❌ 找不到备份文件"; read -rp "按回车继续..." _; return
     fi
 
-    read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow + Caddy 配置 (y/N): " confirm
-    [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消恢复"; return; }
-
-    echo "📁 准备目录..."
-mkdir -p \
-"${MAILCOW_DIR}"
+    read -rp "⚠️ 确认恢复 ${FILE}？此操作会覆盖当前 Mailcow + /home/web 和 Docker 卷 (yes/no): " confirm
+    [[ "$confirm" != "yes" ]] && { echo "取消恢复"; read -rp "按回车继续..." _; return; }
 
 
 
-    # 解除整个 mailcow-dockerized 目录下的不可变锁
-    find "$MAILCOW_DIR" -type f -exec chattr -i {} \; 2>/dev/null
+# ✅ 如果 Docker 没有安装，自动安装
+if ! command -v docker >/dev/null 2>&1; then
+    echo "🐳 Docker 未安装，正在安装 Docker..."
+    
+    # Debian/Ubuntu 一键安装脚本
+    apt update
+    apt install -y ca-certificates curl gnupg lsb-release
+
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    apt update
+    apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    echo "✅ Docker 安装完成"
+fi
 
 
-    echo "📦 解压恢复备份...解压覆盖"
-    tar xzf "$FILE" -C /
+    # ✅ 创建目录（如果不存在）
+    mkdir -p "$MAILCOW_DIR"
 
-    # ====== 关键校验（非常重要） ======
-    if [ ! -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
-        echo "❌ docker-compose.yml 未成功恢复，终止"
-        return
-    fi
+    # 创建 /home/web 目录（如果不存在）
+    mkdir -p /home/web
 
-    if [ ! -f "${MAILCOW_DIR}/mailcow.conf" ]; then
-        echo "❌ mailcow.conf 未成功恢复，终止"
-        return
-    fi
+    echo "📦 解压备份到临时目录..."
+    TMP_DIR=$(mktemp -d -p /home)
+    tar xzf "$FILE" -C "$TMP_DIR"
 
-    echo "🔒 锁定 mailcow.conf（防止被更新覆盖）"
-    chattr +i "${MAILCOW_DIR}/mailcow.conf" 2>/dev/null || true
+
+    echo "📦 恢复 Docker 卷..."
+    for VOL in vmail mysql rspamd; do
+        VOL_FILE="$TMP_DIR/volumes_backup/${VOL}.tar.gz"
+        if [ -f "$VOL_FILE" ]; then
+            echo "🔹 清空卷 ${VOL}..."
+            docker run --rm -v mailcowdockerized_${VOL}-vol-1:/${VOL} alpine sh -c "rm -rf /${VOL}/*"
+
+            echo "🔹 导入卷 ${VOL}..."
+            docker run --rm -v mailcowdockerized_${VOL}-vol-1:/${VOL} \
+                       -v "$TMP_DIR/volumes_backup":/backup alpine \
+                       sh -c "tar xzf /backup/${VOL}.tar.gz -C /${VOL}"
+        else
+            echo "⚠️ 卷 ${VOL} 备份不存在，跳过"
+        fi
+    done
+
+    echo "📦 恢复 Mailcow 主程序..."
+    rm -rf "$MAILCOW_DIR"/*
+    cp -a "$TMP_DIR/home/mailcow-dockerized/." "$MAILCOW_DIR/"
+
+    echo "📦 恢复 /home/web ..."
+    rm -rf /home/web/*
+    cp -a "$TMP_DIR/home/web/." /home/web/
+
+    rm -rf "$TMP_DIR"
 
     echo "🚀 启动 Mailcow..."
-    cd "${MAILCOW_DIR}" || {
-        echo "❌ 无法进入 ${MAILCOW_DIR}"
-        return
-    }
+    cd "$MAILCOW_DIR"
     docker compose up -d
 
-    # ------------------------------
-    # 安装每日 2 点执行的 cron（防重复）
-    # ------------------------------
-    CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshungfuzhi.sh"
 
+
+    # 安装每日 2 点执行的 cron（防重复）
+    CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhi.sh"
     TMP_CRON=$(mktemp)
     crontab -l 2>/dev/null > "$TMP_CRON" || true
-    grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" \
-        || echo "$CRON_LINE" >> "$TMP_CRON"
+    grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
     crontab "$TMP_CRON"
     rm -f "$TMP_CRON"
 
-    echo "✅ 恢复完成！Mailcow + 容器nginx自行配置科技lion 已启动"
+
+
+
+    echo "✅ 恢复完成"
     read -rp "按回车继续..." _
 }
+
 
 # ------------------------------
 # 证书同步函数（菜单选项 5）
