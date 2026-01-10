@@ -46,6 +46,18 @@ fi
 
 
 
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+echo "=============================="
+# Caddy 同步脚本
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhiqita.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ Caddy 证书同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ Caddy 证书同步定时任务不存在"
+fi
+
+
 
 
 
@@ -495,7 +507,7 @@ sync_certificates() {
         return
     fi
 
-    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhi.sh"
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhiqita.sh"
 
     # 生成同步脚本（手动执行，无日志）
     cat > "$ZSFZ_SYNC" <<EOF
