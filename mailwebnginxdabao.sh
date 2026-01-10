@@ -45,7 +45,7 @@ fi
     echo "1) 安装 Mailcow"
     echo "2) 更新 Mailcow"
     echo "3) 备份 Mailcow"
-    echo "4) 恢复 手动创建/home/docker 安装docker"
+    echo "4) 恢复 不能安装科技lion网站与数据库，只能安装nginx"
     echo "9) 卸载 Mailcow"
     echo "0) 退出"
     echo "=============================="
