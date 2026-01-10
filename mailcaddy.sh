@@ -420,9 +420,15 @@ restore_mailcow() {
 
     # 确保 caddy 用户存在
     if ! id -u caddy >/dev/null 2>&1; then
-        echo "⚠️ 创建 caddy 用户和组..."
-        groupadd -f caddy
-        useradd -r -g caddy -d /var/lib/caddy -s /usr/sbin/nologin caddy
+        echo "⚠️ 创建 caddy 用户..."
+        useradd -r -d /var/lib/caddy -s /usr/sbin/nologin caddy
+    fi
+
+    # 检查 caddy 组是否存在，否则使用 nogroup
+    if getent group caddy >/dev/null 2>&1; then
+        CADDY_GROUP="caddy"
+    else
+        CADDY_GROUP="nogroup"
     fi
 
     echo "🛑 停止 Caddy..."
@@ -440,15 +446,11 @@ restore_mailcow() {
         /var/lib/caddy \
         "${MAILCOW_DIR}"
 
-
     # 解除整个 mailcow-dockerized 目录下的不可变锁
     find "$MAILCOW_DIR" -type f -exec chattr -i {} \; 2>/dev/null
 
-
     echo "📦 解压恢复备份...解压覆盖"
     tar xzf "$FILE" -C /
-
-
 
     # ====== 关键校验（非常重要） ======
     if [ ! -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
@@ -462,7 +464,11 @@ restore_mailcow() {
     fi
 
     echo "🔐 修复 Caddy 权限..."
-    chown -R caddy:caddy /etc/caddy /var/lib/caddy
+    if id -u caddy >/dev/null 2>&1; then
+        chown -R caddy:"$CADDY_GROUP" /etc/caddy /var/lib/caddy
+    else
+        echo "⚠️ caddy 用户不存在，跳过权限修复"
+    fi
 
     echo "🔒 锁定 mailcow.conf（防止被更新覆盖）"
     chattr +i "${MAILCOW_DIR}/mailcow.conf" 2>/dev/null || true
