@@ -425,10 +425,11 @@ sync_certificates() {
     # 生成同步脚本（手动执行，无日志）
     cat > "$ZSFZ_SYNC" <<EOF
 #!/usr/bin/env bash
+# 自动复制 Mailcow SSL 证书（手动执行）
 set -e
 
-MAILCOW_DIR="/home/docker/mailcow-dockerized"
-MAILCOW_HOSTNAME="mail.zaiguge.dpdns.org"
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${ZSFZ_DOMAIN}"
 
 # 真实证书路径
 CRT_FILE="/home/web/certs/${MAILCOW_HOSTNAME}_cert.pem"
