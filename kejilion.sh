@@ -5409,6 +5409,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}Caddy备份与恢复 ${gl_huang}★${gl_bai}                     ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}mailcow-dockerized邮箱 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}79.  ${gl_bai}邮箱caddy与nginx都可用mailcow ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8317,7 +8318,12 @@ docker_app
 		    echo "✅ mailcow-dockerized邮箱安装完成..."
 		    ;;
 
-
+		  79)
+		    clear
+		    echo "▶️ 全部caddy与nginx邮箱安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailwebnginxdabao.sh)
+		    echo "✅ caddy与nginx邮箱安装完成..."
+		    ;;
 
 
 
