@@ -261,8 +261,7 @@ function add_mailcow_config() {
     read -p "请输入反向代理端口（例如 8880）: " PORT
 
     cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
-
-$DOMAIN autodiscover.$DOMAIN autoconfig.$DOMAIN {
+$DOMAIN, autodiscover.$DOMAIN, autoconfig.$DOMAIN {
     reverse_proxy 127.0.0.1:$PORT
 }
 EOF
