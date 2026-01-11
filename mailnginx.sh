@@ -191,7 +191,7 @@ update_mailcow() {
 backup_mailcow() {
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
     BACKUP_DIR="/home"
-    BACKUP_FILE="${BACKUP_DIR}/mailcow-$(date +%F_%H%M%S).tar.gz"
+    BACKUP_FILE="${BACKUP_DIR}/mailnginx-$(date +%F_%H%M%S).tar.gz"
 
     # 检查 Mailcow 是否存在
     if [ ! -d "$MAILCOW_DIR" ]; then
@@ -248,7 +248,7 @@ backup_mailcow() {
 # ------------------------------
 restore_mailcow() {
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
-    FILE=$(ls /home/mailcow-*.tar.gz 2>/dev/null | tail -n1)
+    FILE=$(ls /home/mailnginx-*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
         echo "❌ 找不到备份文件"
         read -rp "按回车继续..." _
