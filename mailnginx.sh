@@ -242,6 +242,31 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow！（yes/no）: " confirm
     [ "$confirm" != "yes" ] && echo "取消恢复" && read -rp "按回车继续..." _ && return
 
+    echo "🔧 安装系统依赖..."
+    apt update
+    apt install -y ca-certificates curl gnupg lsb-release git jq
+
+    # Docker
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "🐳 安装 Docker..."
+        curl -fsSL https://get.docker.com | sh
+    fi
+
+    # docker-compose 插件
+    if ! docker compose version >/dev/null 2>&1; then
+        echo "🐳 安装 docker-compose..."
+        mkdir -p /usr/local/lib/docker/cli-plugins
+        curl -SL https://github.com/docker/compose/releases/download/v2.25.0/docker-compose-linux-x86_64 \
+            -o /usr/local/lib/docker/cli-plugins/docker-compose
+        chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    fi
+
+    systemctl enable docker
+    systemctl restart docker
+
+
+
+
     echo "🛑 停止 Mailcow..."
     [ -d "$MAILCOW_DIR" ] && cd "$MAILCOW_DIR" && docker compose down
 
