@@ -324,7 +324,7 @@ backup_mailcow() {
     echo "📦 开始完整备份 Mailcow（程序 + 配置 + 邮箱数据 + 数据库）"
 
     TIMESTAMP=$(date +%F_%H%M%S)
-    BACKUP_FILE="/home/mail/mailcow-backup-${TIMESTAMP}.tar.gz"
+    BACKUP_FILE="/home/mailwebnginxdabao-${TIMESTAMP}.tar.gz"
 
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && return
@@ -339,7 +339,7 @@ backup_mailcow() {
     docker compose down
 
     # ------------------------------
-    # 备份 Mailcow 程序文件
+    # 备份程序文件
     # ------------------------------
     echo "📂 备份 Mailcow 程序文件和配置"
     mkdir -p "$TMP_DIR/home"
@@ -382,12 +382,13 @@ backup_mailcow() {
 
 
 
+
 # ------------------------------
 # 恢复 Mailcow（保留备份原始路径，自动检测）
 # ------------------------------
 restore_mailcow() {
-    # 查找最新备份
-    FILE=$(ls /home/mail/mailcow-backup-*.tar.gz 2>/dev/null | tail -n1)
+    # 查找最新备份文件
+    FILE=$(ls /home/mailwebnginxdabao-*.tar.gz 2>/dev/null | tail -n1)
     [ -z "$FILE" ] && echo "❌ 未找到备份文件" && return
 
     echo "📦 找到备份文件: $FILE"
