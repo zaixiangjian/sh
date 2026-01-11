@@ -407,7 +407,7 @@ restore_mailcow() {
     echo "🚀 启动 Mailcow"
     cd /home/docker/mailcow-dockerized && docker compose up -d
 
-
+}
 
 
 
@@ -429,9 +429,6 @@ if ! crontab -l 2>/dev/null | grep -Fq "$SYNC_SCRIPT"; then
 else
     echo "ℹ️ cron 已存在"
 fi
-
-
-
 
     echo "✅ 恢复完成（邮件 + 用户 + 配置 已恢复）"
     read -rp "按回车继续..." _
