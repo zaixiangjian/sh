@@ -324,7 +324,7 @@ backup_mailcow() {
     echo "📦 开始完整备份 Mailcow（邮件 + 用户 + 配置）"
 
     TIMESTAMP=$(date +%F_%H%M%S)
-    BACKUP_FILE="/home/docker/mailwebnginxdabao-${TIMESTAMP}.tar.gz"
+    BACKUP_FILE="/home/mailwebnginxdabao-${TIMESTAMP}.tar.gz"
 
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
     [[ ! "$confirm" =~ ^[Yy]$ ]] && return
@@ -368,7 +368,7 @@ backup_mailcow() {
 # 恢复 Mailcow（官方 nginx，全量）
 # ------------------------------
 restore_mailcow() {
-    FILE=$(ls /home/docker/mailwebnginxdabao-*.tar.gz 2>/dev/null | tail -n1)
+    FILE=$(ls /home/mailwebnginxdabao-*.tar.gz 2>/dev/null | tail -n1)
     [ -z "$FILE" ] && echo "❌ 未找到备份文件" && return
 
     read -rp "⚠️ 确认恢复 ${FILE}？会覆盖所有邮件和用户 (yes/no): " confirm
