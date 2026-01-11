@@ -159,7 +159,7 @@ cat > "$ZSFZ2_SCRIPT" <<EOF
 set -e
 
 MAILCOW_DIR="/home/docker/mailcow-dockerized"
-MAILCOW_HOSTNAME="mail.zaiguge.dpdns.org"
+MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
 
 # 真实证书路径
 CRT_FILE="/home/web/certs/${MAILCOW_HOSTNAME}_cert.pem"
