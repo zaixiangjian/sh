@@ -305,10 +305,8 @@ if [ "\$MD5_CURRENT" != "\$MD5_NEW" ]; then
     cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
     cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
 
-    docker restart \$(docker ps -qaf name=postfix-mailcow) \
-                   \$(docker ps -qaf name=dovecot-mailcow) \
-                   \$(docker ps -qaf name=nginx-mailcow)
-
+echo "🔄 重启 Mailcow 容器..."
+docker restart postfix-mailcow dovecot-mailcow nginx-mailcow
 
 
     echo "✅ 证书同步完成"
