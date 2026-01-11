@@ -396,6 +396,25 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？会覆盖所有邮件和用户 (yes/no): " confirm
     [[ "$confirm" != "yes" ]] && echo "取消恢复" && return
 
+
+    # ------------------------------
+    # 安装 Docker（如果未安装）
+    # ------------------------------
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "⚠️ Docker 未安装，正在安装..."
+        apt update
+        apt install -y ca-certificates curl gnupg lsb-release
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+        apt update
+        apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        systemctl enable --now docker
+    fi
+
+
+
+
     TMP_DIR=$(mktemp -d)
     echo "📦 解压备份到临时目录 $TMP_DIR"
     tar xzf "$FILE" -C "$TMP_DIR"
