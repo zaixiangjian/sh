@@ -306,7 +306,9 @@ if [ "\$MD5_CURRENT" != "\$MD5_NEW" ]; then
     cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
 
 echo "🔄 重启 Mailcow 容器..."
-docker restart postfix-mailcow dovecot-mailcow nginx-mailcow
+docker restart mailcowdockerized-postfix-mailcow-1 \
+               mailcowdockerized-dovecot-mailcow-1 \
+               mailcowdockerized-nginx-mailcow-1
 
 
     echo "✅ 证书同步完成"
