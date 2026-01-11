@@ -257,7 +257,7 @@ show_version() {
 
 
 function add_mailcow_config() {
-    read -p "请输入你的主域名（例如 mail.123.com）: " DOMAIN
+    read -p "请输入你的主域名（例如 mail.example.com）: " DOMAIN
     read -p "请输入反向代理端口（例如 8880）: " PORT
 
     cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
