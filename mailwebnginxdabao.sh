@@ -368,6 +368,7 @@ backup_mailcow() {
 # 恢复 Mailcow（官方 nginx，全量）
 # ------------------------------
 restore_mailcow() {
+    # 查找最新备份
     FILE=$(ls /home/mailwebnginxdabao-*.tar.gz 2>/dev/null | tail -n1)
     [ -z "$FILE" ] && echo "❌ 未找到备份文件" && return
 
@@ -380,12 +381,15 @@ restore_mailcow() {
     tar xzf "$FILE" -C "$TMP_DIR"
 
     echo "🛑 停止 Mailcow"
-    cd /home/docker/mailcow-dockerized && docker compose down
+    cd /home/docker/mailcow-dockerized 2>/dev/null && docker compose down || true
 
     # 恢复程序文件
     echo "📂 恢复 Mailcow 程序"
     rm -rf /home/docker/mailcow-dockerized
     cp -a "$TMP_DIR/home/mailcow-dockerized" /home/docker/
+
+    # 自动检测 Docker 卷
+    VOLUMES=($(docker volume ls --format "{{.Name}}" | grep mailcow || true))
 
     # 恢复卷数据
     for VOL in "${VOLUMES[@]}"; do
@@ -407,103 +411,31 @@ restore_mailcow() {
     echo "🚀 启动 Mailcow"
     cd /home/docker/mailcow-dockerized && docker compose up -d
 
-}
+    # ====== 恢复后补环境 ======
+    SYNC_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
+    CRON_LINE="0 2 * * * $SYNC_SCRIPT"
 
+    if [ -f "$SYNC_SCRIPT" ]; then
+        chmod +x "$SYNC_SCRIPT"
+        echo "✅ 证书同步脚本已就绪"
+    else
+        echo "⚠️ 未找到证书同步脚本"
+    fi
 
-
-# ====== 恢复后补环境 ======
-
-SYNC_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
-CRON_LINE="0 2 * * * $SYNC_SCRIPT"
-
-if [ -f "$SYNC_SCRIPT" ]; then
-    chmod +x "$SYNC_SCRIPT"
-    echo "✅ 证书同步脚本已就绪"
-else
-    echo "⚠️ 未找到证书同步脚本"
-fi
-
-if ! crontab -l 2>/dev/null | grep -Fq "$SYNC_SCRIPT"; then
-    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
-    echo "⏱ 已添加证书同步 cron（02:00）"
-else
-    echo "ℹ️ cron 已存在"
-fi
+    if ! crontab -l 2>/dev/null | grep -Fq "$SYNC_SCRIPT"; then
+        (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+        echo "⏱ 已添加证书同步 cron（02:00）"
+    else
+        echo "ℹ️ cron 已存在"
+    fi
 
     echo "✅ 恢复完成（邮件 + 用户 + 配置 已恢复）"
     read -rp "按回车继续..." _
 }
 
 
-# ------------------------------
-# 证书同步函数（菜单选项 5）
-# ------------------------------
-sync_certificates() {
-    read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
-    if [ -z "$ZSFZ_DOMAIN" ]; then
-        echo "❌ 域名不能为空"
-        return
-    fi
-
-    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhi.sh"
-
-    # 生成同步脚本（手动执行，无日志）
-cat > "$ZSFZ_SYNC" <<EOF
-#!/usr/bin/env bash
-set -e
-
-MAILCOW_DIR="/home/docker/mailcow-dockerized"
-MAILCOW_HOSTNAME="$ZSFZ_DOMAIN"
-
-CRT_FILE="/home/web/certs/\${MAILCOW_HOSTNAME}_cert.pem"
-KEY_FILE="/home/web/certs/\${MAILCOW_HOSTNAME}_key.pem"
-
-if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then
-    echo "❌ 证书或私钥不存在: \$CRT_FILE 或 \$KEY_FILE"
-    exit 1
-fi
-
-echo "✅ 证书文件存在，开始复制..."
-
-MD5_CURRENT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" | awk '{print \$1}')
-MD5_NEW=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
-
-if [ "\$MD5_CURRENT" != "\$MD5_NEW" ]; then
-    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
-    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
-
-    mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
-    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
-    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
-
-    echo "🔄 重启 Mailcow 相关容器..."
-    docker restart \$(docker ps -qaf name=postfix-mailcow) \
-                   \$(docker ps -qaf name=dovecot-mailcow) \
-                   \$(docker ps -qaf name=nginx-mailcow)
-
-    echo "✅ 证书更新完成"
-else
-    echo "ℹ️ 证书未变化，无需更新"
-fi
-EOF
 
 
-    chmod +x "$ZSFZ_SYNC"
-
-    # 安装定时任务（每天凌晨 2 点执行，无日志）
-    CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
-    if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
-        (crontab -l 2>/dev/null; echo "0 2 * * * $ZSFZ_SYNC") | crontab -
-
-
-        echo "✅ 定时任务已安装，每天凌晨 2 点自动执行（无日志）"
-    else
-        echo "✅ 定时任务已存在"
-    fi
-
-    echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
-    read -rp "按回车继续..." _
-}
 
 
 # 卸载
