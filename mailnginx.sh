@@ -183,8 +183,15 @@ update_mailcow() {
     read -rp "按回车继续..." _
 }
 
-# 备份
+
+
+# ------------------------------
+# 备份 Mailcow（官方 nginx，全量）
+# ------------------------------
 backup_mailcow() {
+    MAILCOW_DIR="/home/docker/mailcow-dockerized"
+    BACKUP_FILE="/home/mailnginx-$(date +%F_%H%M%S).tar.gz"
+
     # 检查 Mailcow 是否存在
     if [ ! -d "${MAILCOW_DIR}" ]; then
         echo "❌ Mailcow 未安装"
@@ -192,36 +199,39 @@ backup_mailcow() {
         return
     fi
 
-    # 备份文件路径
-    BACKUP_FILE="/home/mailnginx-$(date +%F_%H%M%S).tar.gz"
+    echo "🛑 停止 Mailcow 容器，保证数据一致性..."
+    cd "$MAILCOW_DIR"
+    docker compose down
 
-    echo "📦 开始备份 Mailcow 主程序及 Docker 卷数据..."
-
-    # 创建卷备份目录
-    mkdir -p "${MAILCOW_DIR}/volumes_backup"
-
-    # 导出卷数据
-    for VOL in vmail mysql rspamd; do
-        echo "🐳 导出卷 ${VOL}..."
-        docker run --rm -v mailcowdockerized_${VOL}-vol-1:/${VOL} -v "${MAILCOW_DIR}/volumes_backup":/backup alpine \
-            sh -c "tar czf /backup/${VOL}.tar.gz -C /${VOL} ."
+    echo "📦 检测 Docker 卷..."
+    # 自动获取所有 mailcow 卷路径
+    VOLUMES=()
+    for VOL in $(docker volume ls --format '{{.Name}}' | grep mailcowdockerized_); do
+        VOL_PATH="/var/lib/docker/volumes/${VOL}/_data"
+        if [ -d "$VOL_PATH" ]; then
+            VOLUMES+=("$VOL_PATH")
+        else
+            echo "⚠️ 卷不存在或路径不对：$VOL_PATH"
+        fi
     done
 
-    echo "📦 打包 Mailcow 主程序 + 卷数据..."
-    tar czf "$BACKUP_FILE" -C "$(dirname "${MAILCOW_DIR}")" "$(basename "${MAILCOW_DIR}")"
+    echo "📦 开始全量备份 Mailcow 主程序 + 所有卷..."
+    tar czpf "$BACKUP_FILE" --ignore-failed-read "$MAILCOW_DIR" "${VOLUMES[@]}"
 
-    # 删除卷备份目录
-    rm -rf "${MAILCOW_DIR}/volumes_backup"
+    echo "🚀 启动 Mailcow..."
+    docker compose up -d
 
-    echo "✅ 备份完成: $BACKUP_FILE"
+    echo "✅ 全量备份完成：$BACKUP_FILE"
     read -rp "按回车继续..." _
 }
 
 
-
-# 恢复
+# ------------------------------
+# 恢复 Mailcow（官方 nginx，全量）
+# ------------------------------
 restore_mailcow() {
-    # 找到最新备份
+    MAILCOW_DIR="/home/docker/mailcow-dockerized"
+
     FILE=$(ls /home/mailnginx-*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
         echo "❌ 找不到备份文件"
@@ -229,43 +239,26 @@ restore_mailcow() {
         return
     fi
 
-    read -rp "⚠️ 确认恢复 ${FILE}？此操作会覆盖当前安装！(yes/no): " confirm
-    if [ "$confirm" != "yes" ]; then
-        echo "取消恢复"
-        read -rp "按回车继续..." _
-        return
-    fi
+    read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow！（yes/no）: " confirm
+    [ "$confirm" != "yes" ] && echo "取消恢复" && read -rp "按回车继续..." _ && return
+
+    echo "🛑 停止 Mailcow..."
+    [ -d "$MAILCOW_DIR" ] && cd "$MAILCOW_DIR" && docker compose down
 
     echo "🔓 解除不可变锁..."
     find "${MAILCOW_DIR}" -type f -exec chattr -i {} \; 2>/dev/null || true
 
-    echo "📦 解压备份覆盖 Mailcow 主程序..."
-    tar xzf "$FILE" -C "$(dirname "${MAILCOW_DIR}")"
-
-    echo "📦 恢复 Docker 卷数据..."
-    for VOL in vmail mysql rspamd; do
-        VOL_FILE="${MAILCOW_DIR}/volumes_backup/${VOL}.tar.gz"
-        if [ -f "$VOL_FILE" ]; then
-            docker volume create mailcowdockerized_${VOL}-vol-1 >/dev/null 2>&1 || true
-            docker run --rm \
-              -v mailcowdockerized_${VOL}-vol-1:/${VOL} \
-              -v "${MAILCOW_DIR}/volumes_backup":/backup alpine \
-              sh -c "tar xzf /backup/${VOL}.tar.gz -C /${VOL}"
-        else
-            echo "⚠️ 卷 ${VOL} 备份不存在，跳过"
-        fi
-    done
+    echo "📦 解压全量备份..."
+    tar xzpf "$FILE" -C /
 
     echo "🚀 启动 Mailcow..."
-    cd "${MAILCOW_DIR}"
-    docker compose up -d
+    cd "$MAILCOW_DIR" && docker compose up -d
 
-    # 清理卷备份目录
-    rm -rf "${MAILCOW_DIR}/volumes_backup"
-
-    echo "✅ 恢复完成"
+    echo "✅ 全量恢复完成"
     read -rp "按回车继续..." _
 }
+
+
 
 
 # 卸载
