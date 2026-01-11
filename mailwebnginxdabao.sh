@@ -292,36 +292,29 @@ set -e
 
 MAILCOW_DIR="${MAILCOW_DIR}"
 MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
+CADDY_CERTS_DIR="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/\$MAILCOW_HOSTNAME"
 
-CADDY_CERTS_DIR="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${MAILCOW_HOSTNAME}"
+CRT_FILE="\$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CADDY_CERTS_DIR/\$MAILCOW_HOSTNAME.key"
 
-CRT_FILE="${CADDY_CERTS_DIR}/${MAILCOW_HOSTNAME}.crt"
-KEY_FILE="${CADDY_CERTS_DIR}/${MAILCOW_HOSTNAME}.key"
+[ -f "\$CRT_FILE" ] || exit 0
+[ -f "\$KEY_FILE" ] || exit 0
 
-if [ ! -f "$CRT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
-    echo "⚠️ Caddy 证书不存在，跳过同步"
-    exit 0
-fi
+MD5_CURRENT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}')
+MD5_NEW=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
 
-MD5_CURRENT=$(md5sum "$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print $1}')
-MD5_NEW=$(md5sum "$CRT_FILE" | awk '{print $1}')
+if [ "\$MD5_CURRENT" != "\$MD5_NEW" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
 
-
-
-if [ "$MD5_CURRENT" != "$MD5_NEW" ]; then
-
-    echo "🔄 检测到证书变更，开始同步到 Mailcow..."
-
-    cp "$CRT_FILE" "$MAILCOW_DIR/data/assets/ssl/cert.pem"
-    cp "$KEY_FILE" "$MAILCOW_DIR/data/assets/ssl/key.pem"
-
-    mkdir -p "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME"
-    cp "$CRT_FILE" "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME/cert.pem"
-    cp "$KEY_FILE" "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME/key.pem"
-
+    mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
 
 echo "🔄 重启 Mailcow 容器..."
-docker restart postfix-mailcow dovecot-mailcow nginx-mailcow
+docker restart mailcowdockerized-postfix-mailcow-1 \
+               mailcowdockerized-dovecot-mailcow-1 \
+               mailcowdockerized-nginx-mailcow-1
 
 
     echo "✅ 证书同步完成"
