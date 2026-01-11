@@ -190,10 +190,11 @@ update_mailcow() {
 # ------------------------------
 backup_mailcow() {
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
-    BACKUP_FILE="/home/mailnginx-$(date +%F_%H%M%S).tar.gz"
+    BACKUP_DIR="/home"
+    BACKUP_FILE="${BACKUP_DIR}/mailcow-$(date +%F_%H%M%S).tar.gz"
 
     # 检查 Mailcow 是否存在
-    if [ ! -d "${MAILCOW_DIR}" ]; then
+    if [ ! -d "$MAILCOW_DIR" ]; then
         echo "❌ Mailcow 未安装"
         read -rp "按回车继续..." _
         return
@@ -203,27 +204,43 @@ backup_mailcow() {
     cd "$MAILCOW_DIR"
     docker compose down
 
-    echo "📦 检测 Docker 卷..."
-    # 自动获取所有 mailcow 卷路径
-    VOLUMES=()
-    for VOL in $(docker volume ls --format '{{.Name}}' | grep mailcowdockerized_); do
-        VOL_PATH="/var/lib/docker/volumes/${VOL}/_data"
+    echo "📦 开始备份 Mailcow 主程序和卷..."
+
+    # 必要路径：Mailcow 主程序
+    BACKUP_ITEMS=("$MAILCOW_DIR")
+
+    # 所有卷路径（用户邮箱、数据库、Rspamd、Postfix、DKIM、Redis、Crypt、ClamAV、Cert）
+    VOLUMES=(
+        /var/lib/docker/volumes/mailcowdockerized_vmail-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_mysql-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_rspamd-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_postfix-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_dovecot-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_redis-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_crypt-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_clamd-vol-1/_data
+        /var/lib/docker/volumes/mailcowdockerized_cert-vol-1/_data   # nginx/Let's Encrypt
+    )
+
+    # 检查卷路径是否存在
+    for VOL_PATH in "${VOLUMES[@]}"; do
         if [ -d "$VOL_PATH" ]; then
-            VOLUMES+=("$VOL_PATH")
+            BACKUP_ITEMS+=("$VOL_PATH")
         else
-            echo "⚠️ 卷不存在或路径不对：$VOL_PATH"
+            echo "⚠️ 忽略不存在的卷或路径：$VOL_PATH"
         fi
     done
 
-    echo "📦 开始全量备份 Mailcow 主程序 + 所有卷..."
-    tar czpf "$BACKUP_FILE" --ignore-failed-read "$MAILCOW_DIR" "${VOLUMES[@]}"
+    # 打包备份
+    tar czpf "$BACKUP_FILE" --ignore-failed-read "${BACKUP_ITEMS[@]}"
 
     echo "🚀 启动 Mailcow..."
-    docker compose up -d
+    cd "$MAILCOW_DIR" && docker compose up -d
 
     echo "✅ 全量备份完成：$BACKUP_FILE"
     read -rp "按回车继续..." _
 }
+
 
 
 # ------------------------------
@@ -231,8 +248,7 @@ backup_mailcow() {
 # ------------------------------
 restore_mailcow() {
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
-
-    FILE=$(ls /home/mailnginx-*.tar.gz 2>/dev/null | tail -n1)
+    FILE=$(ls /home/mailcow-*.tar.gz 2>/dev/null | tail -n1)
     if [ -z "$FILE" ]; then
         echo "❌ 找不到备份文件"
         read -rp "按回车继续..." _
@@ -242,12 +258,7 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？将覆盖当前 Mailcow！（yes/no）: " confirm
     [ "$confirm" != "yes" ] && echo "取消恢复" && read -rp "按回车继续..." _ && return
 
-
-
-
-
     # 安装 Docker（如果未安装）
-    # ------------------------------
     if ! command -v docker >/dev/null 2>&1; then
         echo "⚠️ Docker 未安装，正在安装..."
         apt update
@@ -260,17 +271,14 @@ restore_mailcow() {
         systemctl enable --now docker
     fi
 
-
-
-
     echo "🛑 停止 Mailcow..."
     [ -d "$MAILCOW_DIR" ] && cd "$MAILCOW_DIR" && docker compose down
 
     echo "🔓 解除不可变锁..."
     find "${MAILCOW_DIR}" -type f -exec chattr -i {} \; 2>/dev/null || true
 
-    echo "📦 解压全量备份..."
-    tar xzpf "$FILE" -C /
+    echo "📦 解压备份..."
+    tar xzpf "$FILE" -C / --exclude='*.sock' --exclude='*/.socket' || true
 
     echo "🚀 启动 Mailcow..."
     cd "$MAILCOW_DIR" && docker compose up -d
@@ -278,6 +286,7 @@ restore_mailcow() {
     echo "✅ 全量恢复完成"
     read -rp "按回车继续..." _
 }
+
 
 
 
