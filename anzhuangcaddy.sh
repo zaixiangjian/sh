@@ -119,43 +119,6 @@ EOF
 }
 
 
-
-
-
-
-
-
-function add_mailcow_config() {
-    read -p "请输入你的主域名（例如 mail.123.com）: " DOMAIN
-    read -p "请输入反向代理端口（例如 8880）: " PORT
-
-    cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
-
-$DOMAIN autodiscover.$DOMAIN autoconfig.$DOMAIN {
-    reverse_proxy 127.0.0.1:$PORT
-}
-EOF
-
-    format_and_reload
-    echo "✅ 已添加 Mailcow 多子域名反向代理配置"
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function list_config() {
     echo "=============================="
     echo "        🛠 Caddy 管理脚本"
@@ -293,6 +256,20 @@ show_version() {
 
 
 
+function add_mailcow_config() {
+    read -p "请输入你的主域名（例如 mail.123.com）: " DOMAIN
+    read -p "请输入反向代理端口（例如 8880）: " PORT
+
+    cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
+
+$DOMAIN autodiscover.$DOMAIN autoconfig.$DOMAIN {
+    reverse_proxy 127.0.0.1:$PORT
+}
+EOF
+
+    format_and_reload
+    echo "✅ 已添加 Mailcow 多子域名反向代理配置"
+}
 
 
 
