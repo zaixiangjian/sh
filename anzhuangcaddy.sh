@@ -320,15 +320,26 @@ function stop_caddy() {
 
 function format_and_reload() {
     echo "🧹 格式化配置文件..."
-    sudo caddy fmt --overwrite "$CONFIG_FILE"
-
-    echo "🔁 重载配置..."
-    if ! sudo caddy reload --config "$CONFIG_FILE" --adapter caddyfile; then
-        echo "⚠️ 重载失败，尝试重启服务..."
-        sudo systemctl restart caddy
+    if ! sudo caddy fmt --overwrite "$CONFIG_FILE"; then
+        echo "❌ 配置格式化失败，请检查 Caddyfile"
+        return 1
     fi
 
-    echo "✅ 配置已生效。"
+    echo "🔍 校验配置..."
+    if ! sudo caddy validate --config "$CONFIG_FILE" --adapter caddyfile; then
+        echo "❌ 配置校验失败，未应用配置"
+        return 1
+    fi
+
+    echo "🔁 重新加载 Caddy（systemd）..."
+    if systemctl is-active --quiet caddy; then
+        sudo systemctl restart caddy
+        echo "✅ Caddy 已重启，配置已生效"
+    else
+        echo "⚠️ Caddy 未运行，正在启动..."
+        sudo systemctl start caddy
+        echo "✅ Caddy 已启动，配置已生效"
+    fi
 }
 
 function menu() {
