@@ -152,30 +152,65 @@ install_mailcow() {
 # ------------------------------
 # 生成 nginx -> Mailcow 证书同步脚本
 # ------------------------------
+
 ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
 
-cat > "$ZSFZ2_SCRIPT" <<EOF
+cat > "$ZSFZ2_SCRIPT" <<'EOF'
 #!/usr/bin/env bash
 set -e
 
+########################
+# 基础配置
+########################
 MAILCOW_DIR="/home/docker/mailcow-dockerized"
-MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
+ENV_FILE="$MAILCOW_DIR/.mailcow_env"
 
-# 真实证书路径
+# 读取域名配置
+if [ ! -f "$ENV_FILE" ]; then
+    echo "❌ 未找到域名配置文件: $ENV_FILE"
+    exit 1
+fi
+source "$ENV_FILE"
+
+if [ -z "$MAILCOW_HOSTNAME" ]; then
+    echo "❌ MAILCOW_HOSTNAME 为空"
+    exit 1
+fi
+
+########################
+# 证书路径
+########################
 CRT_FILE="/home/web/certs/${MAILCOW_HOSTNAME}_cert.pem"
 KEY_FILE="/home/web/certs/${MAILCOW_HOSTNAME}_key.pem"
 
 if [ ! -f "$CRT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
-    echo "❌ 证书或私钥不存在: $CRT_FILE 或 $KEY_FILE"
+    echo "❌ 证书或私钥不存在:"
+    echo "   $CRT_FILE"
+    echo "   $KEY_FILE"
     exit 1
 fi
 
-echo "✅ 证书文件存在，开始复制..."
+echo "✅ 找到证书文件，开始检查是否需要更新..."
 
-MD5_CURRENT=$(md5sum "$MAILCOW_DIR/data/assets/ssl/cert.pem" | awk '{print $1}')
+########################
+# MD5 对比
+########################
+TARGET_CERT="$MAILCOW_DIR/data/assets/ssl/cert.pem"
+
+if [ -f "$TARGET_CERT" ]; then
+    MD5_CURRENT=$(md5sum "$TARGET_CERT" | awk '{print $1}')
+else
+    MD5_CURRENT=""
+fi
+
 MD5_NEW=$(md5sum "$CRT_FILE" | awk '{print $1}')
 
+########################
+# 同步证书
+########################
 if [ "$MD5_CURRENT" != "$MD5_NEW" ]; then
+    echo "🔄 检测到证书变化，开始同步..."
+
     cp "$CRT_FILE" "$MAILCOW_DIR/data/assets/ssl/cert.pem"
     cp "$KEY_FILE" "$MAILCOW_DIR/data/assets/ssl/key.pem"
 
@@ -183,17 +218,19 @@ if [ "$MD5_CURRENT" != "$MD5_NEW" ]; then
     cp "$CRT_FILE" "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME/cert.pem"
     cp "$KEY_FILE" "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME/key.pem"
 
-    echo "🔄 重启 Mailcow 相关容器..."
-    docker restart $(docker ps -qaf name=postfix-mailcow) \
-                   $(docker ps -qaf name=dovecot-mailcow) \
-                   $(docker ps -qaf name=nginx-mailcow)
+    echo "🔁 重启 Mailcow 服务容器..."
+    docker restart \
+        $(docker ps -qaf name=postfix-mailcow) \
+        $(docker ps -qaf name=dovecot-mailcow) \
+        $(docker ps -qaf name=nginx-mailcow)
 
-    echo "✅ 证书更新完成"
+    echo "✅ Mailcow 证书更新完成"
 else
-    echo "ℹ️ 证书未变化，无需更新"
+    echo "ℹ️ 证书未发生变化，无需更新"
 fi
-
 EOF
+
+
 
 chmod +x "$ZSFZ2_SCRIPT"
 
@@ -369,6 +406,32 @@ restore_mailcow() {
 
     echo "🚀 启动 Mailcow"
     cd /home/docker/mailcow-dockerized && docker compose up -d
+
+
+
+
+
+# ====== 恢复后补环境 ======
+
+SYNC_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
+CRON_LINE="0 2 * * * $SYNC_SCRIPT"
+
+if [ -f "$SYNC_SCRIPT" ]; then
+    chmod +x "$SYNC_SCRIPT"
+    echo "✅ 证书同步脚本已就绪"
+else
+    echo "⚠️ 未找到证书同步脚本"
+fi
+
+if ! crontab -l 2>/dev/null | grep -Fq "$SYNC_SCRIPT"; then
+    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+    echo "⏱ 已添加证书同步 cron（02:00）"
+else
+    echo "ℹ️ cron 已存在"
+fi
+
+
+
 
     echo "✅ 恢复完成（邮件 + 用户 + 配置 已恢复）"
     read -rp "按回车继续..." _
