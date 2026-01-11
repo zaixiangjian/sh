@@ -119,6 +119,43 @@ EOF
 }
 
 
+
+
+
+
+
+
+function add_mailcow_config() {
+    read -p "请输入你的主域名（例如 mail.123.com）: " DOMAIN
+    read -p "请输入反向代理端口（例如 8880）: " PORT
+
+    cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
+
+$DOMAIN autodiscover.$DOMAIN autoconfig.$DOMAIN {
+    reverse_proxy 127.0.0.1:$PORT
+}
+EOF
+
+    format_and_reload
+    echo "✅ 已添加 Mailcow 多子域名反向代理配置"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function list_config() {
     echo "=============================="
     echo "        🛠 Caddy 管理脚本"
@@ -314,6 +351,8 @@ function menu() {
     echo "5. 添加 TLS Skip Verify 反向代理"
     echo "6. 删除指定域名配置"
 
+    echo "100. 添加 Mailcow 多子域名反向代理配置"
+
 
     echo "7. 更新 Caddy"
     echo "8. 查看当前版本"
@@ -335,6 +374,9 @@ function menu() {
         4) stop_caddy ;;
         5) add_tls_skip_verify ;;
         6) delete_config ;;
+
+        100) add_mailcow_config ;;
+
         7) update_caddy ;;
         8) show_version ;;
 
