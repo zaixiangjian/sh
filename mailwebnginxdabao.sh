@@ -23,15 +23,44 @@ show_menu() {
 # 查询并显示证书同步定时任务（不关心日志）
 # ------------------------------
 CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-echo "=============================="
-# Caddy 同步脚本
-CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" | head -n 1)
+
+
+# 科技lion 同步脚本
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshunginx.sh" | head -n 1)
 if [ -n "$CADDY_LINE" ]; then
-    echo "✅ 容器 nginx 证书同步定时任务已存在:"
+    echo "✅ 容器 Nginx 证书同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ Nginx 证书同步定时任务不存在"
+fi
+
+
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+    echo "=============================="
+# Caddy 同步脚本
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshucaddy.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ 容器 Caddy 证书同步定时任务已存在:"
     echo "   $CADDY_LINE"
 else
     echo "⚠️ Caddy 证书同步定时任务不存在"
 fi
+
+
+
+
+
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+    echo "=============================="
+# 其他证书 同步脚本
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshuqita.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ 容器 其他 证书同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ 其他 证书同步定时任务不存在"
+fi
+
 
 
 
@@ -47,7 +76,7 @@ fi
     echo "3) 备份 Mailcow"
     echo "4) 恢复备份，安装科技lion的nginx，只能安装nginx不能添加网站⚠️ "
 
-    echo "5) 自动复制证书"
+    echo "5) 自动复制证书Caddy"
 
     echo "9) 卸载 Mailcow"
     echo "0) 退出"
@@ -140,6 +169,7 @@ install_mailcow() {
     sed -i "s|^HTTPS_BIND=.*|HTTPS_BIND=0.0.0.0|" mailcow.conf
     sed -i "s|^HTTPS_PORT=.*|HTTPS_PORT=2053|" mailcow.conf
     sed -i "s|^HTTP_REDIRECT=.*|HTTP_REDIRECT=n|" mailcow.conf
+    sed -i "s|^ENABLE_IPV6=.*|ENABLE_IPV6=false|" mailcow.conf
     if [[ "$DISABLE_CLAMAV" =~ ^[Yy]$ ]]; then
         sed -i 's/^SKIP_CLAMD=.*/SKIP_CLAMD=y/' mailcow.conf
     fi
@@ -149,67 +179,138 @@ install_mailcow() {
     docker compose up -d
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+# ------------------------------
+# 添加 cron 定时任务函数
+# ------------------------------
+add_cron_job() {
+    local SCRIPT_PATH="$1"
+    local CRON_TIME="$2"
+
+    # 检查脚本是否存在
+    if [ ! -f "$SCRIPT_PATH" ]; then
+        echo "❌ 脚本不存在: $SCRIPT_PATH"
+        return 1
+    fi
+
+    # 临时文件
+    local TMP_CRON
+    TMP_CRON=$(mktemp)
+
+    # 获取现有 cron 任务
+    crontab -l 2>/dev/null > "$TMP_CRON" || true
+
+    # 防止重复添加
+    if grep -Fxq "$CRON_TIME $SCRIPT_PATH" "$TMP_CRON"; then
+        echo "ℹ️ Cron 已存在: $SCRIPT_PATH"
+    else
+        echo "$CRON_TIME $SCRIPT_PATH" >> "$TMP_CRON"
+        crontab "$TMP_CRON"
+        echo "✅ Cron 添加成功: $SCRIPT_PATH"
+    fi
+
+    rm -f "$TMP_CRON"
+}
+
 # ------------------------------
 # 生成 nginx -> Mailcow 证书同步脚本
 # ------------------------------
-
-ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
-
-cat > "$ZSFZ2_SCRIPT" <<'EOF'
+ZSFZ2_NGINX="${MAILCOW_DIR}/zhengshunginx.sh"
+cat > "$ZSFZ2_NGINX" <<EOF
 #!/usr/bin/env bash
 set -e
 
 ########################
-# 基础配置
+# 固定配置（安装时写入）
 ########################
 MAILCOW_DIR="/home/docker/mailcow-dockerized"
-ENV_FILE="$MAILCOW_DIR/.mailcow_env"
-
-# 读取域名配置
-if [ ! -f "$ENV_FILE" ]; then
-    echo "❌ 未找到域名配置文件: $ENV_FILE"
-    exit 1
-fi
-source "$ENV_FILE"
-
-if [ -z "$MAILCOW_HOSTNAME" ]; then
-    echo "❌ MAILCOW_HOSTNAME 为空"
-    exit 1
-fi
+MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
 
 ########################
 # 证书路径
 ########################
-CRT_FILE="/home/web/certs/${MAILCOW_HOSTNAME}_cert.pem"
-KEY_FILE="/home/web/certs/${MAILCOW_HOSTNAME}_key.pem"
+CRT_FILE="/home/web/certs/\${MAILCOW_HOSTNAME}_cert.pem"
+KEY_FILE="/home/web/certs/\${MAILCOW_HOSTNAME}_key.pem"
 
-if [ ! -f "$CRT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
-    echo "❌ 证书或私钥不存在:"
-    echo "   $CRT_FILE"
-    echo "   $KEY_FILE"
+if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then
+    echo "❌ 证书不存在: \$CRT_FILE"
     exit 1
 fi
-
-echo "✅ 找到证书文件，开始检查是否需要更新..."
 
 ########################
 # MD5 对比
 ########################
-TARGET_CERT="$MAILCOW_DIR/data/assets/ssl/cert.pem"
+TARGET_CERT="\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+MD5_CURRENT=\$( [ -f "\$TARGET_CERT" ] && md5sum "\$TARGET_CERT" | awk '{print \$1}' )
+MD5_NEW=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
 
-if [ -f "$TARGET_CERT" ]; then
-    MD5_CURRENT=$(md5sum "$TARGET_CERT" | awk '{print $1}')
+########################
+# 同步
+########################
+if [ "\$MD5_CURRENT" != "\$MD5_NEW" ]; then
+    echo "🔄 同步 Mailcow 证书..."
+
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+
+    mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+
+echo "🔄 重启 Mailcow 容器..."
+docker restart mailcowdockerized-postfix-mailcow-1 \
+               mailcowdockerized-dovecot-mailcow-1 \
+               mailcowdockerized-nginx-mailcow-1
+
+    echo "✅ Mailcow 证书更新完成"
 else
-    MD5_CURRENT=""
+    echo "ℹ️ 证书未发生变化，无需更新"
 fi
 
+EOF
+chmod +x "$ZSFZ2_NGINX"
+
+# ------------------------------
+# 生成 Caddy -> Mailcow 证书同步脚本
+# ------------------------------
+ZSFZ2_CADDY="${MAILCOW_DIR}/zhengshucaddy.sh"
+cat > "$ZSFZ2_CADDY" <<EOF
+#!/usr/bin/env bash
+set -e
+
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${MAILCOW_HOSTNAME}"
+
+CADDY_CERTS_DIR="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${MAILCOW_HOSTNAME}"
+
+CRT_FILE="${CADDY_CERTS_DIR}/${MAILCOW_HOSTNAME}.crt"
+KEY_FILE="${CADDY_CERTS_DIR}/${MAILCOW_HOSTNAME}.key"
+
+if [ ! -f "$CRT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
+    echo "⚠️ Caddy 证书不存在，跳过同步"
+    exit 0
+fi
+
+MD5_CURRENT=$(md5sum "$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print $1}')
 MD5_NEW=$(md5sum "$CRT_FILE" | awk '{print $1}')
 
-########################
-# 同步证书
-########################
+
+
 if [ "$MD5_CURRENT" != "$MD5_NEW" ]; then
-    echo "🔄 检测到证书变化，开始同步..."
+
+    echo "🔄 检测到证书变更，开始同步到 Mailcow..."
 
     cp "$CRT_FILE" "$MAILCOW_DIR/data/assets/ssl/cert.pem"
     cp "$KEY_FILE" "$MAILCOW_DIR/data/assets/ssl/key.pem"
@@ -218,41 +319,46 @@ if [ "$MD5_CURRENT" != "$MD5_NEW" ]; then
     cp "$CRT_FILE" "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME/cert.pem"
     cp "$KEY_FILE" "$MAILCOW_DIR/data/assets/ssl/$MAILCOW_HOSTNAME/key.pem"
 
-    echo "🔁 重启 Mailcow 服务容器..."
-    docker restart \
-        $(docker ps -qaf name=postfix-mailcow) \
-        $(docker ps -qaf name=dovecot-mailcow) \
-        $(docker ps -qaf name=nginx-mailcow)
 
-    echo "✅ Mailcow 证书更新完成"
+echo "🔄 重启 Mailcow 容器..."
+docker restart postfix-mailcow dovecot-mailcow nginx-mailcow
+
+
+    echo "✅ 证书同步完成"
 else
-    echo "ℹ️ 证书未发生变化，无需更新"
+    echo "✅ 证书未变化，无需同步"
+
+
 fi
 EOF
-
-
-
-chmod +x "$ZSFZ2_SCRIPT"
+chmod +x "$ZSFZ2_CADDY"
 
 # ------------------------------
-# 配置 cron（每天2点执行，无日志，去重）
+# 添加定时任务（自动使用 MAILCOW_HOSTNAME 脚本）
 # ------------------------------
-CRON_LINE="0 2 * * * $ZSFZ2_SCRIPT"
+add_cron_job "$ZSFZ2_NGINX" "0 2 * * *"   # nginx 每天 2 点同步
+add_cron_job "$ZSFZ2_CADDY" "0 3 * * *"   # caddy 每天 3 点同步
 
-# 使用临时文件安全写入 cron
-TMP_CRON=$(mktemp)
 
-# 导出现有 crontab（如果为空，文件就是空）
-crontab -l 2>/dev/null > "$TMP_CRON" || true
 
-# 去重，如果不存在才追加
-grep -Fq "$ZSFZ2_SCRIPT" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
 
-# 写回 crontab
-crontab "$TMP_CRON"
 
-# 删除临时文件
-rm -f "$TMP_CRON"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     # 清屏输出
@@ -397,6 +503,7 @@ restore_mailcow() {
     [[ "$confirm" != "yes" ]] && echo "取消恢复" && return
 
 
+
     # ------------------------------
     # 安装 Docker（如果未安装）
     # ------------------------------
@@ -474,14 +581,36 @@ restore_mailcow() {
 
 
     # ------------------------------
-    # 配置每日 2 点执行的证书同步 cron（防重复）
+    # 启动 Mailcow
     # ------------------------------
-    CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhi.sh"
-    TMP_CRON=$(mktemp)
-    crontab -l 2>/dev/null > "$TMP_CRON" || true
-    grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
-    crontab "$TMP_CRON"
-    rm -f "$TMP_CRON"
+    echo "🚀 启动 Mailcow"
+    cd /home/docker/mailcow-dockerized
+    docker compose up -d
+
+    # ------------------------------
+    # 函数：添加定时任务（防重复）
+    # ------------------------------
+    add_cron_job() {
+        local SCRIPT_PATH="$1"
+        local CRON_TIME="$2"
+        CRON_LINE="$CRON_TIME $SCRIPT_PATH"
+        TMP_CRON=$(mktemp)
+        crontab -l 2>/dev/null > "$TMP_CRON" || true
+        grep -Fq "$SCRIPT_PATH" "$TMP_CRON" || echo "$CRON_LINE" >> "$TMP_CRON"
+        crontab "$TMP_CRON"
+        rm -f "$TMP_CRON"
+    }
+
+    # nginx 证书同步脚本，每日 2 点
+    add_cron_job "/home/docker/mailcow-dockerized/zhengshunginx.sh" "0 2 * * *"
+
+    # caddy 证书同步脚本，每日 3 点
+    add_cron_job "/home/docker/mailcow-dockerized/zhengshucaddy.sh" "0 3 * * *"
+
+
+
+
+
 
 
 
@@ -489,6 +618,77 @@ restore_mailcow() {
     echo "✅ 恢复完成！Mailcow 已启动"
     read -rp "按回车继续..." _
 }
+
+
+
+
+
+# ------------------------------
+# 证书同步函数（菜单选项 5）
+# ------------------------------
+sync_certificates() {
+    read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
+    if [ -z "$ZSFZ_DOMAIN" ]; then
+        echo "❌ 域名不能为空"
+        return
+    fi
+
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshuqita.sh"
+
+    # 生成同步脚本（手动执行，无日志）
+    cat > "$ZSFZ_SYNC" <<EOF
+#!/usr/bin/env bash
+# 自动复制 Mailcow SSL 证书（手动执行）
+set -e
+
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${ZSFZ_DOMAIN}"
+CADDY_CERTS_BASE="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory"
+
+CERT_DIR=\$(find "\$CADDY_CERTS_BASE" -type d -name "\$MAILCOW_HOSTNAME" | head -n1)
+if [ ! -d "\$CERT_DIR" ]; then exit 1; fi
+
+CRT_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.key"
+
+if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then exit 1; fi
+
+mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+
+MD5_CURRENT_CERT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}' || echo "")
+MD5_NEW_CERT=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
+
+if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+    docker restart \$(docker ps -qaf name=postfix-mailcow) \\
+                   \$(docker ps -qaf name=dovecot-mailcow) \\
+                   \$(docker ps -qaf name=nginx-mailcow)
+fi
+EOF
+
+    chmod +x "$ZSFZ_SYNC"
+
+    # 安装定时任务（每天凌晨 2 点执行，无日志）
+    CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
+    if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
+        (crontab -l 2>/dev/null; echo "0 4 * * * $ZSFZ_SYNC") | crontab -
+
+
+        echo "✅ 定时任务已安装，每天凌晨 2 点自动执行（无日志）"
+    else
+        echo "✅ 定时任务已存在"
+    fi
+
+    echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
+    read -rp "按回车继续..." _
+}
+
+
+
 
 
 
@@ -509,6 +709,8 @@ uninstall_mailcow() {
     echo "✅ 卸载完成"
     read -rp "按回车继续..." _
 }
+
+
 
 
 
