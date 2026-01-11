@@ -375,6 +375,25 @@ restore_mailcow() {
     read -rp "⚠️ 确认恢复 ${FILE}？会覆盖所有邮件和用户 (yes/no): " confirm
     [[ "$confirm" != "yes" ]] && return
 
+
+    # ------------------------------
+    # 安装 Docker（如果未安装）
+    # ------------------------------
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "⚠️ Docker 未安装，正在安装..."
+        apt update
+        apt install -y ca-certificates curl gnupg lsb-release
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+        apt update
+        apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        systemctl enable --now docker
+    fi
+
+
+
+
     TMP_DIR=$(mktemp -d)
 
     echo "📦 解压备份"
@@ -411,25 +430,19 @@ restore_mailcow() {
     echo "🚀 启动 Mailcow"
     cd /home/docker/mailcow-dockerized && docker compose up -d
 
-    # ====== 恢复后补环境 ======
-    SYNC_SCRIPT="/home/docker/mailcow-dockerized/zhengshufuzhi.sh"
-    CRON_LINE="0 2 * * * $SYNC_SCRIPT"
+    # ------------------------------
+    # 安装每日 2 点执行的 cron（防重复）
+    # ------------------------------
+    CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshufuzhi.sh"
 
-    if [ -f "$SYNC_SCRIPT" ]; then
-        chmod +x "$SYNC_SCRIPT"
-        echo "✅ 证书同步脚本已就绪"
-    else
-        echo "⚠️ 未找到证书同步脚本"
-    fi
+    TMP_CRON=$(mktemp)
+    crontab -l 2>/dev/null > "$TMP_CRON" || true
+    grep -Fq "/home/docker/mailcow-dockerized/zhengshufuzhi.sh" "$TMP_CRON" \
+        || echo "$CRON_LINE" >> "$TMP_CRON"
+    crontab "$TMP_CRON"
+    rm -f "$TMP_CRON"
 
-    if ! crontab -l 2>/dev/null | grep -Fq "$SYNC_SCRIPT"; then
-        (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
-        echo "⏱ 已添加证书同步 cron（02:00）"
-    else
-        echo "ℹ️ cron 已存在"
-    fi
-
-    echo "✅ 恢复完成（邮件 + 用户 + 配置 已恢复）"
+    echo "✅ 恢复完成！Mailcow + Caddy 已启动"
     read -rp "按回车继续..." _
 }
 
