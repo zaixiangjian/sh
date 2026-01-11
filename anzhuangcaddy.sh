@@ -350,18 +350,17 @@ function menu() {
     echo "4. 停止 Caddy"
     echo "5. 添加 TLS Skip Verify 反向代理"
     echo "6. 删除指定域名配置"
-
-    echo "100. 添加 Mailcow 多子域名反向代理配置"
-
-
     echo "7. 更新 Caddy"
     echo "8. 查看当前版本"
     echo "=============================="
     echo "88. 添加M3U8反代配置"
     echo "99. 卸载 Caddy"
+    echo "=============================="
     echo "打包恢复请使用75号配置"
     echo "证书路径是"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
+    echo "=============================="
+    echo "100. 添加 Mailcow 多子域名反向代理配置"
     echo "=============================="
     echo "0. 退出"
     echo "=============================="
