@@ -8272,50 +8272,46 @@ endpoint =存储桶访问地址"
 
 
 
-		  75)
 
 
-	docker_name="openlist"
-	docker_img="openlistteam/openlist"
-	docker_port=5244
-	docker_rum="
+75)
+    docker_name="openlist"
+    docker_img="openlistteam/openlist"
+    docker_port=5244
+    docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
+    docker_url="官网介绍: https://github.com/OpenListTeam/OpenList
 
-# 创建数据目录
-mkdir -p /home/docker/openlist/data
+查看密码使用
+在本机输入代码
 
-# 修复权限（保证容器可以写入）
-chmod -R 777 /home/docker/openlist/data
-
-# 删除可能已存在的旧容器
-docker rm -f openlist 2>/dev/null || true
-
-# 获取本机 IP
-HOST_IP=\$(hostname -I | awk '{print \$1}')
-
-# 启动 Docker
-docker run -d \
-  --name openlist \
-  -p 5244:5244 \
-  -v /home/docker/openlist/data:/opt/openlist/data \
-  --restart=always \
-  openlistteam/openlist
-
-# 等待容器启动
-sleep 5
-
-# 输出访问地址
-echo \"===============================================\"
-echo \"OpenList 已启动，访问：http://\$HOST_IP:5244\"
-echo \"管理员密码请使用：docker logs openlist 查看\"
-echo \"数据目录：/home/docker/openlist/data\"
-echo \"===============================================\"
+docker logs openlist
 "
-	docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
-	docker_url="官网介绍: https://github.com/OpenListTeam/OpenList"
-	docker_use="访问地址：http://本机IP:5244"
-	docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
-	docker_app
-	;;
+
+
+
+    # 创建数据目录并设置权限
+    mkdir -p /home/docker/openlist/data
+    chown -R 1000:1000 /home/docker/openlist/data
+    chmod -R 755 /home/docker/openlist/data
+
+    # 启动容器
+    docker run -d \
+      --name openlist \
+      --restart always \
+      -p ${docker_port}:5244 \
+      -v /home/docker/openlist/data:/opt/openlist/data \
+      --user 1000:1000 \
+      ${docker_img}
+
+    # 输出访问地址和首次密码提示
+    docker_use="访问地址：http://$(hostname -I | awk '{print $1}'):${docker_port}"
+    docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
+
+    echo "$docker_use"
+    echo "$docker_passwd"
+
+    docker_app
+;;
 
 
 
