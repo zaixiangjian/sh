@@ -105,6 +105,20 @@ read_choice() {
 # 安装函数
 # ------------------------------
 install_mailcow() {
+
+
+
+# 检查是否有 mailcow 相关的容器在运行
+    if docker ps -a --format '{{.Names}}' | grep -q "mailcowdockerized"; then
+        echo "❌ 发现正在运行的 Mailcow 容器，禁止重复安装！"
+        read -rp "按回车返回菜单..." _
+        return
+    fi
+
+
+
+
+
     # —— 交互式输入 —— #
     while true; do
         read -rp "请输入 Mailcow 域名（如 mail.example.com，必填）: " MAILCOW_HOSTNAME
