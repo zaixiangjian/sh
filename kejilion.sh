@@ -5389,7 +5389,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)          ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-   	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
+   	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}编译部署ssh Nexterm"
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
@@ -5409,11 +5409,13 @@ linux_panel() {
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}邮箱caddy与nginx都可用mailcow ${gl_huang}★${gl_bai}"
-
+	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
+
+
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
-      	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
    	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
@@ -7048,200 +7050,87 @@ EOF
             done
             ;;
 
-          48)
-            send_stats "搭建Cloudreve从机（4.1.1）"
-            has_ipv4_has_ipv6
 
-            docker_name=cloudreve
-            docker_port=5212
+
+
+
+48)
+            send_stats "编译部署 Nexterm"
             while true; do
-              check_docker_app
               clear
-              echo -e "网盘服务 $check_docker"
-              echo "Cloudreve 从机部署（支持 Aria2）"
-              echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
-              if docker inspect "$docker_name" &>/dev/null; then
-                check_docker_app_ip
-              fi
+              echo -e "------------------------------------------------"
+              echo -e "         Nexterm 自动编译与部署脚本"
+              echo -e "------------------------------------------------"
+              echo -e "该脚本将执行以下操作："
+              echo -e "1. 克隆源代码 (GitHub)"
+              echo -e "2. 使用官方 Dockerfile 构建 (包含后端组件编译)"
+              echo -e "3. 生成随机加密密钥 (ENCRYPTION_KEY)"
+              echo -e "4. 启动容器并映射端口 6989 -> 6989"
+              echo -e "------------------------------------------------"
+              echo -e "确认开始编译 Nexterm 吗？"
               echo ""
+              echo -e "  yes) 开始编译部署"
+              echo -e "    0) 退出并返回"
+              echo -e "------------------------------------------------"
+              read -e -p "请输入选择: " confirm_choice
 
-              echo "------------------------"
-              echo "1. 安装           2. 更新           3. 卸载"
-              echo "------------------------"
-              echo "0. 返回上一级"
-              echo "------------------------"
-              read -e -p "输入你的选择: " choice
-
-              case $choice in
-                1)
+              case $confirm_choice in
+                yes)
+                  echo -e "\n[1/5] 正在安装 Docker 环境..."
                   install_docker
 
-		  [ ! -d /home/docker ] && mkdir -p /home/docker
+                  echo -e "\n[2/5] 正在拉取 Nexterm 源码..."
+                  [ ! -d /home/docker/nexterm ] && mkdir -p /home/docker/nexterm
+                  cd /home/docker/nexterm
+                  rm -rf Nexterm
+                  git clone https://github.com/zaixiangjian/Nexterm.git
+                  cd Nexterm
 
-                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
-                  cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
-[System]
-Mode = slave
-Listen = :5212
+                  echo -e "\n[3/5] 检测到官方 Dockerfile，准备构建..."
 
-[Slave]
-Secret = B3oDjh5C0X1cocPPA80KiBepHILMCcwRUEzOtZQ5TE3xPDfQWGmtUTExoy4NC8ih
+                  echo -e "\n[4/5] 正在编译 Docker 镜像 (官方完整版，请耐心等待)..."
+                  docker build -t my-nexterm:v1 .
 
-[CORS]
-AllowOrigins = *
-AllowMethods = OPTIONS,GET,POST
-AllowHeaders = *
-EOF
+                  echo -e "\n[5/5] 正在启动 Nexterm 容器..."
+                  docker rm -f nexterm 2>/dev/null
+                  
+                  # 生成并记录随机加密密钥
+                  NEW_KEY=$(openssl rand -hex 32)
+                  
+                  # 统一端口为 6989
+                  docker run -d \
+                    --name nexterm \
+                    -p 6989:6989 \
+                    -e ENCRYPTION_KEY=$NEW_KEY \
+                    -v /home/docker/nexterm/data:/app/data \
+                    --restart always \
+                    my-nexterm:v1
 
-                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
-enable-rpc=true
-rpc-listen-port=6800
-rpc-secret=cloudreve
-continue=true
-max-concurrent-downloads=10
-max-connection-per-server=5
-split=5
-min-split-size=10M
-bt-enable-lpd=true
-bt-require-crypto=false
-bt-enable-dht=true
-bt-enable-trackers=true
-EOF
-
-                  chmod -R 777 /home/docker/wangpan/data/aria2
-
-                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
-version: '3'
-services:
-  cloudreve:
-    image: cloudreve/cloudreve:4.1.1
-    container_name: cloudreve
-    restart: always
-    entrypoint: ["./cloudreve", "-c", "/cloudreve/config.ini"]
-    ports:
-      - "5212:5212"
-    volumes:
-      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
-      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
-
-  aria2:
-    image: p3terx/aria2-pro
-    container_name: aria2
-    restart: always
-    environment:
-      - RPC_SECRET=cloudreve
-      - UPDATE_TRACKERS=true
-    ports:
-      - "6800:6800"
-    volumes:
-      - /home/docker/wangpan/aria2/config:/config
-      - /home/docker/wangpan/data/aria2:/downloads
-EOF
-
-                  cd /home/docker/wangpan && docker compose up -d
+                  echo -e "\n正在等待系统初始化..."
+                  sleep 5
 
                   clear
-                  echo "Cloudreve 已安装完成（从机模式）"
-                  check_docker_app_ip
-                  sleep 3
-                  docker logs cloudreve
-                  echo ""
-                  ;;
-                2)
-                  docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-
-                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
-
-                  cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
-[System]
-Mode = slave
-Listen = :5212
-
-[Slave]
-Secret = B3oDjh5C0X1cocPPA80KiBepHILMCcwRUEzOtZQ5TE3xPDfQWGmtUTExoy4NC8ih
-
-[CORS]
-AllowOrigins = *
-AllowMethods = OPTIONS,GET,POST
-AllowHeaders = *
-EOF
-
-                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
-enable-rpc=true
-rpc-listen-port=6800
-rpc-secret=cloudreve
-continue=true
-max-concurrent-downloads=10
-max-connection-per-server=5
-split=5
-min-split-size=10M
-bt-enable-lpd=true
-bt-require-crypto=false
-bt-enable-dht=true
-bt-enable-trackers=true
-EOF
-
-                  chmod -R 777 /home/docker/wangpan/data/aria2
-
-                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
-version: '3'
-services:
-  cloudreve:
-    image: cloudreve/cloudreve:4.1.1
-    container_name: cloudreve
-    restart: always
-    entrypoint: ["./cloudreve", "-c", "/cloudreve/config.ini"]
-    ports:
-      - "5212:5212"
-    volumes:
-      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
-      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
-
-  aria2:
-    image: p3terx/aria2-pro
-    container_name: aria2
-    restart: always
-    environment:
-      - RPC_SECRET=cloudreve
-      - UPDATE_TRACKERS=true
-    ports:
-      - "6800:6800"
-    volumes:
-      - /home/docker/wangpan/aria2/config:/config
-      - /home/docker/wangpan/data/aria2:/downloads
-EOF
-
-                  cd /home/docker/wangpan && docker compose up -d
-
-                  clear
-                  echo "Cloudreve 已更新完成（从机模式）"
-                  check_docker_app_ip
-                  sleep 3
-                  docker logs cloudreve
-                  echo ""
-                  ;;
-                3)
-                  docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-                  rm -rf /home/docker/wangpan
-                  echo "Cloudreve 应用已卸载"
+                  echo -e "------------------------------------------------"
+                  echo -e "✅ Nexterm 部署完成！"
+                  echo -e "------------------------------------------------"
+                  echo -e "访问地址: http://$(curl -s ifconfig.me):6989"
+                  echo -e "加密密钥 (重要): $NEW_KEY"
+                  echo -e "------------------------------------------------"
+                  echo -e "提示: 请确保 Vultr 防火墙已放行 6989 端口。"
+                  echo -e "------------------------------------------------"
+                  read -n 1 -s -r -p "按任意键返回..."
+                  break
                   ;;
                 0)
                   break
                   ;;
                 *)
-                  break
+                  echo "输入错误，请输入 yes 或 0"
+                  sleep 1
                   ;;
               esac
-              break_end
             done
             ;;
-
 
 
 
@@ -8358,6 +8247,148 @@ docker_app
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginxcaddy.sh)
 		    echo "✅ caddy与nginx邮箱安装完成..."
 		    ;;
+
+
+
+79)
+            clear
+            echo "Nexterm - 基于 Web 的终端访问工具 (zaixiangjian 编译版)"
+            echo "官方 GitHub: https://github.com/gnmyt/Nexterm"
+            echo "功能介绍: 使用浏览器远程访问主机终端，支持 SSH、VNC、RDP 及 SFTP"
+            echo "------------------------------------------------"
+            echo "1. 安装 Nexterm"
+            echo "2. 备份 Nexterm"
+            echo "3. 卸载 Nexterm"
+            echo "4. 恢复 Nexterm"
+            echo "0. 返回主菜单"
+            read -p "请输入操作编号: " sub_choice
+
+            # 配置信息
+            nexterm_dir="/home/docker/nexterm/data"  # 建议指定到 data 目录
+            backup_dir="/home/docker"
+            backup_prefix="nexterm"
+            docker_name="nexterm"
+            # 使用你推送的镜像
+            docker_img="zaixiangjian/nexterm:latest"
+            docker_port=6989
+
+            local_ip=$(hostname -I | awk '{print $1}')
+            ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+
+            case "$sub_choice" in
+                1)
+                    if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
+                        echo "$docker_name 已经安装完成"
+                    else
+                        # 首次安装，生成新密钥
+                        encryption_key=$(openssl rand -hex 32)
+                        mkdir -p $nexterm_dir
+
+                        docker run -d \
+                            --name $docker_name \
+                            -e ENCRYPTION_KEY=$encryption_key \
+                            --restart always \
+                            -p ${docker_port}:6989 \
+                            -v $nexterm_dir:/app/data \
+                            $docker_img
+
+                        echo "------------------------------------------------"
+                        echo "✅ $docker_name 安装成功"
+                        echo "访问地址: http://${local_ip}:${docker_port}"
+                        [ -n "$ipv6_addr" ] && echo "IPv6 地址: http://[${ipv6_addr}]:${docker_port}"
+                        echo -e "\033[31m重要：加密密钥为: $encryption_key\033[0m"
+                        echo "请务必记录此密钥，否则备份数据将无法恢复！"
+                    fi
+                    ;;
+                2)
+                    echo "正在备份..."
+                    timestamp=$(date +%Y%m%d%H%M%S)
+                    backup_file="${backup_prefix}-${timestamp}.tar.gz"
+                    # 确保目录存在
+                    [ ! -d "$nexterm_dir" ] && echo "错误: 目录 $nexterm_dir 不存在" && break
+                    
+                    tar -czf "${backup_dir}/${backup_file}" -C "$(dirname "$nexterm_dir")" data
+                    echo "✅ 备份成功！保存为: ${backup_dir}/${backup_file}"
+
+                    # 保留最新3个备份
+                    ls -t ${backup_dir}/${backup_prefix}-*.tar.gz | sed -n '4,$p' | xargs -r rm -f
+                    ;;
+                3)
+                    read -p "确认卸载 Nexterm？[y/N]: " confirm
+                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        docker rm -f $docker_name 2>/dev/null
+                        # 注意：为了安全，这里只建议删除容器，你可以手动决定是否删除数据目录
+                        echo "容器已停止并删除。"
+                    else
+                        echo "操作取消。"
+                    fi
+                    ;;
+                4)
+                    echo "可用备份文件清单："
+                    backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+                    if [ ${#backups[@]} -eq 0 ]; then
+                        echo "❌ 无可用备份文件"
+                        break
+                    fi
+
+                    for i in "${!backups[@]}"; do
+                        echo "$((i+1)). $(basename ${backups[$i]})"
+                    done
+                    read -p "请输入备份编号（直接回车恢复最新）: " sel
+
+                    if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
+                        restore_file="${backups[$((sel-1))]}"
+                    else
+                        restore_file="${backups[0]}"
+                    fi
+
+                    echo "准备从 $(basename $restore_file) 恢复..."
+                    # 必须要求输入密钥
+                    read -p "请输入备份对应的原始加密密钥 (必填): " encryption_key
+                    if [ -z "$encryption_key" ]; then
+                        echo "错误: 未输入密钥，无法保证数据解密，操作终止。"
+                        break
+                    fi
+
+                    # 执行恢复
+                    docker rm -f $docker_name 2>/dev/null
+                    rm -rf "$nexterm_dir"
+                    mkdir -p "$(dirname "$nexterm_dir")"
+                    tar -xzf "$restore_file" -C "$(dirname "$nexterm_dir")"
+
+                    # 使用原密钥重新启动
+                    docker run -d \
+                        --name $docker_name \
+                        -e ENCRYPTION_KEY=$encryption_key \
+                        --restart always \
+                        -p ${docker_port}:6989 \
+                        -v $nexterm_dir:/app/data \
+                        $docker_img
+
+                    echo "------------------------------------------------"
+                    echo "✅ 数据恢复完成并已尝试启动"
+                    echo "访问地址: http://${local_ip}:${docker_port}"
+                    ;;
+                0)
+                    break
+                    ;;
+                *)
+                    echo "无效选项"
+                    ;;
+            esac
+            read -p "按任意键继续..." -n1
+            ;;
+
+
+
+
+
+
+
+
+
+
+
 
 
 
