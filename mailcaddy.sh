@@ -110,6 +110,71 @@ read_choice() {
 # 安装函数
 # ------------------------------
 install_mailcow() {
+
+
+
+
+
+
+local ALREADY_INSTALLED=0
+    
+    # 检测逻辑：目录不为空、配置文件存在、或有相关容器
+    [ -d "${MAILCOW_DIR}" ] && [ "$(ls -A "${MAILCOW_DIR}" 2>/dev/null)" ] && ALREADY_INSTALLED=1
+    [ -f "${MAILCOW_DIR}/mailcow.conf" ] && ALREADY_INSTALLED=1
+    [ -n "$(docker ps -aq --filter "name=mailcow")" ] && ALREADY_INSTALLED=1
+
+    if [ "$ALREADY_INSTALLED" -eq 1 ]; then
+        echo "=================================================="
+        echo "⚠️  检测到 Mailcow 已经安装或存在安装残余"
+        echo "=================================================="
+        echo "1)  尝试继续安装 (适用于上次安装中途断网/报错)"
+        echo "2)  彻底清理并重装 (⚠️ 将清空所有邮件数据和配置)"
+        echo "3)  取消操作"
+        echo "--------------------------------------------------"
+        read -rp "请选择处理方式 [1-3]: " reset_choice
+
+        case "$reset_choice" in
+            1)
+                echo "确认：尝试在当前目录下继续安装流程。"
+                read -rp "请输入 'yes' 确认继续: " confirm_continue
+                if [ "$confirm_continue" != "yes" ]; then
+                    echo "❌ 已取消继续安装。"
+                    return
+                fi
+                echo "🚀 正在尝试恢复安装流程..."
+                # 检查目录，如果不存在（极罕见情况）则创建
+                mkdir -p "${MAILCOW_DIR}"
+                cd "${MAILCOW_DIR}" || exit 1
+                ;;
+            2)
+                echo "警报：这将删除 ${MAILCOW_DIR} 目录及所有 Docker 卷！"
+                read -rp "请输入 'yes' 确认彻底清理并重装: " confirm_reinstall
+                if [ "$confirm_reinstall" != "yes" ]; then
+                    echo "❌ 已取消清理操作。"
+                    return
+                fi
+                echo "🧹 正在深度清理旧环境..."
+                # 尝试停止并移除容器及卷
+                if [ -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
+                    docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down -v --remove-orphans 2>/dev/null || true
+                fi
+                # 强制删除目录
+                rm -rf "${MAILCOW_DIR}"
+                echo "✅ 清理完成，即将开始全新安装。"
+                # 重新进入安装流程
+                ;;
+            *)
+                echo "返回主菜单。"
+                return
+                ;;
+        esac
+    fi
+
+
+
+
+
+
     # —— 交互式输入 —— #
     while true; do
         read -rp "请输入 Mailcow 域名（如 mail.example.com，必填）: " MAILCOW_HOSTNAME
