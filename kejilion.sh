@@ -5389,7 +5389,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)          ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-      	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
+   	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
@@ -5407,7 +5407,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
-	  echo -e "${gl_kjlan}75.  ${gl_bai}Caddy备份与恢复 ${gl_huang}★${gl_bai}                     ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
+	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                     ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}mailcow-dockerized邮箱 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}79.  ${gl_bai}邮箱caddy与nginx都可用mailcow ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}------------------------"
@@ -8271,11 +8271,32 @@ endpoint =存储桶访问地址"
 		    ;;
 
 		  75)
-		    clear
-		    echo "▶️ Caddy备份与恢复..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/caddydabaohuifu.sh)
-		    echo "✅ Caddy备份与恢复完成..."
-		    ;;
+
+
+			docker_name="openlist"
+			docker_img="openlistteam/openlist:4.19"
+			docker_port=5244
+
+			# 修复 OpenList v4.1.0+ 非 root (UID=1000) 权限问题
+			mkdir -p /home/docker/openlist/data
+			chown -R 1000:1000 /home/docker/openlist
+
+			docker_rum="docker run -d \
+							--name openlist \
+							--restart always \
+							-p 5244:5244 \
+							-v /home/docker/openlist/data:/opt/openlist/data \
+							openlistteam/openlist:4.19"
+
+			# 自动获取本机 IP
+			HOST_IP=$(hostname -I | awk '{print $1}')
+
+			docker_describe="OpenList：Alist 分支项目（v4.1.0+ 默认非 root，已修复权限）"
+			docker_url="官网介绍: https://github.com/OpenListTeam/OpenList"
+			docker_use="访问：http://${HOST_IP}:5244"
+			docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
+			docker_app
+			  ;;
 
 76)
 
