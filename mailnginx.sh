@@ -46,6 +46,15 @@ read_choice() {
 
 # 安装
 install_mailcow() {
+
+# 检查是否有 mailcow 相关的容器在运行
+    if docker ps -a --format '{{.Names}}' | grep -q "mailcowdockerized"; then
+        echo "❌ 发现正在运行的 Mailcow 容器，禁止重复安装！"
+        read -rp "按回车返回菜单..." _
+        return
+    fi
+
+
     mkdir -p "${INSTALL_DIR}"
     cd "${INSTALL_DIR}"
 
