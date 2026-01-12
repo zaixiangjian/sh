@@ -8270,6 +8270,8 @@ endpoint =存储桶访问地址"
 		    echo "✅ 安装minio..."
 		    ;;
 
+
+
 		  75)
 
 
@@ -8278,11 +8280,14 @@ endpoint =存储桶访问地址"
 	docker_port=5244
 	docker_rum="
 
-# 自动创建数据目录
+# 创建数据目录
 mkdir -p /home/docker/openlist/data
 
-# 设置权限（方案 B，保持规范）
-chown -R 1000:1000 /home/docker/openlist/data
+# 修复权限（保证容器可以写入）
+chmod -R 777 /home/docker/openlist/data
+
+# 删除可能已存在的旧容器
+docker rm -f openlist 2>/dev/null || true
 
 # 获取本机 IP
 HOST_IP=\$(hostname -I | awk '{print \$1}')
@@ -8295,8 +8300,15 @@ docker run -d \
   --restart=always \
   openlistteam/openlist
 
-# 显示访问地址
+# 等待容器启动
+sleep 5
+
+# 输出访问地址
+echo \"===============================================\"
 echo \"OpenList 已启动，访问：http://\$HOST_IP:5244\"
+echo \"管理员密码请使用：docker logs openlist 查看\"
+echo \"数据目录：/home/docker/openlist/data\"
+echo \"===============================================\"
 "
 	docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
 	docker_url="官网介绍: https://github.com/OpenListTeam/OpenList"
@@ -8304,6 +8316,11 @@ echo \"OpenList 已启动，访问：http://\$HOST_IP:5244\"
 	docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
 	docker_app
 	;;
+
+
+
+
+
 
 76)
 
