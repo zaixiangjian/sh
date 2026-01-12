@@ -8276,7 +8276,7 @@ endpoint =存储桶访问地址"
 
 75)
     docker_name="openlist"
-    docker_img="openlistteam/openlist"
+    docker_img="openlistteam/openlist:v4.1.9"
     docker_port=5244
     docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
     docker_url="官网介绍: https://github.com/OpenListTeam/OpenList
@@ -8286,9 +8286,6 @@ endpoint =存储桶访问地址"
 
 docker logs openlist
 "
-
-
-
     # 创建数据目录并设置权限
     mkdir -p /home/docker/openlist/data
     chown -R 1000:1000 /home/docker/openlist/data
@@ -8312,6 +8309,7 @@ docker logs openlist
 
     docker_app
 ;;
+
 
 
 
