@@ -118,6 +118,8 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
     echo "9) 删除指定任务 (6/7/8号)"
     echo "=============================="
     echo "10) 卸载 Mailcow"
+    echo "98) 修复 IPv6 报错 (强制APT优先 IPv4)"
+    echo "99) 恢复 IPv6 设置"
     echo "=============================="
     echo "Caddy证书位置"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
@@ -139,8 +141,9 @@ read_choice() {
         7) sm_tp ;;
         8) qi_ta ;;
         9) delete_specific_cron ;; # 新增 9 号删除 (原9号卸载可移至其他编号)
-
         10) uninstall_mailcow ;;
+        98) force_ipv4_priority ;;
+        99) restore_ipv6 ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo "无效选项"; sleep 1 ;;
     esac
@@ -237,78 +240,54 @@ install_mailcow() {
     docker compose pull
     docker compose up -d
 
-# ------------------------------
-# 安装 / 修复 Caddy（系统优先，官方二进制备用）
-# ------------------------------
+# ------------------------------------------------------
+    # 智能检测与安装 Caddy (保留本机已装版本优先)
+    # ------------------------------------------------------
+    CONFIG_FILE="/etc/caddy/Caddyfile"
+    
+    echo -e "${GREEN}🔄 正在检查本地 Caddy 环境...${RESET}"
 
-CONFIG_FILE="/etc/caddy/Caddyfile"
+    # 1. 核心检测逻辑
+    if command -v caddy >/dev/null 2>&1; then
+        # 如果存在，检查它是否能正常运行（防止 Segmentation fault）
+        if caddy version >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ 检测到本机已安装 Caddy ($(caddy version))，将直接使用现有版本。${RESET}"
+            INSTALL_METHOD="SKIP"
+        else
+            echo -e "${YELLOW}⚠️ 检测到本机 Caddy 已损坏，准备强制修复并重新安装...${RESET}"
+            systemctl stop caddy 2>/dev/null || true
+            # 如果是 apt 装的就删掉，如果是二进制就删掉文件
+            apt remove --purge -y caddy 2>/dev/null || true
+            rm -f /usr/bin/caddy
+            INSTALL_METHOD="APT"
+        fi
+    else
+        echo -e "${YELLOW}⚠️ 本机未检测到 Caddy，准备开始安装...${RESET}"
+        INSTALL_METHOD="APT"
+    fi
 
-# 检查系统 Caddy
-if command -v caddy >/dev/null 2>&1; then
-    echo "⚙️ 已检测到系统集成 Caddy，使用系统版本"
-else
-    echo "⚠️ 未检测到 Caddy，安装官方二进制..."
+    # 2. 执行安装（仅在需要时）
+    if [ "$INSTALL_METHOD" = "APT" ]; then
+        echo "🌐 正在配置 Caddy 官方 APT 仓库..."
+        apt update && apt install -y curl gnupg lsb-release ca-certificates
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        apt update
+        echo "📥 正在安装官方标准版 Caddy..."
+        apt install -y caddy
+    fi
 
-    apt update
-    apt install -y curl ca-certificates sudo
+    # 3. 基础环境加固 (无论哪种安装方式，都要确保目录权限正确)
+    # 确保 caddy 用户存在
+    getent group caddy >/dev/null || groupadd caddy
+    id -u caddy >/dev/null 2>&1 || useradd --system --gid caddy --home /var/lib/caddy --shell /usr/sbin/nologin caddy
 
-    ARCH="$(dpkg --print-architecture)"
-    case "$ARCH" in
-        amd64) CADDY_ARCH="amd64" ;;
-        arm64) CADDY_ARCH="arm64" ;;
-        *) echo "❌ 不支持的架构: $ARCH"; exit 1 ;;
-    esac
-
-    echo "📥 下载 Caddy 二进制 (${CADDY_ARCH})..."
-    curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}" -o /usr/bin/caddy
-    chmod +x /usr/bin/caddy
-fi
-
-# 创建 Caddy 用户和目录（兼容系统安装与官方二进制）
-if ! getent group caddy >/dev/null; then
-    groupadd caddy
-fi
-if ! id -u caddy >/dev/null 2>&1; then
-    useradd --system --gid caddy --home /var/lib/caddy --shell /usr/sbin/nologin caddy
-fi
-
-mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
-chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
-[ -f "$CONFIG_FILE" ] || touch "$CONFIG_FILE"
-
-# 创建 systemd 服务（不存在才创建）
-if [ ! -f /etc/systemd/system/caddy.service ]; then
-cat > /etc/systemd/system/caddy.service <<EOF
-[Unit]
-Description=Caddy
-After=network.target
-
-[Service]
-User=caddy
-Group=caddy
-ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
-ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
-TimeoutStopSec=5s
-LimitNOFILE=1048576
-LimitNPROC=512
-PrivateTmp=true
-ProtectSystem=full
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    systemctl daemon-reload
-    systemctl enable caddy
-fi
-
-# 启动 Caddy
-systemctl restart caddy
-
-# 检查状态
-systemctl status caddy --no-pager
+    mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
+    chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
 
 
+
+# 4. 生成/更新 Mailcow 转发配置
 # 生成 Caddyfile
 cat > "$CONFIG_FILE" <<EOF
 ${MAILCOW_HOSTNAME} autodiscover.${MAILCOW_HOSTNAME} autoconfig.${MAILCOW_HOSTNAME} {
@@ -316,9 +295,38 @@ ${MAILCOW_HOSTNAME} autodiscover.${MAILCOW_HOSTNAME} autoconfig.${MAILCOW_HOSTNA
 }
 EOF
 
-# 重启 Caddy
-systemctl restart caddy
-echo "✅ Caddy 已安装并启动（官方二进制）"
+# 5. 刷新服务
+    echo "🚀 正在启动并检查 Caddy 服务..."
+    # 如果没有 service 文件（针对手动二进制用户），则补充一个
+    if [ ! -f /lib/systemd/system/caddy.service ] && [ ! -f /etc/systemd/system/caddy.service ]; then
+        echo "📜 补全 Systemd 服务配置..."
+        cat > /etc/systemd/system/caddy.service <<EOF
+[Unit]
+Description=Caddy
+After=network.target
+[Service]
+User=caddy
+Group=caddy
+ExecStart=$(command -v caddy) run --environ --config /etc/caddy/Caddyfile
+ExecReload=$(command -v caddy) reload --config /etc/caddy/Caddyfile
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+
+    systemctl daemon-reload
+    systemctl unmask caddy 2>/dev/null || true
+    systemctl enable caddy
+    systemctl restart caddy
+
+    echo -e "${GREEN}✨ Caddy 配置完成！${RESET}"
+
+
+
+
 
 # ------------------------------
 # 生成 Caddy -> Mailcow 证书同步脚本
@@ -540,19 +548,20 @@ backup_mailcow() {
 
 
 # ------------------------------
-# 完整恢复 Mailcow + Caddy（强制覆盖 Caddy）
+# 完整恢复 Mailcow + Caddy（智能修复环境 & 增量合并配置）
 # ------------------------------
 restore_mailcow() {
     MAILCOW_DIR="/home/docker/mailcow-dockerized"
 
     FILE=$(ls -t /home/mailcowcaddy-*.tar.gz 2>/dev/null | head -n1)
-    [ -z "$FILE" ] && { echo "❌ 未找到备份文件"; return; }
+    [ -z "$FILE" ] && { echo -e "${RED}❌ 未找到备份文件${RESET}"; return; }
 
     read -rp "⚠️ 确认恢复 ${FILE}？(yes/no): " confirm
     [[ "$confirm" != "yes" ]] && return
 
-    # Docker 安装（原逻辑不动）
+    # 1. Docker 环境安装（原逻辑）
     if ! command -v docker >/dev/null 2>&1; then
+        echo "🌐 正在安装 Docker..."
         apt update
         apt install -y ca-certificates curl gnupg lsb-release
         mkdir -p /etc/apt/keyrings
@@ -568,33 +577,46 @@ https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     TMP_DIR=$(mktemp -d)
     tar xzf "$FILE" -C "$TMP_DIR"
 
-    # Caddy 安装（原逻辑不动）
-    if ! command -v caddy >/dev/null 2>&1; then
-        ARCH="$(dpkg --print-architecture)"
-        case "$ARCH" in
-            amd64) CADDY_ARCH="amd64" ;;
-            arm64) CADDY_ARCH="arm64" ;;
-            *) echo "❌ 不支持架构"; return ;;
-        esac
-        curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}" -o /usr/bin/caddy
-        chmod +x /usr/bin/caddy
+    # 2. Caddy 安装方式（改为官方仓库优先 + 损坏检测）
+    echo -e "${GREEN}🔄 正在初始化 Caddy 运行环境...${RESET}"
+    
+    # 损坏检测：如果 Caddy 存在但执行报错 (如 Segfault)，先清除
+    if command -v caddy >/dev/null 2>&1; then
+        if ! caddy version >/dev/null 2>&1; then
+            echo -e "${YELLOW}⚠️ 检测到 Caddy 二进制损坏，正在清除以准备修复...${RESET}"
+            systemctl stop caddy 2>/dev/null || true
+            apt remove --purge -y caddy 2>/dev/null || true
+            rm -f /usr/bin/caddy
+        fi
     fi
 
+    # 官方源安装：如果没装，或者上面刚才删了，就走官方源
+    if ! command -v caddy >/dev/null 2>&1; then
+        echo "🌐 正在通过官方仓库安装 Caddy..."
+        apt update && apt install -y curl gnupg lsb-release ca-certificates
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        apt update
+        apt install -y caddy
+    else
+        echo "✅ 系统已存在正常的 Caddy，跳过安装。"
+    fi
+
+    # 初始化用户与目录
     getent group caddy >/dev/null || groupadd caddy
     id -u caddy >/dev/null 2>&1 || \
         useradd --system --gid caddy --home /var/lib/caddy --shell /usr/sbin/nologin caddy
 
     mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
 
-    # 停止 Mailcow
+    # 3. 停止并恢复 Mailcow 程序
     [ -d "$MAILCOW_DIR" ] && cd "$MAILCOW_DIR" && docker compose down || true
-
-    # 恢复 Mailcow 程序
     rm -rf "$MAILCOW_DIR"
     mkdir -p /home/docker
     cp -a "$TMP_DIR/home/mailcow-dockerized" /home/docker/
 
-    # 恢复 Docker 卷
+    # 4. 恢复 Docker 卷
+    echo "📦 正在恢复 Docker 数据卷..."
     for VOL_BACKUP in "$TMP_DIR"/volumes/*.tar.gz; do
         VOL_NAME=$(basename "$VOL_BACKUP" .tar.gz)
         docker volume inspect "$VOL_NAME" >/dev/null 2>&1 || docker volume create "$VOL_NAME"
@@ -604,41 +626,27 @@ https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
         tar xzf "$VOL_BACKUP" -C "$TARGET"
     done
 
-    # 启动 Mailcow
+    # 5. 启动 Mailcow
     cd "$MAILCOW_DIR" && docker compose up -d
 
-# ======================================================
-    # ✅ 改进点：去重合并 Caddy 配置 & 证书
+    # ======================================================
+    # ✅ 保持不动：处理 Caddyfile / 证书 / 增量合并
     # ======================================================
     echo "📂 正在智能合并 Caddy 配置（防止重复添加）..."
-
-    # 停止 Caddy
     systemctl stop caddy 2>/dev/null || true
 
     # --- 1. 处理 Caddyfile (智能去重合并) ---
     if [ -f "$TMP_DIR/caddy/etc/Caddyfile" ]; then
-        if [ ! -f /etc/caddy/Caddyfile ]; then
-            touch /etc/caddy/Caddyfile
-        fi
-
-        # 读取备份文件中的内容
-        # 注意：这里我们简单通过域名行判断。更高级的做法是提取大括号块。
-        # 针对你脚本中生成的格式：${MAILCOW_HOSTNAME} autodiscover... {
-        
-        # 提取备份文件中的关键域名（通常是第一行非注释内容）
+        if [ ! -f /etc/caddy/Caddyfile ]; then touch /etc/caddy/Caddyfile; fi
         BACKUP_DOMAIN=$(grep -v '^#' "$TMP_DIR/caddy/etc/Caddyfile" | grep '{' | head -n1 | awk '{print $1}')
-        
         if [ -n "$BACKUP_DOMAIN" ]; then
-            # 检查这个域名是否已经存在于当前的 Caddyfile 中
             if grep -q "$BACKUP_DOMAIN" /etc/caddy/Caddyfile; then
-                echo "ℹ️ 域名 $BACKUP_DOMAIN 的配置已存在，跳过追加以防止冲突。"
+                echo "ℹ️ 域名 $BACKUP_DOMAIN 的配置已存在，跳过追加。"
             else
                 echo "📝 发现新配置 $BACKUP_DOMAIN，正在安全追加..."
                 echo -e "\n# --- 恢复自备份 $(date +%F) ---" >> /etc/caddy/Caddyfile
                 cat "$TMP_DIR/caddy/etc/Caddyfile" >> /etc/caddy/Caddyfile
             fi
-        else
-            echo "⚠️ 未在备份中发现有效配置块，跳过合并。"
         fi
     fi
 
@@ -658,36 +666,34 @@ https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     # 修正权限
     chown -R caddy:caddy /etc/caddy /var/lib/caddy
 
-    # systemd（原逻辑不动）
-    if [ ! -f /etc/systemd/system/caddy.service ]; then
-cat > /etc/systemd/system/caddy.service <<EOF
+    # 6. Systemd 服务保底（如果官方安装没带，或者被删了则补上）
+    if [ ! -f /lib/systemd/system/caddy.service ] && [ ! -f /etc/systemd/system/caddy.service ]; then
+        echo "📜 补全 Systemd 服务配置..."
+        cat > /etc/systemd/system/caddy.service <<EOF
 [Unit]
 Description=Caddy
 After=network.target
-
 [Service]
 User=caddy
 Group=caddy
-ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
-ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
+ExecStart=$(command -v caddy) run --environ --config /etc/caddy/Caddyfile
+ExecReload=$(command -v caddy) reload --config /etc/caddy/Caddyfile
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 LimitNOFILE=1048576
-
 [Install]
 WantedBy=multi-user.target
 EOF
-        systemctl daemon-reload
-        systemctl enable caddy
     fi
 
-    # ✨ 在这里执行格式化
+    # 刷新并启动
+    systemctl daemon-reload
+    systemctl unmask caddy 2>/dev/null || true
+    systemctl enable caddy
     echo "🎨 正在整理 Caddyfile 格式..."
-    caddy fmt --overwrite /etc/caddy/Caddyfile || echo "⚠️ 格式化跳过（可能是文件语法暂不完整）"
-
-    # 重启服务使配置生效
+    caddy fmt --overwrite /etc/caddy/Caddyfile || echo "⚠️ 格式化跳过"
     systemctl restart caddy
 
-    # Cron（原逻辑不动）
+    # 7. Cron 计划任务恢复
     CRON_LINE="0 2 * * * /home/docker/mailcow-dockerized/zhengshucaddy.sh"
     TMP_CRON=$(mktemp)
     crontab -l 2>/dev/null > "$TMP_CRON" || :
@@ -696,10 +702,8 @@ EOF
     rm -f "$TMP_CRON"
 
     rm -rf "$TMP_DIR"
-
-    echo "🎉 恢复完成：Caddy 配置 & 证书已【强制覆盖】并生效"
+    echo -e "${GREEN}🎉 恢复完成：环境已修复，配置与证书已智能增量合并。${RESET}"
 }
-
 
 # ------------------------------
 # 证书同步函数（菜单选项 5）
@@ -1078,6 +1082,77 @@ uninstall_mailcow() {
     echo "✅ Mailcow 卸载完成！"
     echo "🛡️  Caddy 已保留：配置和证书未受影响。"
     echo "=================================================="
+    read -rp "按回车返回菜单..." _
+}
+
+
+
+
+
+
+
+# ------------------------------
+# 98号功能：强制 IPv4 优先（防止 IPv6 错误）
+# ------------------------------
+force_ipv4_priority() {
+    echo "=============================="
+    echo "🚀 正在全方位禁用 IPv6 并强制 IPv4"
+    echo "=============================="
+    
+    # 1. 设置 apt 永久使用 IPv4
+    echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+
+    # 2. 修改系统内核参数，彻底禁用 IPv6（即刻生效）
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    sysctl -w net.ipv6.conf.default.disable_ipv6=1
+    sysctl -w net.ipv6.conf.lo.disable_ipv6=1
+    
+    # 永久写入 sysctl 配置文件
+    cat > /etc/sysctl.d/99-disable-ipv6.conf <<EOF
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+EOF
+
+    # 3. 强制 Docker 守护进程配置（如果有必要）
+    # 大多数情况下，禁用内核 IPv6 后 Docker 会自动走 IPv4
+    
+    echo "✅ 已禁用内核 IPv6"
+    echo "✅ 已设置 apt 强制 IPv4"
+    echo "------------------------------"
+    echo "✨ 正在尝试重启网络服务以应用更改..."
+    systemctl restart networking 2>/dev/null || true
+    
+    echo "✅ 优化完成！现在系统无法使用 IPv6，Docker 将强制走 IPv4。"
+    read -rp "按回车返回菜单..." _
+}
+
+# ------------------------------
+# 99号功能：恢复 IPv6 设置
+# ------------------------------
+restore_ipv6() {
+    echo "=============================="
+    echo "🔄 正在恢复 IPv6 设置..."
+    echo "=============================="
+    
+    # 1. 移除 apt 的强制 IPv4 配置
+    rm -f /etc/apt/apt.conf.d/99force-ipv4
+    
+    # 2. 修改内核参数，启用 IPv6
+    sysctl -w net.ipv6.conf.all.disable_ipv6=0
+    sysctl -w net.ipv6.conf.default.disable_ipv6=0
+    sysctl -w net.ipv6.conf.lo.disable_ipv6=0
+    
+    # 3. 删除永久禁用的配置文件
+    rm -f /etc/sysctl.d/99-disable-ipv6.conf
+    
+    echo "✅ 已恢复内核 IPv6 支持"
+    echo "✅ 已移除 apt 强制 IPv4 限制"
+    echo "------------------------------"
+    echo "🚀 建议重启 Docker 以确保其重新获取 IPv6 栈"
+    systemctl restart docker 2>/dev/null || true
+    
+    echo "✅ 恢复完成！IPv6 已重新启用。"
     read -rp "按回车返回菜单..." _
 }
 
