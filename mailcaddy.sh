@@ -37,12 +37,45 @@ echo "=============================="
 # Caddy 同步脚本
 CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshucaddy.sh" | head -n 1)
 if [ -n "$CADDY_LINE" ]; then
-    echo "✅ Caddy 证书同步定时任务已存在:"
+    echo "✅ 主程序CADDY证书同步定时任务已存在:"
     echo "   $CADDY_LINE"
 else
-    echo "⚠️ Caddy 证书同步定时任务不存在"
+    echo "⚠️ Caddy 主程序证书同步定时任务不存在"
 fi
 
+
+
+
+
+
+echo "=============================="
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshu.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ 证书6号同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ 证书6"
+fi
+
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshusmtp.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ 证书7号同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ 证书7"
+fi
+
+
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+CADDY_LINE=$(echo "$CURRENT_CRON" | grep -F "/home/docker/mailcow-dockerized/zhengshuqita.sh" | head -n 1)
+if [ -n "$CADDY_LINE" ]; then
+    echo "✅ 证书8号同步定时任务已存在:"
+    echo "   $CADDY_LINE"
+else
+    echo "⚠️ 证书8"
+fi
 
 
 
@@ -77,11 +110,14 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
     echo "2) 更新 Mailcow"
     echo "3) 备份 Mailcow"
     echo "4) 恢复 手动创建/home/docker 安装docker"
-
-    echo "5) 自动复制证书"
-
-    echo "9) 卸载 Mailcow"
-
+    echo "=============================="
+    echo "5) 证书主程序caddy"
+    echo "6) 证书zhengshu"
+    echo "7) 证书zhengshusmtp"
+    echo "8) 证书zhengshuqita"
+    echo "9) 删除指定任务 (6/7/8号)"
+    echo "=============================="
+    echo "10) 卸载 Mailcow"
     echo "=============================="
     echo "Caddy证书位置"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
@@ -99,8 +135,12 @@ read_choice() {
         4) restore_mailcow ;;
 
         5) sync_certificates ;;
+        6) zheng_shu ;;
+        7) sm_tp ;;
+        8) qi_ta ;;
+        9) delete_specific_cron ;; # 新增 9 号删除 (原9号卸载可移至其他编号)
 
-        9) uninstall_mailcow ;;
+        10) uninstall_mailcow ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo "无效选项"; sleep 1 ;;
     esac
@@ -112,64 +152,12 @@ read_choice() {
 install_mailcow() {
 
 
-
-
-
-
-local ALREADY_INSTALLED=0
-    
-    # 检测逻辑：目录不为空、配置文件存在、或有相关容器
-    [ -d "${MAILCOW_DIR}" ] && [ "$(ls -A "${MAILCOW_DIR}" 2>/dev/null)" ] && ALREADY_INSTALLED=1
-    [ -f "${MAILCOW_DIR}/mailcow.conf" ] && ALREADY_INSTALLED=1
-    [ -n "$(docker ps -aq --filter "name=mailcow")" ] && ALREADY_INSTALLED=1
-
-    if [ "$ALREADY_INSTALLED" -eq 1 ]; then
-        echo "=================================================="
-        echo "⚠️  检测到 Mailcow 已经安装或存在安装残余"
-        echo "=================================================="
-        echo "1)  尝试继续安装 (适用于上次安装中途断网/报错)"
-        echo "2)  彻底清理并重装 (⚠️ 将清空所有邮件数据和配置)"
-        echo "3)  取消操作"
-        echo "--------------------------------------------------"
-        read -rp "请选择处理方式 [1-3]: " reset_choice
-
-        case "$reset_choice" in
-            1)
-                echo "确认：尝试在当前目录下继续安装流程。"
-                read -rp "请输入 'yes' 确认继续: " confirm_continue
-                if [ "$confirm_continue" != "yes" ]; then
-                    echo "❌ 已取消继续安装。"
-                    return
-                fi
-                echo "🚀 正在尝试恢复安装流程..."
-                # 检查目录，如果不存在（极罕见情况）则创建
-                mkdir -p "${MAILCOW_DIR}"
-                cd "${MAILCOW_DIR}" || exit 1
-                ;;
-            2)
-                echo "警报：这将删除 ${MAILCOW_DIR} 目录及所有 Docker 卷！"
-                read -rp "请输入 'yes' 确认彻底清理并重装: " confirm_reinstall
-                if [ "$confirm_reinstall" != "yes" ]; then
-                    echo "❌ 已取消清理操作。"
-                    return
-                fi
-                echo "🧹 正在深度清理旧环境..."
-                # 尝试停止并移除容器及卷
-                if [ -f "${MAILCOW_DIR}/docker-compose.yml" ]; then
-                    docker compose -f "${MAILCOW_DIR}/docker-compose.yml" down -v --remove-orphans 2>/dev/null || true
-                fi
-                # 强制删除目录
-                rm -rf "${MAILCOW_DIR}"
-                echo "✅ 清理完成，即将开始全新安装。"
-                # 重新进入安装流程
-                ;;
-            *)
-                echo "返回主菜单。"
-                return
-                ;;
-        esac
+# 检查是否有 mailcow 相关的容器在运行
+    if docker ps -a --format '{{.Names}}' | grep -q "mailcowdockerized"; then
+        echo "❌ 发现正在运行的 Mailcow 容器，禁止重复安装！"
+        read -rp "按回车返回菜单..." _
+        return
     fi
-
 
 
 
@@ -452,11 +440,34 @@ rm -f "$TMP_CRON"
 # 更新函数
 # ------------------------------
 update_mailcow() {
+    # 检查目录是否存在
+    if [ ! -d "${MAILCOW_DIR}" ]; then
+        echo "❌ 未找到 Mailcow 目录，无法更新。"
+        read -rp "按回车继续..." _
+        return
+    fi
+
+    echo "🔄 正在更新 Mailcow..."
     cd "${MAILCOW_DIR}"
     git pull
     docker compose pull
     docker compose up -d
-    echo "✅ Mailcow 已更新"
+
+    echo "⏰ 正在检查/修复定时任务..."
+    ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshucaddy.sh"
+    CRON_LINE="0 2 * * * $ZSFZ2_SCRIPT"
+    
+    # 确保定时任务存在
+    (crontab -l 2>/dev/null | grep -Fq "$ZSFZ2_SCRIPT") || \
+    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+
+    # ✨ 建议增加：更新后立即手动触发一次同步，确保证书立刻生效
+    if [ -f "$ZSFZ2_SCRIPT" ]; then
+        echo "📜 正在立即执行证书同步..."
+        bash "$ZSFZ2_SCRIPT" || echo "⚠️ 证书同步脚本执行失败，请检查脚本内容。"
+    fi
+
+    echo "✅ Mailcow 更新完成并已尝试同步证书"
     read -rp "按回车继续..." _
 }
 
@@ -694,13 +705,97 @@ EOF
 # 证书同步函数（菜单选项 5）
 # ------------------------------
 sync_certificates() {
+    # ✅ 新增：安全确认与主程序提示
+    echo "=================================================="
+    echo "⚠️  警告：您正在操作【主程序】证书同步脚本"
+    echo "此脚本是网站主域名 Mailcow 运行的核心组件"
+    echo "通常在首次安装时已配置好，若非域名变更不建议随意修改"
+    echo "=================================================="
+    read -rp "请输入 'yes' 确认您要修改/覆盖主程序配置: " confirm_sync
+    if [ "$confirm_sync" != "yes" ]; then
+        echo "❌ 操作已取消。"
+        read -rp "按回车返回菜单..." _
+        return
+    fi
+
     read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
     if [ -z "$ZSFZ_DOMAIN" ]; then
         echo "❌ 域名不能为空"
         return
     fi
 
-    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshufuzhiqita.sh"
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshucaddy.sh"
+
+    # 生成同步脚本（手动执行，无日志）
+    cat > "$ZSFZ_SYNC" <<EOF
+#!/usr/bin/env bash
+# 自动复制 Mailcow SSL 证书（主程序同步脚本）
+set -e
+
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${ZSFZ_DOMAIN}"
+CADDY_CERTS_BASE="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory"
+
+CERT_DIR=\$(find "\$CADDY_CERTS_BASE" -type d -name "\$MAILCOW_HOSTNAME" | head -n1)
+if [ ! -d "\$CERT_DIR" ]; then exit 1; fi
+
+CRT_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.key"
+
+if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then exit 1; fi
+
+mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+
+MD5_CURRENT_CERT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}' || echo "")
+MD5_NEW_CERT=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
+
+if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+    docker restart \$(docker ps -qaf name=postfix-mailcow) \\
+                   \$(docker ps -qaf name=dovecot-mailcow) \\
+                   \$(docker ps -qaf name=nginx-mailcow)
+fi
+EOF
+
+    chmod +x "$ZSFZ_SYNC"
+
+    # 安装定时任务（每天凌晨 2 点执行，无日志）
+    if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
+        (crontab -l 2>/dev/null; echo "0 2 * * * $ZSFZ_SYNC") | crontab -
+        echo "✅ 定时任务已安装，每天凌晨 2 点自动执行"
+    else
+        echo "✅ 定时任务已存在，无需重复添加"
+    fi
+
+    echo "✅ 主程序同步脚本已更新: $ZSFZ_SYNC"
+    
+    # 询问是否立即跑一次
+    read -rp "是否立即手动执行一次证书同步？(y/N): " run_now
+    if [[ "$run_now" =~ ^[Yy]$ ]]; then
+        bash "$ZSFZ_SYNC" && echo "🚀 同步完成！" || echo "❌ 同步失败，请检查域名解析或证书是否存在"
+    fi
+
+    read -rp "按回车继续..." _
+}
+
+
+
+
+# ------------------------------
+# 证书同步函数（菜单选项 6）
+# ------------------------------
+zheng_shu() {
+    read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
+    if [ -z "$ZSFZ_DOMAIN" ]; then
+        echo "❌ 域名不能为空"
+        return
+    fi
+
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshu.sh"
 
     # 生成同步脚本（手动执行，无日志）
     cat > "$ZSFZ_SYNC" <<EOF
@@ -742,16 +837,248 @@ EOF
     # 安装定时任务（每天凌晨 2 点执行，无日志）
     CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
     if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
-        (crontab -l 2>/dev/null; echo "0 2 * * * $ZSFZ_SYNC") | crontab -
+        (crontab -l 2>/dev/null; echo "05 2 * * * $ZSFZ_SYNC") | crontab -
 
 
-        echo "✅ 定时任务已安装，每天凌晨 2 点自动执行（无日志）"
+        echo "✅ 定时任务已安装，每天凌晨 2 点05分自动执行（无日志）"
     else
         echo "✅ 定时任务已存在"
     fi
 
     echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
     read -rp "按回车继续..." _
+}
+
+
+
+# ------------------------------
+# 证书同步函数（菜单选项 7）
+# ------------------------------
+sp_tp() {
+    read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
+    if [ -z "$ZSFZ_DOMAIN" ]; then
+        echo "❌ 域名不能为空"
+        return
+    fi
+
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshuqita.sh"
+
+    # 生成同步脚本（手动执行，无日志）
+    cat > "$ZSFZ_SYNC" <<EOF
+#!/usr/bin/env bash
+# 自动复制 Mailcow SSL 证书（手动执行）
+set -e
+
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${ZSFZ_DOMAIN}"
+CADDY_CERTS_BASE="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory"
+
+CERT_DIR=\$(find "\$CADDY_CERTS_BASE" -type d -name "\$MAILCOW_HOSTNAME" | head -n1)
+if [ ! -d "\$CERT_DIR" ]; then exit 1; fi
+
+CRT_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.key"
+
+if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then exit 1; fi
+
+mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+
+MD5_CURRENT_CERT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}' || echo "")
+MD5_NEW_CERT=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
+
+if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+    docker restart \$(docker ps -qaf name=postfix-mailcow) \\
+                   \$(docker ps -qaf name=dovecot-mailcow) \\
+                   \$(docker ps -qaf name=nginx-mailcow)
+fi
+EOF
+
+    chmod +x "$ZSFZ_SYNC"
+
+    # 安装定时任务（每天凌晨 2 点执行，无日志）
+    CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
+    if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
+        (crontab -l 2>/dev/null; echo "10 2 * * * $ZSFZ_SYNC") | crontab -
+
+
+        echo "✅ 定时任务已安装，每天凌晨 2 点10分自动执行（无日志）"
+    else
+        echo "✅ 定时任务已存在"
+    fi
+
+    echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
+    read -rp "按回车继续..." _
+}
+
+
+
+# ------------------------------
+# 证书同步函数（菜单选项 8）
+# ------------------------------
+qi_ta() {
+    read -rp "请输入要同步证书的 Mailcow 域名（如 mail.example.com）: " ZSFZ_DOMAIN
+    if [ -z "$ZSFZ_DOMAIN" ]; then
+        echo "❌ 域名不能为空"
+        return
+    fi
+
+    ZSFZ_SYNC="${MAILCOW_DIR}/zhengshuqita.sh"
+
+    # 生成同步脚本（手动执行，无日志）
+    cat > "$ZSFZ_SYNC" <<EOF
+#!/usr/bin/env bash
+# 自动复制 Mailcow SSL 证书（手动执行）
+set -e
+
+MAILCOW_DIR="${MAILCOW_DIR}"
+MAILCOW_HOSTNAME="${ZSFZ_DOMAIN}"
+CADDY_CERTS_BASE="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory"
+
+CERT_DIR=\$(find "\$CADDY_CERTS_BASE" -type d -name "\$MAILCOW_HOSTNAME" | head -n1)
+if [ ! -d "\$CERT_DIR" ]; then exit 1; fi
+
+CRT_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.crt"
+KEY_FILE="\$CERT_DIR/\$MAILCOW_HOSTNAME.key"
+
+if [ ! -f "\$CRT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then exit 1; fi
+
+mkdir -p "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME"
+
+MD5_CURRENT_CERT=\$(md5sum "\$MAILCOW_DIR/data/assets/ssl/cert.pem" 2>/dev/null | awk '{print \$1}' || echo "")
+MD5_NEW_CERT=\$(md5sum "\$CRT_FILE" | awk '{print \$1}')
+
+if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/key.pem"
+    cp "\$CRT_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/cert.pem"
+    cp "\$KEY_FILE" "\$MAILCOW_DIR/data/assets/ssl/\$MAILCOW_HOSTNAME/key.pem"
+
+    docker restart \$(docker ps -qaf name=postfix-mailcow) \\
+                   \$(docker ps -qaf name=dovecot-mailcow) \\
+                   \$(docker ps -qaf name=nginx-mailcow)
+fi
+EOF
+
+    chmod +x "$ZSFZ_SYNC"
+
+    # 安装定时任务（每天凌晨 2 点执行，无日志）
+    CRON_EXISTS=$(crontab -l 2>/dev/null | grep -F "$ZSFZ_SYNC" || true)
+    if ! crontab -l 2>/dev/null | grep -Fq "$ZSFZ_SYNC"; then
+        (crontab -l 2>/dev/null; echo "15 2 * * * $ZSFZ_SYNC") | crontab -
+
+
+        echo "✅ 定时任务已安装，每天凌晨 2 点15分自动执行（无日志）"
+    else
+        echo "✅ 定时任务已存在"
+    fi
+
+    echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
+    read -rp "按回车继续..." _
+}
+
+
+
+
+
+
+# ------------------------------
+# 9) 删除指定任务 (6/7/8号)
+# ------------------------------
+delete_specific_cron() {
+    echo "=============================="
+    echo "      删除指定定时任务"
+    echo "=============================="
+    echo "注意：此操作不可删除主程序 zhengshucaddy.sh"
+    echo "------------------------------"
+    echo " 6) 删除 zhengshu.sh"
+    echo " 7) 删除 zhengshusmtp.sh"
+    echo " 8) 删除 zhengshuqita.sh"
+    echo " 0) 返回"
+    echo "=============================="
+    read -rp "请选择编号 [6-8]: " del_choice
+
+    case "$del_choice" in
+        6) TARGET="zhengshu.sh" ;;
+        7) TARGET="zhengshusmtp.sh" ;;
+        8) TARGET="zhengshuqita.sh" ;;
+        *) return ;;
+    esac
+
+    if crontab -l 2>/dev/null | grep -q "$TARGET"; then
+        crontab -l | grep -v "$TARGET" | crontab -
+        echo "✅ 任务 $TARGET 已成功剔除。"
+    else
+        echo "ℹ️  任务 $TARGET 本就不在定时任务中。"
+    fi
+    read -rp "按回车继续..." _
+}
+
+
+
+
+
+
+# ------------------------------
+# 彻底卸载 Mailcow 函数 (保留 Caddy)（菜单选项 10）
+# ------------------------------
+uninstall_mailcow() {
+    echo "=================================================="
+    echo "🛑 警告：即将彻底卸载 Mailcow"
+    echo "=================================================="
+    echo "注意：此操作【仅卸载 Mailcow】，Caddy 将被保留。"
+    echo "停止并删除所有 Mailcow 容器"
+    echo "删除所有邮件数据、数据库 (Docker Volumes)"
+    echo "删除 Mailcow 安装目录: ${MAILCOW_DIR}"
+    echo "清理证书同步相关的定时任务 (Cron)"
+    echo "=================================================="
+    read -rp "请输入 'yes' 确认彻底卸载 Mailcow: " confirm_uninstall
+
+    if [ "$confirm_uninstall" != "yes" ]; then
+        echo "❌ 操作已取消。"
+        return
+    fi
+
+    echo "⏳ 正在停止 Mailcow 容器..."
+    if [ -d "${MAILCOW_DIR}" ]; then
+        cd "${MAILCOW_DIR}"
+        # -v 会删除所有关联的命名卷（邮件数据、数据库就在这里）
+        docker compose down -v --remove-orphans 2>/dev/null || true
+    fi
+
+    echo "🧹 强制清理残留的 Mailcow 卷..."
+    # 进一步确保所有以 mailcow 开头的卷都被删除
+    MAILCOW_VOLS=$(docker volume ls -q --filter name=mailcow)
+    if [ -n "$MAILCOW_VOLS" ]; then
+        docker volume rm $MAILCOW_VOLS 2>/dev/null || true
+    fi
+
+    echo "🧹 清理 Mailcow Docker 网络..."
+    MAILCOW_NETS=$(docker network ls -q --filter name=mailcow)
+    if [ -n "$MAILCOW_NETS" ]; then
+        docker network rm $MAILCOW_NETS 2>/dev/null || true
+    fi
+
+    echo "📂 删除安装目录及同步脚本..."
+    # 仅删除 Mailcow 目录和同步脚本
+    rm -rf "${MAILCOW_DIR}"
+    # 删除可能散落在目录外的同步脚本（如果路径不同请检查变量）
+    rm -f "/home/docker/mailcow-dockerized/zhengshucaddy.sh"
+    rm -f "/home/docker/mailcow-dockerized/zhengshufuzhiqita.sh"
+
+    echo "⏰ 清理证书同步定时任务..."
+    # 仅从 crontab 中剔除关于证书同步的行，保留其他任务
+    crontab -l 2>/dev/null | grep -vE "zhengshucaddy.sh|zhengshu.sh|zhengshusmtp.sh|zhengshuqita.sh" | crontab -
+
+    echo "=================================================="
+    echo "✅ Mailcow 卸载完成！"
+    echo "🛡️  Caddy 已保留：配置和证书未受影响。"
+    echo "=================================================="
+    read -rp "按回车返回菜单..." _
 }
 
 
