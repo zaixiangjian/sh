@@ -290,7 +290,7 @@ docker restart mailcowdockerized-postfix-mailcow-1 \
 
     echo "✅ Mailcow 证书更新完成"
 else
-    echo "ℹ️ 证书未发生变化，无需更新"
+    echo "✅ 证书未变化，无需同步"
 fi
 
 EOF
