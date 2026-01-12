@@ -7053,84 +7053,60 @@ EOF
 
 
 
-
 48)
-            send_stats "编译部署 Nexterm"
             while true; do
               clear
               echo -e "------------------------------------------------"
-              echo -e "         Nexterm 自动编译与部署脚本"
+              echo -e "         Nexterm 镜像维护工具 (仅维护者使用)"
               echo -e "------------------------------------------------"
-              echo -e "该脚本将执行以下操作："
-              echo -e "1. 克隆源代码 (GitHub)"
-              echo -e "2. 使用官方 Dockerfile 构建 (包含后端组件编译)"
-              echo -e "3. 生成随机加密密钥 (ENCRYPTION_KEY)"
-              echo -e "4. 启动容器并映射端口 6989 -> 6989"
+              echo -e "1. 编译本地源码并构建镜像"
+              echo -e "2. 登录 Docker Hub 账号"
+              echo -e "3. 推送镜像到云端 (zaixiangjian/nexterm:latest)"
               echo -e "------------------------------------------------"
-              echo -e "确认开始编译 Nexterm 吗？"
-              echo ""
-              echo -e "  yes) 开始编译部署"
-              echo -e "    0) 退出并返回"
+              echo -e "0. 返回主菜单"
               echo -e "------------------------------------------------"
-              read -e -p "请输入选择: " confirm_choice
+              read -e -p "请输入选择: " dev_choice
 
-              case $confirm_choice in
-                yes)
-                  echo -e "\n[1/5] 正在安装 Docker 环境..."
-                  install_docker
-
-                  echo -e "\n[2/5] 正在拉取 Nexterm 源码..."
-                  [ ! -d /home/docker/nexterm ] && mkdir -p /home/docker/nexterm
-                  cd /home/docker/nexterm
+              case $dev_choice in
+                1)
+                  echo -e "\n正在克隆最新源码并编译..."
+                  [ ! -d /home/docker/nexterm_build ] && mkdir -p /home/docker/nexterm_build
+                  cd /home/docker/nexterm_build
                   rm -rf Nexterm
                   git clone https://github.com/zaixiangjian/Nexterm.git
                   cd Nexterm
-
-                  echo -e "\n[3/5] 检测到官方 Dockerfile，准备构建..."
-
-                  echo -e "\n[4/5] 正在编译 Docker 镜像 (官方完整版，请耐心等待)..."
-                  docker build -t my-nexterm:v1 .
-
-                  echo -e "\n[5/5] 正在启动 Nexterm 容器..."
-                  docker rm -f nexterm 2>/dev/null
                   
-                  # 生成并记录随机加密密钥
-                  NEW_KEY=$(openssl rand -hex 32)
+                  echo -e "\n正在构建 Docker 镜像: zaixiangjian/nexterm:latest ..."
+                  docker build -t zaixiangjian/nexterm:latest .
                   
-                  # 统一端口为 6989
-                  docker run -d \
-                    --name nexterm \
-                    -p 6989:6989 \
-                    -e ENCRYPTION_KEY=$NEW_KEY \
-                    -v /home/docker/nexterm/data:/app/data \
-                    --restart always \
-                    my-nexterm:v1
-
-                  echo -e "\n正在等待系统初始化..."
-                  sleep 5
-
-                  clear
-                  echo -e "------------------------------------------------"
-                  echo -e "✅ Nexterm 部署完成！"
-                  echo -e "------------------------------------------------"
-                  echo -e "访问地址: http://$(curl -s ifconfig.me):6989"
-                  echo -e "加密密钥 (重要): $NEW_KEY"
-                  echo -e "------------------------------------------------"
-                  echo -e "提示: 请确保 Vultr 防火墙已放行 6989 端口。"
-                  echo -e "------------------------------------------------"
-                  read -n 1 -s -r -p "按任意键返回..."
-                  break
+                  echo -e "\n✅ 本地编译构建完成！"
+                  sleep 2
+                  ;;
+                2)
+                  echo -e "\n请输入 Docker Hub 凭据进行登录:"
+                  docker login
+                  ;;
+                3)
+                  echo -e "\n正在将镜像推送到云端仓库..."
+                  docker push zaixiangjian/nexterm:latest
+                  if [ $? -eq 0 ]; then
+                      echo -e "\n✅ 镜像上传成功！现在其他人可以使用 79 选项安装了。"
+                  else
+                      echo -e "\n❌ 上传失败，请检查是否已登录 (选项 2)。"
+                  fi
+                  sleep 2
                   ;;
                 0)
                   break
                   ;;
                 *)
-                  echo "输入错误，请输入 yes 或 0"
+                  echo "输入错误"
                   sleep 1
                   ;;
               esac
             done
             ;;
+
 
 
 
