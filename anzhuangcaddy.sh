@@ -270,6 +270,26 @@ backup_caddy() {
 # 12. 恢复 Caddy（智能去重合并）
 # ======================================================
 restore_caddy_smart() {
+
+
+# --- 新增：环境预检逻辑 ---
+    if ! command -v caddy >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️ 系统未检测到 Caddy，无法执行恢复。${RESET}"
+        read -rp "是否立即执行安装？(y/n): " INSTALL_CONFIRM
+        if [[ "$INSTALL_CONFIRM" == "y" || "$INSTALL_CONFIRM" == "Y" ]]; then
+            install_caddy  # 调用 1 号安装函数
+        else
+            echo -e "${RED}❌ 操作取消，请先安装 Caddy 后再恢复。${RESET}"
+            return 1
+        fi
+    fi
+
+
+
+
+
+
+
     if [ ! -f "$BACKUP_FILE" ]; then 
         echo -e "${RED}❌ 未找到备份文件 $BACKUP_FILE${RESET}"
         return
@@ -335,8 +355,17 @@ restore_caddy_smart() {
     
     systemctl daemon-reload
     systemctl restart caddy
+
+    
+    # --- 增加：启动结果验证 ---
+    if systemctl is-active --quiet caddy; then
+        echo -e "${GREEN}✅ 智能恢复与合并完成，服务已成功启动！${RESET}"
+    else
+        echo -e "${RED}❌ 恢复完成，但 Caddy 启动失败。${RESET}"
+        echo -e "${YELLOW}提示：请运行选项 9 查看实时日志排查错误。${RESET}"
+    fi
+    
     rm -rf "$TMP_DIR"
-    echo -e "${GREEN}✅ 智能恢复与合并完成！${RESET}"
 }
 
 
@@ -380,11 +409,32 @@ show_version() {
 
 # 99. 卸载 Caddy
 uninstall_caddy() {
-    echo "⚠️ 正在卸载 Caddy..."
-    systemctl stop caddy
-    apt remove --purge -y caddy 2>/dev/null || rm -f /usr/bin/caddy
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${RED}⚠️  警告：此操作将卸载 Caddy 并删除所有配置文件和证书！${RESET}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    read -p "确定要继续吗？(输入 y 确认): " CONFIRM
+    [[ "$CONFIRM" != "y" ]] && echo "↩️ 已取消卸载。" && return
+
+    echo "🛑 正在停止 Caddy 服务..."
+    systemctl stop caddy 2>/dev/null
+    systemctl disable caddy 2>/dev/null
+
+    echo "🗑️ 正在移除 Caddy 程序..."
+    if dpkg -l | grep -q caddy; then
+        apt remove --purge -y caddy
+    fi
+    rm -f /usr/bin/caddy /usr/local/bin/caddy
+
+    echo "🧹 正在清理残留文件 (配置、证书、日志)..."
     rm -rf /etc/caddy
-    echo "✅ Caddy 已卸载"
+    rm -rf /var/lib/caddy
+    rm -rf /var/log/caddy
+    rm -f /etc/systemd/system/caddy.service
+    
+    systemctl daemon-reload
+    
+    echo -e "${GREEN}✅ Caddy 已彻底从系统中移除。${RESET}"
+    sleep 2
 }
 
 # 辅助函数：格式化并重载
