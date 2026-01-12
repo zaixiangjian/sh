@@ -550,29 +550,41 @@ https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     cd "$MAILCOW_DIR" && docker compose up -d
 
     # ======================================================
-    # ✅ 强制覆盖恢复 Caddy 配置 & 证书（核心修复）
+    # ✅ 改进点：智能合并 Caddy 配置与证书
     # ======================================================
-    echo "📂 强制恢复 Caddy 配置与证书（覆盖本地）"
+    echo "📂 正在智能合并 Caddy 配置与证书..."
 
-    # 停止 Caddy，避免文件占用
+    # 停止 Caddy
     systemctl stop caddy 2>/dev/null || true
 
-    # --- 覆盖 /etc/caddy ---
-    if [ -d "$TMP_DIR/caddy/etc" ]; then
-        echo "🔁 覆盖 /etc/caddy"
-        rm -rf /etc/caddy/*
-        cp -a "$TMP_DIR/caddy/etc/." /etc/caddy/
+    # --- 1. 处理 Caddyfile (智能合并内容) ---
+    if [ -f "$TMP_DIR/caddy/etc/Caddyfile" ]; then
+        if [ -s /etc/caddy/Caddyfile ]; then
+            echo "📝 本地已存在 Caddyfile，正在将备份配置追加到末尾..."
+            echo -e "\n# --- 恢复自备份 $(date +%F) ---" >> /etc/caddy/Caddyfile
+            cat "$TMP_DIR/caddy/etc/Caddyfile" >> /etc/caddy/Caddyfile
+        else
+            echo "📝 本地 Caddyfile 为空或不存在，直接恢复备份配置..."
+            cp -a "$TMP_DIR/caddy/etc/Caddyfile" /etc/caddy/Caddyfile
+        fi
     fi
 
-    # --- 覆盖 官方证书目录 ---
+    # --- 2. 恢复其他配置文件 (不覆盖) ---
+    if [ -d "$TMP_DIR/caddy/etc" ]; then
+        # 复制除了 Caddyfile 以外的其他配置
+        find "$TMP_DIR/caddy/etc/" -type f ! -name "Caddyfile" -exec cp -an {} /etc/caddy/ \;
+    fi
+
+    # --- 3. 恢复证书目录 (增量补全，不覆盖) ---
     CADDY_DATA_DIR="/var/lib/caddy/.local/share/caddy"
     if [ -d "$TMP_DIR/caddy/data" ]; then
-        echo "🔁 覆盖 Caddy 证书目录"
-        rm -rf "$CADDY_DATA_DIR"
+        echo "🔁 正在补全缺失的证书文件..."
         mkdir -p "$CADDY_DATA_DIR"
-        cp -a "$TMP_DIR/caddy/data/." "$CADDY_DATA_DIR/"
+        # -an 确保只添加本地缺失的域名证书，不破坏本地已有证书
+        cp -an "$TMP_DIR/caddy/data/." "$CADDY_DATA_DIR/"
     fi
 
+    # 修正权限
     chown -R caddy:caddy /etc/caddy /var/lib/caddy
 
     # systemd（原逻辑不动）
@@ -597,6 +609,11 @@ EOF
         systemctl enable caddy
     fi
 
+    # ✨ 在这里执行格式化
+    echo "🎨 正在整理 Caddyfile 格式..."
+    caddy fmt --overwrite /etc/caddy/Caddyfile || echo "⚠️ 格式化跳过（可能是文件语法暂不完整）"
+
+    # 重启服务使配置生效
     systemctl restart caddy
 
     # Cron（原逻辑不动）
