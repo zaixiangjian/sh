@@ -19,30 +19,48 @@ RESET="\033[0m"
 # 核心功能函数
 # ======================================================
 
-# 1. 安装 Caddy
+# 1. 安装 Caddy（官方 apt 安装，确保 systemd 可用）
 install_caddy() {
-    echo -e "${GREEN}🔄 安装/修复 Caddy（系统优先，官方二进制备用）...${RESET}"
-    if command -v caddy >/dev/null 2>&1; then
-        echo "⚙️ 系统已安装 Caddy，使用系统版本"
+    echo -e "${GREEN}🔄 安装/修复 Caddy...${RESET}"
+
+    # 安装依赖
+    apt update
+    apt install -y sudo curl ca-certificates gnupg lsb-release
+
+    # 检查 Caddy 是否已安装
+    if ! command -v caddy >/dev/null 2>&1; then
+        echo "⚠️ 未检测到 Caddy，正在使用官方仓库安装..."
+
+        # 添加官方 Caddy 仓库 GPG key
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+
+        # 添加官方 Caddy APT 源
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+
+        apt update
+        apt install -y caddy
+
+        # 确认安装成功
+        if ! command -v caddy >/dev/null 2>&1; then
+            echo -e "${RED}❌ Caddy 安装失败，请检查网络或源配置${RESET}"
+            return
+        fi
     else
-        echo "⚠️ 未检测到 Caddy，安装官方二进制..."
-        apt update && apt install -y sudo curl ca-certificates
-        ARCH="$(dpkg --print-architecture)"
-        case "$ARCH" in
-            amd64) CADDY_ARCH="amd64" ;;
-            arm64) CADDY_ARCH="arm64" ;;
-            *) echo "❌ 不支持架构: $ARCH"; return ;;
-        esac
-        curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}" -o /usr/bin/caddy
-        chmod +x /usr/bin/caddy
+        echo "✅ 已检测到 Caddy，跳过安装"
     fi
 
+    # 创建 caddy 用户和组（如果不存在）
     getent group caddy >/dev/null || groupadd caddy
     id -u caddy >/dev/null 2>&1 || useradd --system --gid caddy --home /var/lib/caddy --shell /usr/sbin/nologin caddy
+
+    # 创建目录并赋权
     mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
     chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
-    [ -f "$CONFIG_FILE" ] || touch "$CONFIG_FILE"
 
+    # 初始化 Caddyfile 配置
+    [ -f "$CONFIG_FILE" ] || echo ":80 { root * /var/www/html }" > "$CONFIG_FILE"
+
+    # systemd 服务文件（如果不存在则创建）
     if [ ! -f /etc/systemd/system/caddy.service ]; then
         cat > /etc/systemd/system/caddy.service <<EOF
 [Unit]
@@ -52,8 +70,8 @@ After=network.target
 [Service]
 User=caddy
 Group=caddy
-ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
-ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
+ExecStart=$(command -v caddy) run --environ --config /etc/caddy/Caddyfile
+ExecReload=$(command -v caddy) reload --config /etc/caddy/Caddyfile
 TimeoutStopSec=5s
 LimitNOFILE=1048576
 LimitNPROC=512
@@ -67,11 +85,12 @@ EOF
         systemctl daemon-reload
         systemctl enable caddy
     fi
+
+    # 启动或重启服务
     systemctl restart caddy
     echo "✅ Caddy 安装/修复完成"
     caddy version
 }
-
 
 # 2. 添加普通反向代理
 add_domain() {
