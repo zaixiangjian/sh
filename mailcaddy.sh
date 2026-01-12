@@ -531,29 +531,43 @@ https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     # 启动 Mailcow
     cd "$MAILCOW_DIR" && docker compose up -d
 
+# ======================================================
+    # ✅ 改进点：去重合并 Caddy 配置 & 证书
     # ======================================================
-    # ✅ 改进点：智能合并 Caddy 配置与证书
-    # ======================================================
-    echo "📂 正在智能合并 Caddy 配置与证书..."
+    echo "📂 正在智能合并 Caddy 配置（防止重复添加）..."
 
     # 停止 Caddy
     systemctl stop caddy 2>/dev/null || true
 
-    # --- 1. 处理 Caddyfile (智能合并内容) ---
+    # --- 1. 处理 Caddyfile (智能去重合并) ---
     if [ -f "$TMP_DIR/caddy/etc/Caddyfile" ]; then
-        if [ -s /etc/caddy/Caddyfile ]; then
-            echo "📝 本地已存在 Caddyfile，正在将备份配置追加到末尾..."
-            echo -e "\n# --- 恢复自备份 $(date +%F) ---" >> /etc/caddy/Caddyfile
-            cat "$TMP_DIR/caddy/etc/Caddyfile" >> /etc/caddy/Caddyfile
+        if [ ! -f /etc/caddy/Caddyfile ]; then
+            touch /etc/caddy/Caddyfile
+        fi
+
+        # 读取备份文件中的内容
+        # 注意：这里我们简单通过域名行判断。更高级的做法是提取大括号块。
+        # 针对你脚本中生成的格式：${MAILCOW_HOSTNAME} autodiscover... {
+        
+        # 提取备份文件中的关键域名（通常是第一行非注释内容）
+        BACKUP_DOMAIN=$(grep -v '^#' "$TMP_DIR/caddy/etc/Caddyfile" | grep '{' | head -n1 | awk '{print $1}')
+        
+        if [ -n "$BACKUP_DOMAIN" ]; then
+            # 检查这个域名是否已经存在于当前的 Caddyfile 中
+            if grep -q "$BACKUP_DOMAIN" /etc/caddy/Caddyfile; then
+                echo "ℹ️ 域名 $BACKUP_DOMAIN 的配置已存在，跳过追加以防止冲突。"
+            else
+                echo "📝 发现新配置 $BACKUP_DOMAIN，正在安全追加..."
+                echo -e "\n# --- 恢复自备份 $(date +%F) ---" >> /etc/caddy/Caddyfile
+                cat "$TMP_DIR/caddy/etc/Caddyfile" >> /etc/caddy/Caddyfile
+            fi
         else
-            echo "📝 本地 Caddyfile 为空或不存在，直接恢复备份配置..."
-            cp -a "$TMP_DIR/caddy/etc/Caddyfile" /etc/caddy/Caddyfile
+            echo "⚠️ 未在备份中发现有效配置块，跳过合并。"
         fi
     fi
 
     # --- 2. 恢复其他配置文件 (不覆盖) ---
     if [ -d "$TMP_DIR/caddy/etc" ]; then
-        # 复制除了 Caddyfile 以外的其他配置
         find "$TMP_DIR/caddy/etc/" -type f ! -name "Caddyfile" -exec cp -an {} /etc/caddy/ \;
     fi
 
@@ -562,7 +576,6 @@ https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
     if [ -d "$TMP_DIR/caddy/data" ]; then
         echo "🔁 正在补全缺失的证书文件..."
         mkdir -p "$CADDY_DATA_DIR"
-        # -an 确保只添加本地缺失的域名证书，不破坏本地已有证书
         cp -an "$TMP_DIR/caddy/data/." "$CADDY_DATA_DIR/"
     fi
 
