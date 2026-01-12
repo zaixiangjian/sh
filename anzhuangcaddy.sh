@@ -19,78 +19,50 @@ RESET="\033[0m"
 # 核心功能函数
 # ======================================================
 
-# 1. 安装 Caddy（官方 apt 安装，确保 systemd 可用）
+# 1. 安装 Caddy
 install_caddy() {
-    echo -e "${GREEN}🔄 安装/修复 Caddy...${RESET}"
+    echo -e "${GREEN}🔄 正在检查并安装/修复 Caddy...${RESET}"
 
-    # 安装依赖
-    apt update
-    apt install -y sudo curl ca-certificates gnupg lsb-release
-
-    # 检查 Caddy 是否已安装
-    if ! command -v caddy >/dev/null 2>&1; then
-        echo "⚠️ 未检测到 Caddy，正在使用官方仓库安装..."
-
-        # 添加官方 Caddy 仓库 GPG key
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-
-        # 添加官方 Caddy APT 源
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-
-        apt update
-        apt install -y caddy
-
-        # 确认安装成功
-        if ! command -v caddy >/dev/null 2>&1; then
-            echo -e "${RED}❌ Caddy 安装失败，请检查网络或源配置${RESET}"
-            return
+    # 检查当前 caddy 是否可用
+    if command -v caddy >/dev/null 2>&1; then
+        if ! caddy version >/dev/null 2>&1; then
+            echo -e "${YELLOW}⚠️ 检测到 Caddy 已损坏 (Segmentation fault)，准备强制修复...${RESET}"
+            rm -f /usr/bin/caddy  # 删除损坏的二进制
         fi
-    else
-        echo "✅ 已检测到 Caddy，跳过安装"
     fi
 
-    # 创建 caddy 用户和组（如果不存在）
-    getent group caddy >/dev/null || groupadd caddy
-    id -u caddy >/dev/null 2>&1 || useradd --system --gid caddy --home /var/lib/caddy --shell /usr/sbin/nologin caddy
+    # 安装基础依赖
+    apt update && apt install -y sudo curl ca-certificates gnupg lsb-release
 
-    # 创建目录并赋权
+    # 官方源安装逻辑
+    if ! command -v caddy >/dev/null 2>&1; then
+        echo "🌐 正在添加官方仓库..."
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+        apt update
+        apt install -y caddy
+    else
+        echo "✅ Caddy 运行正常，跳过安装。"
+    fi
+
+    # 权限与目录初始化
     mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
     chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
 
-    # 初始化 Caddyfile 配置
-    [ -f "$CONFIG_FILE" ] || echo ":80 { root * /var/www/html }" > "$CONFIG_FILE"
-
-    # systemd 服务文件（如果不存在则创建）
-    if [ ! -f /etc/systemd/system/caddy.service ]; then
-        cat > /etc/systemd/system/caddy.service <<EOF
-[Unit]
-Description=Caddy
-After=network.target
-
-[Service]
-User=caddy
-Group=caddy
-ExecStart=$(command -v caddy) run --environ --config /etc/caddy/Caddyfile
-ExecReload=$(command -v caddy) reload --config /etc/caddy/Caddyfile
-TimeoutStopSec=5s
-LimitNOFILE=1048576
-LimitNPROC=512
-PrivateTmp=true
-ProtectSystem=full
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-
-[Install]
-WantedBy=multi-user.target
-EOF
-        systemctl daemon-reload
-        systemctl enable caddy
+    # 确保 Caddyfile 存在
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo -e ":80 {\n    respond \"Hello, Caddy!\"\n}" > "$CONFIG_FILE"
     fi
 
-    # 启动或重启服务
+    # 刷新 systemd
+    systemctl daemon-reload
+    systemctl enable caddy
     systemctl restart caddy
-    echo "✅ Caddy 安装/修复完成"
-    caddy version
+    
+    echo -e "${GREEN}✨ 修复完成，当前版本：$(caddy version)${RESET}"
 }
+
+
 
 # 2. 添加普通反向代理
 add_domain() {
@@ -378,9 +350,31 @@ restore_caddy_smart() {
 
 
 
-# 88. 查看当前版本
+88. 查看当前版本
 show_version() {
-    caddy version 2>/dev/null || echo "Caddy 未安装"
+    echo -ne "${GREEN}🔍 正在检查 Caddy 状态: ${RESET}"
+    
+    if ! command -v caddy >/dev/null 2>&1; then
+        echo -e "${RED}未安装${RESET}"
+        return 1
+    fi
+
+    # 尝试运行 caddy version
+    VERSION_INFO=$(caddy version 2>&1)
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}运行中${RESET}"
+        echo -e "📦 版本信息: $VERSION_INFO"
+        echo -e "📍 程序路径: $(which caddy)"
+    elif [ $EXIT_CODE -eq 139 ]; then
+        # 139 通常是 Segmentation fault 的退出码
+        echo -e "${RED}程序已损坏 (Segmentation fault)${RESET}"
+        echo -e "${YELLOW}提示: 请尝试运行 1 号选项或 00 选项进行修复。${RESET}"
+    else
+        echo -e "${RED}异常 (错误码: $EXIT_CODE)${RESET}"
+        echo -e "具体报错: $VERSION_INFO"
+    fi
 }
 
 
@@ -405,16 +399,40 @@ format_and_reload() {
     fi
 }
 
-# 00. 更新 Caddy
+# 00. 更新 Caddy（安全更新版）
 update_caddy() {
-    systemctl stop caddy
-    ARCH=$(uname -m)
-    [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
-    [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
-    curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o /usr/bin/caddy
-    chmod +x /usr/bin/caddy
-    systemctl start caddy
-    echo "✅ 更新完成"
+    echo -e "${YELLOW}🚀 正在尝试安全更新 Caddy...${RESET}"
+    
+    # 优先使用 apt 更新
+    if dpkg -l | grep -q caddy; then
+        apt update && apt install --only-upgrade -y caddy
+    else
+        # 如果不是 apt 安装的，则手动下载
+        ARCH=$(uname -m)
+        [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
+        [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
+        
+        # 下载到临时文件，防止直接覆盖时下载中断导致损坏
+        echo "⬇️ 正在下载最新版 ($ARCH)..."
+        curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o /tmp/caddy_new
+        
+        if [ $? -eq 0 ] && [ -s /tmp/caddy_new ]; then
+            chmod +x /tmp/caddy_new
+            # 简单校验下载的文件是否能运行
+            if /tmp/caddy_new version >/dev/null 2>&1; then
+                mv /tmp/caddy_new /usr/bin/caddy
+                echo "✅ 更新成功！"
+            else
+                echo "❌ 下载的文件似乎损坏，已放弃替换。"
+                rm -f /tmp/caddy_new
+                return 1
+            fi
+        else
+            echo "❌ 下载失败，请检查网络。"
+            return 1
+        fi
+    fi
+    systemctl restart caddy
 }
 
 
