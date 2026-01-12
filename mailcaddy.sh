@@ -762,6 +762,11 @@ if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
     docker restart \$(docker ps -qaf name=postfix-mailcow) \\
                    \$(docker ps -qaf name=dovecot-mailcow) \\
                    \$(docker ps -qaf name=nginx-mailcow)
+
+    echo "✅ 证书同步完成"
+else
+    echo "✅ 证书未变化，无需同步"
+
 fi
 EOF
 
@@ -833,6 +838,11 @@ if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
     docker restart \$(docker ps -qaf name=postfix-mailcow) \\
                    \$(docker ps -qaf name=dovecot-mailcow) \\
                    \$(docker ps -qaf name=nginx-mailcow)
+
+    echo "✅ 证书同步完成"
+else
+    echo "✅ 证书未变化，无需同步"
+
 fi
 EOF
 
@@ -899,6 +909,11 @@ if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
     docker restart \$(docker ps -qaf name=postfix-mailcow) \\
                    \$(docker ps -qaf name=dovecot-mailcow) \\
                    \$(docker ps -qaf name=nginx-mailcow)
+
+    echo "✅ 证书同步完成"
+else
+    echo "✅ 证书未变化，无需同步"
+
 fi
 EOF
 
@@ -965,6 +980,11 @@ if [ "\$MD5_CURRENT_CERT" != "\$MD5_NEW_CERT" ]; then
     docker restart \$(docker ps -qaf name=postfix-mailcow) \\
                    \$(docker ps -qaf name=dovecot-mailcow) \\
                    \$(docker ps -qaf name=nginx-mailcow)
+
+    echo "✅ 证书同步完成"
+else
+    echo "✅ 证书未变化，无需同步"
+
 fi
 EOF
 
