@@ -5407,7 +5407,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
-	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                     ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
+	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}mailcow-dockerized邮箱 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}79.  ${gl_bai}邮箱caddy与nginx都可用mailcow ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}------------------------"
