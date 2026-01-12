@@ -56,17 +56,7 @@ fi
 
 
 
-    echo "=============================="
-    echo " Mailcow + Caddy 管理脚本"
-    echo "=============================="
-    echo "安装完成进入目录"
-    echo "/home/docker/mailcow-dockerized"
-    echo "修改文件mailcow.conf"
-    echo "=============================="
-    echo "HTTP_REDIRECT=y        改为n使用 2 更新"
-    echo "=============================="
-    echo "或使用nano直接编辑"
-    echo "nano /home/docker/mailcow-dockerized/mailcow.conf"
+
 
     echo "=============================="
     echo "查看证书是否生效"
@@ -95,6 +85,11 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
     echo "5) 自动复制证书"
 
     echo "9) 卸载 Mailcow"
+
+    echo "=============================="
+    echo "Caddy证书位置"
+    echo "/var/lib/caddy/.local/share/caddy/certificates/"
+    echo "=============================="
     echo "0) 退出"
     echo "=============================="
 }
