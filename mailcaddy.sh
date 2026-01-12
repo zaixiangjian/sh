@@ -29,10 +29,6 @@ show_menu() {
     clear
 
 
-
-
-
-
 # ------------------------------
 # 查询并显示证书同步定时任务（不关心日志）
 # ------------------------------
@@ -52,27 +48,27 @@ fi
 
 
 
-
-
-
-
-
-
     echo "=============================="
-    echo "查看证书是否生效"
+    echo "# 查看证书是否生效"
     echo "cd /home/docker/mailcow-dockerized"
     echo "openssl x509 -in data/assets/ssl/cert.pem -noout -fingerprint -sha256"
-    echo "=============================="
+
+
     echo "openssl x509 \
 -in /home/docker/mailcow-dockerized/data/assets/ssl/cert.pem \
 -noout -subject -issuer -dates"
-    echo "Postfix 容器查询"
+
+
+    echo "# Postfix 容器查询"
     echo "docker exec mailcowdockerized-postfix-mailcow-1 \
 openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
-    echo "=============================="
-    echo "Dovecot 容器查询"
+
+
+    echo "# Dovecot 容器查询"
     echo "docker exec mailcowdockerized-dovecot-mailcow-1 \
 openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
+
+
     echo "=============================="
 
 
@@ -342,11 +338,6 @@ rm -f "$TMP_CRON"
     clear
 
 
-
-
-
-
-
     echo "------------------------------------------------"
     echo "✅ Mailcow 安装完成！"
     echo "📂 安装目录: ${MAILCOW_DIR}"
@@ -388,11 +379,8 @@ rm -f "$TMP_CRON"
     echo "------------------------------------------------"
 
 
-
-
     read -rp "按回车继续..." _
 }
-
 
 
 # ------------------------------
@@ -406,7 +394,6 @@ update_mailcow() {
     echo "✅ Mailcow 已更新"
     read -rp "按回车继续..." _
 }
-
 
 
 # ------------------------------
@@ -625,8 +612,6 @@ EOF
 }
 
 
-
-
 # ------------------------------
 # 证书同步函数（菜单选项 5）
 # ------------------------------
@@ -690,7 +675,6 @@ EOF
     echo "✅ 证书同步脚本已生成，手动执行: $ZSFZ_SYNC"
     read -rp "按回车继续..." _
 }
-
 
 
 # ------------------------------
