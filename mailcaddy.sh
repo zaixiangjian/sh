@@ -83,7 +83,7 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
     echo "9) 卸载 Mailcow"
 
     echo "=============================="
-    echo "Caddy证书位置"
+    echo "# Caddy证书位置"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
     echo "=============================="
     echo "0) 退出"
