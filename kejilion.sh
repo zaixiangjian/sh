@@ -8250,6 +8250,7 @@ docker_app
 
 
 
+
 79)
             clear
             echo "Nexterm - 基于 Web 的终端访问工具 (zaixiangjian 编译版)"
@@ -8258,17 +8259,19 @@ docker_app
             echo "------------------------------------------------"
             echo "1. 安装 Nexterm"
             echo "2. 备份 Nexterm"
-            echo "3. 卸载 Nexterm"
+            echo "3. 卸载 Nexterm (彻底删除本地数据)"
             echo "4. 恢复 Nexterm"
+            echo "99. 更新 Nexterm 镜像 (自动继承配置)"
             echo "0. 返回主菜单"
+            echo "------------------------------------------------"
             read -p "请输入操作编号: " sub_choice
 
             # 配置信息
-            nexterm_dir="/home/docker/nexterm/data"  # 建议指定到 data 目录
+            base_dir="/home/docker/nexterm"
+            nexterm_dir="/home/docker/nexterm/data"
             backup_dir="/home/docker"
             backup_prefix="nexterm"
             docker_name="nexterm"
-            # 使用你推送的镜像
             docker_img="zaixiangjian/nexterm:latest"
             docker_port=6989
 
@@ -8280,10 +8283,8 @@ docker_app
                     if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
                         echo "$docker_name 已经安装完成"
                     else
-                        # 首次安装，生成新密钥
                         encryption_key=$(openssl rand -hex 32)
                         mkdir -p $nexterm_dir
-
                         docker run -d \
                             --name $docker_name \
                             -e ENCRYPTION_KEY=$encryption_key \
@@ -8291,90 +8292,65 @@ docker_app
                             -p ${docker_port}:6989 \
                             -v $nexterm_dir:/app/data \
                             $docker_img
-
                         echo "------------------------------------------------"
                         echo "✅ $docker_name 安装成功"
-                        echo "访问地址: http://${local_ip}:${docker_port}"
-                        [ -n "$ipv6_addr" ] && echo "IPv6 地址: http://[${ipv6_addr}]:${docker_port}"
-                        echo -e "\033[31m重要：加密密钥为: $encryption_key\033[0m"
-                        echo "请务必记录此密钥，否则备份数据将无法恢复！"
+                        echo "加密密钥为: $encryption_key (请务必保存)"
                     fi
                     ;;
                 2)
                     echo "正在备份..."
                     timestamp=$(date +%Y%m%d%H%M%S)
                     backup_file="${backup_prefix}-${timestamp}.tar.gz"
-                    # 确保目录存在
-                    [ ! -d "$nexterm_dir" ] && echo "错误: 目录 $nexterm_dir 不存在" && break
-                    
-                    tar -czf "${backup_dir}/${backup_file}" -C "$(dirname "$nexterm_dir")" data
+                    [ ! -d "$nexterm_dir" ] && echo "错误: 目录不存在" && break
+                    tar -czf "${backup_dir}/${backup_file}" -C "$base_dir" data
                     echo "✅ 备份成功！保存为: ${backup_dir}/${backup_file}"
-
-                    # 保留最新3个备份
                     ls -t ${backup_dir}/${backup_prefix}-*.tar.gz | sed -n '4,$p' | xargs -r rm -f
                     ;;
                 3)
-                    read -p "确认卸载 Nexterm？[y/N]: " confirm
+                    read -p "🚨 确认卸载并彻底删除数据？将执行 [rm -rf $base_dir] [y/N]: " confirm
                     if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        echo "正在停止并删除容器..."
                         docker rm -f $docker_name 2>/dev/null
-                        # 注意：为了安全，这里只建议删除容器，你可以手动决定是否删除数据目录
-                        echo "容器已停止并删除。"
+                        echo "正在清理本地文件夹..."
+                        rm -rf "$base_dir"
+                        echo "✅ Nexterm 已彻底卸载，数据已清空。"
                     else
-                        echo "操作取消。"
+                        echo "操作已取消。"
                     fi
                     ;;
                 4)
-                    echo "可用备份文件清单："
+                    echo "可用备份清单："
                     backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
-                    if [ ${#backups[@]} -eq 0 ]; then
-                        echo "❌ 无可用备份文件"
-                        break
-                    fi
+                    [ ${#backups[@]} -eq 0 ] && echo "❌ 无备份" && break
+                    for i in "${!backups[@]}"; do echo "$((i+1)). $(basename ${backups[$i]})"; done
+                    read -p "选择编号: " sel
+                    restore_file="${backups[$((sel-1))]:-${backups[0]}}"
+                    
+                    read -p "请输入原始加密密钥: " encryption_key
+                    [ -z "$encryption_key" ] && echo "密钥不能为空" && break
 
-                    for i in "${!backups[@]}"; do
-                        echo "$((i+1)). $(basename ${backups[$i]})"
-                    done
-                    read -p "请输入备份编号（直接回车恢复最新）: " sel
-
-                    if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
-                        restore_file="${backups[$((sel-1))]}"
-                    else
-                        restore_file="${backups[0]}"
-                    fi
-
-                    echo "准备从 $(basename $restore_file) 恢复..."
-                    # 必须要求输入密钥
-                    read -p "请输入备份对应的原始加密密钥 (必填): " encryption_key
-                    if [ -z "$encryption_key" ]; then
-                        echo "错误: 未输入密钥，无法保证数据解密，操作终止。"
-                        break
-                    fi
-
-                    # 执行恢复
                     docker rm -f $docker_name 2>/dev/null
-                    rm -rf "$nexterm_dir"
-                    mkdir -p "$(dirname "$nexterm_dir")"
-                    tar -xzf "$restore_file" -C "$(dirname "$nexterm_dir")"
-
-                    # 使用原密钥重新启动
-                    docker run -d \
-                        --name $docker_name \
-                        -e ENCRYPTION_KEY=$encryption_key \
-                        --restart always \
-                        -p ${docker_port}:6989 \
-                        -v $nexterm_dir:/app/data \
-                        $docker_img
-
-                    echo "------------------------------------------------"
-                    echo "✅ 数据恢复完成并已尝试启动"
-                    echo "访问地址: http://${local_ip}:${docker_port}"
+                    rm -rf "$base_dir"
+                    mkdir -p "$nexterm_dir"
+                    tar -xzf "$restore_file" -C "$base_dir"
+                    
+                    docker run -d --name $docker_name -e ENCRYPTION_KEY=$encryption_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                    echo "✅ 数据已恢复。"
                     ;;
-                0)
-                    break
+                99)
+                    echo "检查更新中..."
+                    old_key=$(docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' $docker_name 2>/dev/null | grep ENCRYPTION_KEY | cut -d'=' -f2)
+                    if [ -z "$old_key" ]; then
+                        echo "❌ 容器未运行，无法自动获取密钥。"
+                    else
+                        docker pull $docker_img
+                        docker rm -f $docker_name 2>/dev/null
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$old_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 更新完成！"
+                    fi
                     ;;
-                *)
-                    echo "无效选项"
-                    ;;
+                0) break ;;
+                *) echo "无效选项" ;;
             esac
             read -p "按任意键继续..." -n1
             ;;
