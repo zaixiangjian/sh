@@ -8273,35 +8273,37 @@ endpoint =存储桶访问地址"
 		  75)
 
 
-			docker_name="openlist"
-			docker_img="openlistteam/openlist:latest"
-			docker_port=5244
+	docker_name="openlist"
+	docker_img="openlistteam/openlist"
+	docker_port=5244
+	docker_rum="
 
-			# 数据目录
-			mkdir -p /home/docker/openlist/data
-			# v4.1.0+ 默认非 root 运行，修复权限
-			chown -R 1000:1000 /home/docker/openlist
+# 自动创建数据目录
+mkdir -p /home/docker/openlist/data
 
-			docker_rum="docker run -d \
-							--name openlist \
-							--restart always \
-							-p 5244:5244 \
-							-v /home/docker/openlist/data:/opt/openlist/data \
-							openlistteam/openlist:latest"
+# 设置权限（方案 B，保持规范）
+chown -R 1000:1000 /home/docker/openlist/data
 
-			# 自动获取本机 IP
-			HOST_IP=$(hostname -I | awk '{print $1}')
+# 获取本机 IP
+HOST_IP=\$(hostname -I | awk '{print \$1}')
 
-			# docker_use 直接获取管理员密码和访问地址
-			docker_use="ADMIN_PASS=\$(docker logs openlist 2>&1 | grep -m1 -Ei 'admin.*password' | awk '{print \$NF}') && \
-echo \"✅ OpenList 管理员密码: \$ADMIN_PASS\" && \
-echo \"🌐 Web 访问: http://\$HOST_IP:5244\""
+# 启动 Docker
+docker run -d \
+  --name openlist \
+  -p 5244:5244 \
+  -v /home/docker/openlist/data:/opt/openlist/data \
+  --restart=always \
+  openlistteam/openlist
 
-			docker_describe="OpenList：Alist 分支项目（v4.1.0+ 默认非 root，已修复权限）"
-			docker_url="官网介绍: https://github.com/OpenListTeam/OpenList"
-			docker_passwd=""
-			docker_app
-			  ;;
+# 显示访问地址
+echo \"OpenList 已启动，访问：http://\$HOST_IP:5244\"
+"
+	docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
+	docker_url="官网介绍: https://github.com/OpenListTeam/OpenList"
+	docker_use="访问地址：http://本机IP:5244"
+	docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
+	docker_app
+	;;
 
 76)
 
