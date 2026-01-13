@@ -7057,58 +7057,180 @@ EOF
             while true; do
               clear
               echo -e "------------------------------------------------"
-              echo -e "         Nexterm 镜像维护工具 (仅维护者使用)"
+              echo -e "         Nexterm 维护者编译与发布工具"
               echo -e "------------------------------------------------"
-              echo -e "1. 编译本地源码并构建镜像"
-              echo -e "2. 登录 Docker Hub 账号"
-              echo -e "3. 推送镜像到云端 (zaixiangjian/nexterm:latest)"
+              echo -e "1) 自动检测并安装构建环境 (Node, pnpm, Docker)"
+              echo -e "2) 克隆源码并编译 Docker 镜像"
+              echo -e "3) 登录 Docker Hub"
+              echo -e "4) 推送镜像到 Docker Hub (zaixiangjian/nexterm)"
               echo -e "------------------------------------------------"
-              echo -e "0. 返回主菜单"
+              echo -e "5) 安装并运行本地容器 (测试用)"
+              echo -e "6) 更新已安装容器"
+              echo -e "7) 卸载并删除目录"
+              echo -e "8) 备份 Nexterm"
+              echo -e "9) 恢复 Nexterm"
               echo -e "------------------------------------------------"
-              read -e -p "请输入选择: " dev_choice
+              echo -e "0) 返回主菜单"
+              echo -e "------------------------------------------------"
+              read -p "请输入操作编号: " dev_choice
+
+              # 共享配置变量
+              base_dir="/home/docker/nexterm"
+              nexterm_dir="/home/docker/nexterm/data"
+              docker_name="nexterm"
+              docker_img="zaixiangjian/nexterm:latest"
+              docker_port=6989
 
               case $dev_choice in
                 1)
-                  echo -e "\n正在克隆最新源码并编译..."
-                  [ ! -d /home/docker/nexterm_build ] && mkdir -p /home/docker/nexterm_build
-                  cd /home/docker/nexterm_build
-                  rm -rf Nexterm
-                  git clone https://github.com/zaixiangjian/Nexterm.git
-                  cd Nexterm
-                  
-                  echo -e "\n正在构建 Docker 镜像: zaixiangjian/nexterm:latest ..."
-                  docker build -t zaixiangjian/nexterm:latest .
-                  
-                  echo -e "\n✅ 本地编译构建完成！"
-                  sleep 2
-				  read -n1 -r -p "回车继续..." key
-                  ;;
+                    echo "开始环境自检..."
+                    
+                    # 1. 检查 Docker
+                    if ! command -v docker &> /dev/null; then
+                        echo "未检测到 Docker，正在安装..."
+                        curl -fsSL https://get.docker.com | bash -
+                        systemctl enable --now docker
+                    else
+                        echo "✅ Docker 已安装"
+                    fi
+
+                    # 2. 检查 Node.js
+                    if ! command -v node &> /dev/null; then
+                        echo "未检测到 Node.js，正在安装 (NodeSource v20)..."
+                        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+                        apt-get install -y nodejs
+                    else
+                        echo "✅ Node.js 已安装: $(node -v)"
+                    fi
+
+                    # 3. 检查 pnpm
+                    if ! command -v pnpm &> /dev/null; then
+                        echo "未检测到 pnpm，正在安装..."
+                        npm install -g pnpm
+                    else
+                        echo "✅ pnpm 已安装: $(pnpm -v)"
+                    fi
+
+                    # 4. 开放防火墙端口 6989
+                    echo "正在检查防火墙并放行端口 ${docker_port}..."
+                    if command -v ufw &> /dev/null; then
+                        ufw allow ${docker_port}/tcp
+                    elif command -v firewall-cmd &> /dev/null; then
+                        firewall-cmd --permanent --add-port=${docker_port}/tcp
+                        firewall-cmd --reload
+                    fi
+
+                    echo "✅ 环境准备就绪！"
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
                 2)
-                  echo -e "\n请输入 Docker Hub 凭据进行登录:"
-                  docker login
-				  read -n1 -r -p "回车继续..." key
-                  ;;
+                    echo "正在克隆并编译镜像..."
+                    # 检查是否安装了 git
+                    if ! command -v git &> /dev/null; then apt-get install -y git; fi
+                    
+                    mkdir -p /home/docker/build_temp
+                    cd /home/docker/build_temp
+                    rm -rf Nexterm
+                    git clone https://github.com/zaixiangjian/Nexterm.git
+                    cd Nexterm
+                    
+                    echo "开始构建 Docker 镜像，这可能需要几分钟..."
+                    docker build -t $docker_img .
+                    
+                    if [ $? -eq 0 ]; then
+                        echo "✅ 镜像构建完成: $docker_img"
+                    else
+                        echo "❌ 镜像构建失败，请检查源码或 Dockerfile"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
                 3)
-                  echo -e "\n正在将镜像推送到云端仓库..."
-                  docker push zaixiangjian/nexterm:latest
-                  if [ $? -eq 0 ]; then
-                      echo -e "\n✅ 镜像上传成功！现在其他人可以使用 79 选项安装了。"
-                  else
-                      echo -e "\n❌ 上传失败，请检查是否已登录 (选项 2)。"
-                  fi
-                  sleep 2
-				  read -n1 -r -p "回车继续..." key
-                  ;;
-                0)
-                  break
-                  ;;
-                *)
-                  echo "输入错误"
-                  sleep 1
-                  ;;
+                    echo "正在登录 Docker Hub..."
+                    docker login
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                4)
+                    echo "正在推送镜像至云端..."
+                    docker push $docker_img
+                    [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                5)
+                    if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
+                        echo "❌ 容器 $docker_name 已经存在"
+                    else
+                        encryption_key=$(openssl rand -hex 32)
+                        mkdir -p $nexterm_dir
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$encryption_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 运行成功！"
+                        echo "本地访问地址: http://$(hostname -I | awk '{print $1}'):${docker_port}"
+                        echo "初始化密钥: $encryption_key"
+                    fi
+                    sleep 3
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                6)
+                    # 自动获取密钥更新
+                    old_key=$(docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' $docker_name 2>/dev/null | grep ENCRYPTION_KEY | cut -d'=' -f2)
+                    if [ -z "$old_key" ]; then
+                        echo "❌ 容器未运行，无法自动获取密钥升级"
+                    else
+                        echo "同步镜像并重启容器..."
+                        docker pull $docker_img
+                        docker rm -f $docker_name
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$old_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 更新完成"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                7)
+                    read -p "🚨 危险操作：确认卸载并彻底删除本地目录 $base_dir？[y/N]: " confirm
+                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        docker rm -f $docker_name 2>/dev/null
+                        rm -rf "$base_dir"
+                        echo "✅ 容器已删除，目录已彻底清理。"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                8)
+                    echo "正在执行备份..."
+                    timestamp=$(date +%Y%m%d%H%M%S)
+                    [ ! -d "$nexterm_dir" ] && echo "❌ 数据目录不存在" && break
+                    tar -czf "/home/docker/nexterm-${timestamp}.tar.gz" -C "$base_dir" data
+                    echo "✅ 备份成功: /home/docker/nexterm-${timestamp}.tar.gz"
+                    sleep 2
+                    ;;
+                9)
+                    backups=($(ls -1t /home/docker/nexterm-*.tar.gz 2>/dev/null))
+                    if [ ${#backups[@]} -eq 0 ]; then
+                        echo "❌ 目录下未发现备份文件"
+                    else
+                        for i in "${!backups[@]}"; do echo "$((i+1)). $(basename ${backups[$i]})"; done
+                        read -p "请选择恢复编号: " sel
+                        restore_file="${backups[$((sel-1))]}"
+                        read -p "请输入对应的原始加密密钥: " e_key
+                        
+                        docker rm -f $docker_name 2>/dev/null
+                        rm -rf "$base_dir" && mkdir -p "$nexterm_dir"
+                        tar -xzf "$restore_file" -C "$base_dir"
+                        
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$e_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 恢复完成！"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                0) break ;;
+                *) echo "无效选择"; sleep 1 ;;
               esac
             done
             ;;
+
 
 
 
