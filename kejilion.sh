@@ -5408,11 +5408,11 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
-	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 
-
+	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
@@ -7081,10 +7081,12 @@ EOF
                   
                   echo -e "\n✅ 本地编译构建完成！"
                   sleep 2
+				  read -n1 -r -p "回车继续..." key
                   ;;
                 2)
                   echo -e "\n请输入 Docker Hub 凭据进行登录:"
                   docker login
+				  read -n1 -r -p "回车继续..." key
                   ;;
                 3)
                   echo -e "\n正在将镜像推送到云端仓库..."
@@ -7095,6 +7097,7 @@ EOF
                       echo -e "\n❌ 上传失败，请检查是否已登录 (选项 2)。"
                   fi
                   sleep 2
+				  read -n1 -r -p "回车继续..." key
                   ;;
                 0)
                   break
@@ -8337,6 +8340,202 @@ docker_app
             esac
             read -p "按任意键继续..." -n1
             ;;
+
+
+80)
+
+while true; do
+
+  clear
+  echo -e "------------------------------------------------"
+  echo -e "         Sun-Panel 镜像维护工具"
+  echo -e "------------------------------------------------"
+  echo -e "1) 安装依赖环境 (Node.js, pnpm, Docker)"
+  echo -e "2) 克隆源码并编译 Docker 镜像"
+  echo -e "3) 登录 Docker Hub"
+  echo -e "4) 推送镜像到 Docker Hub (zaixiangjian/sun-panel:latest)"
+  echo -e "5) 安装并运行 sun-panel 容器 (/home/docker/sun-panel)"
+  echo -e "6) 更新已安装容器"
+  echo -e "7) 卸载 sun-panel 并删除 /home/docker/sun-panel"
+  echo -e "0) 返回主菜单"
+  echo -e "------------------------------------------------"
+  read -e -p "请输入选择: " choice
+
+  case $choice in
+    1)
+      echo -e "\n🚀 安装依赖环境..."
+      apt update && apt install -y curl git build-essential lsb-release ca-certificates gnupg
+      curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+      apt install -y nodejs
+      npm install -g pnpm
+
+      if ! command -v docker &>/dev/null; then
+        echo "安装 Docker..."
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+        apt update
+        apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      else
+        echo "Docker 已安装，跳过。"
+      fi
+      sleep 2
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    2)
+      echo -e "\n📂 克隆源码并编译 Docker 镜像..."
+      mkdir -p /home/docker
+      cd /home/docker
+      rm -rf sun-panel
+      git clone https://github.com/zaixiangjian/sun-panel.git
+      cd sun-panel
+      git checkout dev
+      git pull
+
+      echo -e "\n📝 修改 package.json build 脚本..."
+      sed -i 's/"build": "run-p add-version type-check build-only"/"build": "run-p add-version build-only"/' package.json
+
+      echo -e "\n📦 安装依赖..."
+      pnpm install
+
+      echo -e "\n🏗️ 编译前端..."
+      pnpm build
+
+      echo -e "\n📦 安装 go-bindata 工具..."
+      go install github.com/elazarl/go-bindata-assetfs/...@latest
+
+      echo -e "\n🏗️ 生成 Go 绑定资源..."
+      cd service
+      go-bindata-assetfs -o assets/bindata.go -pkg assets ../dist/assets/...
+
+      echo -e "\n🏗️ 编译 Go 后端..."
+      go build -o /home/docker/sun-panel/sun-panel main.go
+
+      echo -e "\n🐳 构建 Docker 镜像 sun-panel:latest ..."
+      cd /home/docker/sun-panel
+      docker build -t sun-panel .
+
+      echo -e "\n✅ 编译和 Docker 构建完成！"
+      sleep 2
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    3)
+      echo -e "\n🔑 登录 Docker Hub ..."
+      docker login
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    4)
+      echo -e "\n📤 推送镜像到 Docker Hub ..."
+      docker tag sun-panel zaixiangjian/sun-panel:latest
+      docker push zaixiangjian/sun-panel:latest
+      if [ $? -eq 0 ]; then
+        echo -e "✅ 镜像上传成功！"
+      else
+        echo -e "❌ 上传失败，请先登录 Docker Hub"
+      fi
+      sleep 2
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    5)
+      echo -e "\n📦 安装并运行 sun-panel 容器..."
+
+      DEFAULT_DIR="/home/docker/sun-panel"
+      DEFAULT_PORT="3002"
+
+      read -e -p "请输入宿主机目录 [默认: $DEFAULT_DIR]: " HOST_DIR
+      HOST_DIR=${HOST_DIR:-$DEFAULT_DIR}
+
+      read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+      HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+      mkdir -p "$HOST_DIR"
+
+      docker stop sun-panel 2>/dev/null || true
+      docker rm sun-panel 2>/dev/null || true
+
+      docker run -d \
+        --name sun-panel \
+        -v "$HOST_DIR":/app/data \
+        -p "$HOST_PORT":3002 \
+        zaixiangjian/sun-panel:latest
+
+      # 获取本机 IP
+      HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+      [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+      echo -e "\n✅ 安装完成！"
+      echo -e "👉 访问地址: http://${HOST_IP}:${HOST_PORT}"
+
+      echo -e "账号"
+      echo -e "admin@sun.cc"
+      echo -e "密码"	
+      echo -e "12345678"
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    6)
+      echo -e "\n🔄 更新已安装容器..."
+      DEFAULT_DIR="/home/docker/sun-panel"
+      DEFAULT_PORT="3002"
+
+      docker stop sun-panel 2>/dev/null || true
+      docker rm sun-panel 2>/dev/null || true
+      docker pull zaixiangjian/sun-panel:latest
+
+      docker run -d \
+        --name sun-panel \
+        -v "$DEFAULT_DIR":/app/data \
+        -p "$DEFAULT_PORT":3002 \
+        zaixiangjian/sun-panel:latest
+
+      echo -e "\n✅ 更新完成！访问 http://<宿主机IP>:${DEFAULT_PORT}"
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    7)
+      echo -e "\n🗑️ 卸载 sun-panel 并删除目录..."
+      docker stop sun-panel 2>/dev/null || true
+      docker rm sun-panel 2>/dev/null || true
+      rm -rf /home/docker/sun-panel
+      echo -e "\n✅ 已卸载并删除 /home/docker/sun-panel"
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    0)
+      break
+      ;;
+
+    *)
+      echo "输入错误"
+      read -n1 -r -p "回车继续..." key
+      ;;
+  esac
+done
+;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
