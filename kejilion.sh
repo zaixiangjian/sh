@@ -8606,28 +8606,38 @@ while true; do
   read -n1 -r -p "回车继续..." key
   ;;
 
-    6)
-      echo -e "\n🔄 更新已安装容器..."
-      DEFAULT_DIR="/home/docker/sun-panel"
-      DEFAULT_PORT="3002"
+6)
+  echo -e "\n🔄 更新已安装容器..."
+  DEFAULT_DIR="/home/docker/sun-panel"
+  DEFAULT_PORT="3002"
 
-      docker stop sun-panel 2>/dev/null || true
-      docker rm sun-panel 2>/dev/null || true
-      docker pull zaixiangjian/sun-panel:latest
+  # 停止并删除旧容器
+  docker stop sun-panel 2>/dev/null || true
+  docker rm sun-panel 2>/dev/null || true
 
-      docker run -d \
-        --name sun-panel \
-        -v "$DEFAULT_DIR":/app/data \
-        -p "$DEFAULT_PORT":3002 \
-        zaixiangjian/sun-panel:latest
+  # 拉取最新镜像
+  docker pull zaixiangjian/sun-panel:latest
 
+  # 重新运行容器，挂载完整目录
+  docker run -d \
+    --name sun-panel \
+    --restart unless-stopped \
+    -v "$DEFAULT_DIR/conf":/app/conf \
+    -v "$DEFAULT_DIR/data":/app/data \
+    -v "$DEFAULT_DIR/database":/app/database \
+    -v "$DEFAULT_DIR/lang":/app/lang \
+    -v "$DEFAULT_DIR/runtime":/app/runtime \
+    -p "$DEFAULT_PORT":3002 \
+    zaixiangjian/sun-panel:latest
 
-      # 获取本机 IP
-      HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
-      [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
-      echo -e "\n✅ 更新完成！访问地址: http://${HOST_IP}:${HOST_PORT}"
-      read -n1 -r -p "回车继续..." key
-      ;;
+  # 获取本机 IP
+  HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+  [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+  echo -e "\n✅ 更新完成！访问地址: http://${HOST_IP}:${DEFAULT_PORT}"
+  read -n1 -r -p "回车继续..." key
+  ;;
+
 
     7)
       echo -e "\n🗑️ 卸载 sun-panel 并删除目录..."
