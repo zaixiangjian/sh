@@ -5408,7 +5408,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
-	  echo -e "${gl_kjlan}77.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}邮箱caddy与nginx都可用mailcow ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}             ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 
@@ -8212,17 +8212,22 @@ docker_app
 
 		  77)
 		    clear
+		    echo "▶️ 全部caddy与nginx邮箱安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginxcaddy.sh)
+		    echo "✅ caddy与nginx邮箱安装完成..."
+		    ;;
+
+
+
+
+		  78)
+		    clear
 		    echo "▶️ mailcow-dockerized邮箱安装..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailcaddy.sh)
 		    echo "✅ mailcow-dockerized邮箱安装完成..."
 		    ;;
 
-		  78)
-		    clear
-		    echo "▶️ 全部caddy与nginx邮箱安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginxcaddy.sh)
-		    echo "✅ caddy与nginx邮箱安装完成..."
-		    ;;
+
 
 
 
