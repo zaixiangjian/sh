@@ -8465,7 +8465,6 @@ docker_app
 
 
 80)
-
 while true; do
 
   clear
@@ -8479,6 +8478,8 @@ while true; do
   echo -e "5) 安装并运行 sun-panel 容器 (/home/docker/sun-panel)"
   echo -e "6) 更新已安装容器"
   echo -e "7) 卸载 sun-panel 并删除 /home/docker/sun-panel"
+  echo -e "8) 备份 sun-panel 数据到 /home/docker"
+  echo -e "9) 恢复 sun-panel 数据并自动启动"
   echo -e "0) 返回主菜单"
   echo -e "------------------------------------------------"
   read -e -p "请输入选择: " choice
@@ -8562,42 +8563,48 @@ while true; do
       read -n1 -r -p "回车继续..." key
       ;;
 
-    5)
-      echo -e "\n📦 安装并运行 sun-panel 容器..."
 
-      DEFAULT_DIR="/home/docker/sun-panel"
-      DEFAULT_PORT="3002"
+5)
+  echo -e "\n📦 安装并运行 sun-panel 容器..."
 
-      read -e -p "请输入宿主机目录 [默认: $DEFAULT_DIR]: " HOST_DIR
-      HOST_DIR=${HOST_DIR:-$DEFAULT_DIR}
+  DEFAULT_DIR="/home/docker/sun-panel"
+  DEFAULT_PORT="3002"
 
-      read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
-      HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+  read -e -p "请输入宿主机目录 [默认: $DEFAULT_DIR]: " HOST_DIR
+  HOST_DIR=${HOST_DIR:-$DEFAULT_DIR}
 
-      mkdir -p "$HOST_DIR"
+  read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+  HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
 
-      docker stop sun-panel 2>/dev/null || true
-      docker rm sun-panel 2>/dev/null || true
+  # 创建必要的子目录
+  mkdir -p "$HOST_DIR"/{conf,data,database,lang,runtime}
 
-      docker run -d \
-        --name sun-panel \
-        -v "$HOST_DIR":/app/data \
-        -p "$HOST_PORT":3002 \
-        zaixiangjian/sun-panel:latest
+  # 停止并删除已有容器
+  docker stop sun-panel 2>/dev/null || true
+  docker rm sun-panel 2>/dev/null || true
 
-      # 获取本机 IP
-      HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
-      [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+  # 启动容器，挂载全部目录
+  docker run -d \
+    --name sun-panel \
+    --restart unless-stopped \
+    -v "$HOST_DIR/conf":/app/conf \
+    -v "$HOST_DIR/data":/app/data \
+    -v "$HOST_DIR/database":/app/database \
+    -v "$HOST_DIR/lang":/app/lang \
+    -v "$HOST_DIR/runtime":/app/runtime \
+    -p "$HOST_PORT":3002 \
+    zaixiangjian/sun-panel:latest
 
-      echo -e "\n✅ 安装完成！"
-      echo -e "👉 访问地址: http://${HOST_IP}:${HOST_PORT}"
+  # 获取本机 IP
+  HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+  [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
 
-      echo -e "账号"
-      echo -e "admin@sun.cc"
-      echo -e "密码"	
-      echo -e "12345678"
-      read -n1 -r -p "回车继续..." key
-      ;;
+  echo -e "\n✅ 安装完成！"
+  echo -e "👉 访问地址: http://${HOST_IP}:${HOST_PORT}"
+  echo -e "账号: admin@sun.cc"
+  echo -e "密码: 12345678"
+  read -n1 -r -p "回车继续..." key
+  ;;
 
     6)
       echo -e "\n🔄 更新已安装容器..."
@@ -8614,7 +8621,11 @@ while true; do
         -p "$DEFAULT_PORT":3002 \
         zaixiangjian/sun-panel:latest
 
-      echo -e "\n✅ 更新完成！访问 http://<宿主机IP>:${DEFAULT_PORT}"
+
+      # 获取本机 IP
+      HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+      [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+      echo -e "\n✅ 更新完成！访问地址: http://${HOST_IP}:${HOST_PORT}"
       read -n1 -r -p "回车继续..." key
       ;;
 
@@ -8627,6 +8638,99 @@ while true; do
       read -n1 -r -p "回车继续..." key
       ;;
 
+8)
+  echo -e "\n📦 备份 sun-panel 数据..."
+
+  BACKUP_DIR="/home/docker"
+  BACKUP_NAME="sun-panel-backup-$(date +%Y%m%d_%H%M%S).tar.gz"
+  CONTAINER_DATA="/home/docker/sun-panel"
+
+  if [ ! -d "$CONTAINER_DATA" ]; then
+    echo -e "❌ 数据目录不存在：$CONTAINER_DATA"
+    read -n1 -r -p "回车继续..." key
+    break
+  fi
+
+  tar -czf "$BACKUP_DIR/$BACKUP_NAME" -C "$CONTAINER_DATA" .
+
+  if [ $? -eq 0 ]; then
+    echo -e "✅ 备份成功：$BACKUP_DIR/$BACKUP_NAME"
+  else
+    echo -e "❌ 备份失败"
+  fi
+
+  read -n1 -r -p "回车继续..." key
+  ;;
+
+
+9)
+  echo -e "\n♻️ 恢复 sun-panel 数据并启动容器..."
+
+  DEFAULT_DIR="/home/docker/sun-panel"
+  DEFAULT_PORT="3002"
+  BACKUP_DIR="/home/docker"
+
+  # 获取最新备份文件
+  LATEST_BACKUP=$(ls -t $BACKUP_DIR/sun-panel-backup-*.tar.gz 2>/dev/null | head -n1)
+
+  if [ -z "$LATEST_BACKUP" ]; then
+    echo -e "❌ 没有找到任何备份文件"
+    read -n1 -r -p "回车继续..." key
+    break
+  fi
+
+  echo -e "\n📂 可用备份文件："
+  ls -lh $BACKUP_DIR/sun-panel-backup-*.tar.gz 2>/dev/null
+  echo -e "最新备份: $(basename "$LATEST_BACKUP")"
+
+  read -e -p "请输入要恢复的备份文件名 [回车使用最新]: " BACKUP_FILE
+  BACKUP_FILE=${BACKUP_FILE:-$(basename "$LATEST_BACKUP")}
+
+  if [ ! -f "$BACKUP_DIR/$BACKUP_FILE" ]; then
+    echo -e "❌ 备份文件不存在"
+    read -n1 -r -p "回车继续..." key
+    break
+  fi
+
+  read -e -p "恢复目录 [默认: $DEFAULT_DIR]: " HOST_DIR
+  HOST_DIR=${HOST_DIR:-$DEFAULT_DIR}
+
+  read -e -p "宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+  HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+  # 停止并删除旧容器
+  docker stop sun-panel 2>/dev/null || true
+  docker rm sun-panel 2>/dev/null || true
+
+  # 清空并恢复数据
+  rm -rf "$HOST_DIR"
+  mkdir -p "$HOST_DIR"
+  tar -xzf "$BACKUP_DIR/$BACKUP_FILE" -C "$HOST_DIR"
+
+  # 确保挂载所有子目录
+  mkdir -p "$HOST_DIR"/{conf,data,database,lang,runtime}
+
+  # 启动容器
+  docker run -d \
+    --name sun-panel \
+    --restart unless-stopped \
+    -v "$HOST_DIR/conf":/app/conf \
+    -v "$HOST_DIR/data":/app/data \
+    -v "$HOST_DIR/database":/app/database \
+    -v "$HOST_DIR/lang":/app/lang \
+    -v "$HOST_DIR/runtime":/app/runtime \
+    -p "$HOST_PORT":3002 \
+    zaixiangjian/sun-panel:latest
+
+  # 获取本机 IP
+  HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+  [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+  echo -e "\n✅ 恢复完成并已启动"
+  echo -e "👉 访问地址: http://${HOST_IP}:${HOST_PORT}"
+  read -n1 -r -p "回车继续..." key
+  ;;
+
     0)
       break
       ;;
@@ -8638,6 +8742,7 @@ while true; do
   esac
 done
 ;;
+
 
 
 
