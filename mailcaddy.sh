@@ -484,68 +484,70 @@ update_mailcow() {
 # 完整备份 Mailcow + Caddy（官方全量｜修复 Caddy）
 # ------------------------------
 backup_mailcow() {
-    echo "📦 开始完整备份 Mailcow + Caddy"
+    echo "📦 开始完整备份 Mailcow + Caddy..."
 
-    TIMESTAMP=$(date +%F_%H%M%S)
-    BACKUP_FILE="/home/mailcowcaddy-${TIMESTAMP}.tar.gz"
+    # 确保路径变量在函数内可用
+    local MAILCOW_DIR="/home/docker/mailcow-dockerized"
+    local TIMESTAMP=$(date +%F_%H%M%S)
+    local BACKUP_FILE="/home/mailcowcaddy-${TIMESTAMP}.tar.gz"
+
+    # 1. 环境检查
+    if [ ! -d "$MAILCOW_DIR" ]; then
+        echo "❌ 错误: 未找到 Mailcow 目录 $MAILCOW_DIR"
+        read -rp "按回车返回菜单..." _
+        return
+    fi
 
     read -rp "确认备份到 ${BACKUP_FILE} ? (Y/n): " confirm
-    [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "取消备份"; return; }
+    [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "已取消备份"; return; }
 
+    # 创建临时工作目录
     TMP_DIR=$(mktemp -d)
+    echo "🏗️  正在创建临时目录: $TMP_DIR"
 
-    # 停止 Mailcow，保证一致性
-    echo "🛑 停止 Mailcow..."
-    cd /home/docker/mailcow-dockerized 2>/dev/null && docker compose down || true
+    # 2. 停止服务保证数据一致性
+    echo "🛑 正在停止 Mailcow 容器..."
+    cd "$MAILCOW_DIR" && docker compose down || true
 
-    # 备份 Mailcow 程序
-    echo "📂 备份 Mailcow 程序目录"
+    # 3. 备份程序目录 (适配恢复脚本中的 $TMP_DIR/home/ 路径)
+    echo "📂 备份 Mailcow 程序文件..."
     mkdir -p "$TMP_DIR/home"
-    cp -a /home/docker/mailcow-dockerized "$TMP_DIR/home/"
+    cp -a "$MAILCOW_DIR" "$TMP_DIR/home/"
 
-    # 备份 Mailcow Docker 卷
-    echo "🔹 备份 Mailcow Docker 卷"
+    # 4. 备份 Docker 卷 (适配恢复脚本中的 $TMP_DIR/volumes/ 路径)
+    echo "🔹 备份 Docker 数据卷..."
     mkdir -p "$TMP_DIR/volumes"
-    VOLUMES=($(docker volume ls --format "{{.Name}}" | grep mailcow))
-
-    for VOL in "${VOLUMES[@]}"; do
+    # 获取所有相关的卷名
+    VOLUMES=$(docker volume ls -q --filter name=mailcow)
+    for VOL in $VOLUMES; do
         SRC="/var/lib/docker/volumes/${VOL}/_data"
         if [ -d "$SRC" ]; then
-            echo "  ➤ 备份卷 $VOL"
+            echo "  ➤ 正在导出卷: $VOL"
+            # 压缩卷内容，适配恢复脚本中的 tar xzf 逻辑
             tar czf "$TMP_DIR/volumes/${VOL}.tar.gz" -C "$SRC" .
         fi
     done
 
-    # ===============================
-    # ✅ 修复点：正确备份 Caddy
-    # ===============================
-    echo "📂 备份 Caddy 配置与证书（官方路径）"
+    # 5. 备份 Caddy (适配恢复脚本中的 $TMP_DIR/caddy/ 路径)
+    echo "📂 备份 Caddy 配置与证书..."
     mkdir -p "$TMP_DIR/caddy/etc" "$TMP_DIR/caddy/data"
+    [ -d /etc/caddy ] && cp -a /etc/caddy/. "$TMP_DIR/caddy/etc/"
+    [ -d /var/lib/caddy/.local/share/caddy ] && cp -a /var/lib/caddy/.local/share/caddy/. "$TMP_DIR/caddy/data/"
 
-    # /etc/caddy（配置）
-    if [ -d /etc/caddy ]; then
-        cp -a /etc/caddy/. "$TMP_DIR/caddy/etc/"
-    fi
-
-    # /var/lib/caddy/.local/share/caddy（证书）
-    if [ -d /var/lib/caddy/.local/share/caddy ]; then
-        cp -a /var/lib/caddy/.local/share/caddy/. "$TMP_DIR/caddy/data/"
-    fi
-
-    # 打包
-    echo "📦 打包备份文件"
+    # 6. 最终打包
+    echo "📦 正在生成最终备份包..."
     tar czf "$BACKUP_FILE" -C "$TMP_DIR" .
 
+    # 清理并重启
     rm -rf "$TMP_DIR"
+    echo "🚀 重新启动 Mailcow..."
+    cd "$MAILCOW_DIR" && docker compose up -d
 
-    # 启动 Mailcow
-    echo "🚀 启动 Mailcow..."
-    cd /home/docker/mailcow-dockerized && docker compose up -d
-
-    echo "✅ 备份完成：$BACKUP_FILE"
+    echo -e "\n✅ 备份成功！"
+    echo "文件位置: $BACKUP_FILE"
+    echo "您可以将此文件通过 SCP 或其他方式传输到新服务器的 /home 目录下进行 4 号恢复。"
     read -rp "按回车继续..." _
 }
-
 
 # ------------------------------
 # 完整恢复 Mailcow + Caddy（智能修复环境 & 增量合并配置）
