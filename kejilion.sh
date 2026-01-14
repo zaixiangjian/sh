@@ -5410,8 +5410,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
-
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8754,10 +8754,166 @@ done
 ;;
 
 
+81)
+        # 定义修改 Hosts 的内部函数（支持 IPv4 和 IPv6，防止重复）
+        update_sun_panel_hosts() {
+            echo "🌐 正在检查并配置本地回环地址 (Hosts)..."
+            local domains=("pro.sun-panel.top" "*.sun-panel.top" "sun-panel.top")
+            for dom in "${domains[@]}"; do
+                # 检查 IPv4
+                if ! grep -qE "127.0.0.1[[:space:]]+$dom" /etc/hosts; then
+                    echo "127.0.0.1    $dom" >> /etc/hosts
+                    echo "➕ 已添加 IPv4: $dom"
+                fi
+                # 检查 IPv6
+                if ! grep -qE "::1[[:space:]]+$dom" /etc/hosts; then
+                    echo "::1          $dom" >> /etc/hosts
+                    echo "➕ 已添加 IPv6: $dom"
+                fi
+            done
+        }
 
+        while true; do
+            clear
+            echo "------------------------------------------------"
+            echo "          Sun-Panel 管理工具 (v1.8.1)"
+            echo "------------------------------------------------"
+            echo "1. 安装 Sun-Panel"
+            echo "2. 卸载 Sun-Panel"
+            echo "3. 备份 Sun-Panel"
+            echo "4. 恢复 Sun-Panel"
+            echo "0. 返回上一级"
+            echo "------------------------------------------------"
+            read -e -p "请输入你的选择: " sub_choice
 
+            PANEL_DIR="/home/docker/sun-panel"
+            BACKUP_DIR="/home/docker"
+            SERVICE_FILE="/etc/systemd/system/sun-panel.service"
 
+            case $sub_choice in
 
+                1)
+                    echo "📦 正在安装 Sun-Panel..."
+                    mkdir -p "$PANEL_DIR/conf" "$PANEL_DIR/custom"
+                    touch "$PANEL_DIR/custom/index.js" "$PANEL_DIR/custom/index.css"
+
+                    cd "$PANEL_DIR" || { echo "❌ 目录不存在"; read -n1 -r -p "回车返回菜单..."; continue; }
+
+                    # 下载官方包
+                    wget -O sun-panel.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/1.8.1/sun-panel_v1.8.1_linux_amd64.tar.gz || { echo "❌ 下载失败"; read -n1 -r -p "回车返回菜单..."; continue; }
+
+                    # 解压整理
+                    tar -xzf sun-panel.tar.gz
+                    mv sun-panel_v1.8.1_linux_amd64/* ./
+                    rmdir sun-panel_v1.8.1_linux_amd64
+                    rm -f sun-panel.tar.gz
+                    chmod +x sun-panel
+
+                    # --- 执行 Hosts 添加 ---
+                    update_sun_panel_hosts
+
+                    # --- 写入 Systemd 服务配置 ---
+                    echo "⚙️ 正在配置 Systemd 服务..."
+                    cat <<EOF > $SERVICE_FILE
+[Unit]
+Description=Sun-Panel Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$PANEL_DIR
+ExecStart=$PANEL_DIR/sun-panel
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+                    # 重新加载并启动
+                    systemctl daemon-reload
+                    systemctl enable sun-panel
+                    systemctl restart sun-panel
+
+                    echo "✅ 安装完成，后台已启动，支持开机自启。"
+                    echo "------------------------------------------------"
+                    echo "默认账号: admin@sun.cc"
+                    echo "默认密码: 12345678"
+                    echo "------------------------------------------------"
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                2)
+                    echo "🗑️ 正在卸载 Sun-Panel..."
+                    systemctl stop sun-panel 2>/dev/null
+                    systemctl disable sun-panel 2>/dev/null
+                    rm -f $SERVICE_FILE
+                    systemctl daemon-reload
+                    rm -rf "$PANEL_DIR"
+                    echo "✅ 已完成卸载及服务清理"
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                3)
+                    echo "💾 备份 Sun-Panel..."
+                    BACKUP_NAME="sun-panel-backup-$(date +%Y%m%d%H%M%S)"
+                    mkdir -p "$BACKUP_DIR/$BACKUP_NAME"
+                    cp -a "$PANEL_DIR/." "$BACKUP_DIR/$BACKUP_NAME/"
+                    echo "✅ 已备份到 $BACKUP_DIR/$BACKUP_NAME"
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                4)
+                    echo "♻️ 恢复 Sun-Panel..."
+                    read -e -p "请输入备份路径: " RESTORE_PATH
+                    if [ -d "$RESTORE_PATH" ]; then
+                        systemctl stop sun-panel 2>/dev/null
+                        rm -rf "$PANEL_DIR"
+                        mkdir -p "$PANEL_DIR"
+                        cp -a "$RESTORE_PATH/." "$PANEL_DIR/"
+                        chmod +x "$PANEL_DIR/sun-panel"
+
+                        # --- 执行 Hosts 添加 ---
+                        update_sun_panel_hosts
+
+                        # --- 更新并重启服务 ---
+                        cat <<EOF > $SERVICE_FILE
+[Unit]
+Description=Sun-Panel Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$PANEL_DIR
+ExecStart=$PANEL_DIR/sun-panel
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+                        systemctl daemon-reload
+                        systemctl enable sun-panel
+                        systemctl restart sun-panel
+                        echo "✅ 恢复完成，服务已重启。"
+                    else
+                        echo "❌ 路径不存在"
+                    fi
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                0)
+                    break
+                    ;;
+                *)
+                    echo "❌ 请输入正确选项"
+                    sleep 1
+                    ;;
+            esac
+        done
+        ;;
 
 
 
