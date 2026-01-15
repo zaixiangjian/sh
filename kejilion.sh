@@ -7283,7 +7283,7 @@ EOF
 		  51)
 		    clear
 		    echo "▶️ 正在运行极光面板一键脚本..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/deploy/main/install.sh)
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/jiguangmianban/main/install.sh)
 		    echo "✅ 极光面板脚本运行完成，若你选择了安装，请访问 http://服务器IP:8000"
 		    ;;
 
