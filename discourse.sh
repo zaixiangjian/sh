@@ -11,6 +11,10 @@ fi
 echo "请选择操作："
 echo "1) 安装 Discourse"
 echo "2) 重新构建容器"
+echo "---------------------------------------------------------------------------"
+echo "默认备份目录"
+echo "/var/discourse/shared/standalone/backups/default/"
+echo "---------------------------------------------------------------------------"
 read -rp "请输入 1 或 2: " choice
 
 if [ "$choice" = "1" ]; then
