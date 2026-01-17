@@ -43,12 +43,35 @@ install_caddy() {
 
 # 2. 添加普通反向代理
 add_domain() {
-    read -rp "请输入你的域名: " DOMAIN
-    read -rp "请输入反向代理端口: " PORT
-    read -rp "请输入该网站的备注（必填）: " COMMENT
+    # --- 1. 输入校验 ---
+    while true; do
+        read -rp "请输入你的域名（例如 www.123.com）: " DOMAIN
+        [[ -n "$DOMAIN" ]] && break
+        echo "❌ 域名不能为空"
+    done
+
+    while true; do
+        read -rp "请输入反向代理端口（例如 8008）: " PORT
+        [[ "$PORT" =~ ^[0-9]+$ ]] && break
+        echo "❌ 端口必须是纯数字"
+    done
+
+    while true; do
+        read -rp "请输入该网站的备注（必填，例如：网盘）: " COMMENT
+        [[ -n "$COMMENT" ]] && break
+        echo "❌ 备注不能为空，良好的备注是后期维护的关键"
+    done
+
+    # --- 2. 查重逻辑（防止配置冲突） ---
     if grep -q "$DOMAIN" "$CONFIG_FILE"; then
-        echo "⚠️ 域名已存在" ; sleep 2 ; return
+        echo "⚠️  域名 $DOMAIN 已存在于 Caddyfile 中，请勿重复添加！"
+        read -rp "按回车返回..." _
+        return
     fi
+
+    # --- 3. 写入配置（带备注） ---
+    # 格式：# [备注] 域名
+    echo "📝 正在添加 $DOMAIN 的配置..."
     cat <<EOF | sudo tee -a "$CONFIG_FILE" > /dev/null
 
 # TAG: $COMMENT
@@ -59,13 +82,46 @@ $DOMAIN {
     }
 }
 EOF
+
+    # 调用你定义的格式化与重启函数
     format_and_reload
+    
+    echo "✅ 域名 $DOMAIN 已成功添加！"
+    sleep 2
 }
 
-# 3, 4, 5 基础控制
-reload_caddy() { systemctl reload caddy ; }
-restart_caddy() { systemctl restart caddy ; }
-stop_caddy() { systemctl stop caddy ; }
+# 3. 重载配置
+reload_caddy() {
+    echo "▶️ 正在重载 Caddy 配置..."
+    if systemctl reload caddy; then
+        echo -e "${GREEN}✅ 重载成功${RESET}"
+    else
+        echo -e "${RED}❌ 重载失败${RESET}"
+    fi
+    sleep 2
+}
+
+# 4. 重启 Caddy
+restart_caddy() {
+    echo "🔁 正在重启 Caddy..."
+    if systemctl restart caddy; then
+        echo -e "${GREEN}✅ 重启成功${RESET}"
+    else
+        echo -e "${RED}❌ 重启失败${RESET}"
+    fi
+    sleep 2
+}
+
+# 5. 停止 Caddy
+stop_caddy() {
+    echo "🛑 正在停止 Caddy..."
+    if systemctl stop caddy; then
+        echo -e "${RED}❌ 已停止${RESET}"
+    else
+        echo -e "${RED}❌ 停止操作失败${RESET}"
+    fi
+    sleep 2
+}
 
 # 6. 添加 TLS Skip Verify 反向代理（已修正为多行格式）
 add_tls_skip_verify() {
@@ -167,7 +223,8 @@ restore_caddy_smart() {
             FIRST_DOMAIN=$(echo "$DOMAIN_LINE" | awk '{print $1}' | sed 's/,//g')
             [ -z "$FIRST_DOMAIN" ] && continue
             if ! grep -q "$FIRST_DOMAIN" "$CONFIG_FILE"; then
-                echo -e "\n# --- 恢复自备份 $(date +%F) ---" >> "$CONFIG_FILE"
+                # 回复时间
+                # echo -e "\n# --- 恢复自备份 $(date +%F) ---" >> "$CONFIG_FILE"
                 # 关键修复：恢复时同时抓取上一行的 # TAG: 备注
                 awk -v domain="$FIRST_DOMAIN" '/^# TAG: / { tag=$0 } $0 ~ domain && $0 ~ "{" { if(tag!="") print tag; found=1 } found { print $0 } found && /^}/ { exit }' "$RECOVER_CADDYFILE" >> "$CONFIG_FILE"
             fi
@@ -212,7 +269,63 @@ uninstall_caddy() {
     read -p "确定卸载？(y/n): " c
     [[ "$c" == "y" ]] && apt remove --purge -y caddy && rm -rf /etc/caddy /var/lib/caddy
 }
-update_caddy() { apt update && apt install --only-upgrade -y caddy && systemctl restart caddy ; }
+
+
+
+# 00. 更新 Caddy
+update_caddy() {
+    echo -e "${YELLOW}🚀 正在检查 Caddy 更新...${RESET}"
+    
+    # 记录当前版本以便对比
+    OLD_VERSION=$(caddy version 2>/dev/null)
+
+    if dpkg -l | grep -q caddy; then
+        # 如果是 apt 安装的
+        apt update > /dev/null
+        # 模拟安装查看是否有更新
+        UPGRADABLE=$(apt list --upgradable 2>/dev/null | grep caddy)
+        
+        if [ -z "$UPGRADABLE" ]; then
+            echo -e "${GREEN}✅ 已是最新${RESET}"
+        else
+            if apt install --only-upgrade -y caddy; then
+                echo -e "${GREEN}✅ 更新成功${RESET}"
+                systemctl restart caddy
+            else
+                echo -e "${RED}❌ 更新失败${RESET}"
+            fi
+        fi
+    else
+        # 如果是手动下载安装的二进制文件
+        ARCH=$(uname -m)
+        [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
+        [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
+        
+        curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o /tmp/caddy_new
+        
+        if [ $? -eq 0 ] && [ -s /tmp/caddy_new ]; then
+            chmod +x /tmp/caddy_new
+            NEW_VERSION=$(/tmp/caddy_new version 2>/dev/null)
+            
+            if [ "$OLD_VERSION" == "$NEW_VERSION" ]; then
+                echo -e "${GREEN}✅ 已是最新${RESET}"
+                rm -f /tmp/caddy_new
+            else
+                mv /tmp/caddy_new /usr/bin/caddy
+                systemctl restart caddy
+                echo -e "${GREEN}✅ 更新成功 (新版本: $NEW_VERSION)${RESET}"
+            fi
+        else
+            echo -e "${RED}❌ 更新失败 (网络错误或文件损坏)${RESET}"
+            rm -f /tmp/caddy_new
+        fi
+    fi
+    sleep 2
+}
+
+
+
+
 
 # 核心格式化与校验函数
 format_and_reload() {
