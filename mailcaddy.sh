@@ -124,6 +124,7 @@ openssl x509 -in /etc/ssl/mail/cert.pem -noout -fingerprint -sha256"
     echo "Caddy证书位置"
     echo "/var/lib/caddy/.local/share/caddy/certificates/"
     echo "=============================="
+    echo "111) dns配置查询添加"
     echo "0) 退出"
     echo "=============================="
 }
@@ -144,6 +145,7 @@ read_choice() {
         10) uninstall_mailcow ;;
         98) force_ipv4_priority ;;
         99) restore_ipv6 ;;
+        111) dnspeizhi_mailcow ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo "无效选项"; sleep 1 ;;
     esac
@@ -1181,6 +1183,50 @@ restore_ipv6() {
     echo "✅ 恢复完成！IPv6 已重新启用。"
     read -rp "按回车返回菜单..." _
 }
+
+
+# ------------------------------
+# 111) dns配置查询添加
+# ------------------------------
+dnspeizhi_mailcow() {
+
+    # 清屏输出
+    clear
+    echo "=============================="
+    echo "DNS配置如下"
+    echo "=============================="
+    echo "A记录"
+    echo "名称：mail"
+    echo "值：1.1.1.1"
+    echo "=============================="
+    echo "CNAME有两个配置"
+    echo "名称: autodiscover"
+    echo "值: 你的域名"
+    echo "=============================="
+    echo "名称: autoconfig"
+    echo "值: 你的域名"
+    echo "=============================="
+    echo "MX"
+    echo "名称: @"
+    echo "你的域名"
+    echo "优先级10"
+    echo "=============================="
+    echo "TXT"
+    echo "@"
+    echo "v=spf1 mx a include:_spf.gmail.com -all"
+    echo "=============================="
+    echo "名称: _dmarc"
+    echo "值"
+    echo "v=DMARC1; p=reject; aspf=s; adkim=s; fo=1; rua=mailto:admin@你的域名.com"
+    echo "=============================="
+    echo "dkim._domainkey"
+    echo "查看你的域名获取DKIM"
+    echo "https://你的域名/admin/mailbox"
+    echo "=============================="
+    read -rp "按回车继续..." _
+}
+
+
 
 
 # ------------------------------
