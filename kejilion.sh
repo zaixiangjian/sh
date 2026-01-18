@@ -9012,8 +9012,8 @@ EOF
             echo " 4. 查看服务状态/日志"
             echo "------------------------------------------------"
             echo " [ Rclone 命令行/S3 备份 ]"
-            echo " 21. 安装 Rclone (v1.72.1)"
-            echo " 22. 获取配置文件路径"
+            echo " 20. 安装 Rclone (v1.72.1)"
+            echo " 21. 获取配置文件路径"
             echo " 23. 修改配置文件 (nano)"
             echo " 24. 查看已添加的 Rclone 远程"
             echo " 25. 目录备份 -> s3beifen.sh"
@@ -9091,7 +9091,7 @@ EOF
                     journalctl -u backrest --no-pager -n 20
                     read -p "回车继续..." ;;
 
-                21)
+                20)
                     echo "📦 正在安装 Rclone v1.72.1..."
                     mkdir -p "$RC_DIR" && cd "$RC_DIR"
                     apt-get install -y unzip || yum install -y unzip
@@ -9104,21 +9104,10 @@ EOF
                     echo "✅ Rclone 安装完成！"
                     read -p "回车继续..." ;;
 
-                22) rclone config file; read -p "回车继续..." ;;
-                23) nano /root/.config/rclone/rclone.conf ;;
-                24) rclone listremotes; read -p "回车继续..." ;;
-                25) create_backup_job "s3beifen.sh" ;;
-                26) create_backup_job "s3beifen1.sh" ;;
-                27) create_backup_job "s3beifen2.sh" ;;
-                28)
-                    crontab -l | grep -v "s3beifen" | crontab -
-                    echo "✅ 已清理所有 Rclone 定时任务。"
-                    read -p "回车继续..." ;;
-                29)
-                    rm -f /usr/bin/rclone
-                    echo "✅ Rclone 已卸载。"
-                    read -p "回车继续..." ;;
-                30)
+                21) rclone config file; read -p "回车继续..." ;;
+
+
+                22)
                     echo "📝 --- 添加 Rclone S3 配置文件 ---"
                     read -p "请输入名称 (例如 r2): " rc_name
                     read -p "提供商或者备注 (例如 Cloudflare): " rc_provider
@@ -9137,6 +9126,25 @@ endpoint = $rc_endpoint
 EOF
                     echo "✅ 配置已写入 /root/.config/rclone/rclone.conf"
                     read -p "回车继续..." ;;
+                echo "=============================="
+                echo "25号的名称与存储名跟路径"
+                echo "rclone:r2:cunchu/全部备份"
+
+                echo "=============================="
+				23) nano /root/.config/rclone/rclone.conf ;;
+                24) rclone listremotes; read -p "回车继续..." ;;
+                25) create_backup_job "s3beifen.sh" ;;
+                26) create_backup_job "s3beifen1.sh" ;;
+                27) create_backup_job "s3beifen2.sh" ;;
+                28)
+                    crontab -l | grep -v "s3beifen" | crontab -
+                    echo "✅ 已清理所有 Rclone 定时任务。"
+                    read -p "回车继续..." ;;
+                29)
+                    rm -f /usr/bin/rclone
+                    echo "✅ Rclone 已卸载。"
+                    read -p "回车继续..." ;;
+
 
 
 88)
