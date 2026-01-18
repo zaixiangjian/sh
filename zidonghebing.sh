@@ -806,8 +806,8 @@ EOF
       fi
     fi
 
-    # 创建监控脚本（防重复执行 + 防死锁）
-    cat > /home/web/vaultwarden/mimajiankongchuansong.sh << 'EOF'
+    # 创建监控脚本（防重复执行 + 防死锁），改名为 jiankong1.sh
+    cat > /home/web/vaultwarden/jiankong1.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/web/vaultwarden"
@@ -830,7 +830,7 @@ while read path action file; do
 done
 EOF
 
-    chmod +x /home/web/vaultwarden/mimajiankongchuansong.sh
+    chmod +x /home/web/vaultwarden/jiankong1.sh
 
     SERVICE_NAME="vaultwarden-mimajiankongchuansong.service"
 
@@ -841,7 +841,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/web/vaultwarden/mimajiankongchuansong.sh
+ExecStart=/home/web/vaultwarden/jiankong1.sh
 Restart=always
 RestartSec=5
 User=root
@@ -857,7 +857,8 @@ EOF
     systemctl restart $SERVICE_NAME
 
     systemctl status $SERVICE_NAME --no-pager
-    ;;
+;;
+
 
 
 100)
