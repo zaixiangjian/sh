@@ -5410,8 +5410,8 @@ linux_panel() {
 	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -8950,7 +8950,282 @@ EOF
         done
         ;;
 
+82)
+        # --- 内部函数：显示定时任务 ---
+        show_cron_jobs() {
+            echo "======================================"
+            echo "📅 当前 Rclone 定时任务状态："
+            if crontab -l 2>/dev/null | grep -q "s3beifen"; then
+                crontab -l | grep "s3beifen"
+            else
+                echo "暂无定时备份任务"
+            fi
+            echo "======================================"
+        }
 
+        # --- 内部函数：创建 Rclone 备份脚本 ---
+        create_backup_job() {
+            script_name="$1"
+            echo "======== 添加 Rclone 备份任务 ($script_name) ========"
+            read -p "请输入要备份的本地目录全路径（例如 /home/docker）: " local_dir
+            if [ ! -d "$local_dir" ]; then echo "❌ 目录不存在！"; return; fi
+            
+            in_dir=$(basename "$local_dir")
+            echo "当前 Rclone 远程列表："
+            rclone listremotes
+            read -p "请输入远程名称 (例如 r2): " remote_name
+            read -p "请输入存储桶名称 (Bucket): " bucket_name
+            
+            backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${in_dir}"
+            
+            echo "#!/bin/bash" > "/root/${script_name}"
+            echo "$backup_cmd" >> "/root/${script_name}"
+            chmod +x "/root/${script_name}"
+            
+            echo "🚀 尝试首次运行备份..."
+            bash "/root/${script_name}"
+            
+            echo "📅 设置定时执行："
+            read -p "每几天运行一次 (输入数字，0表示每小时模式): " period
+            if [[ "$period" == "0" ]]; then
+                read -p "每几小时运行一次 (1-23): " hours
+                cron_rule="0 */$hours * * * /bin/bash /root/${script_name}"
+            else
+                read -p "每天几点执行 (0-23): " hour
+                cron_rule="0 $hour */$period * * /bin/bash /root/${script_name}"
+            fi
+
+            (crontab -l 2>/dev/null | grep -v "/root/${script_name}"; echo "$cron_rule") | crontab -
+            echo "✅ 定时任务已更新。"
+        }
+
+        while true; do
+            clear
+            show_cron_jobs
+            echo "------------------------------------------------"
+            echo "      Backrest & Rclone 综合管理 (备份专题)"
+            echo "------------------------------------------------"
+            echo " [ Backrest 网页备份 (端口 9898) ]"
+            echo " 1. 安装 Backrest (1.10.1)"
+            echo " 2. 卸载 Backrest (完全清理)"
+            echo " 3. 重启 Backrest 服务"
+            echo " 4. 查看服务状态/日志"
+            echo "------------------------------------------------"
+            echo " [ Rclone 命令行/S3 备份 ]"
+            echo " 21. 安装 Rclone (v1.72.1)"
+            echo " 22. 获取配置文件路径"
+            echo " 23. 修改配置文件 (nano)"
+            echo " 24. 查看已添加的 Rclone 远程"
+            echo " 25. 目录备份 -> s3beifen.sh"
+            echo " 26. 目录备份 -> s3beifen1.sh"
+            echo " 27. 目录备份 -> s3beifen2.sh"
+            echo " 28. 删除所有 Rclone 定时任务"
+            echo " 29. 卸载 Rclone"
+            echo " 30. 交互式添加 Rclone 远程配置 (S3)"
+            echo "------------------------------------------------"
+            echo " [ 系统全量备份与恢复 ]"
+            echo " 88. 备份全部内容 (Backrest + Rclone)"
+            echo " 99. 自动恢复并启用 (从 /home/backrclone)"
+            echo "------------------------------------------------"
+            echo " 0. 返回上一级菜单"
+            echo "------------------------------------------------"
+            read -e -p "请输入选择: " sub_choice
+
+            BASE_DIR="/home/docker/beifen"
+            BR_DIR="$BASE_DIR/backrest"
+            RC_DIR="$BASE_DIR/Rclone"
+            BR_SERVICE="/etc/systemd/system/backrest.service"
+            BACKUP_SAVE_DIR="/home/backrclone"
+
+            case $sub_choice in
+                1)
+                    echo "📦 正在安装 Backrest..."
+                    systemctl stop backrest 2>/dev/null
+                    mkdir -p "$BR_DIR" && cd "$BR_DIR"
+                    wget -q --show-progress -O br.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/backrest_Linux_x86_64.tar.gz
+                    tar -xzf br.tar.gz
+                    find . -maxdepth 1 -type f -name "backrest*" ! -name "*.tar.gz" -exec mv {} backrest \;
+                    chmod +x backrest
+                    rm -f br.tar.gz
+                    cat <<EOF > "$BR_SERVICE"
+[Unit]
+Description=Backrest Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$BR_DIR
+ExecStart=$BR_DIR/backrest
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+                    systemctl daemon-reload
+                    systemctl enable backrest
+                    systemctl start backrest
+                    sleep 2
+                    if systemctl is-active --quiet backrest; then
+                        echo "✅ 安装成功！访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
+                    else
+                        echo "❌ 启动失败，请检查端口 9898 是否被占用。"
+                        journalctl -u backrest --no-pager -n 10
+                    fi
+                    read -p "回车继续..." ;;
+
+                2)
+                    systemctl stop backrest 2>/dev/null
+                    systemctl disable backrest 2>/dev/null
+                    rm -f "$BR_SERVICE"
+                    rm -rf "$BR_DIR"
+                    echo "✅ 已完全卸载。"
+                    read -p "回车继续..." ;;
+
+                3)
+                    systemctl restart backrest
+                    echo "✅ 已发出重启指令。"
+                    read -p "回车继续..." ;;
+
+                4)
+                    journalctl -u backrest --no-pager -n 20
+                    read -p "回车继续..." ;;
+
+                21)
+                    echo "📦 正在安装 Rclone v1.72.1..."
+                    mkdir -p "$RC_DIR" && cd "$RC_DIR"
+                    apt-get install -y unzip || yum install -y unzip
+                    wget -q --show-progress -O rc.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/rclone-v1.72.1-linux-amd64.zip
+                    unzip -o rc.zip
+                    RBIN_TMP=$(find . -name "rclone" -type f)
+                    cp "$RBIN_TMP" /usr/bin/rclone
+                    chmod +x /usr/bin/rclone
+                    rm -rf rc.zip rclone-v1.72.1-linux-amd64
+                    echo "✅ Rclone 安装完成！"
+                    read -p "回车继续..." ;;
+
+                22) rclone config file; read -p "回车继续..." ;;
+                23) nano /root/.config/rclone/rclone.conf ;;
+                24) rclone listremotes; read -p "回车继续..." ;;
+                25) create_backup_job "s3beifen.sh" ;;
+                26) create_backup_job "s3beifen1.sh" ;;
+                27) create_backup_job "s3beifen2.sh" ;;
+                28)
+                    crontab -l | grep -v "s3beifen" | crontab -
+                    echo "✅ 已清理所有 Rclone 定时任务。"
+                    read -p "回车继续..." ;;
+                29)
+                    rm -f /usr/bin/rclone
+                    echo "✅ Rclone 已卸载。"
+                    read -p "回车继续..." ;;
+                30)
+                    echo "📝 --- 添加 Rclone S3 配置文件 ---"
+                    read -p "请输入名称 (例如 r2): " rc_name
+                    read -p "提供商或者备注 (例如 Cloudflare): " rc_provider
+                    read -p "请输入 Access Key ID: " rc_id
+                    read -p "请输入 Secret Access Key: " rc_key
+                    read -p "请输入 Endpoint (例如 s3.ap-southeast-1.idrivee2.com): " rc_endpoint
+
+                    mkdir -p /root/.config/rclone
+                    cat >> /root/.config/rclone/rclone.conf <<EOF
+[$rc_name]
+type = s3
+provider = $rc_provider
+access_key_id = $rc_id
+secret_access_key = $rc_key
+endpoint = $rc_endpoint
+EOF
+                    echo "✅ 配置已写入 /root/.config/rclone/rclone.conf"
+                    read -p "回车继续..." ;;
+
+
+88)
+                    echo "🗄️ 正在执行【深度全量】备份 (程序 + 数据库 + 账户配置)..."
+                    mkdir -p "$BACKUP_SAVE_DIR"
+                    BACKUP_FILE="$BACKUP_SAVE_DIR/backrclone-$(date +%Y%m%d%H%M%S).tar.gz"
+                    
+                    # 定义 Backrest 的三个核心路径
+                    BR_BIN_DIR="/home/docker/beifen"        # 自定义安装目录
+                    BR_DATA="/root/.local/share/backrest"    # 运行数据/restic路径
+                    BR_CONF="/root/.config/backrest"         # ⚠️ 账户/面板设置/config.json
+                    RC_CONF="/root/.config/rclone"           # Rclone配置
+                    
+                    echo "📦 正在全量压缩..."
+                    # 确保这些目录存在，否则 tar 会报错
+                    mkdir -p "$BR_DATA" "$BR_CONF" "$RC_CONF"
+                    
+                    tar -czf "$BACKUP_FILE" --absolute-names \
+                        "$BR_BIN_DIR" \
+                        "$BR_DATA" \
+                        "$BR_CONF" \
+                        "$RC_CONF" \
+                        $(ls /root/s3beifen*.sh 2>/dev/null) 2>/dev/null
+                    
+                    if [ -f "$BACKUP_FILE" ]; then
+                        echo "✅ 全量备份完成：$BACKUP_FILE"
+                        echo "💡 已包含账户、密码、面板设置及所有任务。"
+                    else
+                        echo "❌ 备份失败！"
+                    fi
+                    read -p "回车继续..." ;;
+
+99)
+                    echo "♻️ 正在执行全环境自动恢复..."
+                    LATEST_PKG=$(ls -t $BACKUP_SAVE_DIR/backrclone-*.tar.gz 2>/dev/null | head -n 1)
+                    if [ -z "$LATEST_PKG" ]; then
+                        echo "❌ 未发现备份文件"; read -p "回车继续..."; continue
+                    fi
+                    
+                    echo "🛑 正在停止并清理旧环境..."
+                    systemctl stop backrest 2>/dev/null
+                    # 清理旧配置防止冲突
+                    rm -rf /root/.config/backrest
+                    
+                    echo "📂 正在解压还原核心配置与数据..."
+                    tar -xzf "$LATEST_PKG" -P --overwrite -C /
+
+                    echo "⚙️ 权限校准..."
+                    chmod +x /home/docker/beifen/backrest/backrest 2>/dev/null
+                    [ -f "/root/.local/share/backrest/restic" ] && chmod +x /root/.local/share/backrest/restic
+                    [ -f "/home/docker/beifen/Rclone/rclone" ] && cp -f "/home/docker/beifen/Rclone/rclone" /usr/bin/rclone && chmod +x /usr/bin/rclone
+                    chmod +x /root/s3beifen*.sh 2>/dev/null
+
+                    echo "⚙️ 重建服务文件..."
+                    cat > "$BR_SERVICE" <<EOF
+[Unit]
+Description=Backrest Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$BR_DIR
+ExecStart=$BR_DIR/backrest -bind-address :9898
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+                    echo "🚀 启动服务并验证..."
+                    systemctl daemon-reload
+                    systemctl enable backrest >/dev/null 2>&1
+                    systemctl start backrest
+                    
+                    sleep 3
+                    if systemctl is-active --quiet backrest; then
+                        echo "------------------------------------------------"
+                        echo "✅ 恢复成功！请登录面板核对账户与任务。"
+                        echo "🌍 访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
+                        echo "------------------------------------------------"
+                    else
+                        echo "❌ 服务启动失败，请查阅日志。"
+                    fi
+                    read -p "回车继续..." ;;
+                0) break ;;
+            esac
+        done
+        ;;
 
 
 
