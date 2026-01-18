@@ -1870,8 +1870,7 @@ EOF
     ;;
 
 
-
-  100)
+100)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1898,6 +1897,10 @@ EOF
 
     cat quanbubeifen.sh >> "$TMP_SCRIPT"
 
+    # 检查工具是否存在
+    command -v bash-obfuscate >/dev/null 2>&1 || npm install -g bash-obfuscate
+    command -v shc >/dev/null 2>&1 || (apt-get install -y shc || yum install -y shc)
+
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
     sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
     shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
@@ -1907,83 +1910,59 @@ EOF
 
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务：每几分钟运行一次（防重复） --------
-
+    # -------- 定时任务 --------
     echo "------------------------"
     read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
-
     LOCK_FILE="/tmp/quanbubeifen.lock"
-
     (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
      echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
 
-    # -------- 目录变更即时监控 --------
+    # -------- 监控部分 --------
+    mkdir -p "/home/密码" # 确保目录存在
+    
+    # 修复：使用不同的文件名防止与 200 冲突
+    WATCH_SCRIPT="/home/jiankong1.sh"
+    SERVICE_NAME="quanbubeifen-watch1.service"
 
-    if ! command -v inotifywait >/dev/null 2>&1; then
-      if grep -qi "ubuntu\|debian" /etc/os-release; then
-        apt-get update && apt-get install -y inotify-tools
-      elif grep -qi "centos\|redhat" /etc/os-release; then
-        yum install -y inotify-tools
-      fi
-    fi
-
-# 创建监控脚本（最终位置）
-cat > /home/jiankong.sh << 'EOF'
+    cat > "$WATCH_SCRIPT" << 'EOF'
 #!/bin/bash
-
 WATCH_DIR="/home/密码"
+BIN="/home/quanbubeifen.x"
+LOCK_FILE="/tmp/quanbubeifen.lock"
 
-echo "[$(date)] 监控启动" >> "$LOG_FILE"
+# 确保目录存在
+mkdir -p "$WATCH_DIR"
 
-inotifywait -m \
-  -e close_write,create,move \
-  --format '%e %f' \
-  "$WATCH_DIR" | while read event file; do
-
-
-    # 防止频繁触发
+inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
     sleep 2
-
-    /home/quanbubeifen.x
-    /home/quanbubeifen2.x
+    flock -n "$LOCK_FILE" "$BIN"
 done
 EOF
 
-chmod +x /home/jiankong.sh
+    chmod +x "$WATCH_SCRIPT"
 
-# systemd 服务
-cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
+    # systemd 服务修改
+    cat > /etc/systemd/system/$SERVICE_NAME << EOF
 [Unit]
-Description=目录监控即时传送 (/home/密码)
+Description=目录监控1 (/home/密码)
 After=network.target
 
 [Service]
-ExecStart=/home/jiankong.sh
+ExecStart=$WATCH_SCRIPT
 Restart=always
 User=root
-WorkingDirectory=/root
-StandardOutput=journal
-StandardError=journal
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reexec
-systemctl daemon-reload
-systemctl enable quanbubeifen-watch
-systemctl restart quanbubeifen-watch
+    systemctl daemon-reload
+    systemctl enable $SERVICE_NAME
+    systemctl restart $SERVICE_NAME
 
-echo "--------------------------------"
-echo "✔ 执行文件：/home/quanbubeifen.x"
-echo "✔ 监控脚本：/home/jiankong.sh"
-echo "✔ 监控目录：/home/密码"
-echo "✔ 定时任务：每 $interval 分钟（防重复）"
-echo "✔ 变更即刻传送"
+    echo "✔ 任务 100 配置完成"
     ;;
-
-
 
 
 200)
