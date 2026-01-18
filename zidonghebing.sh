@@ -644,8 +644,8 @@ WATCH_DIR="/home/web/vaultwarden/data"
 FILES="db.sqlite3 db.sqlite3-wal db.sqlite3-shm"
 BIN="/home/web/vaultwarden/beifen.x"
 LOCK_FILE="/tmp/mimabeifen.lock"
-DELAY=5
-INTERVAL=10   # 轮询兜底间隔秒
+DELAY=10
+INTERVAL=20   # 轮询兜底间隔秒
 
 mkdir -p /tmp
 [ ! -s "$LOCK_FILE" ] && echo "lock" > "$LOCK_FILE"
