@@ -9040,7 +9040,7 @@ EOF
             echo "------------------------------------------------"
             read -e -p "请输入选择: " sub_choice
 
-            BASE_DIR="/home/docker/beifen"
+            BASE_DIR="/home/docker/BackyuRclone"
             BR_DIR="$BASE_DIR/backrest"
             RC_DIR="$BASE_DIR/Rclone"
             BR_SERVICE="/etc/systemd/system/backrest.service"
@@ -9157,7 +9157,7 @@ EOF
                     BACKUP_FILE="$BACKUP_SAVE_DIR/backrclone-$(date +%Y%m%d%H%M%S).tar.gz"
                     
                     # 定义 Backrest 的三个核心路径
-                    BR_BIN_DIR="/home/docker/beifen"        # 自定义安装目录
+                    BR_BIN_DIR="/home/docker/BackyuRclone"        # 自定义安装目录
                     BR_DATA="/root/.local/share/backrest"    # 运行数据/restic路径
                     BR_CONF="/root/.config/backrest"         # ⚠️ 账户/面板设置/config.json
                     RC_CONF="/root/.config/rclone"           # Rclone配置
@@ -9197,7 +9197,7 @@ EOF
                     tar -xzf "$LATEST_PKG" -P --overwrite -C /
 
                     echo "⚙️ 权限校准..."
-                    chmod +x /home/docker/beifen/backrest/backrest 2>/dev/null
+                    chmod +x /home/docker/BackyuRclone/backrest/backrest 2>/dev/null
                     [ -f "/root/.local/share/backrest/restic" ] && chmod +x /root/.local/share/backrest/restic
                     [ -f "/home/docker/beifen/Rclone/rclone" ] && cp -f "/home/docker/beifen/Rclone/rclone" /usr/bin/rclone && chmod +x /usr/bin/rclone
                     chmod +x /root/s3beifen*.sh 2>/dev/null
