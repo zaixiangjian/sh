@@ -1933,20 +1933,20 @@ cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/密码"
-
-echo "[$(date)] 监控启动" >> "$LOG_FILE"
+BIN="/home/quanbubeifen.x"
+LOCK_FILE="/tmp/quanbubeifen.lock"
 
 inotifywait -m \
   -e close_write,create,move \
   --format '%e %f' \
   "$WATCH_DIR" | while read event file; do
 
-
-    # 防止频繁触发
+    # 防抖
     sleep 2
 
-    /home/quanbubeifen.x
-    /home/quanbubeifen2.x
+    # 与 cron 共用同一把锁
+    flock -n "$LOCK_FILE" "$BIN"
+
 done
 EOF
 
