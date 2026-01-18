@@ -4,7 +4,7 @@
 LOCAL_DIR="/home/密码"
 
 # 远程 VPS 信息
-REMOTE_USER="ailiaobiji"
+REMOTE_USER="zaihuigengmei"
 REMOTE_IP="vpsip"
 REMOTE_PASS="vps密码"
 REMOTE_DIR="~/mima_backup"  # 远程目录（放在远程用户 home 下）
