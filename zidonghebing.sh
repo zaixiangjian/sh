@@ -160,6 +160,7 @@ done
       echo "8. 恢复 Vaultwarden 数据备份"
       echo "9. Vaultwarden数据备份+自动监控文件变更备份传送"
       echo "10. 密码传送备份"
+      echo "100. 密码传送备份2号serv00后期别忘记更改"
       echo "------------------------"
       echo "11. 图床备份"
       echo "------------------------"
@@ -858,6 +859,150 @@ EOF
     systemctl status $SERVICE_NAME --no-pager
     ;;
 
+
+100)
+    read -e -p "输入远程服务器IP: " useip
+    read -e -p "输入远程服务器密码: " usepasswd
+
+    # 修改目录为 /home/web/vaultwarden
+    mkdir -p /home/web/vaultwarden
+    cd /home/web/vaultwarden || exit 1
+
+    # 下载 mimachuansong2.sh
+    wget -q -O /home/web/vaultwarden/mimachuansong2.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong2.sh
+    chmod +x /home/web/vaultwarden/mimachuansong2.sh
+
+    # 替换远程服务器IP和密码
+    sed -i "s/vpsip/$useip/g" /home/web/vaultwarden/mimachuansong2.sh
+    sed -i "s/vps密码/$usepasswd/g" /home/web/vaultwarden/mimachuansong2.sh
+
+    # 获取本地IP，用于限制执行
+    local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+
+    TMP_SCRIPT="/home/web/vaultwarden/mimachuansong2_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/web/vaultwarden/mimachuansong2_obf.sh"
+    OUTPUT_BIN="/home/web/vaultwarden/mimachuansong2.x"
+
+    # 添加IP限制
+    cat > "$TMP_SCRIPT" <<EOF
+#!/bin/bash
+IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
+[[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
+EOF
+
+    cat /home/web/vaultwarden/mimachuansong2.sh >> "$TMP_SCRIPT"
+
+    # 混淆和编译为可执行文件
+    bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
+    sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
+    shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
+    chmod +x "$OUTPUT_BIN"
+    strip "$OUTPUT_BIN" >/dev/null 2>&1
+    upx "$OUTPUT_BIN" >/dev/null 2>&1
+
+    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" /home/web/vaultwarden/mimachuansong2.sh
+
+    echo "------------------------"
+    echo "选择备份频率："
+    echo "1. 每周备份"
+    echo "2. 每天备份"
+    echo "3. 每几天备份一次"
+    read -e -p "请输入选择编号: " dingshi
+
+    case $dingshi in
+      1)
+        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
+        read -e -p "几点备份（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务已存在，跳过添加"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
+        fi
+        ;;
+      2)
+        read -e -p "每天几点备份（0-23）: " hour
+        read -e -p "每天几分备份（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务已存在，跳过添加"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
+        fi
+        ;;
+      3)
+        read -e -p "每几天备份一次: " interval
+        read -e -p "几点（0-23）: " hour
+        read -e -p "几分（0-59）: " minute
+        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
+          echo "备份任务已存在，跳过添加"
+        else
+          (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
+        fi
+        ;;
+    esac
+
+    echo "开始安装目录监控传送服务..."
+
+    if ! command -v inotifywait >/dev/null 2>&1; then
+      if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update && apt-get install -y inotify-tools
+      elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y inotify-tools
+      fi
+    fi
+
+    # 创建监控脚本（防重复执行 + 防死锁）
+    cat > /home/web/vaultwarden/jiankong2.sh << 'EOF'
+#!/bin/bash
+
+WATCH_DIR="/home/web/vaultwarden"
+BIN="/home/web/vaultwarden/mimachuansong2.x"
+LOCK_FILE="/tmp/mimachuansong2.lock"
+
+[ -d "$WATCH_DIR" ] || exit 1
+
+cleanup() {
+  rm -f "$LOCK_FILE"
+}
+trap cleanup EXIT INT TERM
+
+inotifywait -m -r -e modify,create,delete,move "$WATCH_DIR" |
+while read path action file; do
+    (
+      flock -n 200 || exit 0
+      "$BIN"
+    ) 200>"$LOCK_FILE"
+done
+EOF
+
+    chmod +x /home/web/vaultwarden/jiankong2.sh
+
+    SERVICE_NAME="vaultwarden-mimajiankongchuansong2.service"
+
+    cat > /etc/systemd/system/$SERVICE_NAME << EOF
+[Unit]
+Description=目录监控传送服务
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/web/vaultwarden/jiankong2.sh
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=/home/web/vaultwarden
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reexec
+    systemctl daemon-reload
+    systemctl enable $SERVICE_NAME
+    systemctl restart $SERVICE_NAME
+
+    systemctl status $SERVICE_NAME --no-pager
+;;
 
 
 
