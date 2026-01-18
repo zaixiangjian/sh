@@ -956,7 +956,7 @@ EOF
     cat > /home/web/vaultwarden/jiankong2.sh << 'EOF'
 #!/bin/bash
 
-WATCH_DIR="/home/web/vaultwarden"
+WATCH_DIR="/home/web/密码"
 BIN="/home/web/vaultwarden/mimachuansong2.x"
 LOCK_FILE="/tmp/mimachuansong2.lock"
 
@@ -967,12 +967,16 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-inotifywait -m -r -e modify,create,delete,move "$WATCH_DIR" |
+inotifywait -m -r -e create,move,close_write "$WATCH_DIR" |
 while read path action file; do
-    (
-      flock -n 200 || exit 0
-      "$BIN"
-    ) 200>"$LOCK_FILE"
+    case "$file" in
+        *.tar.gz)
+            (
+              flock -n 200 || exit 0
+              "$BIN"
+            ) 200>"$LOCK_FILE"
+            ;;
+    esac
 done
 EOF
 
