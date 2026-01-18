@@ -1871,7 +1871,6 @@ EOF
 
 
 
-
   100)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
@@ -1933,20 +1932,20 @@ cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/密码"
-BIN="/home/quanbubeifen.x"
-LOCK_FILE="/tmp/quanbubeifen.lock"
+
+echo "[$(date)] 监控启动" >> "$LOG_FILE"
 
 inotifywait -m \
   -e close_write,create,move \
   --format '%e %f' \
   "$WATCH_DIR" | while read event file; do
 
-    # 防抖
+
+    # 防止频繁触发
     sleep 2
 
-    # 与 cron 共用同一把锁
-    flock -n "$LOCK_FILE" "$BIN"
-
+    /home/quanbubeifen.x
+    /home/quanbubeifen2.x
 done
 EOF
 
@@ -1983,6 +1982,7 @@ echo "✔ 监控目录：/home/密码"
 echo "✔ 定时任务：每 $interval 分钟（防重复）"
 echo "✔ 变更即刻传送"
     ;;
+
 
 
 
