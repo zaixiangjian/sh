@@ -1905,19 +1905,24 @@ EOF
     upx "$OUTPUT_BIN" >/dev/null 2>&1
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务菜单 --------
-    echo "--------------------------------"
-    echo "1) 每周备份 | 2) 每天备份 | 3) 每几天备份"
-    read -p "选择编号: " cron_choice
+    # -------- 定时任务逻辑 --------
+    echo "------------------------"
+    echo "选择备份频率："
+    echo "1) 每周定时备份"
+    echo "2) 每天定时备份"
+    echo "3) 每几天备份一次"
+    read -p "请输入选项 [1-3]: " cron_choice
     case $cron_choice in
-      1) read -p "星期(0-6): " w; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      2) read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      3) read -p "间隔天: " d; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      1) read -e -p "星期 (0-6): " w; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      2) read -e -p "点 (0-23): " h; read -e -p "分 (0-59): " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      3) read -e -p "每几天: " d; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
     esac
 
     # -------- 实时监控服务 (100) --------
-    [ -x "$(command -v inotifywait)" ] || yum install -y inotify-tools || apt-get install -y inotify-tools
-    
+    if ! command -v inotifywait >/dev/null 2>&1; then
+      apt-get update && apt-get install -y inotify-tools || yum install -y inotify-tools
+    fi
+
     cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 WATCH_DIR="/home/密码"
@@ -1939,13 +1944,15 @@ After=network.target
 ExecStart=/home/jiankong.sh
 Restart=always
 User=root
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 [Install]
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now quanbubeifen-watch
-    echo "✔ 100 部署成功，正在监控 /home/密码"
-    read -p "按 [回车键] 继续..." 
+    echo "--------------------------------"
+    echo "✔ 100 部署成功: /home/quanbubeifen.x"
+    read -p "安装完成，按回车键继续..." 
     ;;
 
   200)
@@ -1983,19 +1990,24 @@ EOF
     upx "$OUTPUT_BIN" >/dev/null 2>&1
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务菜单 --------
-    echo "--------------------------------"
-    echo "1) 每周备份 | 2) 每天备份 | 3) 每几天备份"
-    read -p "选择编号: " cron_choice
+    # -------- 定时任务逻辑 --------
+    echo "------------------------"
+    echo "选择 200 号备份频率："
+    echo "1) 每周定时备份"
+    echo "2) 每天定时备份"
+    echo "3) 每几天备份一次"
+    read -p "请输入选项 [1-3]: " cron_choice
     case $cron_choice in
-      1) read -p "星期(0-6): " w; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      2) read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      3) read -p "间隔天: " d; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      1) read -e -p "星期 (0-6): " w; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      2) read -e -p "点 (0-23): " h; read -e -p "分 (0-59): " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      3) read -e -p "每几天: " d; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
     esac
 
     # -------- 实时监控服务 (200) --------
-    [ -x "$(command -v inotifywait)" ] || yum install -y inotify-tools || apt-get install -y inotify-tools
-    
+    if ! command -v inotifywait >/dev/null 2>&1; then
+      apt-get update && apt-get install -y inotify-tools || yum install -y inotify-tools
+    fi
+
     cat > /home/jiankong2.sh << 'EOF'
 #!/bin/bash
 WATCH_DIR="/home/密码"
@@ -2017,15 +2029,16 @@ After=network.target
 ExecStart=/home/jiankong2.sh
 Restart=always
 User=root
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 [Install]
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now quanbubeifen-watch2
-    echo "✔ 200 部署成功，正在监控 /home/密码"
-    read -p "按 [回车键] 继续..." 
+    echo "--------------------------------"
+    echo "✔ 200 部署成功: /home/quanbubeifen2.x"
+    read -p "安装完成，按回车键继续..." 
     ;;
-
 
 
 
