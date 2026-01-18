@@ -9010,10 +9010,15 @@ EOF
             echo " 2. 卸载 Backrest (完全清理)"
             echo " 3. 重启 Backrest 服务"
             echo " 4. 查看服务状态/日志"
-            echo "------------------------------------------------"
+            echo "============================================================"
+            echo "25号的名称与存储名跟路径"
+            echo "例如"
+            echo "rclone:r2:cunchu/全部备份"
+            echo "============================================================"
             echo " [ Rclone 命令行/S3 备份 ]"
             echo " 20. 安装 Rclone (v1.72.1)"
             echo " 21. 获取配置文件路径"
+            echo " 22. 交互式添加 Rclone 远程配置 (S3)"
             echo " 23. 修改配置文件 (nano)"
             echo " 24. 查看已添加的 Rclone 远程"
             echo " 25. 目录备份 -> s3beifen.sh"
@@ -9021,7 +9026,6 @@ EOF
             echo " 27. 目录备份 -> s3beifen2.sh"
             echo " 28. 删除所有 Rclone 定时任务"
             echo " 29. 卸载 Rclone"
-            echo " 30. 交互式添加 Rclone 远程配置 (S3)"
             echo "------------------------------------------------"
             echo " [ 系统全量备份与恢复 ]"
             echo " 88. 备份全部内容 (Backrest + Rclone)"
@@ -9126,11 +9130,6 @@ endpoint = $rc_endpoint
 EOF
                     echo "✅ 配置已写入 /root/.config/rclone/rclone.conf"
                     read -p "回车继续..." ;;
-                echo "=============================="
-                echo "25号的名称与存储名跟路径"
-                echo "rclone:r2:cunchu/全部备份"
-
-                echo "=============================="
 				23) nano /root/.config/rclone/rclone.conf ;;
                 24) rclone listremotes; read -p "回车继续..." ;;
                 25) create_backup_job "s3beifen.sh" ;;
