@@ -1905,45 +1905,19 @@ EOF
     upx "$OUTPUT_BIN" >/dev/null 2>&1
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务设置菜单 --------
+    # -------- 定时任务菜单 --------
     echo "--------------------------------"
-    echo "请选择备份频率："
-    echo "1) 每周定时备份"
-    echo "2) 每天定时备份"
-    echo "3) 每几天备份一次"
-    read -p "请输入选项 [1-3]: " cron_choice
-
+    echo "1) 每周备份 | 2) 每天备份 | 3) 每几天备份"
+    read -p "选择编号: " cron_choice
     case $cron_choice in
-      1)
-        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-        read -e -p "几点备份（0-23）: " hour
-        read -e -p "几分备份（0-59）: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * $weekday flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        echo "✔ 已设置每周星期$weekday ${hour}:${minute} 进行备份"
-        ;;
-      2)
-        read -e -p "每天几点备份（0-23）: " hour
-        read -e -p "每天几分备份（0-59）: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        echo "✔ 已设置每天 ${hour}:${minute} 进行备份"
-        ;;
-      3)
-        read -e -p "每几天备份一次（如：2 表示每2天）: " interval
-        read -e -p "几点（0-23）: " hour
-        read -e -p "几分（0-59）: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        echo "✔ 已设置每${interval}天 ${hour}:${minute} 实施备份"
-        ;;
-      *)
-        echo "无效输入，跳过 crontab 设置"
-        ;;
+      1) read -p "星期(0-6): " w; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      2) read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      3) read -p "间隔天: " d; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
     esac
 
-    # -------- 实时监控服务 --------
-    if ! command -v inotifywait >/dev/null 2>&1; then
-      apt-get update && apt-get install -y inotify-tools || yum install -y inotify-tools
-    fi
-
+    # -------- 实时监控服务 (100) --------
+    [ -x "$(command -v inotifywait)" ] || yum install -y inotify-tools || apt-get install -y inotify-tools
+    
     cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 WATCH_DIR="/home/密码"
@@ -1959,24 +1933,19 @@ EOF
 
     cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
 [Unit]
-Description=目录监控100
+Description=目录监控服务100
 After=network.target
 [Service]
 ExecStart=/home/jiankong.sh
 Restart=always
 User=root
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 [Install]
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now quanbubeifen-watch
-    echo "✔ 100 部署成功: /home/quanbubeifen.x"
-
-    # 添加回车继续的功能
-    echo "--------------------------------"
-    read -p "安装完成，请按 [回车键] 继续..."
-
+    echo "✔ 100 部署成功，正在监控 /home/密码"
+    read -p "按 [回车键] 继续..." 
     ;;
 
   200)
@@ -2014,35 +1983,19 @@ EOF
     upx "$OUTPUT_BIN" >/dev/null 2>&1
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务设置菜单 --------
+    # -------- 定时任务菜单 --------
     echo "--------------------------------"
-    echo "请选择 200 号备份频率："
-    echo "1) 每周定时备份"
-    echo "2) 每天定时备份"
-    echo "3) 每几天备份一次"
-    read -p "请输入选项 [1-3]: " cron_choice
-
+    echo "1) 每周备份 | 2) 每天备份 | 3) 每几天备份"
+    read -p "选择编号: " cron_choice
     case $cron_choice in
-      1)
-        read -e -p "星期 (0-6): " weekday
-        read -e -p "点 (0-23): " hour
-        read -e -p "分 (0-59): " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * $weekday flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        ;;
-      2)
-        read -e -p "点 (0-23): " hour
-        read -e -p "分 (0-59): " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        ;;
-      3)
-        read -e -p "间隔天数: " interval
-        read -e -p "点: " hour
-        read -e -p "分: " minute
-        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour */$interval * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-        ;;
+      1) read -p "星期(0-6): " w; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      2) read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
+      3) read -p "间隔天: " d; read -p "点: " h; read -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
     esac
 
-    # -------- 实时监控服务 --------
+    # -------- 实时监控服务 (200) --------
+    [ -x "$(command -v inotifywait)" ] || yum install -y inotify-tools || apt-get install -y inotify-tools
+    
     cat > /home/jiankong2.sh << 'EOF'
 #!/bin/bash
 WATCH_DIR="/home/密码"
@@ -2058,24 +2011,19 @@ EOF
 
     cat > /etc/systemd/system/quanbubeifen-watch2.service << EOF
 [Unit]
-Description=目录监控200
+Description=目录监控服务200
 After=network.target
 [Service]
 ExecStart=/home/jiankong2.sh
 Restart=always
 User=root
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 [Install]
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now quanbubeifen-watch2
-    echo "✔ 200 部署成功: /home/quanbubeifen2.x"
- 
-    # 添加回车继续的功能
-    echo "--------------------------------"
-    read -p "安装完成，请按 [回车键] 继续..."
-
+    echo "✔ 200 部署成功，正在监控 /home/密码"
+    read -p "按 [回车键] 继续..." 
     ;;
 
 
