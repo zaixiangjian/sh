@@ -479,79 +479,73 @@ EOF
     ;;
 
 
+8)
+  echo "------------------------"
+  echo "恢复 Vaultwarden 数据库备份..."
+  
+  # 停止 Vaultwarden 容器
+  docker stop vaultwarden
+  echo "Vaultwarden 已停止"
 
+  # 列出 /home/web/密码 目录中的所有备份文件
+  backup_dir="/home/web/密码"
+  backups=$(ls -t $backup_dir/mima_*.tar.gz 2>/dev/null)
 
-    8)
-      echo "------------------------"
-      echo "恢复 Vaultwarden 数据库备份..."
-      
-      # 停止 Vaultwarden 容器
-      docker stop vaultwarden
-      echo "Vaultwarden 已停止"
+  if [ -z "$backups" ]; then
+    echo "没有找到备份文件，无法恢复！"
+    exit 1
+  fi
 
-      # 列出 /home/密码 目录中的所有备份文件
-      backup_dir="/home/密码"
-      backups=$(ls -t $backup_dir/mima_*.tar.gz)
+  echo "备份文件列表："
+  echo "------------------------"
+  i=1
+  for backup in $backups; do
+    echo "$i. $backup"
+    i=$((i+1))
+  done
 
-      if [ -z "$backups" ]; then
-        echo "没有找到备份文件，无法恢复！"
-        exit 1
-      fi
+  # 提示用户选择备份文件（默认为最新备份）
+  read -e -p "请输入要恢复的备份编号（回车恢复最新）： " restore_choice
 
-      echo "备份文件列表："
-      echo "------------------------"
-      i=1
-      for backup in $backups; do
-        echo "$i. $backup"
-        i=$((i+1))
-      done
+  if [ -z "$restore_choice" ]; then
+    # 如果用户回车，则恢复最新备份
+    restore_file=$(echo "$backups" | head -n 1)
+  else
+    # 否则恢复用户指定的备份
+    restore_file=$(echo "$backups" | sed -n "${restore_choice}p")
+  fi
 
-      # 提示用户选择备份文件（默认为最新备份）
-      read -e -p "请输入要恢复的备份编号（回车恢复最新）： " restore_choice
+  if [ -z "$restore_file" ]; then
+    echo "无效的选择，恢复失败！"
+    exit 1
+  fi
 
-      if [ -z "$restore_choice" ]; then
-        # 如果用户回车，则恢复最新备份
-        restore_file=$(echo "$backups" | head -n 1)
-      else
-        # 否则恢复用户指定的备份
-        restore_file=$(echo "$backups" | sed -n "${restore_choice}p")
-      fi
+  echo "正在恢复备份：$restore_file"
 
-      if [ -z "$restore_file" ]; then
-        echo "无效的选择，恢复失败！"
-        exit 1
-      fi
+  # 解压备份文件到 /home/web/
+  tar -xvzf "$restore_file" -C /home/web/
 
-      echo "正在恢复备份：$restore_file"
+  # 检查解压是否成功
+  if [ $? -eq 0 ]; then
+    echo "备份恢复成功！"
+  else
+    echo "备份恢复失败！"
+    exit 1
+  fi
 
-      # 解压备份文件
-      tar -xvzf "$restore_file" -C /home/docker
+  # 重启 Vaultwarden 容器
+  docker start vaultwarden
+  echo "Vaultwarden 已重启"
 
-      # 检查解压是否成功
-      if [ $? -eq 0 ]; then
-        echo "备份恢复成功！"
-      else
-        echo "备份恢复失败！"
-        exit 1
-      fi
+  ;;
 
-      # 重启 Vaultwarden 容器
-      docker start vaultwarden
-      echo "Vaultwarden 已重启"
-
-      ;;
-
-
-
-
-
-
-  9)
+9)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
-    mkdir -p /home/docker/vaultwarden
-    cd /home/docker/vaultwarden || exit 1
+    # 修改监控目录为 /home/web/vaultwarden
+    mkdir -p /home/web/vaultwarden
+    cd /home/web/vaultwarden || exit 1
 
     wget -q -O beifen.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/mimabeifen.sh
     chmod +x beifen.sh
@@ -561,9 +555,9 @@ EOF
 
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/docker/vaultwarden/beifen_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/beifen_obf.sh"
-    OUTPUT_BIN="/home/docker/vaultwarden/beifen.x"
+    TMP_SCRIPT="/home/web/vaultwarden/beifen_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/web/vaultwarden/beifen_obf.sh"
+    OUTPUT_BIN="/home/web/vaultwarden/beifen.x"
 
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -643,19 +637,17 @@ EOF
     fi
 
     # 创建 jiankong.sh 监控脚本
-    cat > /home/docker/vaultwarden/jiankong.sh << 'EOF'
+    cat > /home/web/vaultwarden/jiankong.sh << 'EOF'
 #!/bin/bash
 
-WATCH_DIR="/home/docker/vaultwarden/data"
+WATCH_DIR="/home/web/vaultwarden/data"
 FILES="db.sqlite3 db.sqlite3-wal db.sqlite3-shm"
-BIN="/home/docker/vaultwarden/beifen.x"
+BIN="/home/web/vaultwarden/beifen.x"
 LOCK_FILE="/tmp/mimabeifen.lock"
 DELAY=5
 INTERVAL=10   # 轮询兜底间隔秒
 
-
 mkdir -p /tmp
-# ---------- 初始化锁文件 ----------
 [ ! -s "$LOCK_FILE" ] && echo "lock" > "$LOCK_FILE"
 
 last_hash=""
@@ -674,7 +666,6 @@ calc_hash() {
     sha1sum $(for f in $FILES; do echo "$WATCH_DIR/$f"; done 2>/dev/null) 2>/dev/null | sha1sum | awk '{print $1}'
 }
 
-# ---------- inotify 监听 ----------
 inotifywait -m -e modify,create,delete,move "$WATCH_DIR" 2>/dev/null |
 while read -r path action file; do
     case "$file" in
@@ -684,7 +675,6 @@ while read -r path action file; do
     esac
 done &
 
-# ---------- 轮询兜底 ----------
 while true; do
     new_hash=$(calc_hash)
     if [ -n "$new_hash" ] && [ "$new_hash" != "$last_hash" ]; then
@@ -695,7 +685,7 @@ while true; do
     sleep $INTERVAL
 done
 EOF
-    chmod +x /home/docker/vaultwarden/jiankong.sh
+    chmod +x /home/web/vaultwarden/jiankong.sh
 
     # 创建 systemd 服务文件
     cat > /etc/systemd/system/vaultwarden-watch.service << EOF
@@ -705,10 +695,10 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/docker/vaultwarden/jiankong.sh
+ExecStart=/home/web/vaultwarden/jiankong.sh
 Restart=always
 User=root
-WorkingDirectory=/home/docker/vaultwarden/
+WorkingDirectory=/home/web/vaultwarden/
 
 [Install]
 WantedBy=multi-user.target
@@ -724,17 +714,13 @@ EOF
     systemctl status vaultwarden-watch --no-pager
     ;;
 
-
-
-
-
-
 10)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
-    mkdir -p /home/docker/vaultwarden
-    cd /home/docker/vaultwarden || exit 1
+    # 修改目录为 /home/web/vaultwarden
+    mkdir -p /home/web/vaultwarden
+    cd /home/web/vaultwarden || exit 1
 
     # 下载 mimachuansong.sh
     wget -q -O mimachuansong.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong.sh
@@ -747,9 +733,9 @@ EOF
     # 获取本地IP，用于限制执行
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/docker/vaultwarden/mimachuansong_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/docker/vaultwarden/mimachuansong_obf.sh"
-    OUTPUT_BIN="/home/docker/vaultwarden/mimachuansong.x"
+    TMP_SCRIPT="/home/web/vaultwarden/mimachuansong_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/web/vaultwarden/mimachuansong_obf.sh"
+    OUTPUT_BIN="/home/web/vaultwarden/mimachuansong.x"
 
     # 添加IP限制
     cat > "$TMP_SCRIPT" <<EOF
@@ -781,7 +767,7 @@ EOF
       1)
         read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
         read -e -p "几点备份（0-23）: " hour
-        read -e -p "几分备份（0-59）: " minute
+        read -e -p "几分（0-59）: " minute
         if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
           echo "备份任务已存在，跳过添加"
         else
@@ -820,11 +806,11 @@ EOF
     fi
 
     # 创建监控脚本（防重复执行 + 防死锁）
-    cat > /home/docker/vaultwarden/mimajiankongchuansong.sh << 'EOF'
+    cat > /home/web/vaultwarden/mimajiankongchuansong.sh << 'EOF'
 #!/bin/bash
 
-WATCH_DIR="/home/密码"
-BIN="/home/docker/vaultwarden/mimachuansong.x"
+WATCH_DIR="/home/web/vaultwarden"
+BIN="/home/web/vaultwarden/mimachuansong.x"
 LOCK_FILE="/tmp/mimachuansong.lock"
 
 [ -d "$WATCH_DIR" ] || exit 1
@@ -843,7 +829,7 @@ while read path action file; do
 done
 EOF
 
-    chmod +x /home/docker/vaultwarden/mimajiankongchuansong.sh
+    chmod +x /home/web/vaultwarden/mimajiankongchuansong.sh
 
     SERVICE_NAME="vaultwarden-mimajiankongchuansong.service"
 
@@ -854,11 +840,11 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/docker/vaultwarden/mimajiankongchuansong.sh
+ExecStart=/home/web/vaultwarden/mimajiankongchuansong.sh
 Restart=always
 RestartSec=5
 User=root
-WorkingDirectory=/home/docker/vaultwarden
+WorkingDirectory=/home/web/vaultwarden
 
 [Install]
 WantedBy=multi-user.target
@@ -871,9 +857,6 @@ EOF
 
     systemctl status $SERVICE_NAME --no-pager
     ;;
-
-
-
 
 
 
