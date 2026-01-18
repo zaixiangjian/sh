@@ -2030,7 +2030,7 @@ EOF
     echo "------------------------"
     read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
 
-    LOCK_FILE="/tmp/quanbubeifen.lock"
+    LOCK_FILE="/tmp/quanbubeifen2.lock"
 
     (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
      echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
