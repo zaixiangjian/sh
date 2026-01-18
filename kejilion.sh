@@ -8951,8 +8951,6 @@ EOF
         done
         ;;
 
-
-
 82)
         # --- 内部函数：显示定时任务 ---
         show_cron_jobs() {
@@ -8979,7 +8977,6 @@ EOF
             read -p "请输入远程名称 (例如 r2): " remote_name
             read -p "请输入存储桶名称 (Bucket): " bucket_name
             
-            # 这里的路径结构可以根据需求调整
             backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${in_dir}"
             
             echo "#!/bin/bash" > "/root/${script_name}"
@@ -9005,13 +9002,6 @@ EOF
 
         while true; do
             clear
-            # 基础路径定义 (修改后的路径)
-            BASE_DIR="/home/docker/BackyuRclone"
-            BR_DIR="$BASE_DIR/backrest"
-            RC_DIR="$BASE_DIR/Rclone"
-            BR_SERVICE="/etc/systemd/system/backrest.service"
-            BACKUP_SAVE_DIR="/home/backrclone"
-
             show_cron_jobs
             echo "------------------------------------------------"
             echo "      Backrest & Rclone 综合管理 (备份专题)"
@@ -9021,10 +9011,11 @@ EOF
             echo " 2. 卸载 Backrest (完全清理)"
             echo " 3. 重启 Backrest 服务"
             echo " 4. 查看服务状态/日志"
-            echo "------------------------------------------------"
-            echo "💡 提示: Backrest 仓库配置路径示例:"
-            echo "rclone:r2:bucket_name/path"
-            echo "------------------------------------------------"
+            echo "============================================================"
+            echo "Backrest后台添加对象存储的配置路径"
+            echo "例如"
+            echo "rclone:r2:cunchu/全部备份"
+            echo "============================================================"
             echo " [ Rclone 命令行/S3 备份 ]"
             echo " 20. 安装 Rclone (v1.72.1)"
             echo " 21. 获取配置文件路径"
@@ -9038,28 +9029,31 @@ EOF
             echo " 29. 卸载 Rclone"
             echo "------------------------------------------------"
             echo " [ 系统全量备份与恢复 ]"
-            echo " 88. 备份全部内容 (程序+数据库+账户配置)"
+            echo " 88. 备份全部内容 (Backrest + Rclone)"
             echo " 99. 自动恢复并启用 (从 /home/backrclone)"
             echo "------------------------------------------------"
-            echo " ⚠️ 注意: 99恢复后请运行20安装Rclone，再运行21核对"
+            echo " 100. 完全卸载 (清理目录/服务/残留/环境)"
             echo "------------------------------------------------"
             echo " 0. 返回上一级菜单"
             echo "------------------------------------------------"
             read -e -p "请输入选择: " sub_choice
 
+            BASE_DIR="/home/docker/BackyuRclone"
+            BR_DIR="$BASE_DIR/backrest"
+            RC_DIR="$BASE_DIR/Rclone"
+            BR_SERVICE="/etc/systemd/system/backrest.service"
+            BACKUP_SAVE_DIR="/home/backrclone"
+
             case $sub_choice in
-1)
+                1)
                     echo "📦 正在安装 Backrest..."
                     systemctl stop backrest 2>/dev/null
                     mkdir -p "$BR_DIR" && cd "$BR_DIR"
                     wget -q --show-progress -O br.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/backrest_Linux_x86_64.tar.gz
                     tar -xzf br.tar.gz
-                    # 避免 mv 自身报错
-                    [ -f "backrest_Linux_x86_64" ] && mv "backrest_Linux_x86_64" backrest
-                    find . -maxdepth 1 -type f -name "backrest*" ! -name "*.tar.gz" ! -name "backrest" -exec mv {} backrest \;
+                    find . -maxdepth 1 -type f -name "backrest*" ! -name "*.tar.gz" -exec mv {} backrest \;
                     chmod +x backrest
                     rm -f br.tar.gz
-                    
                     cat <<EOF > "$BR_SERVICE"
 [Unit]
 Description=Backrest Service
@@ -9068,7 +9062,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$BR_DIR
-ExecStart=$BR_DIR/backrest -bind-address :9898
+ExecStart=$BR_DIR/backrest
 Restart=always
 User=root
 
@@ -9076,22 +9070,14 @@ User=root
 WantedBy=multi-user.target
 EOF
                     systemctl daemon-reload
-                    systemctl enable backrest >/dev/null 2>&1
+                    systemctl enable backrest
                     systemctl start backrest
-                    
-                    echo "⏳ 等待服务初始化 (5s)..."
-                    sleep 5
-                    
-                    # 使用更加兼容的判断方式
-                    STATUS=$(systemctl is-active backrest)
-                    if [ "$STATUS" = "active" ]; then
-                        echo "------------------------------------------------"
-                        echo "✅ 启动成功！"
-                        echo "🌍 访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
-                        echo "------------------------------------------------"
+                    sleep 2
+                    if systemctl is-active --quiet backrest; then
+                        echo "✅ 安装成功！访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
                     else
-                        echo "⚠️ 服务状态为: $STATUS，但日志显示 Web Server 已启动。"
-                        echo "💡 请直接访问网页确认。"
+                        echo "❌ 启动失败，请检查端口 9898 是否被占用。"
+                        journalctl -u backrest --no-pager -n 10
                     fi
                     read -p "回车继续..." ;;
 
@@ -9100,12 +9086,12 @@ EOF
                     systemctl disable backrest 2>/dev/null
                     rm -f "$BR_SERVICE"
                     rm -rf "$BR_DIR"
-                    echo "✅ Backrest 已完全卸载。"
+                    echo "✅ 已完全卸载。"
                     read -p "回车继续..." ;;
 
                 3)
                     systemctl restart backrest
-                    echo "✅ 服务重启指令已发送。"
+                    echo "✅ 已发出重启指令。"
                     read -p "回车继续..." ;;
 
                 4)
@@ -9115,7 +9101,7 @@ EOF
                 20)
                     echo "📦 正在安装 Rclone v1.72.1..."
                     mkdir -p "$RC_DIR" && cd "$RC_DIR"
-                    apt-get update && apt-get install -y unzip || yum install -y unzip
+                    apt-get install -y unzip || yum install -y unzip
                     wget -q --show-progress -O rc.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/rclone-v1.72.1-linux-amd64.zip
                     unzip -o rc.zip
                     RBIN_TMP=$(find . -name "rclone" -type f)
@@ -9127,17 +9113,17 @@ EOF
 
                 21) rclone config file; read -p "回车继续..." ;;
 
+
                 22)
-                    echo "📝 --- 交互式添加 Rclone S3 配置 ---"
+                    echo "📝 --- 添加 Rclone S3 配置文件 ---"
                     read -p "请输入名称 (例如 r2): " rc_name
-                    read -p "提供商/备注 (例如 Cloudflare): " rc_provider
+                    read -p "提供商或者备注 (例如 Cloudflare): " rc_provider
                     read -p "请输入 Access Key ID: " rc_id
                     read -p "请输入 Secret Access Key: " rc_key
-                    read -p "请输入 Endpoint (例如 s3.us-east-1.amazonaws.com): " rc_endpoint
+                    read -p "请输入 Endpoint (例如 s3.ap-southeast-1.idrivee2.com): " rc_endpoint
 
                     mkdir -p /root/.config/rclone
                     cat >> /root/.config/rclone/rclone.conf <<EOF
-
 [$rc_name]
 type = s3
 provider = $rc_provider
@@ -9147,65 +9133,74 @@ endpoint = $rc_endpoint
 EOF
                     echo "✅ 配置已写入 /root/.config/rclone/rclone.conf"
                     read -p "回车继续..." ;;
-
-                23) nano /root/.config/rclone/rclone.conf ;;
+				23) nano /root/.config/rclone/rclone.conf ;;
                 24) rclone listremotes; read -p "回车继续..." ;;
                 25) create_backup_job "s3beifen.sh" ;;
                 26) create_backup_job "s3beifen1.sh" ;;
                 27) create_backup_job "s3beifen2.sh" ;;
                 28)
                     crontab -l | grep -v "s3beifen" | crontab -
-                    echo "✅ 已清理所有 Rclone 相关定时任务。"
+                    echo "✅ 已清理所有 Rclone 定时任务。"
                     read -p "回车继续..." ;;
                 29)
                     rm -f /usr/bin/rclone
-                    echo "✅ Rclone 程序已卸载。"
+                    echo "✅ Rclone 已卸载。"
                     read -p "回车继续..." ;;
 
-                88)
-                    echo "🗄️ 正在执行【全深度】备份..."
+
+
+88)
+                    echo "🗄️ 正在执行【深度全量】备份 (程序 + 数据库 + 账户配置)..."
                     mkdir -p "$BACKUP_SAVE_DIR"
                     BACKUP_FILE="$BACKUP_SAVE_DIR/backrclone-$(date +%Y%m%d%H%M%S).tar.gz"
                     
-                    # 确保路径存在以防打包报错
-                    mkdir -p "$BASE_DIR" "/root/.local/share/backrest" "/root/.config/backrest" "/root/.config/rclone"
-
-                    echo "📦 正在打包 (包含程序、配置、数据库)..."
+                    # 定义 Backrest 的三个核心路径
+                    BR_BIN_DIR="/home/docker/BackyuRclone"        # 自定义安装目录
+                    BR_DATA="/root/.local/share/backrest"    # 运行数据/restic路径
+                    BR_CONF="/root/.config/backrest"         # ⚠️ 账户/面板设置/config.json
+                    RC_CONF="/root/.config/rclone"           # Rclone配置
+                    
+                    echo "📦 正在全量压缩..."
+                    # 确保这些目录存在，否则 tar 会报错
+                    mkdir -p "$BR_DATA" "$BR_CONF" "$RC_CONF"
+                    
                     tar -czf "$BACKUP_FILE" --absolute-names \
-                        "$BASE_DIR" \
-                        "/root/.local/share/backrest" \
-                        "/root/.config/backrest" \
-                        "/root/.config/rclone" \
+                        "$BR_BIN_DIR" \
+                        "$BR_DATA" \
+                        "$BR_CONF" \
+                        "$RC_CONF" \
                         $(ls /root/s3beifen*.sh 2>/dev/null) 2>/dev/null
                     
                     if [ -f "$BACKUP_FILE" ]; then
-                        echo "✅ 备份成功: $BACKUP_FILE"
+                        echo "✅ 全量备份完成：$BACKUP_FILE"
+                        echo "💡 已包含账户、密码、面板设置及所有任务。"
                     else
                         echo "❌ 备份失败！"
                     fi
                     read -p "回车继续..." ;;
 
-                99)
-                    echo "♻️ 正在全量恢复系统环境..."
-                    LATEST_PKG=$(ls -t $BACKUP_SAVE_DIR/backrclone-*.tar.gz 2>/dev/null | head -n 1)
-                    if [ -z "$LATEST_PKG" ]; then
-                        echo "❌ /home/backrclone 下未发现备份文件"; read -p "回车继续..."; continue
-                    fi
-                    
-                    echo "🛑 停止旧服务并清理冲突配置..."
-                    systemctl stop backrest 2>/dev/null
-                    rm -rf /root/.config/backrest
+99)
+    echo "♻️ 正在执行全环境自动恢复..."
+    LATEST_PKG=$(ls -t $BACKUP_SAVE_DIR/backrclone-*.tar.gz 2>/dev/null | head -n 1)
+    if [ -z "$LATEST_PKG" ]; then
+        echo "❌ /home/backrclone 下未发现备份文件"; read -p "回车继续..."; continue
+    fi
+    
+    echo "🛑 停止旧服务并清理冲突配置..."
+    systemctl stop backrest 2>/dev/null
+    rm -rf /root/.config/backrest
 
-                    echo "📂 还原物理文件..."
-                    tar -xzf "$LATEST_PKG" -P --overwrite -C /
+    echo "📂 还原物理文件..."
+    tar -xzf "$LATEST_PKG" -P --overwrite -C /
 
-                    echo "⚙️ 权限校准与服务重建..."
-                    chmod +x "$BR_DIR/backrest" 2>/dev/null
-                    [ -f "/root/.local/share/backrest/restic" ] && chmod +x "/root/.local/share/backrest/restic"
-                    [ -f "$RC_DIR/rclone" ] && cp -f "$RC_DIR/rclone" /usr/bin/rclone && chmod +x /usr/bin/rclone
-                    chmod +x /root/s3beifen*.sh 2>/dev/null
+    echo "⚙️ 权限校准与服务重建..."
+    chmod +x "$BR_DIR/backrest" 2>/dev/null
+    [ -f "/root/.local/share/backrest/restic" ] && chmod +x "/root/.local/share/backrest/restic"
+    # 如果备份里有 rclone，还原它
+    [ -f "$RC_DIR/rclone" ] && cp -f "$RC_DIR/rclone" /usr/bin/rclone && chmod +x /usr/bin/rclone
+    chmod +x /root/s3beifen*.sh 2>/dev/null
 
-                    cat > "$BR_SERVICE" <<EOF
+    cat > "$BR_SERVICE" <<EOF
 [Unit]
 Description=Backrest Service
 After=network.target
@@ -9220,17 +9215,73 @@ User=root
 [Install]
 WantedBy=multi-user.target
 EOF
+    systemctl daemon-reload
+    systemctl enable backrest >/dev/null 2>&1
+    systemctl start backrest
+    
+    echo "⏳ 等待服务初始化 (5s)..."
+    sleep 5
+    
+    # 使用稳健的判断逻辑
+    BR_STATUS=$(systemctl is-active backrest)
+    if [ "$BR_STATUS" = "active" ]; then
+        echo "✅ Backrest 核心服务恢复成功！"
+        echo "🌍 访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
+        
+        echo "------------------------------------------------"
+        echo "📦 正在自动为您安装 Rclone 环境..."
+        # 直接复用 20 号的安装逻辑
+        mkdir -p "$RC_DIR" && cd "$RC_DIR"
+        apt-get update && apt-get install -y unzip || yum install -y unzip
+        wget -q --show-progress -O rc.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/rclone-v1.72.1-linux-amd64.zip
+        unzip -o rc.zip >/dev/null
+        RBIN_TMP=$(find . -name "rclone" -type f)
+        cp -f "$RBIN_TMP" /usr/bin/rclone
+        chmod +x /usr/bin/rclone
+        echo "✅ Rclone 环境已自动就绪！"
+        echo "------------------------------------------------"
+        echo "💡 恢复流程已完成。"
+        echo "👉 请接下来手动输入 [ 21 ] 获取配置文件路径，确认 Rclone 配置是否生效。"
+    else
+        echo "❌ 服务启动状态异常 ($BR_STATUS)，请检查选项 4 日志。"
+    fi
+    read -p "回车继续..." ;;
+
+100)
+                    echo "⚠️  正在准备完全卸载 Backrest & Rclone 环境..."
+                    read -p "此操作将删除所有配置、备份任务及程序文件，确定吗？(y/n): " confirm
+                    if [[ "$confirm" != "y" ]]; then echo "已取消。"; read -p "回车继续..."; continue; fi
+
+                    echo "🛑 正在停止并禁用 Backrest 服务..."
+                    systemctl stop backrest 2>/dev/null
+                    systemctl disable backrest 2>/dev/null
+                    rm -f /etc/systemd/system/backrest.service
                     systemctl daemon-reload
-                    systemctl enable backrest >/dev/null 2>&1
-                    systemctl start backrest
-                    
-                    sleep 3
-                    if systemctl is-active --quiet backrest; then
-                        echo "✅ 全量恢复成功！"
-                        echo "🌍 访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
-                    else
-                        echo "❌ 恢复后服务启动失败，请检查选项 4。"
-                    fi
+
+                    echo "🗑️  正在删除程序目录: $BASE_DIR ..."
+                    # $BASE_DIR 即 /home/docker/BackyuRclone
+                    rm -rf "$BASE_DIR"
+
+                    echo "🗑️  正在清理 Backrest 系统残留 (配置与运行数据)..."
+                    rm -rf "/root/.config/backrest"
+                    rm -rf "/root/.local/share/backrest"
+
+                    echo "🗑️  正在清理 Rclone 系统残留 (程序与配置)..."
+                    rm -f /usr/bin/rclone
+                    rm -rf "/root/.config/rclone"
+
+                    echo "🗑️  正在清理定时任务 (Cron Jobs)..."
+                    crontab -l 2>/dev/null | grep -v "s3beifen" | crontab -
+
+                    echo "------------------------------------------------"
+                    echo "✅ 卸载完成！"
+                    echo "已清理清单："
+                    echo "1. 安装目录: $BASE_DIR"
+                    echo "2. 系统服务: backrest.service"
+                    echo "3. Backrest配置: /root/.config/backrest"
+                    echo "4. Rclone程序与配置: /usr/bin/rclone & .config/rclone"
+                    echo "5. 所有相关的定时备份任务"
+                    echo "------------------------------------------------"
                     read -p "回车继续..." ;;
 
                 0) break ;;
@@ -9601,30 +9652,30 @@ EOF
 			read img_choice
 
 			case "$img_choice" in
-				1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3001;;
-				2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3002;;
-				3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3003;;
-				4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3004;;
-				5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3005;;
-				6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3006;;
-				7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3007;;
-				8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3008;;
-				9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3009;;
-				10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3010;;
-				11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=3011;;
-				12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3012;;
-				13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3013;;
-				14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3014;;
-				15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3015;;
-				16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3016;;
-				17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3017;;
-				18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3018;;
-				19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3019;;
-				20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3020;;
-				21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3021;;
-				22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3022;;
-				23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3023;;
-				24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3024;;
+				1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3331;;
+				2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3332;;
+				3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3333;;
+				4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3334;;
+				5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3335;;
+				6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3336;;
+				7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3337;;
+				8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3338;;
+				9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3339;;
+				10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3340;;
+				11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=33341;;
+				12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3342;;
+				13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3343;;
+				14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3344;;
+				15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3345;;
+				16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3346;;
+				17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3347;;
+				18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3348;;
+				19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3349;;
+				20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3350;;
+				21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3351;;
+				22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3352;;
+				23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3353;;
+				24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3354;;
 				0)
 					echo "返回上一级"
 					;;
