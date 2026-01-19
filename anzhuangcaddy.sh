@@ -364,7 +364,7 @@ menu() {
     echo "00. 更新 Caddy"
     echo "=============================="
     echo -e "证书路径是: ${CYAN}/var/lib/caddy/.local/share/caddy/certificates/${RESET}"
-    echo "=============================="
+    echo "配置文件: ${CYAN}/etc/caddy/${RESET}"
     echo "0. 退出"
     echo "=============================="
     read -p "请输入选项: " choice
