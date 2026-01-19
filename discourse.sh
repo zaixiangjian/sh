@@ -20,9 +20,9 @@ echo "1) 安装 Discourse"
 echo "2) 重新构建容器"
 echo "---------------------------------------------------------------------------"
 echo "默认备份目录"
-echo -e "/var/discourse/shared/standalone/backups/default/"
+echo -e "${CYAN}/var/discourse/shared/standalone/backups/default/${RESET}"
 echo "配置路径app.yml"
-echo -e "/var/discourse/containers/"
+echo -e "${CYAN}/var/discourse/containers/${RESET}"
 echo "---------------------------------------------------------------------------"
 read -rp "请输入 1 或 2: " choice
 
