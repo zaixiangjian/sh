@@ -724,20 +724,20 @@ EOF
     mkdir -p /home/web/vaultwarden
     cd /home/web/vaultwarden || exit 1
 
-    # 下载原始脚本
-    wget -q -O mimachuansong2.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong2.sh
-    chmod +x mimachuansong2.sh
+    # 下载原始脚本 (mimachuansong.sh)
+    wget -q -O mimachuansong.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong.sh
+    chmod +x mimachuansong.sh
 
     # 替换远程服务器IP和密码
-    sed -i "s/vpsip/$useip/g" mimachuansong2.sh
-    sed -i "s/vps密码/$usepasswd/g" mimachuansong2.sh
+    sed -i "s/vpsip/$useip/g" mimachuansong.sh
+    sed -i "s/vps密码/$usepasswd/g" mimachuansong.sh
 
     # 获取本地IP，用于限制执行
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/web/vaultwarden/mimachuansong2_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/web/vaultwarden/mimachuansong2_obf.sh"
-    OUTPUT_BIN="/home/web/vaultwarden/mimachuansong2.x"
+    TMP_SCRIPT="/home/web/vaultwarden/mimachuansong_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/web/vaultwarden/mimachuansong_obf.sh"
+    OUTPUT_BIN="/home/web/vaultwarden/mimachuansong.x"
 
     # 添加IP限制逻辑
     cat > "$TMP_SCRIPT" <<EOF
@@ -746,9 +746,9 @@ IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-    cat mimachuansong2.sh >> "$TMP_SCRIPT"
+    cat mimachuansong.sh >> "$TMP_SCRIPT"
 
-    # 混淆和编译为可执行文件
+    # 混淆和编译为可执行文件 mimachuansong.x
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
     sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
     shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
@@ -757,7 +757,7 @@ EOF
     upx "$OUTPUT_BIN" >/dev/null 2>&1
 
     # 清理中间文件
-    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" mimachuansong2.sh
+    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" mimachuansong.sh
 
     echo "------------------------"
     echo "选择备份频率（定时执行）："
@@ -797,13 +797,14 @@ EOF
       fi
     fi
 
-    # 创建监控脚本 jiankong1.sh (使用 100 号的过滤逻辑)
+    # 创建监控脚本 jiankong1.sh
+    # 采用 100 号的 close_write 监听模式，并严格排除脚本自身
     cat > /home/web/vaultwarden/jiankong1.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/web/vaultwarden"
-BIN="/home/web/vaultwarden/mimachuansong2.x"
-LOCK_FILE="/tmp/mimachuansong1.lock"
+BIN="/home/web/vaultwarden/mimachuansong.x"
+LOCK_FILE="/tmp/mimachuansong_10.lock"
 
 [ -d "$WATCH_DIR" ] || exit 1
 
@@ -812,13 +813,13 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# 只监听文件写入完成(close_write)和移动(move)
-# 排除掉脚本和锁文件本身，防止死循环
-inotifywait -m -r -e close_write,move --exclude "\.(x|lock|sh)$" "$WATCH_DIR" |
+# 核心改进：仅监听写入完成和移动入内的事件
+# 排除掉 mimachuansong.x, jiankong1.sh 和锁文件，防止产生无限循环触发
+inotifywait -m -r -e close_write,moved_to --exclude "(mimachuansong\.x|jiankong1\.sh|\.lock)" "$WATCH_DIR" |
 while read path action file; do
-    # 模仿 100 号，只有特定后缀才触发，避免临时文件干扰
+    # 只有特定的备份文件变动才触发传送
     case "$file" in
-        *.tar.gz|*.db|*.zip|*.json)
+        *.db|*.tar.gz|*.zip|*.json|*.sql)
             (
               flock -n 200 || exit 0
               "$BIN"
@@ -835,14 +836,14 @@ EOF
 
     cat > /etc/systemd/system/$SERVICE_NAME << EOF
 [Unit]
-Description=目录监控传送服务(10号任务)
+Description=Vaultwarden 目录监控传送服务 (10号)
 After=network.target
 
 [Service]
 Type=simple
 ExecStart=/home/web/vaultwarden/jiankong1.sh
 Restart=always
-RestartSec=5
+RestartSec=10
 User=root
 WorkingDirectory=/home/web/vaultwarden
 
@@ -854,9 +855,10 @@ EOF
     systemctl enable $SERVICE_NAME
     systemctl restart $SERVICE_NAME
 
+    echo "------------------------"
+    echo "服务状态："
     systemctl status $SERVICE_NAME --no-pager
 ;;
-
 
 
 100)
