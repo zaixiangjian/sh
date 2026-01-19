@@ -715,37 +715,38 @@ EOF
     systemctl status vaultwarden-watch --no-pager
     ;;
 
+
 10)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
-    # 修改目录为 /home/web/vaultwarden
+    # 创建并进入工作目录
     mkdir -p /home/web/vaultwarden
     cd /home/web/vaultwarden || exit 1
 
-    # 下载 mimachuansong.sh
-    wget -q -O mimachuansong.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong.sh
-    chmod +x mimachuansong.sh
+    # 下载原始脚本
+    wget -q -O mimachuansong2.sh https://raw.githubusercontent.com/zaixiangjian/sh/main/mimachuansong2.sh
+    chmod +x mimachuansong2.sh
 
     # 替换远程服务器IP和密码
-    sed -i "s/vpsip/$useip/g" mimachuansong.sh
-    sed -i "s/vps密码/$usepasswd/g" mimachuansong.sh
+    sed -i "s/vpsip/$useip/g" mimachuansong2.sh
+    sed -i "s/vps密码/$usepasswd/g" mimachuansong2.sh
 
     # 获取本地IP，用于限制执行
     local_ip=$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 
-    TMP_SCRIPT="/home/web/vaultwarden/mimachuansong_tmp.sh"
-    OBFUSCATED_SCRIPT="/home/web/vaultwarden/mimachuansong_obf.sh"
-    OUTPUT_BIN="/home/web/vaultwarden/mimachuansong.x"
+    TMP_SCRIPT="/home/web/vaultwarden/mimachuansong2_tmp.sh"
+    OBFUSCATED_SCRIPT="/home/web/vaultwarden/mimachuansong2_obf.sh"
+    OUTPUT_BIN="/home/web/vaultwarden/mimachuansong2.x"
 
-    # 添加IP限制
+    # 添加IP限制逻辑
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
 IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 [[ "\$IP" == "$local_ip" ]] || { echo "IP not allowed: \$IP"; exit 1; }
 EOF
 
-    cat mimachuansong.sh >> "$TMP_SCRIPT"
+    cat mimachuansong2.sh >> "$TMP_SCRIPT"
 
     # 混淆和编译为可执行文件
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
@@ -755,10 +756,11 @@ EOF
     strip "$OUTPUT_BIN" >/dev/null 2>&1
     upx "$OUTPUT_BIN" >/dev/null 2>&1
 
-    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" mimachuansong.sh
+    # 清理中间文件
+    rm -f "$TMP_SCRIPT" "$OBFUSCATED_SCRIPT" mimachuansong2.sh
 
     echo "------------------------"
-    echo "选择备份频率："
+    echo "选择备份频率（定时执行）："
     echo "1. 每周备份"
     echo "2. 每天备份"
     echo "3. 每几天备份一次"
@@ -766,38 +768,27 @@ EOF
 
     case $dingshi in
       1)
-        read -e -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-        read -e -p "几点备份（0-23）: " hour
+        read -e -p "选择每周备份的星期几 (0-6): " weekday
+        read -e -p "几点（0-23）: " hour
         read -e -p "几分（0-59）: " minute
-        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务已存在，跳过添加"
-        else
-          (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-        fi
+        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
         ;;
       2)
-        read -e -p "每天几点备份（0-23）: " hour
-        read -e -p "每天几分备份（0-59）: " minute
-        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务已存在，跳过添加"
-        else
-          (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-        fi
+        read -e -p "每天几点备份: " hour
+        read -e -p "每天几分备份: " minute
+        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
         ;;
       3)
         read -e -p "每几天备份一次: " interval
-        read -e -p "几点（0-23）: " hour
-        read -e -p "几分（0-59）: " minute
-        if crontab -l 2>/dev/null | grep -q "$OUTPUT_BIN"; then
-          echo "备份任务已存在，跳过添加"
-        else
-          (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-        fi
+        read -e -p "几点: " hour
+        read -e -p "几分: " minute
+        (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
         ;;
     esac
 
     echo "开始安装目录监控传送服务..."
 
+    # 安装 inotify 工具
     if ! command -v inotifywait >/dev/null 2>&1; then
       if grep -qi "ubuntu\|debian" /etc/os-release; then
         apt-get update && apt-get install -y inotify-tools
@@ -806,13 +797,13 @@ EOF
       fi
     fi
 
-    # 创建监控脚本（防重复执行 + 防死锁），改名为 jiankong1.sh
+    # 创建监控脚本 jiankong1.sh (使用 100 号的过滤逻辑)
     cat > /home/web/vaultwarden/jiankong1.sh << 'EOF'
 #!/bin/bash
 
 WATCH_DIR="/home/web/vaultwarden"
-BIN="/home/web/vaultwarden/mimachuansong.x"
-LOCK_FILE="/tmp/mimachuansong.lock"
+BIN="/home/web/vaultwarden/mimachuansong2.x"
+LOCK_FILE="/tmp/mimachuansong1.lock"
 
 [ -d "$WATCH_DIR" ] || exit 1
 
@@ -821,22 +812,30 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-inotifywait -m -r -e modify,create,delete,move "$WATCH_DIR" |
+# 只监听文件写入完成(close_write)和移动(move)
+# 排除掉脚本和锁文件本身，防止死循环
+inotifywait -m -r -e close_write,move --exclude "\.(x|lock|sh)$" "$WATCH_DIR" |
 while read path action file; do
-    (
-      flock -n 200 || exit 0
-      "$BIN"
-    ) 200>"$LOCK_FILE"
+    # 模仿 100 号，只有特定后缀才触发，避免临时文件干扰
+    case "$file" in
+        *.tar.gz|*.db|*.zip|*.json)
+            (
+              flock -n 200 || exit 0
+              "$BIN"
+            ) 200>"$LOCK_FILE"
+            ;;
+    esac
 done
 EOF
 
     chmod +x /home/web/vaultwarden/jiankong1.sh
 
+    # 注册 Systemd 服务
     SERVICE_NAME="vaultwarden-mimajiankongchuansong.service"
 
     cat > /etc/systemd/system/$SERVICE_NAME << EOF
 [Unit]
-Description=目录监控传送服务
+Description=目录监控传送服务(10号任务)
 After=network.target
 
 [Service]
@@ -851,7 +850,6 @@ WorkingDirectory=/home/web/vaultwarden
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reexec
     systemctl daemon-reload
     systemctl enable $SERVICE_NAME
     systemctl restart $SERVICE_NAME
