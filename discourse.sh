@@ -2,6 +2,13 @@
 # Discourse 一键安装 / 重建脚本
 # root 用户运行
 
+# 颜色定义
+GREEN="\033[32m"
+RED="\033[31m"
+YELLOW="\033[33m"
+CYAN="\033[36m"
+RESET="\033[0m"
+
 # 检查是否为 root
 if [ "$(id -u)" -ne 0 ]; then
   echo "请使用 root 权限运行此脚本！"
@@ -13,9 +20,9 @@ echo "1) 安装 Discourse"
 echo "2) 重新构建容器"
 echo "---------------------------------------------------------------------------"
 echo "默认备份目录"
-echo "${CYAN}/var/discourse/shared/standalone/backups/default/${RESET}"
+echo -e "/var/discourse/shared/standalone/backups/default/"
 echo "配置路径app.yml"
-echo "${CYAN}/var/discourse/containers/${RESET}"
+echo -e "/var/discourse/containers/"
 echo "---------------------------------------------------------------------------"
 read -rp "请输入 1 或 2: " choice
 
