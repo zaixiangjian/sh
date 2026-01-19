@@ -722,6 +722,7 @@ EOF
 
     # 创建并进入工作目录
     mkdir -p /home/web/vaultwarden
+    mkdir -p /home/web/密码  # 确保 100 号规则的监控目录存在
     cd /home/web/vaultwarden || exit 1
 
     # 下载原始脚本 (mimachuansong.sh)
@@ -797,14 +798,13 @@ EOF
       fi
     fi
 
-    # 创建监控脚本 jiankong1.sh
-    # 采用 100 号的 close_write 监听模式，并严格排除脚本自身
+    # 创建监控脚本 jiankong1.sh (套用 100 号成功的规则)
     cat > /home/web/vaultwarden/jiankong1.sh << 'EOF'
 #!/bin/bash
 
-WATCH_DIR="/home/web/vaultwarden"
+WATCH_DIR="/home/web/密码"
 BIN="/home/web/vaultwarden/mimachuansong.x"
-LOCK_FILE="/tmp/mimachuansong_10.lock"
+LOCK_FILE="/tmp/mimachuansong1.lock"
 
 [ -d "$WATCH_DIR" ] || exit 1
 
@@ -813,13 +813,11 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# 核心改进：仅监听写入完成和移动入内的事件
-# 排除掉 mimachuansong.x, jiankong1.sh 和锁文件，防止产生无限循环触发
-inotifywait -m -r -e close_write,moved_to --exclude "(mimachuansong\.x|jiankong1\.sh|\.lock)" "$WATCH_DIR" |
+# 监控指定目录，只有当 .tar.gz 文件写入完成或移动进来时才触发
+inotifywait -m -r -e create,move,close_write "$WATCH_DIR" |
 while read path action file; do
-    # 只有特定的备份文件变动才触发传送
     case "$file" in
-        *.db|*.tar.gz|*.zip|*.json|*.sql)
+        *.tar.gz)
             (
               flock -n 200 || exit 0
               "$BIN"
