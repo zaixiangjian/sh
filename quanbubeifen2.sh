@@ -1,11 +1,12 @@
 #!/bin/bash
 # --------------------------------------------------------
 # 单 SSH 会话传输多个目录到远程 VPS（保持原路径）
-# 中文目录支持、锁机制、防止短时间多 SSH 被拒绝
+# 200 号专用：独立锁机制
 # --------------------------------------------------------
 
-LOCKFILE="/tmp/quanbubeifen.lock"
-PIDFILE="/tmp/quanbubeifen.pid"
+# 修改点：将文件名改为 quanbubeifen2，避免与 100 冲突
+LOCKFILE="/tmp/quanbubeifen2.lock"
+PIDFILE="/tmp/quanbubeifen2.pid"
 
 # 假锁检测：如果 LOCKFILE 存在，但 PID 文件不存在，直接清理
 if [ -f "$LOCKFILE" ]; then
@@ -21,9 +22,9 @@ if [ -f "$LOCKFILE" ]; then
     fi
 fi
 
-# 加锁
-exec 200>"$LOCKFILE"
-flock -n 200 || { echo "另一个传输正在运行，退出"; exit 0; }
+# 加锁 (注意这里的 200> 是文件描述符，建议保持或改为 201 以示彻底区别)
+exec 201>"$LOCKFILE"
+flock -n 201 || { echo "另一个 200 号传输正在运行，退出"; exit 0; }
 
 # 写入当前 PID
 echo $$ > "$PIDFILE"
