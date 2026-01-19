@@ -176,7 +176,7 @@ done
       echo "99.J 论坛备份"
       echo "999. 论坛恢复检测/home目录解压到/var只需要kejilion.sh  11 72  2重建即可"
       echo "------------------------"
-      echo "100.全部备份传送同步本地"
+      echo "188.全部备份传送同步本地"
       echo "200.全部备份传送不删除远程文件"
       echo "------------------------"
       echo "使用100与200前先用远程连接一次更换为远程 IP "
@@ -1870,7 +1870,8 @@ EOF
     ;;
 
 
-100)
+
+188)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1888,7 +1889,6 @@ EOF
     TMP_SCRIPT="/home/quanbubeifen_build/tmp.sh"
     OBFUSCATED_SCRIPT="/home/quanbubeifen_build/obf.sh"
     OUTPUT_BIN="/home/quanbubeifen.x"
-    LOCK_FILE="/tmp/quanbubeifen.lock"
 
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -1897,65 +1897,76 @@ IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 EOF
 
     cat quanbubeifen.sh >> "$TMP_SCRIPT"
+
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
     sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
     shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
     chmod +x "$OUTPUT_BIN"
     strip "$OUTPUT_BIN" >/dev/null 2>&1
     upx "$OUTPUT_BIN" >/dev/null 2>&1
+
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务逻辑 --------
-    echo "------------------------"
-    echo "选择备份频率："
-    echo "1) 每周定时备份"
-    echo "2) 每天定时备份"
-    echo "3) 每几天备份一次"
-    read -p "请输入选项 [1-3]: " cron_choice
-    case $cron_choice in
-      1) read -e -p "星期 (0-6): " w; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      2) read -e -p "点 (0-23): " h; read -e -p "分 (0-59): " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      3) read -e -p "每几天: " d; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-    esac
+    # -------- 定时任务：每几分钟运行一次（防重复） --------
 
-    # -------- 实时监控服务 (100) --------
+    echo "------------------------"
+    read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
+
+    # 100号专用锁
+    LOCK_FILE="/tmp/quanbubeifen.lock"
+
+    (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
+     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+
+    # -------- 目录变更即时监控 --------
     if ! command -v inotifywait >/dev/null 2>&1; then
-      apt-get update && apt-get install -y inotify-tools || yum install -y inotify-tools
+      if grep -qi "ubuntu\|debian" /etc/os-release; then
+        apt-get update && apt-get install -y inotify-tools
+      elif grep -qi "centos\|redhat" /etc/os-release; then
+        yum install -y inotify-tools
+      fi
     fi
 
-    cat > /home/jiankong.sh << 'EOF'
+# 创建监控脚本
+cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 WATCH_DIR="/home/密码"
-BIN="/home/quanbubeifen.x"
-LOCK_FILE="/tmp/quanbubeifen.lock"
-mkdir -p "$WATCH_DIR"
 inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
     sleep 2
-    flock -n "$LOCK_FILE" "$BIN"
+    /home/quanbubeifen.x
+    /home/quanbubeifen2.x
 done
 EOF
-    chmod +x /home/jiankong.sh
 
-    cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
+chmod +x /home/jiankong.sh
+
+# systemd 服务
+cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
 [Unit]
-Description=目录监控服务100
+Description=目录监控即时传送
 After=network.target
+
 [Service]
 ExecStart=/home/jiankong.sh
 Restart=always
 User=root
+WorkingDirectory=/root
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 [Install]
 WantedBy=multi-user.target
 EOF
-    systemctl daemon-reload
-    systemctl enable --now quanbubeifen-watch
-    echo "--------------------------------"
-    echo "✔ 100 部署成功: /home/quanbubeifen.x"
-    read -p "安装完成，按回车键继续..." 
+
+systemctl daemon-reload
+systemctl enable quanbubeifen-watch
+systemctl restart quanbubeifen-watch
+
+echo "--------------------------------"
+echo "✔ 执行文件：/home/quanbubeifen.x"
+echo "✔ 定时任务：每 $interval 分钟使用 $LOCK_FILE"
     ;;
 
-  200)
+200)
     read -e -p "输入远程服务器IP: " useip
     read -e -p "输入远程服务器密码: " usepasswd
 
@@ -1973,7 +1984,6 @@ EOF
     TMP_SCRIPT="/home/quanbubeifen_build/tmp.sh"
     OBFUSCATED_SCRIPT="/home/quanbubeifen_build/obf.sh"
     OUTPUT_BIN="/home/quanbubeifen2.x"
-    LOCK_FILE="/tmp/quanbubeifen2.lock"
 
     cat > "$TMP_SCRIPT" <<EOF
 #!/bin/bash
@@ -1982,62 +1992,44 @@ IP=\$(curl -4 -s ifconfig.me || curl -4 -s ipinfo.io/ip || echo '0.0.0.0')
 EOF
 
     cat quanbubeifen2.sh >> "$TMP_SCRIPT"
+
     bash-obfuscate "$TMP_SCRIPT" -o "$OBFUSCATED_SCRIPT"
     sed -i '1s|^|#!/bin/bash\n|' "$OBFUSCATED_SCRIPT"
     shc -r -f "$OBFUSCATED_SCRIPT" -o "$OUTPUT_BIN"
     chmod +x "$OUTPUT_BIN"
     strip "$OUTPUT_BIN" >/dev/null 2>&1
     upx "$OUTPUT_BIN" >/dev/null 2>&1
+
     rm -rf /home/quanbubeifen_build
 
-    # -------- 定时任务逻辑 --------
+    # -------- 定时任务：每几分钟运行一次（防重复） --------
+
     echo "------------------------"
-    echo "选择 200 号备份频率："
-    echo "1) 每周定时备份"
-    echo "2) 每天定时备份"
-    echo "3) 每几天备份一次"
-    read -p "请输入选项 [1-3]: " cron_choice
-    case $cron_choice in
-      1) read -e -p "星期 (0-6): " w; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * $w flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      2) read -e -p "点 (0-23): " h; read -e -p "分 (0-59): " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-      3) read -e -p "每几天: " d; read -e -p "点: " h; read -e -p "分: " m; (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; echo "$m $h */$d * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab - ;;
-    esac
+    read -e -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
 
-    # -------- 实时监控服务 (200) --------
-    if ! command -v inotifywait >/dev/null 2>&1; then
-      apt-get update && apt-get install -y inotify-tools || yum install -y inotify-tools
-    fi
+    # 200号专用锁名，防止与100号冲突
+    LOCK_FILE="/tmp/quanbubeifen2.lock"
 
-    cat > /home/jiankong2.sh << 'EOF'
+    (crontab -l 2>/dev/null | grep -v "$OUTPUT_BIN"; \
+     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
+
+    # 重复监控脚本逻辑（保持同步）
+cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
 WATCH_DIR="/home/密码"
-BIN="/home/quanbubeifen2.x"
-LOCK_FILE="/tmp/quanbubeifen2.lock"
-mkdir -p "$WATCH_DIR"
 inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
     sleep 2
-    flock -n "$LOCK_FILE" "$BIN"
+    /home/quanbubeifen.x
+    /home/quanbubeifen2.x
 done
 EOF
-    chmod +x /home/jiankong2.sh
-
-    cat > /etc/systemd/system/quanbubeifen-watch2.service << EOF
-[Unit]
-Description=目录监控服务200
-After=network.target
-[Service]
-ExecStart=/home/jiankong2.sh
-Restart=always
-User=root
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-[Install]
-WantedBy=multi-user.target
-EOF
+    chmod +x /home/jiankong.sh
     systemctl daemon-reload
-    systemctl enable --now quanbubeifen-watch2
+    systemctl restart quanbubeifen-watch
+
     echo "--------------------------------"
-    echo "✔ 200 部署成功: /home/quanbubeifen2.x"
-    read -p "安装完成，按回车键继续..." 
+    echo "✔ 执行文件：/home/quanbubeifen2.x"
+    echo "✔ 定时任务：每 $interval 分钟使用 $LOCK_FILE"
     ;;
 
 
