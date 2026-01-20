@@ -5412,7 +5412,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包 ${gl_huang}★${gl_bai}"
-
+	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -9315,6 +9315,176 @@ EOF
             esac
         done
         ;;
+
+
+83)
+    while true; do
+        clear
+        echo -e "------------------------------------------------"
+        echo -e "     Caddy & Cloudflare 自动化编译与安装工具"
+        echo -e "------------------------------------------------"
+        echo -e "【开发编译与推送】"
+        echo -e "1)  一键安装环境并编译 Caddy (含 Cloudflare 插件)"
+        echo -e "2)  登录 Docker Hub"
+        echo -e "3)  推送镜像到 Docker Hub"
+        echo -e "------------------------------------------------"
+        echo -e "【Docker-Compose 管理 (推荐)】"
+        echo -e "11) 安装/启动 Caddy (可自定义目录与 Token)"
+        echo -e "12) 更新 Caddy 镜像 (latest)"
+        echo -e "13) 查看 DNS 模块 (验证插件)"
+        echo -e "14) 重载 Caddy 配置 (热更新)"
+        echo -e "15) 卸载 Caddy (Compose 模式)"
+        echo -e "------------------------------------------------"
+        echo -e "【Docker Run 手动管理 (自定义路径)】"
+        echo -e "21) 手动路径安装 (可自定义挂载目录)"
+        echo -e "22) 更新 Caddy 镜像 (latest)"
+        echo -e "23) 卸载 Caddy (Run 模式)"
+        echo -e "------------------------------------------------"
+        echo -e "0)  返回主菜单"
+        echo -e "------------------------------------------------"
+        read -p "请输入操作编号: " dev_choice
+
+        # 基础变量配置
+        build_base="/home/docker/build_temp"
+        github_prefix="https://github.com/zaixiangjian"
+        docker_img="zaixiangjian/caddy:latest"
+
+        case $dev_choice in
+            1)
+                echo -e "\n--- 开始全自动构建环境与编译 ---"
+                apt update && apt install -y git curl
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                    systemctl enable --now docker
+                fi
+                mkdir -p "$build_base" && cd "$build_base"
+                rm -rf caddy
+                echo "正在克隆源码并开始构建..."
+                git clone "$github_prefix/caddy.git"
+                cd caddy
+                # 注意：此处依赖你仓库里的 Dockerfile 是否为多阶段插件编译版
+                docker build --pull -t "$docker_img" .
+                [ $? -eq 0 ] && echo "✅ 编译成功！" || echo "❌ 编译失败"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                docker push "$docker_img"
+                [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            11)
+                echo -e "\n--- Compose 安装模式 ---"
+                read -p "请输入安装根目录 (默认 /home/docker/caddy/): " caddy_path
+                caddy_path=${caddy_path:-/home/docker/caddy/}
+                mkdir -p "$caddy_path/data" "$caddy_path/config"
+                cd "$caddy_path" || exit
+
+                if [ ! -f "Caddyfile" ]; then
+                    echo "创建默认 Caddyfile..."
+                    echo -e ":80 {\n    respond \"Hello Caddy\"\n}" > Caddyfile
+                fi
+
+                if [ ! -f "docker-compose.yml" ]; then
+                    read -p "请输入 Cloudflare Token (CF_API_TOKEN): " cf_token
+                    cat <<EOF > docker-compose.yml
+services:
+  caddy:
+    image: $docker_img
+    container_name: caddy
+    restart: always
+    ports:
+      - "8080:80"
+      - "2053:443"
+      - "2053:443/udp"
+    environment:
+      - CF_API_TOKEN=$cf_token
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./data:/data
+      - ./config:/config
+EOF
+                fi
+                docker compose up -d
+                echo "✅ Compose 在 $caddy_path 启动完成"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            12|22)
+                echo "正在强制拉取最新镜像..."
+                docker pull "$docker_img"
+                docker restart caddy
+                echo "✅ 更新完毕（已尝试重启容器）"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            13)
+                echo "--- 检查 DNS 模块状态 ---"
+                if docker ps | grep -q caddy; then
+                    docker exec -it caddy caddy list-modules | grep cloudflare
+                else
+                    echo "❌ Caddy 容器未运行"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            14)
+                echo "正在平滑重载配置..."
+                docker exec -it caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            15)
+                echo "正在通过 Compose 停止并卸载..."
+                read -p "请输入安装根目录 (默认 /home/docker/caddy/): " del_path
+                del_path=${del_path:-/home/docker/caddy/}
+                if [ -d "$del_path" ]; then
+                    cd "$del_path" && docker compose down
+                    echo "✅ 容器已停止并移除"
+                else
+                    echo "❌ 找不到目录: $del_path"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            21)
+                read -p "请输入安装根目录 (默认 /home/docker/caddy/): " run_path
+                run_path=${run_path:-/home/docker/caddy/}
+                mkdir -p "$run_path/data" "$run_path/config"
+                [ ! -f "$run_path/Caddyfile" ] && echo ":80 { respond \"Hello\" }" > "$run_path/Caddyfile"
+                
+                read -p "请输入 Cloudflare API Token: " cf_token
+                docker run -d \
+                  --name caddy \
+                  -p 8080:80 -p 2053:443 -p 2053:443/udp \
+                  -v "$run_path/Caddyfile":/etc/caddy/Caddyfile \
+                  -v "$run_path/data":/data \
+                  -v "$run_path/config":/config \
+                  -e CF_API_TOKEN="$cf_token" \
+                  --restart always \
+                  "$docker_img"
+                echo "✅ Run 模式安装完成 (路径: $run_path)"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            23)
+                echo "正在强制卸载 Caddy 容器..."
+                docker rm -f caddy
+                echo "✅ 容器 caddy 已被移除"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
 
 
 
