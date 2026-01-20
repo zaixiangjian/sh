@@ -5364,7 +5364,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}宝塔面板官方版                      ${gl_kjlan}2.   ${gl_bai}aaPanel宝塔国际版"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}1Panel新一代管理面板                ${gl_kjlan}4.   ${gl_bai}NginxProxyManager可视化面板"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}AList3.40.0开源                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版"
+	  echo -e "${gl_kjlan}5.   ${gl_bai}AList3.40.0开源                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}哪吒探针VPS监控面板                 ${gl_kjlan}8.   ${gl_bai}QB离线BT磁力下载面板"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io邮件服务器程序              ${gl_kjlan}10.  ${gl_bai}RocketChat多人在线聊天系统"
 	  echo -e "${gl_kjlan}------------------------"
@@ -8499,10 +8499,10 @@ while true; do
   echo -e "------------------------------------------------"
   echo -e "         Sun-Panel 镜像维护工具"
   echo -e "------------------------------------------------"
-  echo -e "1) 安装依赖环境 (Node.js, pnpm, Docker)"
-  echo -e "2) 克隆源码并编译 Docker 镜像"
-  echo -e "3) 登录 Docker Hub"
-  echo -e "4) 推送镜像到 Docker Hub (zaixiangjian/sun-panel:latest)"
+  echo -e "21) 安装依赖环境 (Node.js, pnpm, Docker)"
+  echo -e "22) 克隆源码并编译 Docker 镜像"
+  echo -e "23) 登录 Docker Hub"
+  echo -e "24) 推送镜像到 Docker Hub (zaixiangjian/sun-panel:latest)"
   echo -e "5) 安装并运行 sun-panel 容器 (/home/docker/sun-panel)"
   echo -e "6) 更新已安装容器"
   echo -e "7) 卸载 sun-panel 并删除 /home/docker/sun-panel"
@@ -8513,7 +8513,7 @@ while true; do
   read -e -p "请输入选择: " choice
 
   case $choice in
-    1)
+    21)
       echo -e "\n🚀 安装依赖环境..."
       apt update && apt install -y curl git build-essential lsb-release ca-certificates gnupg
       curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
@@ -8534,7 +8534,7 @@ while true; do
       read -n1 -r -p "回车继续..." key
       ;;
 
-    2)
+    22)
       echo -e "\n📂 克隆源码并编译 Docker 镜像..."
       mkdir -p /home/docker
       cd /home/docker
@@ -8572,13 +8572,13 @@ while true; do
       read -n1 -r -p "回车继续..." key
       ;;
 
-    3)
+    23)
       echo -e "\n🔑 登录 Docker Hub ..."
       docker login
       read -n1 -r -p "回车继续..." key
       ;;
 
-    4)
+    24)
       echo -e "\n📤 推送镜像到 Docker Hub ..."
       docker tag sun-panel zaixiangjian/sun-panel:latest
       docker push zaixiangjian/sun-panel:latest
