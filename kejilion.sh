@@ -7081,10 +7081,10 @@ EOF
               echo -e "------------------------------------------------"
               echo -e "         Nexterm 维护者编译与发布工具"
               echo -e "------------------------------------------------"
-              echo -e "1) 自动检测并安装构建环境 (Node, pnpm, Docker)"
-              echo -e "2) 克隆源码并编译 Docker 镜像"
-              echo -e "3) 登录 Docker Hub"
-              echo -e "4) 推送镜像到 Docker Hub (zaixiangjian/nexterm)"
+              echo -e "21) 自动检测并安装构建环境 (Node, pnpm, Docker)"
+              echo -e "22) 克隆源码并编译 Docker 镜像"
+              echo -e "23) 登录 Docker Hub"
+              echo -e "24) 推送镜像到 Docker Hub (zaixiangjian/nexterm)"
               echo -e "------------------------------------------------"
               echo -e "5) 安装并运行本地容器 (测试用)"
               echo -e "6) 更新已安装容器"
@@ -7104,7 +7104,7 @@ EOF
               docker_port=6989
 
               case $dev_choice in
-                1)
+                21)
                     echo "开始环境自检..."
                     
                     # 1. 检查 Docker
@@ -7146,7 +7146,7 @@ EOF
                     sleep 2
                     read -n1 -r -p "回车继续..." key
                     ;;
-                2)
+                22)
                     echo "正在克隆并编译镜像..."
                     # 检查是否安装了 git
                     if ! command -v git &> /dev/null; then apt-get install -y git; fi
@@ -7168,12 +7168,12 @@ EOF
                     sleep 2
                     read -n1 -r -p "回车继续..." key
                     ;;
-                3)
+                23)
                     echo "正在登录 Docker Hub..."
                     docker login
                     read -n1 -r -p "回车继续..." key
                     ;;
-                4)
+                24)
                     echo "正在推送镜像至云端..."
                     docker push $docker_img
                     [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
