@@ -5364,7 +5364,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}宝塔面板官方版                      ${gl_kjlan}2.   ${gl_bai}aaPanel宝塔国际版"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}1Panel新一代管理面板                ${gl_kjlan}4.   ${gl_bai}NginxProxyManager可视化面板"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}AList3.40.0开源                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
+	  echo -e "${gl_kjlan}5.   ${gl_bai}哪吒探针备份与恢复                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}哪吒探针VPS监控面板                 ${gl_kjlan}8.   ${gl_bai}QB离线BT磁力下载面板"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io邮件服务器程序              ${gl_kjlan}10.  ${gl_bai}RocketChat多人在线聊天系统"
 	  echo -e "${gl_kjlan}------------------------"
@@ -5519,61 +5519,61 @@ linux_panel() {
 
 			  ;;
 
-		  5)
-			if [ ! -d /home/docker/alist/ ]; then
-				mkdir -p /home/docker/alist/ > /dev/null 2>&1
-			fi
 
-			wget -O /home/docker/alist/alist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/3.40.0/alist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/docker/alist/alist-linux-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
-			chmod +x /home/docker/alist/alist
+5)
+	clear
+	send_stats "哪吒监控管理"
+	while true; do
+		clear
+		echo "哪吒监控管理"
+		echo "开源、轻量、易用的服务器监控与运维工具"
+		echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
+		echo "------------------------"
+		echo "1. 安装 / 更新哪吒"
+		echo "♻️ 使用1安装然后使用3号恢复"
+		echo "------------------------"
+		echo "22. 备份哪吒面板"
+		echo "3. 恢复哪吒面板"
+		echo "0. 返回上一级"
+		echo "------------------------"
+		read -e -p "输入你的选择: " choice
 
-			nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
-			sleep 5
-
-			# 提取密码与 IP
-			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
-			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
-			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
-
-			# 添加开机启动定时任务（延迟10秒）
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &') | crontab -
-			)
-
-			clear
-			echo "alist 已安装"
-			echo "Alist 是一个支持多种存储挂载的文件列表程序"
-			echo ""
-			echo "访问地址:"
-			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
-   			echo "如果打不开手动放行5244端口ufw命令为ufw allow 5244/tcp"
-			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
-			echo ""
-			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 Alist"
-			echo "命令内容为："
-			echo "nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
-			echo ""
-			echo "------------------------"
-			echo "1. 安装            2. 更新            3. 卸载"
-			echo "------------------------"
-			echo "0. 返回上一级"
-			echo "------------------------"
-			echo -n "请输入你的选择: "
-
-			exit 0  # 防止继续执行 case 后续内容
-
-			docker_name="alist"
-			docker_img=""
-			docker_port=5244
-			docker_rum="setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
-			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
-			docker_url=""
-			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
-			docker_passwd=""
-			docker_app
-			  ;;
+		case $choice in
+			1)
+				# 安装或更新哪吒面板
+				curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh
+				chmod +x nezha.sh
+				sudo ./nezha.sh
+				;;
+			22)
+				# 备份哪吒面板
+				mkdir -p /home/nezha
+				tar czvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha dashboard
+				echo "✅ 备份完成: /home/nezha/nezha_full_backup.tar.gz"
+				;;
+			3)
+				# 恢复哪吒面板
+				read -e -p "确定要恢复吗？这会覆盖现有面板！(y/n): " confirm
+				if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+					cd /opt/nezha
+					rm -rf dashboard
+					tar xzvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha
+					echo "✅ 恢复完成，正在重启面板..."
+					./nezha.sh restart_and_update
+				else
+					echo "已取消恢复"
+				fi
+				;;
+			0)
+				break
+				;;
+			*)
+				echo "无效选项"
+				;;
+		esac
+		read -n 1 -s -r -p "按任意键继续..."
+	done
+	;;
 
 
 		6)
@@ -5716,6 +5716,8 @@ linux_panel() {
 				echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
 				echo "------------------------"
 				echo "1. 使用           0. 返回上一级"
+				echo "------------------------"
+				echo "⚠️ 使用5号配置进行备份与恢复配置 ⚠️"
 				echo "------------------------"
 				read -e -p "输入你的选择: " choice
 
