@@ -5534,7 +5534,10 @@ linux_panel() {
 		echo "♻️ 使用1安装然后使用3号恢复"
 		echo "=============================="
 		echo "22. 备份哪吒面板"
+		echo "=============================="
 		echo "3. 恢复哪吒面板"
+		echo "3号恢复后使用1安装脚本3号启动"
+		echo "=============================="
 		echo "0. 返回上一级"
 		echo "------------------------"
 		read -e -p "输入你的选择: " choice
@@ -5560,7 +5563,6 @@ linux_panel() {
 					rm -rf dashboard
 					tar xzvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha
 					echo "✅ 恢复完成，正在重启面板..."
-					./nezha.sh restart_and_update
 				else
 					echo "已取消恢复"
 				fi
