@@ -5412,7 +5412,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}         ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言) 自动化管理工具 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -9492,6 +9492,184 @@ EOF
     ;;
 
 
+
+
+84)
+        while true; do
+            clear
+            echo -e "------------------------------------------------"
+            echo -e "      Hitokoto API (一言) 自动化管理工具"
+            echo -e "------------------------------------------------"
+            echo -e "【源码编译与推送】"
+            echo -e "1)  一键安装环境并编译 Hitokoto API 镜像"
+            echo -e "2)  登录 Docker Hub"
+            echo -e "3)  推送镜像到 Docker Hub"
+            echo -e "------------------------------------------------"
+            echo -e "【部署与管理】"
+            echo -e "11) 快速部署 (Docker Compose 模式)"
+            echo -e "12) 查看 API 运行日志"
+            echo -e "13) 检查 API 健康状态 (Curl 测试)"
+            echo -e "14) 停止并卸载 API 容器"
+            echo -e "------------------------------------------------"
+            echo -e "0)  返回主菜单"
+            echo -e "------------------------------------------------"
+            read -p "请输入操作编号: " hito_choice
+
+            # 基础变量配置
+            build_base="/home/docker/build_hito"
+            github_url="https://github.com/zaixiangjian/hitokoto-api.git"
+            docker_img="zaixiangjian/hitokoto-api:latest"
+
+            case $hito_choice in
+                1)
+                    echo -e "\n--- 开始全自动构建环境与编译 ---"
+                    apt update && apt install -y git curl
+                    if ! command -v docker &> /dev/null; then
+                        curl -fsSL https://get.docker.com | bash -
+                        systemctl enable --now docker
+                    fi
+
+                    mkdir -p "$build_base" && cd "$build_base"
+                    rm -rf hitokoto-api
+
+                    echo "正在从 $github_url 克隆源码..."
+                    git clone "$github_url"
+                    cd hitokoto-api || exit 1
+
+                    echo "写入 Docker 专用 Dockerfile（禁用 husky）..."
+
+cat > Dockerfile <<'EOF'
+FROM node:20-slim
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json* ./
+
+# 关键：彻底禁用 husky / postinstall
+RUN npm install --legacy-peer-deps --omit=dev --ignore-scripts
+
+COPY . .
+
+EXPOSE 8000
+CMD ["npm", "run", "start"]
+EOF
+
+                    echo "正在构建 Docker 镜像: $docker_img"
+                    docker build --pull -t "$docker_img" .
+
+                    if [ $? -eq 0 ]; then
+                        echo "✅ 镜像编译成功！"
+                    else
+                        echo "❌ 编译失败"
+                    fi
+
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                2)
+                    docker login
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                3)
+                    echo "正在推送镜像到仓库..."
+                    docker push "$docker_img"
+                    [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+11)
+    echo -e "\n--- Hitokoto API + Redis 强制配置部署 ---"
+    read -p "请输入部署目录 (默认 /home/docker/hitokoto): " hito_path
+    hito_path=${hito_path:-/home/docker/hitokoto}
+    mkdir -p "$hito_path" && cd "$hito_path"
+
+    # 创建一个强制配置文件
+    echo "正在生成生产环境配置..."
+    cat <<EOF > data.yml
+# Hitokoto API 运行时配置
+server:
+  host: 0.0.0.0
+  port: 8000
+redis:
+  host: hitokoto-redis
+  port: 6379
+  password: 
+  database: 0
+EOF
+
+    echo "正在写入 docker-compose.yml..."
+    cat <<EOF > docker-compose.yml
+services:
+  hitokoto-redis:
+    image: redis:7-alpine
+    container_name: hitokoto-redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  hitokoto:
+    image: $docker_img
+    container_name: hitokoto-api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      # 将外部配置强制覆盖到容器内的配置目录
+      # 假设项目配置路径为 /app/data/config.yml 或类似的，这里根据源码调整
+      - ./data.yml:/app/data/config.yml
+    depends_on:
+      hitokoto-redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=hitokoto-redis
+EOF
+
+    echo "正在重启服务..."
+    docker compose down
+    docker compose up -d
+    echo "✅ 部署更新完成！"
+    read -n1 -r -p "回车继续..." key
+    ;;
+
+
+
+                12)
+                    echo "--- 正在查看容器日志 (Ctrl+C 退出) ---"
+                    docker logs -f hitokoto-api
+                    ;;
+
+                13)
+                    echo "--- 正在测试接口响应 ---"
+                    curl -s http://127.0.0.1:8000 | jq . 2>/dev/null || curl -s http://127.0.0.1:8000
+                    echo -e "\n------------------------"
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                14)
+                    echo "正在停止并移除容器..."
+                    read -p "请输入部署目录 (默认 /home/docker/hitokoto): " del_path
+                    del_path=${del_path:-/home/docker/hitokoto}
+                    if [ -d "$del_path" ]; then
+                        cd "$del_path" && docker compose down
+                        echo "✅ 容器已移除"
+                    else
+                        echo "❌ 找不到目录: $del_path"
+                    fi
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                0) break ;;
+                *) echo "无效选择"; sleep 1 ;;
+            esac
+        done
+        ;;
 
 
 
