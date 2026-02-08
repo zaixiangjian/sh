@@ -16,7 +16,7 @@ tar czvf /home/论坛备份/V_$(date +"%Y-%m-%d-%H%M%S").tar.gz -C /var/ discour
 
 
 # Transfer the tar archive to another VPS
-ls -t /home/论坛备份/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/论坛备份
+ls -t /home/论坛备份/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/备份/论坛备份
 
 
 # Keep only 5 tar archives in /home/论坛备份/ and delete the rest
