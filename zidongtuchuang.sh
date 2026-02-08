@@ -16,7 +16,7 @@ tar czvf /home/图床/web_$(date +"%Y%m%d%H%M%S").tar.gz -C /home/ web
 
 
 # Transfer the tar archive to another VPS
-ls -t /home/图床/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/图床
+ls -t /home/图床/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/备份/图床
 
 
 # Keep only 5 tar archives in /home/图床/ and delete the rest
