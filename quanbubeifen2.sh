@@ -44,13 +44,8 @@ WAIT_SECONDS=5
 
 SRC_LIST=(
   /home/beifen.sh
-  /home/博客/
-  /home/图床/
-  /home/密码/
-  /home/论坛/
-  /home/论坛1/
-  /home/论坛备份/
-  /home/论坛备份1/
+  /home/备份/
+
 )
 
 echo "[$(date)] 开始传输所有目录到 $REMOTE_IP（保持原路径）"
