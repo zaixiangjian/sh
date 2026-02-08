@@ -16,7 +16,7 @@ tar czvf /home/博客/web_$(date +"%Y%m%d%H%M%S").tar.gz -C /home/ web
 
 
 # Transfer the tar archive to another VPS
-ls -t /home/博客/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/博客
+ls -t /home/博客/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/备份/博客
 
 
 # Keep only 5 tar archives in /home/博客/ and delete the rest
