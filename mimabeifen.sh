@@ -41,7 +41,7 @@ tar -czvf /home/web/密码/mima_$(date +%Y%m%d%H%M%S).tar.gz -C /home/web/ vault
 # ssh-keygen -f "/root/.ssh/known_hosts" -R "103.234.53.1"
 
 #                                                                                         别忘记哈希加密
-ls -t /home/web/密码/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/密码
+ls -t /home/web/密码/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/备份/密码
 
 # Keep only 5 tar archives in /home/beifen/ and delete the rest
 cd /home/web/密码/ && ls -t *.tar.gz | tail -n +10 | xargs -I {} rm {}
