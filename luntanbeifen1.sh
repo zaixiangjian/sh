@@ -13,7 +13,7 @@
 
 # ssh-keygen -f "/root/.ssh/known_hosts" -R "103.234.53.1"
 
-ls -t /var/discourse/shared/standalone/backups/default/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/论坛1
+ls -t /var/discourse/shared/standalone/backups/default/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/备份/论坛1
 
 
 
