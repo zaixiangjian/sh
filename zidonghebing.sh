@@ -1928,7 +1928,7 @@ EOF
 # 创建监控脚本
 cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
-WATCH_DIR="/home/密码"
+WATCH_DIR="/home/备份/密码"
 inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
     sleep 2
     /home/quanbubeifen.x
@@ -2014,7 +2014,7 @@ EOF
     # 重复监控脚本逻辑（保持同步）
 cat > /home/jiankong.sh << 'EOF'
 #!/bin/bash
-WATCH_DIR="/home/密码"
+WATCH_DIR="/home/备份/密码"
 inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
     sleep 2
     /home/quanbubeifen.x
