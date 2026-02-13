@@ -7970,12 +7970,37 @@ EOF
 		  ;;
 
 
-		  62)
-		    clear
-		    echo "▶️ 正在运行安装x-ui一键脚本..."
-		    bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
-		    echo "✅ 安装x-ui脚本运行完成"
-		    ;;
+62)
+        while true; do
+            clear
+            echo "--- X-UI 安装管理界面 ---"
+            echo " 1. 安装原版 x-ui (vaxilu)"
+            echo " 2. 安装增强版 3x-ui (mhsanaei)"
+            echo " 0. 返回上一级菜单"
+            echo "------------------------"
+            read -p "请输入选项 [0-2]: " sub_num
+
+            case $sub_num in
+                1)
+                    echo "▶️ 开始安装原版 x-ui..."
+                    bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
+                    break # 安装完退出子循环，回到主菜单
+                    ;;
+                2)
+                    echo "▶️ 开始安装增强版 3x-ui..."
+                    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+                    break
+                    ;;
+                0)
+                    break # 跳出当前循环，返回主菜单
+                    ;;
+                *)
+                    echo "❌ 输入错误，请重新选择"
+                    sleep 1
+                    ;;
+            esac
+        done
+        ;;
 
 63)
     # =======================
