@@ -142,6 +142,7 @@ while true; do
     echo -e "3. ${CYAN}同步${RESET}"
     echo -e "5. ${RED}卸载${RESET}"
     echo -e "6. 查看日志"
+# 中继名称mail-relay-balancer:2525
     echo -e "0. 退出"
     read -p "指令: " opt
     case "$opt" in
