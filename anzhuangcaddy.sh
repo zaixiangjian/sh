@@ -21,23 +21,30 @@ RESET="\033[0m"
 # ======================================================
 
 # 1. 安装 Caddy
+# 1. 安装 Caddy
 install_caddy() {
     echo -e "${GREEN}🔄 正在检查并安装/修复 Caddy...${RESET}"
+    
+    # 基础依赖安装
+    apt update && apt install -y sudo curl ca-certificates gnupg lsb-release
+
     if command -v caddy >/dev/null 2>&1; then
         if ! caddy version >/dev/null 2>&1; then
             echo -e "${YELLOW}⚠️ 检测到 Caddy 已损坏，准备强制修复...${RESET}"
             rm -f /usr/bin/caddy
         fi
     fi
-    apt update && apt install -y sudo curl ca-certificates gnupg lsb-release
+
     if ! command -v caddy >/dev/null 2>&1; then
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
         apt update && apt install -y caddy
     fi
-    mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
-    chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
-    systemctl enable caddy && systemctl restart caddy
+
+    # --- 关键改进点 ---
+    # 不管 apt 有没有创建用户，我们都调用修复函数强制补齐用户和权限
+    fix_caddy_env 
+
     echo -e "${GREEN}✨ Caddy 就绪：$(caddy version)${RESET}"
 }
 
@@ -229,9 +236,12 @@ restore_caddy_smart() {
                 awk -v domain="$FIRST_DOMAIN" '/^# TAG: / { tag=$0 } $0 ~ domain && $0 ~ "{" { if(tag!="") print tag; found=1 } found { print $0 } found && /^}/ { exit }' "$RECOVER_CADDYFILE" >> "$CONFIG_FILE"
             fi
         done <<< "$BACKUP_DOMAINS"
-    fi
+fi
     cp -an "$TMP_DIR/var/lib/caddy/." "/var/lib/caddy/" 2>/dev/null
-    chown -R caddy:caddy /etc/caddy /var/lib/caddy
+    
+    # 修改这里：从单纯的 chown 改为调用全能修复函数
+    fix_caddy_env
+    
     format_and_reload
     rm -rf "$TMP_DIR"
 }
