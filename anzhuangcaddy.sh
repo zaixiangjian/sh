@@ -325,6 +325,38 @@ update_caddy() {
 
 
 
+# 000. 一键修复运行环境
+fix_caddy_env() {
+    echo -e "${YELLOW}🛠 正在检测并修复 Caddy 运行环境...${RESET}"
+    
+    # 1. 补齐组
+    grep -q "^caddy:" /etc/group || groupadd --system caddy
+
+    # 2. 补齐用户 (使用兼容性更好的短参数)
+    if ! id "caddy" >/dev/null 2>&1; then
+        useradd --system -g caddy -d /var/lib/caddy -s /usr/sbin/nologin -c "Caddy web server" caddy
+        echo -e "${GREEN}✅ 已创建 caddy 用户${RESET}"
+    fi
+
+    # 3. 修正目录权限
+    mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
+    chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
+    
+    # 4. 重启尝试
+    systemctl daemon-reload
+    if systemctl restart caddy; then
+        echo -e "${GREEN}✅ 环境修复成功，Caddy 已启动！${RESET}"
+    else
+        echo -e "${RED}❌ 权限已修复，但启动失败。请运行选项 9 查看日志。${RESET}"
+    fi
+    sleep 2
+}
+
+
+
+
+
+
 
 
 # 核心格式化与校验函数
@@ -362,6 +394,7 @@ menu() {
     echo "88. 查看当前版本"
     echo "99. 卸载 Caddy"
     echo "00. 更新 Caddy"
+    echo "000. 一键修复 Caddy 环境 (用户/权限问题)"
     echo "=============================="
     echo -e "证书路径是: ${CYAN}/var/lib/caddy/.local/share/caddy/certificates/${RESET}"
     echo -e "配置文件路径: ${CYAN}/etc/caddy/${RESET}"
@@ -376,6 +409,7 @@ menu() {
         7) add_mailcow_config ;; 8) delete_config ;; 9) view_logs ;;
         10) status_caddy ;; 11) backup_caddy ;; 12) restore_caddy_smart ;;
         88) show_version ;; 99) uninstall_caddy ;; 00) update_caddy ;;
+        000) fix_caddy_env ;;
         0) exit 0 ;; *) echo "❌ 无效选项" ; sleep 1 ;;
     esac
 }
