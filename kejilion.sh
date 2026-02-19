@@ -5413,7 +5413,9 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
+	  
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
@@ -5421,6 +5423,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
    	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}自编译有48.80.83.84.85"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
 	  read -e -p "请输入你的选择: " sub_choice
@@ -9744,7 +9747,180 @@ EOF
         done
         ;;
 
+85)
+    while true; do
+        clear
+        echo -e "------------------------------------------------"
+        echo -e "      OpenList 最新版 (AList Fork) 编译工具"
+        echo -e "------------------------------------------------"
+        echo -e "【源码与镜像管理】"
+        echo -e "1)  安装环境并修复 Docker (解决 Dpkg/Sock 错误)"
+        echo -e "2)  一键克隆源码并开始 Docker 编译 (本地构建)"
+        echo -e "3)  登录 Docker Hub"
+        echo -e "4)  推送镜像到 Docker Hub"
+        echo -e "------------------------------------------------"
+        echo -e "【容器部署管理】"
+        echo -e "11) 部署/启动 容器 (使用本地最新镜像)"
+        echo -e "12) 强制更新容器 (从远程拉取镜像并重启)"
+        echo -e "13) 查看运行日志 (获取初始密码)"
+        echo -e "14) 快捷重置管理员密码 (admin)"
+        echo -e "15) 停止并彻底卸载 OpenList"
+        echo -e "------------------------------------------------"
+        echo -e "0)  返回主菜单"
+        echo -e "------------------------------------------------"
+        read -p "请输入操作编号: " ol_choice
 
+        # 核心变量配置 - 已更新为最新版 OpenList 地址
+        my_github_url="https://github.com/zaixiangjian/OpenList.git"
+        my_docker_img="zaixiangjian/openlist:latest"
+        build_dir="/home/docker/openlist_latest"
+
+        case $ol_choice in
+            1)
+                echo -e "\n--- [1/3] 正在强制修复系统基础环境 ---"
+                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+                sudo dpkg --configure -a
+                sudo apt --fix-broken install -y
+                
+                echo -e "\n--- [2/3] 更新基础工具 ---"
+                sudo apt update && sudo apt install -y git curl ca-certificates gnupg
+                
+                echo -e "\n--- [3/3] 修复 Docker 服务权限 ---"
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                fi
+                sudo systemctl enable --now docker
+                sudo systemctl start docker
+                sudo chmod 666 /var/run/docker.sock
+                echo -e "\n✅ 环境修复完成！"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                echo -e "\n--- 正在同步 OpenList 最新源码 ---"
+                mkdir -p "$build_dir" && cd "$build_dir"
+                [ -d "OpenList" ] && rm -rf OpenList
+                
+                git clone --depth 1 "$my_github_url"
+                cd OpenList
+
+                # 核心修复：针对 BASE_IMAGE_TAG 报错的暴力替换
+                echo "正在优化 Dockerfile 变量兼容性..."
+                sed -i 's/${BASE_IMAGE_TAG}/base/g' Dockerfile
+                
+                echo -e "\n--- 开始执行 Docker 多阶段编译 ---"
+                # 显式传入 build-arg 以防万一
+                sudo docker build --pull \
+                    --build-arg BASE_IMAGE_TAG=base \
+                    -t "$my_docker_img" .
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ OpenList 编译成功！"
+                else
+                    echo -e "\n❌ 编译失败，请检查上方日志。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                sudo docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            4)
+                echo "正在推送镜像到 Docker Hub..."
+                sudo docker push "$my_docker_img"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+11|12)
+                [ "$ol_choice" == "12" ] && echo -e "\n--- 正在尝试拉取远程镜像 ---" && sudo docker pull "$my_docker_img"
+                
+                echo -e "\n--- 正在清理旧容器并优化启动环境 ---"
+                sudo docker rm -f openlist &>/dev/null
+                
+                # 确保数据目录存在并权限正确
+                mkdir -p "$build_dir/data"
+                sudo chmod -R 777 "$build_dir/data"
+                
+                echo "正在启动 OpenList 容器 (端口 5244)..."
+                sudo docker run -d \
+                    --name openlist \
+                    -p 5244:5244 \
+                    -v "$build_dir/data:/opt/openlist/data" \
+                    --restart always \
+                    "$my_docker_img"
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ 启动成功！"
+                    echo "------------------------------------------------"
+                    echo "🔗 访问地址 (根据网络环境选择):"
+                    
+                    # 获取公网 IPv4
+                    pub_v4=$(curl -s4 --connect-timeout 2 ifconfig.me)
+                    [ -n "$pub_v4" ] && echo -e "   - 公网访问: \033[36mhttp://$pub_v4:5244\033[0m"
+                    
+                    # 获取内网 IPv4
+                    loc_v4=$(hostname -I | awk '{print $1}')
+                    echo -e "   - 局域网访问: \033[36mhttp://$loc_v4:5244\033[0m"
+                    
+                    # 获取全局 IPv6 (过滤 fe80)
+                    loc_v6=$(ip -6 addr show | grep -E 'inet6 [23]' | awk '{print $2}' | cut -d'/' -f1 | head -n 1)
+                    if [ -n "$loc_v6" ]; then
+                        echo -e "   - IPv6 访问: \033[36mhttp:[$loc_v6]:5244\033[0m"
+                    fi
+                    
+                    echo "------------------------------------------------"
+                    echo "正在提取管理员凭据..."
+                    sleep 5  # 等待容器内服务启动
+                    
+                    # 尝试从两个途径获取密码
+                    # 途径1: 容器日志
+                    password=$(sudo docker logs openlist 2>&1 | grep -E "password is:|Successfully generated password:" | awk -F': ' '{print $2}' | xargs)
+                    
+                    # 途径2: 如果日志没有，直接执行内部命令查询
+                    if [ -z "$password" ]; then
+                        password=$(sudo docker exec openlist ./alist admin 2>&1 | grep "admin password:" | awk -F': ' '{print $2}' | xargs)
+                    fi
+
+                    if [ -n "$password" ]; then
+                        echo -e "👤 默认账号: admin"
+                        echo -e "🔑 初始密码: \033[32m$password\033[0m"
+                    else
+                        echo -e "⚠️  提示: 未能自动抓取密码。可能已手动修改或数据库已存在。"
+                        echo -e "请执行选项 14 或输入 \033[33mdocker exec openlist ./alist admin\033[0m 查看。"
+                    fi
+                    echo "------------------------------------------------"
+                else
+                    echo -e "\n❌ 启动失败，请检查 Docker 环境。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            13)
+                echo -e "--- 容器运行日志 (Ctrl+C 退出) ---"
+                sudo docker logs -f --tail 100 openlist
+                ;;
+
+            14)
+                echo "正在随机重置管理员密码..."
+                sudo docker exec -it openlist ./alist admin random
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            15)
+                echo "正在停止并移除 OpenList 相关资源..."
+                sudo docker rm -f openlist &>/dev/null
+                sudo docker rmi "$my_docker_img" &>/dev/null
+                echo "✅ 已清理完成。"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
 
 
 
