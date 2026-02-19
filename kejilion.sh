@@ -9761,9 +9761,8 @@ EOF
         echo -e "------------------------------------------------"
         echo -e "【容器部署管理】"
         echo -e "11) 部署/启动 容器 (使用本地最新镜像)"
-        echo -e "12) 强制更新容器 (从远程拉取镜像并重启)"
-        echo -e "13) 查看运行日志 (获取初始密码)"
-        echo -e "14) 停止并彻底卸载 OpenList"
+        echo -e "12) 查看运行日志 (获取初始密码)"
+        echo -e "13) 停止并彻底卸载 OpenList"
         echo -e "------------------------------------------------"
         echo -e "0)  返回主菜单"
         echo -e "------------------------------------------------"
@@ -9832,7 +9831,7 @@ EOF
                 read -n1 -r -p "回车继续..." key
                 ;;
 
-11|12)
+            11)
                 [ "$ol_choice" == "12" ] && echo -e "\n--- 正在尝试拉取远程镜像 ---" && sudo docker pull "$my_docker_img"
                 
                 echo -e "\n--- 正在清理旧容器并优化启动环境 ---"
@@ -9896,12 +9895,12 @@ EOF
                 read -n1 -r -p "回车继续..." key
                 ;;
 
-            13)
+            12)
                 echo -e "--- 容器运行日志 (Ctrl+C 退出) ---"
                 sudo docker logs -f --tail 100 openlist
                 ;;
 
-            14)
+            13)
                 echo "正在停止并移除 OpenList 相关资源..."
                 sudo docker rm -f openlist &>/dev/null
                 sudo docker rmi "$my_docker_img" &>/dev/null
@@ -9914,6 +9913,7 @@ EOF
         esac
     done
     ;;
+
 
 
 
