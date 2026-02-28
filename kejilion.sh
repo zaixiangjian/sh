@@ -5413,9 +5413,9 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                    ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
-	  
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
@@ -9914,9 +9914,374 @@ EOF
     done
     ;;
 
+86)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      Backrest 资源备份工具 管理脚本"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并完整编译 (前端+后端+Docker)"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 Backrest (/home/docker/backrest)"
+    echo "12) 更新镜像"
+    echo "13) 备份数据"
+    echo "14) 恢复备份"
+    echo "15) 卸载 Backrest"
+    echo "------------------------------------------------"
+    echo "0) 返回上一级"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " br_choice
+
+    my_github_url="https://github.com/zaixiangjian/backrest.git"
+    my_docker_img="zaixiangjian/backrest:latest"
+    build_dir="/home/docker/backrest_build"
+    app_base_dir="/home/docker/backrest"
+    docker_name="backrest"
+    host_tz=$(cat /etc/timezone)
+    host_port="9898"
+    container_port="9898"
+    data_volume="/data"
+
+    case $br_choice in
+
+    1)
+        echo "修复系统环境..."
+        sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock
+        sudo dpkg --configure -a
+        sudo apt --fix-broken install -y
+        sudo apt update
+        sudo apt install -y git curl ca-certificates
+
+        if ! command -v docker &>/dev/null; then
+            curl -fsSL https://get.docker.com | bash -
+        fi
+        sudo systemctl enable --now docker
+        sudo chmod 666 /var/run/docker.sock
+        echo "✅ 环境准备完成"
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    2)
+        echo "开始完整构建流程..."
+
+        mkdir -p "$build_dir"
+        cd "$build_dir"
+        [ -d backrest ] && rm -rf backrest
+
+        git clone --depth 1 "$my_github_url" || {
+            echo "❌ Git 克隆失败"
+            read -n1 -r -p "回车继续..."
+            break
+        }
+
+        cd backrest
+
+        # 安装 Node 20
+        if ! command -v node &>/dev/null; then
+            echo "安装 Node.js 20..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt install -y nodejs
+        fi
+
+        # 构建前端
+        echo "构建 WebUI..."
+        cd webui || { echo "找不到 webui 目录"; break; }
+        npm install
+        npm run build
+
+        if [ ! -d dist ]; then
+            echo "❌ 前端构建失败"
+            read -n1 -r -p "回车继续..."
+            break
+        fi
+
+        cd ..
+
+        # 安装 Go
+        if ! command -v go &>/dev/null; then
+            echo "安装 Go..."
+            sudo apt install -y golang
+        fi
+
+        # 编译后端
+        echo "编译 Go 二进制..."
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags="-s -w" -o backrest ./cmd/backrest
+
+        if [ ! -f backrest ]; then
+            echo "❌ Go 编译失败"
+            read -n1 -r -p "回车继续..."
+            break
+        fi
+
+        # 构建 Docker
+        echo "构建 Docker 镜像..."
+        sudo docker build \
+            --pull \
+            --no-cache \
+            -t "$my_docker_img" \
+            -f Dockerfile.alpine \
+            .
+
+        if [ $? -eq 0 ]; then
+            echo "✅ 镜像构建成功"
+        else
+            echo "❌ Docker 构建失败"
+        fi
+
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    3)
+        sudo docker login
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    4)
+        sudo docker push "$my_docker_img"
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    11)
+        echo "正在部署 Backrest..."
+        sudo docker rm -f $docker_name &>/dev/null
+
+        mkdir -p "$app_base_dir/data" \
+                 "$app_base_dir/config" \
+                 "$app_base_dir/cache" \
+                 "$app_base_dir/tmp" \
+                 "$app_base_dir/rclone"
 
 
+        sudo docker run -d \
+            --name $docker_name \
+            --hostname $docker_name \
+            --restart unless-stopped \
+            -v "$app_base_dir/data:/data" \
+            -v "$app_base_dir/config:/config" \
+            -v "$app_base_dir/cache:/cache" \
+            -v "$app_base_dir/tmp:/tmp" \
+            -v "$app_base_dir/rclone:/root/.config/rclone" \
+            -v /home:/userdata/home \
+            -e BACKREST_DATA=/data \
+            -e BACKREST_CONFIG=/config/config.json \
+            -e XDG_CACHE_HOME=/cache \
+            -e TMPDIR=/tmp \
+            -e TZ=$host_tz \
+            -p "$host_port:$container_port" \
+            $my_docker_img
 
+        if [ $? -eq 0 ]; then
+            ip=$(hostname -I | awk '{print $1}')
+            echo "✅ 启动成功"
+            echo "访问地址: http://$ip:$host_port"
+        else
+            echo "❌ 启动失败"
+        fi
+        read -n1 -r -p "回车继续..."
+        ;;
+    12)
+        echo "正在从 Docker Hub 拉取最新镜像..."
+        sudo docker pull "$my_docker_img"
+        echo "✅ 更新完成"
+        read -n1 -r -p "回车继续..."
+        ;;
+    13)
+        timestamp=$(date +%Y%m%d%H%M%S)
+        backup_file="/home/backrest-backup-$timestamp.tar.gz"
+        echo "正在备份 $app_base_dir 到 $backup_file ..."
+        tar -czvf "$backup_file" -C /home docker/backrest
+        echo "✅ 备份完成: $backup_file"
+        read -n1 -r -p "回车继续..."
+        ;;
+14)
+    echo "可用备份文件列表:"
+    ls -1 /home/backrest-backup-*.tar.gz
+    read -p "输入要恢复的备份文件 (回车默认最新): " restore_file
+    restore_file=${restore_file:-$(ls -1t /home/backrest-backup-*.tar.gz | head -n1)}
+    echo "恢复备份: $restore_file ..."
+
+    # 停止容器
+    sudo docker rm -f $docker_name &>/dev/null
+
+    # 清空原目录并恢复
+    sudo rm -rf "$app_base_dir"
+    mkdir -p "$app_base_dir"
+    tar -xzvf "$restore_file" -C /home
+
+    # 恢复完成后重启容器
+    echo "重启 Backrest 容器..."
+    sudo docker run -d \
+        --name $docker_name \
+        --hostname $docker_name \
+        --restart unless-stopped \
+        -v "$app_base_dir/data:/data" \
+        -v "$app_base_dir/config:/config" \
+        -v "$app_base_dir/cache:/cache" \
+        -v "$app_base_dir/tmp:/tmp" \
+        -v "$app_base_dir/rclone:/root/.config/rclone" \
+        -v /home:/userdata/home \
+        -e BACKREST_DATA=/data \
+        -e BACKREST_CONFIG=/config/config.json \
+        -e XDG_CACHE_HOME=/cache \
+        -e TMPDIR=/tmp \
+        -e TZ=$host_tz \
+        -p "$host_port:$container_port" \
+        $my_docker_img
+
+    if [ $? -eq 0 ]; then
+        ip=$(hostname -I | awk '{print $1}')
+        echo "✅ 恢复并重启完成"
+        echo "访问地址: http://$ip:$host_port"
+    else
+        echo "❌ 恢复后启动失败"
+    fi
+
+    read -n1 -r -p "回车继续..."
+    ;;
+    15)
+        echo "卸载 Backrest ..."
+        sudo docker rm -f $docker_name &>/dev/null
+        sudo docker rmi -f $my_docker_img &>/dev/null
+        sudo rm -rf "$app_base_dir"
+        echo "✅ 已卸载"
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    0) break ;;
+    *) echo "无效选择"; sleep 1 ;;
+    esac
+done
+;;
+
+87)
+    while true; do
+        clear
+        echo -e "------------------------------------------------"
+        echo -e "      Certimate SSL 证书管理工具 编译脚本"
+        echo -e "------------------------------------------------"
+        echo -e "【源码与镜像管理】"
+        echo -e "1)  安装环境并修复 Docker (解决 Dpkg/Sock 错误)"
+        echo -e "2)  一键克隆源码并开始 Docker 编译 (本地构建)"
+        echo -e "3)  登录 Docker Hub"
+        echo -e "4)  推送镜像到 Docker Hub"
+        echo -e "------------------------------------------------"
+        echo -e "【容器部署管理】"
+        echo -e "11) 部署/启动 Certimate (端口 8090)"
+        echo -e "12) 查看运行日志"
+        echo -e "13) 停止并彻底卸载 Certimate"
+        echo -e "------------------------------------------------"
+        echo -e "0)  返回主菜单"
+        echo -e "------------------------------------------------"
+        read -p "请输入操作编号: " ct_choice
+
+        # 核心变量配置
+        my_github_url="https://github.com/zaixiangjian/certimate.git"
+        my_docker_img="zaixiangjian/certimate:latest"
+        build_dir="/home/docker/certimate_build"
+
+        case $ct_choice in
+            1)
+                echo -e "\n--- [1/3] 正在修复系统基础环境 ---"
+                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+                sudo dpkg --configure -a
+                sudo apt --fix-broken install -y
+                
+                echo -e "\n--- [2/3] 更新基础工具 ---"
+                sudo apt update && sudo apt install -y git curl ca-certificates
+                
+                echo -e "\n--- [3/3] 检查并启动 Docker ---"
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                fi
+                sudo systemctl enable --now docker
+                sudo chmod 666 /var/run/docker.sock
+                echo -e "\n✅ 环境准备就绪！"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                echo -e "\n--- 正在同步 Certimate 最新源码 ---"
+                mkdir -p "$build_dir" && cd "$build_dir"
+                [ -d "certimate" ] && rm -rf certimate
+                
+                git clone --depth 1 "$my_github_url"
+                cd certimate
+                
+                echo -e "\n--- 开始执行 Docker 编译 (使用项目默认配置) ---"
+                # 直接使用源码中的 Dockerfile 进行构建
+                sudo docker build -t "$my_docker_img" .
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ Certimate 镜像构建成功！"
+                else
+                    echo -e "\n❌ 编译失败，请检查 Dockerfile 内容或网络环境。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                sudo docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            4)
+                echo "正在推送镜像到 Docker Hub..."
+                sudo docker push "$my_docker_img"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            11)
+                echo -e "\n--- 正在清理旧容器 ---"
+                sudo docker rm -f certimate &>/dev/null
+                
+                # 确保持久化数据目录存在
+                mkdir -p "$build_dir/data"
+                sudo chmod -R 777 "$build_dir/data"
+                
+                echo "正在启动 Certimate 容器 (映射端口 8090)..."
+                # 将宿主机的 8090 映射到容器内部程序监听的端口
+                sudo docker run -d \
+                    --name certimate \
+                    -p 8090:8090 \
+                    -v "$build_dir/data:/app/data" \
+                    --restart always \
+                    "$my_docker_img"
+                
+                if [ $? -eq 0 ]; then
+                    loc_v4=$(hostname -I | awk '{print $1}')
+                    echo -e "\n✅ 启动成功！"
+                    echo "------------------------------------------------"
+                    echo -e "🔗 访问地址: \033[36mhttp://$loc_v4:8090\033[0m"
+                    echo -e "💡 提示: 如果无法访问，请检查防火墙是否放行 8090 端口"
+                    echo "------------------------------------------------"
+                else
+                    echo -e "\n❌ 启动失败。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            12)
+                echo -e "--- 容器运行日志 (Ctrl+C 退出) ---"
+                sudo docker logs -f --tail 100 certimate
+                ;;
+
+            13)
+                echo "正在停止并移除容器..."
+                sudo docker rm -f certimate &>/dev/null
+                echo "✅ 已清理完成。"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
 
 
 
