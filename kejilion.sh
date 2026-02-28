@@ -9932,6 +9932,19 @@ while true; do
     echo "13) 备份数据"
     echo "14) 恢复备份"
     echo "15) 卸载 Backrest"
+
+    echo "------------------------------------------------"
+    echo "在rclone目录创建"
+    echo "config.json"
+    echo "添加下面s3代码"
+    echo "唯一名称r2"
+    echo "[r2]
+type = s3
+provider = 备注名
+access_key_id = 访问id
+secret_access_key = 访问密钥
+endpoint = s3地址"
+
     echo "------------------------------------------------"
     echo "0) 返回上一级"
     echo "------------------------------------------------"
