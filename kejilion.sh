@@ -5406,7 +5406,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                      ${gl_kjlan}70.  ${gl_bai}安装盘搜"
 	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储 ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api"
+	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}                   ${gl_kjlan}74.  ${gl_bai}添加对象存储api（73.88）"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
@@ -5414,7 +5414,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包（63.64.86） ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                    ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -5423,7 +5423,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
    	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}自编译有48.80.83.84.85.86.87"
+	  echo -e "${gl_kjlan}自编译有48.80.83.84.85.86.87.88"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
 	  read -e -p "请输入你的选择: " sub_choice
@@ -10296,7 +10296,155 @@ while true; do
     done
     ;;
 
+88)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      MinIO 自编译管理脚本 (自动下载二进制)"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并准备 Docker 镜像"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 MinIO (/home/docker/minio)"
+    echo "12) 更新镜像到最新版本"
+    echo "13) 卸载 MinIO"
+    echo "0) 返回主菜单"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " ct_choice
 
+    build_dir="/home/docker/build"
+    install_dir="/home/docker/minio"
+    my_github_url="https://github.com/zaixiangjian/minio.git"
+    my_docker_img="zaixiangjian/minio:latest"
+    TARGETARCH=amd64
+    RELEASE=latest
+
+    case $ct_choice in
+        1)
+            echo -e "\n--- [1/3] 修复系统基础环境 ---"
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+            sudo dpkg --configure -a
+            sudo apt --fix-broken install -y
+
+            echo -e "\n--- [2/3] 安装基础工具 ---"
+            sudo apt update
+            sudo apt install -y git curl ca-certificates build-essential make golang
+
+            echo -e "\n--- [3/3] 检查并启动 Docker ---"
+            if ! command -v docker &> /dev/null; then
+                curl -fsSL https://get.docker.com | bash -
+            fi
+            sudo systemctl enable --now docker
+            sudo chmod 666 /var/run/docker.sock
+            echo -e "\n✅ 环境准备就绪！"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        2)
+            echo -e "\n--- 正在同步 MinIO 源码 ---"
+            mkdir -p "$build_dir" && cd "$build_dir"
+            [ -d "minio" ] && rm -rf minio
+            git clone --depth 1 "$my_github_url"
+            cd minio
+
+            echo "--- 准备 MinIO 二进制文件 ---"
+            # 检查是否存在二进制文件，如果没有则从官方 release 下载
+            if [ ! -f "minio-${TARGETARCH}.${RELEASE}" ]; then
+                echo "--- 从官方 MinIO 下载二进制文件 ---"
+                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio -o minio-${TARGETARCH}.${RELEASE}
+                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio.minisig -o minio-${TARGETARCH}.${RELEASE}.minisig
+                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio.sha256sum -o minio-${TARGETARCH}.${RELEASE}.sha256sum
+                chmod +x minio-${TARGETARCH}.${RELEASE}
+            fi
+
+            echo "--- 开始 Docker 构建镜像 ---"
+            sudo docker build --build-arg TARGETARCH=$TARGETARCH --build-arg RELEASE=$RELEASE -t "$my_docker_img" .
+
+            if [ $? -eq 0 ]; then
+                echo -e "\n✅ MinIO 镜像构建成功！"
+            else
+                echo -e "\n❌ Docker 构建失败，请检查二进制文件或 Dockerfile"
+            fi
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        3)
+            sudo docker login
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        4)
+            echo "正在推送镜像到 Docker Hub..."
+            sudo docker push "$my_docker_img"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        11)
+            echo "--- 部署/启动 MinIO ---"
+            sudo docker rm -f minio &>/dev/null
+            mkdir -p "$install_dir/data"
+            sudo chmod -R 777 "$install_dir/data"
+
+            sudo docker run -d \
+                --name minio \
+                --restart unless-stopped \
+                -p 9000:9000 \
+                -p 9001:9001 \
+                -v "$install_dir/data:/data" \
+                -e MINIO_ROOT_USER=admin \
+                -e MINIO_ROOT_PASSWORD=12345678 \
+                "$my_docker_img" server /data --console-address ":9001"
+
+            if [ $? -eq 0 ]; then
+                loc_v4=$(hostname -I | awk '{print $1}')
+                echo "✅ 启动成功！访问 http://$loc_v4:9001"
+                echo "账号：admin"
+                echo "密码：12345678"
+            else
+                echo "❌ 启动失败"
+            fi
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        12)
+            echo "--- 拉取最新镜像 ---"
+            sudo docker pull "$my_docker_img"
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        13)
+            echo "--- 卸载 MinIO（删除容器与镜像，保留本地数据）---"
+
+            # 删除容器（如果存在）
+            if sudo docker ps -a --format '{{.Names}}' | grep -q '^minio$'; then
+                sudo docker rm -f minio
+                echo "✅ 容器已删除"
+            else
+                echo "ℹ️ 容器不存在"
+            fi
+
+            # 删除镜像（如果存在）
+            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^$my_docker_img$"; then
+                sudo docker rmi "$my_docker_img"
+                echo "✅ 镜像已删除"
+            else
+                echo "ℹ️ 镜像不存在"
+            fi
+
+            echo "📦 本地数据目录已保留：$install_dir"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        0) break ;;
+        *) echo "无效选择"; sleep 1 ;;
+    esac
+done
+;;
 
 
 
