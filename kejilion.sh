@@ -10159,32 +10159,31 @@ done
 ;;
 
 87)
-    while true; do
-        clear
-        echo -e "------------------------------------------------"
-        echo -e "      Certimate SSL 证书管理工具 编译脚本"
-        echo -e "------------------------------------------------"
-        echo -e "【源码与镜像管理】"
-        echo -e "1)  安装环境并修复 Docker (解决 Dpkg/Sock 错误)"
-        echo -e "2)  一键克隆源码并开始 Docker 编译 (本地构建)"
-        echo -e "3)  登录 Docker Hub"
-        echo -e "4)  推送镜像到 Docker Hub"
-        echo -e "------------------------------------------------"
-        echo -e "【容器部署管理】"
-        echo -e "11) 部署/启动 Certimate (端口 8090)"
-        echo -e "12) 查看运行日志"
-        echo -e "13) 停止并彻底卸载 Certimate"
-        echo -e "------------------------------------------------"
-        echo -e "0)  返回主菜单"
-        echo -e "------------------------------------------------"
-        read -p "请输入操作编号: " ct_choice
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      Certimate SSL 证书管理工具 编译脚本"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并构建镜像"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 Certimate (/home/docker/certimate)"
+    echo "12) 更新镜像到最新版本"
+    echo "13) 卸载 Certimate"
+    echo "0) 返回主菜单"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " ct_choice
 
-        # 核心变量配置
-        my_github_url="https://github.com/zaixiangjian/certimate.git"
-        my_docker_img="zaixiangjian/certimate:latest"
-        build_dir="/home/docker/certimate_build"
+    # 核心变量配置
+    my_github_url="https://github.com/zaixiangjian/certimate.git"
+    my_docker_img="zaixiangjian/certimate:latest"
 
-        case $ct_choice in
+
+    case $ct_choice in
             1)
                 echo -e "\n--- [1/3] 正在修复系统基础环境 ---"
                 sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
@@ -10235,47 +10234,48 @@ done
                 read -n1 -r -p "回车继续..." key
                 ;;
 
-            11)
-                echo -e "\n--- 正在清理旧容器 ---"
-                sudo docker rm -f certimate &>/dev/null
-                
-                # 确保持久化数据目录存在
-                mkdir -p "$build_dir/data"
-                sudo chmod -R 777 "$build_dir/data"
-                
-                echo "正在启动 Certimate 容器 (映射端口 8090)..."
-                # 将宿主机的 8090 映射到容器内部程序监听的端口
-                sudo docker run -d \
-                    --name certimate \
-                    -p 8090:8090 \
-                    -v "$build_dir/data:/app/data" \
-                    --restart always \
-                    "$my_docker_img"
-                
-                if [ $? -eq 0 ]; then
-                    loc_v4=$(hostname -I | awk '{print $1}')
-                    echo -e "\n✅ 启动成功！"
-                    echo "------------------------------------------------"
-                    echo -e "🔗 访问地址: \033[36mhttp://$loc_v4:8090\033[0m"
-                    echo -e "💡 提示: 如果无法访问，请检查防火墙是否放行 8090 端口"
-                    echo "------------------------------------------------"
-                else
-                    echo -e "\n❌ 启动失败。"
-                fi
-                read -n1 -r -p "回车继续..." key
-                ;;
+        11)
+            echo "--- 部署/启动 Certimate ---"
+            sudo docker rm -f certimate &>/dev/null
+            mkdir -p "$install_dir/data"
+            sudo chmod -R 777 "$install_dir/data"
+            sudo docker run -d \
+                --name certimate \
+                --restart unless-stopped \
+                -p 8090:8090 \
+                -v /etc/localtime:/etc/localtime:ro \
+                -v /etc/timezone:/etc/timezone:ro \
+                -v "$install_dir/data:/app/pb_data" \
+                "$my_docker_img"
+            if [ $? -eq 0 ]; then
+                loc_v4=$(hostname -I | awk '{print $1}')
+                echo "✅ 启动成功！访问 http://$loc_v4:8090"
+            else
+                echo "❌ 启动失败"
+            fi
+                echo "账号"
+                echo "admin@certimate.fun"
+                echo "密码"
+                echo "1234567890"
+            read -n1 -r -p "回车继续..." key
+            ;;
 
-            12)
-                echo -e "--- 容器运行日志 (Ctrl+C 退出) ---"
-                sudo docker logs -f --tail 100 certimate
-                ;;
+        12)
+            echo "--- 拉取最新镜像 ---"
+            sudo docker pull "$my_docker_img"
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
 
-            13)
-                echo "正在停止并移除容器..."
-                sudo docker rm -f certimate &>/dev/null
-                echo "✅ 已清理完成。"
-                read -n1 -r -p "回车继续..." key
-                ;;
+
+        13)
+            echo "--- 卸载 Certimate ---"
+            sudo docker rm -f certimate &>/dev/null
+            sudo docker rmi "$my_docker_img" &>/dev/null
+            sudo rm -rf "$install_dir"
+            echo "✅ 已卸载完成"
+            read -n1 -r -p "回车继续..." key
+            ;;
 
             0) break ;;
             *) echo "无效选择"; sleep 1 ;;
