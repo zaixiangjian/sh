@@ -9935,7 +9935,7 @@ while true; do
 
     echo "------------------------------------------------"
     echo "在rclone目录创建"
-    echo "config.json"
+    echo "rclone.conf"
     echo "添加下面s3代码"
     echo "唯一名称r2"
     echo "[r2]
