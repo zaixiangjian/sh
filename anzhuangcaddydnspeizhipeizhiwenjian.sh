@@ -201,7 +201,12 @@ edit_caddyfile() {
   echo -e "${color_ok}编辑完成并已重启 Caddy${color_end}"
 }
 
-
+view_api_keys() {
+    echo -e "${color_info}正在查看 Caddy service 配置及可能的 DNS API 密钥${color_end}"
+    sudo systemctl cat caddy
+    echo -e "${color_ok}查看完成${color_end}"
+    read -n1 -r -p "按任意键返回菜单..."
+}
 
 
 
@@ -221,6 +226,9 @@ menu() {
   echo "7. 查看 Caddy DNS 模块"
   echo "8. 删除反向代理配置"
   echo "9. 编辑 Caddy 配置文件"
+  echo "=============================="
+  echo "999. 查看添加的api密钥"
+  echo "=============================="
   echo "0. 退出"
   echo "=============================="
 }
@@ -245,6 +253,7 @@ while true; do
     7) check_dns_module ;;
     8) delete_reverse_proxy ;;
     9) edit_caddyfile ;;
+    999) view_api_keys ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
