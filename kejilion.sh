@@ -3704,6 +3704,8 @@ linux_test() {
 	  echo -e "${gl_kjlan}综合性测试"
 	  echo -e "${gl_kjlan}31.  ${gl_bai}bench 性能测试"
 	  echo -e "${gl_kjlan}32.  ${gl_bai}spiritysdx 融合怪测评 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}99.  ${gl_bai}原始脚本IP质量体检脚本https://github.com/xykt/IPQuality ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}999.  ${gl_bai}IP质量体检脚本https://github.com/zaixiangjian/IPQuality/blob/main/ip.sh ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -3815,6 +3817,18 @@ linux_test() {
 			  send_stats "spiritysdx融合怪测评"
 			  clear
 			  curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh
+			  ;;
+
+		  99)
+			  send_stats "IP质量体检脚本https://github.com/xykt/IPQuality"
+			  clear
+			  bash <(curl -Ls https://Check.Place) -I
+			  ;;
+
+		  999)
+			  send_stats "IP质量体检脚本https://github.com/zaixiangjian/IPQuality"
+			  clear
+			  bash <(curl -sS https://raw.githubusercontent.com/zaixiangjian/IPQuality/main/ip.sh) 
 			  ;;
 
 		  0)
