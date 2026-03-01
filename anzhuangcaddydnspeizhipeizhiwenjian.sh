@@ -1,6 +1,7 @@
 #!/bin/bash
 # Caddy + Cloudflare DNS 一键管理脚本
 # 适用于 Debian / Ubuntu
+
 set -e
 
 CADDY_BIN="/usr/local/bin/caddy"
