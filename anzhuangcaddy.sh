@@ -21,7 +21,6 @@ RESET="\033[0m"
 # ======================================================
 
 # 1. 安装 Caddy
-# 1. 安装 Caddy
 install_caddy() {
     echo -e "${GREEN}🔄 正在检查并安装/修复 Caddy...${RESET}"
     
@@ -285,52 +284,46 @@ uninstall_caddy() {
 # 00. 更新 Caddy
 update_caddy() {
     echo -e "${YELLOW}🚀 正在检查 Caddy 更新...${RESET}"
-    
-    # 记录当前版本以便对比
-    OLD_VERSION=$(caddy version 2>/dev/null)
 
-    if dpkg -l | grep -q caddy; then
-        # 如果是 apt 安装的
-        apt update > /dev/null
-        # 模拟安装查看是否有更新
-        UPGRADABLE=$(apt list --upgradable 2>/dev/null | grep caddy)
-        
-        if [ -z "$UPGRADABLE" ]; then
-            echo -e "${GREEN}✅ 已是最新${RESET}"
-        else
-            if apt install --only-upgrade -y caddy; then
-                echo -e "${GREEN}✅ 更新成功${RESET}"
-                systemctl restart caddy
-            else
-                echo -e "${RED}❌ 更新失败${RESET}"
-            fi
-        fi
-    else
-        # 如果是手动下载安装的二进制文件
-        ARCH=$(uname -m)
-        [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
-        [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
-        
-        curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o /tmp/caddy_new
-        
-        if [ $? -eq 0 ] && [ -s /tmp/caddy_new ]; then
-            chmod +x /tmp/caddy_new
-            NEW_VERSION=$(/tmp/caddy_new version 2>/dev/null)
-            
-            if [ "$OLD_VERSION" == "$NEW_VERSION" ]; then
-                echo -e "${GREEN}✅ 已是最新${RESET}"
-                rm -f /tmp/caddy_new
-            else
-                mv /tmp/caddy_new /usr/bin/caddy
-                systemctl restart caddy
-                echo -e "${GREEN}✅ 更新成功 (新版本: $NEW_VERSION)${RESET}"
-            fi
-        else
-            echo -e "${RED}❌ 更新失败 (网络错误或文件损坏)${RESET}"
-            rm -f /tmp/caddy_new
-        fi
+    # 当前版本
+    OLD_VERSION=$(caddy version 2>/dev/null || echo "none")
+
+    # 检测架构
+    ARCH=$(uname -m)
+    [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
+    [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
+
+    # 下载官方最新 Caddy
+    TMP_FILE="/tmp/caddy_new"
+    echo "⏳ 下载官方最新 Caddy..."
+    curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o "$TMP_FILE"
+
+    if [[ ! -s "$TMP_FILE" ]]; then
+        echo -e "${RED}❌ 下载失败，可能网络或文件问题${RESET}"
+        rm -f "$TMP_FILE"
+        return
     fi
-    sleep 2
+
+    chmod +x "$TMP_FILE"
+
+    # 检查版本
+    NEW_VERSION=$("$TMP_FILE" version 2>/dev/null)
+    if [[ "$OLD_VERSION" == "$NEW_VERSION" ]]; then
+        echo -e "${GREEN}✅ 已是最新版本 ($NEW_VERSION)${RESET}"
+        rm -f "$TMP_FILE"
+        return
+    fi
+
+    # 替换为新版本
+    mv "$TMP_FILE" /usr/bin/caddy
+    chmod +x /usr/bin/caddy
+
+    # 修复权限和环境
+    fix_caddy_env
+
+    # 重启服务
+    systemctl restart caddy
+    echo -e "${GREEN}✅ 更新成功，新版本: $NEW_VERSION${RESET}"
 }
 
 
