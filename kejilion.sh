@@ -10467,6 +10467,17 @@ while true; do
     clear
     echo "------------------------------------------------"
     echo "        Nezha 面板 Docker 管理脚本"
+
+    echo "如果官方删除了可以使用这个版本"
+    echo "Linux"
+    echo "curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && chmod +x agent.sh && env NZ_SERVER=Agent对接地址:8008 NZ_TLS=false NZ_CLIENT_SECRET=hkQ9g4oFkA5qrdfeLQTaHY0AA6BHqfFX NZ_UUID=54180658-5d44-a82c-cdfe-7ef48ec1f864 ./agent.sh"
+    echo "只需要把nezhahq改成zaixiangjian"
+    echo "和更改Agent对接地址:8008"
+    echo "------------------------------------------------"
+    echo "Windows与macOS通用"
+    echo "$env:NZ_SERVER="Agent对接地址:8008";$env:NZ_TLS="false";$env:NZ_CLIENT_SECRET="hkQ9g4oFkA5qrdfeLQTaHY0AA6BHqfFX";$env:NZ_UUID="54180658-5d44-a82c-cdfe-7ef48ec1f864"; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Ssl3 -bor [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12;set-ExecutionPolicy RemoteSigned;Invoke-WebRequest https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.ps1 -OutFile C:install.ps1;powershell.exe C:install.ps1"
+    echo "只需要把nezhahq改成zaixiangjian"
+    echo "和更改Agent对接地址:8008"
     echo "------------------------------------------------"
     echo "【安装与更新】"
     echo "1) 安装 Nezha 面板"
@@ -10476,8 +10487,8 @@ while true; do
     echo "3) 备份数据 (/home/nezhav2-时间)"
     echo "4) 从 /home/ 恢复数据"
     echo "------------------------------------------------"
-    echo "【卸载】"
     echo "5) 卸载 Nezha 面板（含 /home/docker/nezha 和 /opt/agent）"
+    echo "6) 只卸载/opt/agent"
     echo "0) 返回上一级"
     echo "------------------------------------------------"
     read -p "请输入操作编号: " choice
@@ -10503,7 +10514,7 @@ while true; do
             docker run -d \
                 --name $container_name \
                 --restart unless-stopped \
-                -v "$install_dir/data":/app/data \
+                -v "$install_dir/data":/dashboard/data \
                 -p "$HOST_PORT":8008 \
                 -e ADMIN_USERNAME=admin \
                 -e ADMIN_PASSWORD=admin \
@@ -10524,26 +10535,78 @@ while true; do
             ;;
 
         3)
-            timestamp=$(date +"%Y%m%d-%H%M%S")
-            backup_dir="/home/nezhav2-$timestamp"
-            mkdir -p "$backup_dir"
-            cp -r "$install_dir" "$backup_dir"
-            echo "✅ 数据已备份到 $backup_dir"
+            timestamp=$(date +"%Y%m%d%H%M%S")
+            backup_file="/home/nezhav2-$timestamp.tar.gz"
+            
+            if [ -d "$install_dir" ]; then
+                tar -czf "$backup_file" -C "$install_dir" .
+                echo "✅ 数据已备份到 $backup_file"
+            else
+                echo "❌ 安装目录 $install_dir 不存在，无法备份"
+            fi
+
             read -n1 -r -p "回车继续..." key
             ;;
 
-        4)
-            echo "可用备份目录："
-            ls -d /home/nezhav2-* 2>/dev/null
-            read -e -p "请输入要恢复的备份目录全路径: " restore_dir
-            if [ -d "$restore_dir" ]; then
-                cp -r "$restore_dir"/* "$install_dir"/
-                echo "✅ 数据已恢复到 $install_dir"
-            else
-                echo "❌ 目录不存在"
-            fi
-            read -n1 -r -p "回车继续..." key
-            ;;
+4)
+    echo "可用备份文件："
+    ls -1 /home/nezhav2-*.tar.gz 2>/dev/null
+    latest_backup=$(ls -1 /home/nezhav2-*.tar.gz 2>/dev/null | sort | tail -n1)
+
+    if [ -z "$latest_backup" ]; then
+        echo "❌ 没有找到备份文件"
+        read -n1 -r -p "回车继续..." key
+        continue
+    fi
+
+    read -e -p "请输入要恢复的备份文件全路径 [回车使用最新: $latest_backup]: " restore_file
+    restore_file=${restore_file:-$latest_backup}
+
+    if [ ! -f "$restore_file" ]; then
+        echo "❌ 文件不存在: $restore_file"
+        read -n1 -r -p "回车继续..." key
+        continue
+    fi
+
+    # 如果容器已存在，先停止
+    if docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
+        echo "--- 停止已有容器 ---"
+        docker stop $container_name
+        docker rm $container_name
+    else
+        # 容器不存在，先确保安装镜像可用
+        docker pull $docker_img
+    fi
+
+    mkdir -p "$install_dir"
+    tar -xzf "$restore_file" -C "$install_dir"
+    echo "✅ 数据已恢复到 $install_dir"
+
+    # 重新启动容器
+    DEFAULT_PORT="8008"
+    read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+    HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+    docker run -d \
+        --name $container_name \
+        --restart unless-stopped \
+        -v "$install_dir/data":/dashboard/data \
+        -p "$HOST_PORT":8008 \
+        -e ADMIN_USERNAME=admin \
+        -e ADMIN_PASSWORD=admin \
+        $docker_img
+
+    HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+    [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+    echo "✅ 恢复并启动完成！"
+    echo "http://${HOST_IP}:${HOST_PORT}"
+    echo "账号"
+    echo "admin"
+    echo "密码"
+    echo "admin"
+    read -n1 -r -p "回车继续..." key
+    ;;
 
         5)
             echo "--- 卸载 Nezha 面板 ---"
@@ -10555,6 +10618,30 @@ while true; do
             echo "✅ 卸载完成，已删除容器、镜像和目录"
             read -n1 -r -p "回车继续..." key
             ;;
+
+6)
+    echo "--- 彻底卸载 Nezha Agent ---"
+
+    # 查找并停止正在运行的 Agent
+    pid=$(pgrep -f 'nezha-agent|nezha/agent|agent' | head -n1)
+    if [ -n "$pid" ]; then
+        kill -9 $pid
+        echo "✅ Agent 已停止 (PID: $pid)"
+    else
+        echo "ℹ️ 没有正在运行的 Agent"
+    fi
+
+    # 删除本地 Agent 目录
+    if [ -d "$agent_dir" ]; then
+        rm -rf "$agent_dir"
+        echo "✅ 本地 Agent 目录已删除: $agent_dir"
+    else
+        echo "ℹ️ 本地 Agent 目录不存在"
+    fi
+
+    read -n1 -r -p "回车继续..." key
+    ;;
+
 
         0) break ;;
         *) echo "无效选择"; sleep 1 ;;
