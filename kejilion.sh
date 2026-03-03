@@ -5429,6 +5429,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                    ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}90.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}91.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}92.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -5437,7 +5438,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
    	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}自编译有48.80.83.84.85.86.87.88"
+	  echo -e "${gl_kjlan}自编译有48.80.83.84.85.86.87.88.89"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
 	  read -e -p "请输入你的选择: " sub_choice
@@ -10461,7 +10462,105 @@ done
 ;;
 
 
+89)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "        Nezha 面板 Docker 管理脚本"
+    echo "------------------------------------------------"
+    echo "【安装与更新】"
+    echo "1) 安装 Nezha 面板"
+    echo "2) 更新镜像到最新版本"
+    echo "------------------------------------------------"
+    echo "【数据备份与恢复】"
+    echo "3) 备份数据 (/home/nezhav2-时间)"
+    echo "4) 从 /home/ 恢复数据"
+    echo "------------------------------------------------"
+    echo "【卸载】"
+    echo "5) 卸载 Nezha 面板（含 /home/docker/nezha 和 /opt/agent）"
+    echo "0) 返回上一级"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " choice
 
+    install_dir="/home/docker/nezha"
+    container_name="nezha-dashboard"
+    docker_img="zaixiangjian/nezha:latest"
+    agent_dir="/opt/nezha/agent"
+
+    case $choice in
+        1)
+            echo "--- 安装 Nezha 面板 ---"
+
+            DEFAULT_PORT="8008"
+            read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+            HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+            mkdir -p "$install_dir/data"
+
+            docker stop $container_name 2>/dev/null || true
+            docker rm $container_name 2>/dev/null || true
+
+            docker run -d \
+                --name $container_name \
+                --restart unless-stopped \
+                -v "$install_dir/data":/app/data \
+                -p "$HOST_PORT":8008 \
+                -e ADMIN_USERNAME=admin \
+                -e ADMIN_PASSWORD=admin \
+                $docker_img
+
+            HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+            [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+            echo "✅ 安装完成！访问 http://${HOST_IP}:${HOST_PORT} 账号:admin 密码:admin"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        2)
+            echo "--- 更新镜像 ---"
+            docker pull $docker_img
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        3)
+            timestamp=$(date +"%Y%m%d-%H%M%S")
+            backup_dir="/home/nezhav2-$timestamp"
+            mkdir -p "$backup_dir"
+            cp -r "$install_dir" "$backup_dir"
+            echo "✅ 数据已备份到 $backup_dir"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        4)
+            echo "可用备份目录："
+            ls -d /home/nezhav2-* 2>/dev/null
+            read -e -p "请输入要恢复的备份目录全路径: " restore_dir
+            if [ -d "$restore_dir" ]; then
+                cp -r "$restore_dir"/* "$install_dir"/
+                echo "✅ 数据已恢复到 $install_dir"
+            else
+                echo "❌ 目录不存在"
+            fi
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        5)
+            echo "--- 卸载 Nezha 面板 ---"
+            docker stop $container_name 2>/dev/null || true
+            docker rm $container_name 2>/dev/null || true
+            docker rmi -f $docker_img 2>/dev/null || true
+            rm -rf "$install_dir"
+            rm -rf "$agent_dir"
+            echo "✅ 卸载完成，已删除容器、镜像和目录"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        0) break ;;
+        *) echo "无效选择"; sleep 1 ;;
+    esac
+done
+;;
 
 
 
