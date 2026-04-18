@@ -3,7 +3,7 @@
 # Create the backup directory if it doesn't exist
 mkdir -p /home/备份/whmcs
 
-# Create a tar archive of the web directory and save it in /home/博客/
+# Create a tar archive of the web directory and save it in /home/备份/whmcs/
 tar czvf /home/备份/whmcs/web_$(date +"%Y%m%d%H%M%S").tar.gz -C /home/ web
 
 # Transfer the latest tar archive to another VPS
@@ -19,5 +19,5 @@ tar czvf /home/备份/whmcs/web_$(date +"%Y%m%d%H%M%S").tar.gz -C /home/ web
 ls -t /home/备份/whmcs/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码' scp -o StrictHostKeyChecking=no -P 22 {} root@vpsip:/home/备份/whmcs
 
 
-# Keep only 5 tar archives in /home/博客/ and delete the rest
+# Keep only 5 tar archives in /home/备份/whmcs/ and delete the rest
 cd /home/备份/whmcs/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
