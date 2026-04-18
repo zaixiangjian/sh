@@ -20,4 +20,4 @@ ls -t /home/备份/whmcs/*.tar.gz | head -1 | xargs -I {} sshpass -p 'vps密码'
 
 
 # Keep only 5 tar archives in /home/博客/ and delete the rest
-cd /home/博客/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
+cd /home/备份/whmcs/ && ls -t *.tar.gz | tail -n +4 | xargs -I {} rm {}
