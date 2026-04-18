@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create the backup directory if it doesn't exist
-mkdir -p /home/博客
+mkdir -p /home/备份/whmcs
 
 # Create a tar archive of the web directory and save it in /home/博客/
 tar czvf /home/备份/whmcs/web_$(date +"%Y%m%d%H%M%S").tar.gz -C /home/ web
