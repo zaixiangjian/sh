@@ -195,7 +195,7 @@ done
   mkdir -p /home/web/beifen
   cd /home/web/beifen || exit 1
 
-  wget -q -O beifenwhmcs.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/beifen.sh
+  wget -q -O beifenwhmcs.sh ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/beifenwhmcs.sh
   chmod +x beifenwhmcs.sh
 
   sed -i "s/vpsip/$useip/g" beifenwhmcs.sh
