@@ -6,7 +6,7 @@ BTCPAY_DIR="$INSTALL_DIR/btcpayserver-docker"
 
 # 检查权限
 if [ "$EUID" -ne 0 ]; then 
-  echo "请使用 root 权限或 sudo 运行此脚本。"
+  echo -e "\033[0;31m请使用 root 权限或 sudo 运行此脚本。\033[0m"
   exit 1
 fi
 
@@ -26,14 +26,15 @@ show_menu() {
     echo -e "${YELLOW}[ 推荐：裁剪模式 + 闪电网络 ]${NC}"
     echo "1. 安装 (省空间, 含LND)"
     echo "2. 更新"
-    echo "3. 快速备份 (仅配置, 排除区块数据)"
+    echo -e "3. ${YELLOW}全量备份 (含已同步的裁剪区块数据)${NC}"
     echo "4. 恢复 (从 /home 下的备份包恢复)"
     echo "5. 卸载 (含清理数据)"
+    echo "6. 快速备份 (仅配置, 排除区块数据)"
     echo "------------------------------------------"
     echo -e "${RED}[ 进阶：全量模式 - 需 1TB 磁盘 ]${NC}"
     echo "11. 全量安装 (不裁剪, 无闪电网络)"
     echo "12. 全量更新"
-    echo "13. 全量备份 (含所有数据)"
+    echo "13. 全量备份 (含数百GB完整账本)"
     echo "14. 全量恢复"
     echo "15. 全量卸载"
     echo "------------------------------------------"
@@ -54,11 +55,9 @@ setup_env() {
     if [ "$1" == "standard" ]; then
         export BTCPAYGEN_LIGHTNING="lnd"
         export BTCPAYGEN_ADDITIONAL_FRAGMENTS="opt-save-storage-xs"
-        echo -e "${GREEN}配置已加载：裁剪模式 + LND${NC}"
     else
         unset BTCPAYGEN_LIGHTNING
         unset BTCPAYGEN_ADDITIONAL_FRAGMENTS
-        echo -e "${RED}配置已加载：全量账本模式 (无裁剪)${NC}"
     fi
 }
 
@@ -74,71 +73,65 @@ do_install() {
     . ./btcpay-setup.sh -i
 }
 
-# 恢复逻辑函数
+run_backup() {
+    local mode=$1 # "fast" 或 "full"
+    echo -e "${YELLOW}正在停止服务以保证数据一致性...${NC}"
+    cd $BTCPAY_DIR && . ./btcpay-down.sh
+    
+    local timestamp=$(date +%F_%H%M)
+    local filename=""
+    
+    if [ "$mode" == "fast" ]; then
+        filename="/home/btcpay_config_$timestamp.tar.gz"
+        echo -e "${YELLOW}正在执行：快速备份（仅保留配置文件）...${NC}"
+        tar -czf "$filename" -C $INSTALL_DIR btcpayserver-docker --exclude="*.dat" --exclude="blocks" --exclude="chainstate"
+    else
+        filename="/home/btcpay_full_data_$timestamp.tar.gz"
+        echo -e "${YELLOW}正在执行：全量备份（含区块数据，请确保磁盘空间足够）...${NC}"
+        tar -czf "$filename" -C $INSTALL_DIR btcpayserver-docker
+    fi
+    
+    echo -e "${GREEN}备份成功！文件保存在: $filename${NC}"
+    echo -e "${YELLOW}正在重启服务...${NC}"
+    . ./btcpay-setup.sh
+}
+
 do_restore() {
     echo -e "${YELLOW}正在扫描 /home 目录下的备份文件...${NC}"
-    # 查找以 btcpay 开头并以 .tar.gz 结尾的文件
     backups=($(ls /home/btcpay_*.tar.gz 2>/dev/null))
-    
     if [ ${#backups[@]} -eq 0 ]; then
-        echo -e "${RED}错误：在 /home 下未找到任何备份文件 (btcpay_*.tar.gz)${NC}"
-        return
+        echo -e "${RED}未找到备份文件。${NC}"; return
     fi
-
-    echo "发现以下备份文件："
-    for i in "${!backups[@]}"; do
-        echo "$i) ${backups[$i]}"
-    done
-    
-    read -p "请选择要恢复的文件编号: " b_idx
+    for i in "${!backups[@]}"; do echo "$i) ${backups[$i]}"; done
+    read -p "选择编号: " b_idx
     selected_file="${backups[$b_idx]}"
-
     if [ -f "$selected_file" ]; then
-        echo -e "${YELLOW}正在停止当前服务并备份旧数据至 /tmp...${NC}"
-        [ -d "$BTCPAY_DIR" ] && cd $BTCPAY_DIR && . ./btcpay-down.sh && mv $BTCPAY_DIR /tmp/btcpayserver_old_$(date +%s)
-        
-        echo -e "${GREEN}正在从 $selected_file 恢复数据...${NC}"
+        echo -e "${YELLOW}准备恢复... 旧数据将移至 /tmp${NC}"
+        [ -d "$BTCPAY_DIR" ] && cd $BTCPAY_DIR && . ./btcpay-down.sh && mv $BTCPAY_DIR "/tmp/btcpayserver_old_$(date +%s)"
         sudo mkdir -p $INSTALL_DIR
         tar -xzf "$selected_file" -C $INSTALL_DIR
-        
-        echo -e "${GREEN}数据已还原，正在尝试启动...${NC}"
-        cd $BTCPAY_DIR
-        setup_env "$1"
-        . ./btcpay-setup.sh -i
-    else
-        echo -e "${RED}无效的选择。${NC}"
+        cd $BTCPAY_DIR && setup_env "$1" && . ./btcpay-setup.sh -i
     fi
 }
 
 while true; do
     show_menu
-    read -p "请选择操作 [0-15]: " choice
+    read -p "选择 [0-15]: " choice
     case $choice in
         1)  do_install "standard" ;;
         2)  cd $BTCPAY_DIR && setup_env "standard" && . ./btcpay-setup.sh ;;
-        3)  # 快速备份
-            cd $BTCPAY_DIR && . ./btcpay-down.sh
-            tar -czf /home/btcpay_config_$(date +%F).tar.gz -C $INSTALL_DIR btcpayserver-docker --exclude="*.dat"
-            echo -e "${GREEN}配置备份完成：/home/btcpay_config_$(date +%F).tar.gz${NC}"
-            . ./btcpay-setup.sh ;;
+        3)  run_backup "full" ;;
         4)  do_restore "standard" ;;
-        5)  cd $BTCPAY_DIR && . ./btcpay-down.sh
-            read -p "是否删除所有硬盘数据? (y/n): " cf
-            [[ "$cf" == "y" ]] && rm -rf $BTCPAY_DIR ;;
+        5)  cd $BTCPAY_DIR && . ./btcpay-down.sh && read -p "确认删除所有数据? (y/n): " cf && [[ "$cf" == "y" ]] && rm -rf $BTCPAY_DIR ;;
+        6)  run_backup "fast" ;;
 
         11) do_install "full" ;;
         12) cd $BTCPAY_DIR && setup_env "full" && . ./btcpay-setup.sh ;;
-        13) # 全量备份
-            cd $BTCPAY_DIR && . ./btcpay-down.sh
-            tar -czf /home/btcpay_full_$(date +%F).tar.gz -C $INSTALL_DIR btcpayserver-docker
-            echo -e "${GREEN}全量备份完成：/home/btcpay_full_$(date +%F).tar.gz${NC}"
-            . ./btcpay-setup.sh ;;
+        13) run_backup "full" ;;
         14) do_restore "full" ;;
         15) cd $BTCPAY_DIR && . ./btcpay-down.sh ;;
-
         0)  exit 0 ;;
-        *)  echo "无效选项"; sleep 1 ;;
     esac
-    echo "操作完成，按任意键返回..."
-    read -n 1
+    echo "操作完成，按回车键继续..."
+    read
 done
