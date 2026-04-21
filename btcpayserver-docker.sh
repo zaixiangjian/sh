@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # 配置路径
 INSTALL_DIR="/home/docker"
 BTCPAY_DIR="$INSTALL_DIR/btcpayserver-docker"
