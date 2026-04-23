@@ -8351,8 +8351,8 @@ endpoint =存储桶访问地址"
     docker_port=9000
     docker_console_port=9001
     # 自动生成 20 位随机强密码（只包含大小写字母和数字）
-    MINIO_ROOT_USER="admin"
-    MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
+    MINIO_ROOT_USER=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
+    MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
     
     docker_rum="docker run -d \
                     --name ${docker_name} \
