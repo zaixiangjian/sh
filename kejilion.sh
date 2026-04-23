@@ -10399,8 +10399,28 @@ while true; do
             read -n1 -r -p "回车继续..." key
             ;;
 
-        11)
+11)
             echo "--- 部署/启动 MinIO ---"
+            
+            # 1. 交互式获取账号
+            read -p "请输入 MinIO 管理员账号 (直接回车将随机生成): " input_user
+            if [ -z "$input_user" ]; then
+                MINIO_ROOT_USER=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
+                echo "-> 使用随机账号: $MINIO_ROOT_USER"
+            else
+                MINIO_ROOT_USER=$input_user
+            fi
+
+            # 2. 交互式获取密码
+            read -p "请输入 MinIO 管理员密码 (直接回车将随机生成): " input_pass
+            if [ -z "$input_pass" ]; then
+                MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+                echo "-> 使用随机密码: $MINIO_ROOT_PASSWORD"
+            else
+                MINIO_ROOT_PASSWORD=$input_pass
+            fi
+
+            # 3. 执行部署
             sudo docker rm -f minio &>/dev/null
             mkdir -p "$install_dir/data"
             sudo chmod -R 777 "$install_dir/data"
@@ -10411,17 +10431,22 @@ while true; do
                 -p 9000:9000 \
                 -p 9001:9001 \
                 -v "$install_dir/data:/data" \
-                -e MINIO_ROOT_USER=admin \
-                -e MINIO_ROOT_PASSWORD=12345678 \
+                -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
+                -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
                 "$my_docker_img" server /data --console-address ":9001"
 
             if [ $? -eq 0 ]; then
                 loc_v4=$(hostname -I | awk '{print $1}')
-                echo "✅ 启动成功！访问 http://$loc_v4:9001"
-                echo "账号：admin"
-                echo "密码：12345678"
+                echo "------------------------------------------------"
+                echo "✅ 启动成功！"
+                echo "管理界面: http://$loc_v4:9001"
+                echo "API 地址: http://$loc_v4:9000"
+                echo "管理员账号: $MINIO_ROOT_USER"
+                echo "管理员密码: $MINIO_ROOT_PASSWORD"
+                echo "------------------------------------------------"
+                echo "请务必妥善保存上述信息！"
             else
-                echo "❌ 启动失败"
+                echo "❌ 启动失败，请检查 Docker 日志"
             fi
             read -n1 -r -p "回车继续..." key
             ;;
