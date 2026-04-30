@@ -2,7 +2,7 @@
 
 # --- 配置区 ---
 certs_directory="/home/web/certs"
-days_before_expiry=30
+days_before_expiry=10
 acme_container="acme"
 nginx_container="nginx"
 acme_script_path="acme.sh"
