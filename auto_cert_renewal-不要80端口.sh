@@ -6,7 +6,7 @@ days_before_expiry=30
 acme_container="acme"
 nginx_container="nginx"
 acme_script_path="acme.sh"
-email="admin@linbiji.com"
+email="admin@rowad.eu.org"
 
 [ -t 1 ] && interactive=true || interactive=false
 
@@ -53,9 +53,18 @@ for cert_file in ${certs_directory}/*_cert.pem; do
     fi
 done
 
-# --- ⭐ 强力扫尾：删除所有不需要的残留文件和文件夹 ---
-# 逻辑：删除 certs 目录下，除了 .pem 后缀和 acme_conf 目录以外的所有内容
-find "${certs_directory}" -maxdepth 1 ! -name "*_cert.pem" ! -name "*_key.pem" ! -name "acme_conf" ! -path "${certs_directory}" -exec rm -rf {} + >/dev/null 2>&1
+# --- ⭐ 强力扫尾：保留指定文件，清理其余杂物 ---
+find "${certs_directory}" -maxdepth 1 \
+    ! -name "*_cert.pem" \
+    ! -name "*_key.pem" \
+    ! -name "acme_conf" \
+    ! -name "default_server.crt" \
+    ! -name "default_server.key" \
+    ! -name "ticket12.key" \
+    ! -name "ticket13.key" \
+    ! -name "crontab" \
+    ! -path "${certs_directory}" \
+    -exec rm -rf {} + >/dev/null 2>&1
 
 if [ "$interactive" = true ]; then
     echo "--------------------------"
