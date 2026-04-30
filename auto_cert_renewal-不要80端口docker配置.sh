@@ -1,6 +1,7 @@
 在源代码下添加下面配置
 /home/web/docker-compose.yml
 
+
   # ⭐⭐⭐ 新增：ACME DNS 证书签发服务
   acme:
     image: neilpang/acme.sh
@@ -15,3 +16,9 @@
       - CF_Token=你的api密钥
     command: daemon
 
+
+
+添加后重启配置
+
+cd /home/web/
+docker compose up -d
