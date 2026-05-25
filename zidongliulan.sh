@@ -34,10 +34,12 @@ WORKDIR /app
 COPY bot.py /app/bot.py
 COPY bot.sh /app/bot.sh
 
-RUN pip install --no-cache-dir playwright \
+RUN pip install --no-cache-dir playwright requests \
     && chmod +x /app/bot.sh
 
+
 CMD ["/bin/bash", "/app/bot.sh"]
+
 EOF
 
     # bot.sh
@@ -69,20 +71,44 @@ EOF
     cat > $BASE_DIR/bot.py <<'EOF'
 import random
 import time
+import requests
 from playwright.sync_api import sync_playwright
 
 URLS = [
     "https://www.google.com",
-    "https://www.google.com/maps",
-    "https://www.google.com/search?q=weather"
+    "https://www.google.com/maps"
 ]
 
-SEARCH_KEYS = ["weather", "news", "time", "technology", "map"]
+FIXED = "https://www.google.com/search?q=weather"
+
+SEARCH_KEYS = [
+    "furniture",
+    "sofa",
+    "desk",
+    "chair",
+    "bed",
+    "office furniture"
+]
+
+
+def get_geo():
+    r = requests.get("https://ipapi.co/json", timeout=10).json()
+    return {
+        "lat": r.get("latitude", 0),
+        "lon": r.get("longitude", 0),
+        "country": r.get("country_code", "US"),
+        "timezone": r.get("timezone", "UTC")
+    }
+
 
 def delay(a, b):
     time.sleep(random.uniform(a, b))
 
-print("[BOT] start session")
+
+print("[BOT] start")
+
+geo = get_geo()
+print("[BOT] geo:", geo)
 
 with sync_playwright() as p:
     browser = p.chromium.launch(
@@ -94,41 +120,84 @@ with sync_playwright() as p:
         ]
     )
 
-    context = browser.new_context()
+    context = browser.new_context(
+        locale=f"en-{geo['country']}",
+        timezone_id=geo["timezone"],
+        geolocation={
+            "latitude": geo["lat"],
+            "longitude": geo["lon"]
+        },
+        permissions=["geolocation"],
+        extra_http_headers={
+            "Accept-Language": f"en-{geo['country']},en;q=0.9"
+        }
+    )
+
     page = context.new_page()
 
-    for _ in range(random.randint(2, 4)):
+    # =========================
+    # 1️⃣ 固定访问 weather
+    # =========================
+    print("[BOT] open weather")
+    page.goto(FIXED, timeout=60000)
+    delay(3, 6)
+
+    try:
+        page.evaluate("navigator.geolocation.getCurrentPosition(() => {})")
+    except:
+        pass
+
+    # =========================
+    # 2️⃣ 主循环
+    # =========================
+    for _ in range(2):
         url = random.choice(URLS)
-        print("[BOT] open:", url)
-        page.goto(url)
-        delay(5, 20)
+        print("[BOT] visit:", url)
 
-        for _ in range(random.randint(2, 5)):
-            page.mouse.wheel(0, random.randint(200, 900))
-            delay(1, 3)
+        page.goto(url, timeout=60000)
+        delay(3, 5)
+
+        # 滚动
+        for _ in range(random.randint(2, 4)):
+            page.mouse.wheel(0, random.randint(200, 800))
+            delay(1, 2)
+
+        # =========================
+        # 3️⃣ 搜索家具
+        # =========================
+        keyword = random.choice(SEARCH_KEYS)
+        print("[BOT] search:", keyword)
 
         try:
-            links = page.query_selector_all("a")
-            if links:
-                random.choice(links).click()
-                delay(3, 8)
-                page.go_back()
-        except:
-            pass
+            page.fill("input[name='q']", keyword)
+            page.keyboard.press("Enter")
+            delay(4, 8)
 
-        try:
-            if "google" in page.url:
-                page.fill("input[name='q']", random.choice(SEARCH_KEYS))
-                page.keyboard.press("Enter")
-                delay(5, 15)
-        except:
-            pass
+            # =========================
+            # 4️⃣ 点击搜索结果
+            # =========================
+            results = page.query_selector_all("h3")
 
-        delay(3, 10)
+            if results:
+                click_count = random.randint(1, min(3, len(results)))
+
+                for i in range(click_count):
+                    try:
+                        results[i].click()
+                        print("[BOT] click result:", i + 1)
+                        delay(3, 8)
+
+                        page.go_back()
+                        delay(2, 5)
+                    except:
+                        continue
+
+        except Exception as e:
+            print("[BOT] search error:", e)
 
     browser.close()
 
-print("[BOT] end session")
+print("[BOT] done")
 EOF
 }
 
