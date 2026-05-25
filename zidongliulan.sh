@@ -72,7 +72,7 @@ EOF
 import random
 import time
 import requests
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError
 
 URLS = [
     "https://www.google.com",
@@ -92,17 +92,36 @@ SEARCH_KEYS = [
 
 
 def get_geo():
-    r = requests.get("https://ipapi.co/json", timeout=10).json()
-    return {
-        "lat": r.get("latitude", 0),
-        "lon": r.get("longitude", 0),
-        "country": r.get("country_code", "US"),
-        "timezone": r.get("timezone", "UTC")
-    }
+    try:
+        r = requests.get("https://ipapi.co/json", timeout=10).json()
+        return {
+            "lat": r.get("latitude", 0),
+            "lon": r.get("longitude", 0),
+            "country": r.get("country_code", "US"),
+            "timezone": r.get("timezone", "UTC")
+        }
+    except:
+        return {
+            "lat": 0,
+            "lon": 0,
+            "country": "US",
+            "timezone": "UTC"
+        }
 
 
 def delay(a, b):
     time.sleep(random.uniform(a, b))
+
+
+def safe_goto(page, url):
+    for i in range(2):
+        try:
+            page.goto(url, timeout=60000, wait_until="domcontentloaded")
+            return True
+        except TimeoutError:
+            print("[BOT] goto retry:", url, i + 1)
+            time.sleep(2)
+    return False
 
 
 print("[BOT] start")
@@ -139,13 +158,14 @@ with sync_playwright() as p:
     # 1️⃣ 固定访问 weather
     # =========================
     print("[BOT] open weather")
-    page.goto(FIXED, timeout=60000)
-    delay(3, 6)
 
-    try:
-        page.evaluate("navigator.geolocation.getCurrentPosition(() => {})")
-    except:
-        pass
+    if safe_goto(page, FIXED):
+        delay(3, 6)
+
+        try:
+            page.evaluate("navigator.geolocation.getCurrentPosition(() => {})")
+        except:
+            pass
 
     # =========================
     # 2️⃣ 主循环
@@ -154,7 +174,9 @@ with sync_playwright() as p:
         url = random.choice(URLS)
         print("[BOT] visit:", url)
 
-        page.goto(url, timeout=60000)
+        if not safe_goto(page, url):
+            continue
+
         delay(3, 5)
 
         # 滚动
@@ -169,9 +191,13 @@ with sync_playwright() as p:
         print("[BOT] search:", keyword)
 
         try:
-            page.fill("input[name='q']", keyword)
-            page.keyboard.press("Enter")
-            delay(4, 8)
+            # Google新UI兼容
+            box = page.query_selector("input[name='q']") or page.query_selector("textarea")
+
+            if box:
+                box.fill(keyword)
+                box.press("Enter")
+                delay(4, 8)
 
             # =========================
             # 4️⃣ 点击搜索结果
@@ -186,9 +212,8 @@ with sync_playwright() as p:
                         results[i].click()
                         print("[BOT] click result:", i + 1)
                         delay(3, 8)
-
                         page.go_back()
-                        delay(2, 5)
+                        delay(2, 4)
                     except:
                         continue
 
