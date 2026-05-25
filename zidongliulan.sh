@@ -277,6 +277,8 @@ while true; do
     echo "4️.卸载 Bot（容器/镜像/目录）"
     echo "5️.查看运行日志"
     echo "0️.退出"
+    echo "添加定时任务重启crontab -e"
+    echo "0 3 * * * docker restart google-bot"
     read -p "请选择操作 [0-5]: " choice
 
     case $choice in
