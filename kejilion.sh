@@ -5431,7 +5431,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}         ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}96.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}97.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}98.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
