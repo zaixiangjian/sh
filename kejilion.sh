@@ -5445,6 +5445,134 @@ linux_panel() {
 	  echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
+	  
+	  # ================= 动态检测已安装面板服务 =================
+	  declare -a installed_items=()
+	  check_docker() {
+	      local num="$1"
+	      local container_name="$2"
+	      if command -v docker &>/dev/null && docker inspect "$container_name" &>/dev/null; then
+	          installed_items+=("$num")
+	      fi
+	  }
+	  check_path() {
+	      local num="$1"
+	      local path="$2"
+	      if [ -d "$path" ] || [ -f "$path" ]; then
+	          installed_items+=("$num")
+	      fi
+	  }
+	  check_cmd() {
+	      local num="$1"
+	      local cmd="$2"
+	      if command -v "$cmd" &>/dev/null; then
+	          installed_items+=("$num")
+	      fi
+	  }
+
+	  # 检测各项服务
+	  check_path "1" "/www/server/panel"
+	  if [ -d "/www/server/panel" ] && grep -q "aapanel" /www/server/panel/class/common.py 2>/dev/null; then installed_items+=("2"); fi
+	  check_cmd "3" "1pctl"
+	  check_docker "4" "npm"
+	  check_path "5" "/opt/nezha"
+	  check_docker "6" "webtop-ubuntu"
+	  check_path "7" "/opt/nezha/dashboard"
+	  check_docker "8" "qbittorrent"
+	  check_docker "9" "mailserver"
+	  check_docker "10" "rocketchat"
+	  check_docker "11" "zentao-server"
+	  check_docker "12" "qinglong"
+	  check_docker "13" "cloudreve"
+	  check_docker "14" "easyimage"
+	  check_docker "15" "emby"
+	  check_docker "16" "looking-glass"
+	  check_docker "17" "adguardhome"
+	  check_docker "18" "onlyoffice"
+	  check_docker "19" "safeline-mgt"
+	  check_docker "20" "portainer"
+	  check_docker "21" "vscode-web"
+	  check_docker "22" "uptime-kuma"
+	  check_docker "23" "memos"
+	  check_docker "24" "webtop"
+	  check_docker "25" "nextcloud-aio"
+	  check_docker "26" "qd"
+	  check_docker "27" "dockge"
+	  check_docker "28" "speedtest"
+	  check_docker "29" "searxng"
+	  check_docker "30" "photoprism"
+	  check_docker "31" "s-pdf"
+	  check_docker "32" "drawio"
+	  check_docker "33" "sun-panel"
+	  check_docker "34" "pingvin-share"
+	  check_docker "35" "moments"
+	  check_docker "36" "lobe-chat"
+	  check_docker "37" "myip"
+	  check_docker "38" "alist"
+	  check_docker "39" "bililive-go"
+	  check_docker "40" "windows"
+	  check_path "41" "/www/server/panel-haozi"
+	  check_docker "42" "vaultwarden"
+	  check_docker "46" "aria2-pro"
+	  check_docker "48" "nexterm"
+	  check_docker "49" "libretv"
+	  check_docker "50" "moontv"
+	  check_path "51" "/home/docker/jiguang"
+	  check_docker "54" "webssh"
+	  check_docker "55" "openlist"
+	  check_docker "56" "umami"
+	  check_docker "57" "dify"
+	  check_cmd "58" "caddy"
+	  check_docker "59" "hbbs"
+	  check_docker "60" "hbbr"
+	  check_path "62" "/usr/local/x-ui"
+	  check_cmd "63" "rclone"
+	  check_docker "64" "r2beifen"
+	  check_docker "67" "owncloud"
+	  check_docker "68" "m38u8"
+	  check_docker "69" "it-tools"
+	  check_docker "70" "pansou"
+	  check_docker "71" "zfile"
+	  check_docker "72" "discourse"
+	  check_docker "73" "minio"
+	  check_docker "78" "mailcow"
+	  check_docker "84" "hitokoto"
+	  check_docker "86" "backrest"
+	  check_docker "87" "certimate"
+	  check_docker "89" "nezha-dashboard"
+	  check_docker "90" "btc"
+	  check_docker "91" "chrome"
+	  check_docker "92" "cliproxy"
+	  check_docker "93" "sub2api"
+	  check_docker "94" "openclaw"
+	  check_docker "95" "open-webui"
+	  check_docker "102" "windows"
+
+	  # 打印已安装的项目列表并自动折行输出
+	  if [ ${#installed_items[@]} -eq 0 ]; then
+	      echo -e "${gl_kjlan}已安装：无${gl_bai}"
+	  else
+	      echo -e -n "${gl_kjlan}已安装：${gl_bai}"
+	      local line=""
+	      local count=0
+	      for item in "${installed_items[@]}"; do
+	          if [ $count -eq 0 ]; then
+	              line="$item"
+	          else
+	              line="$line $item"
+	          fi
+	          count=$((count + 1))
+	          if [ $((count % 12)) -eq 0 ]; then
+	              echo -e "${gl_lv}$line${gl_bai}"
+	              line=""
+	              count=0
+	          fi
+	      done
+	      if [ -n "$line" ]; then
+	          echo -e "${gl_lv}$line${gl_bai}"
+	      fi
+	  fi
+	  echo -e "${gl_kjlan}------------------------${gl_bai}"
 	  read -e -p "请输入你的选择: " sub_choice
 
 	  case $sub_choice in
@@ -6003,12 +6131,13 @@ linux_panel() {
 
 
 		  11)
+			echo "正在安装: 禅道项目管理软件"
 			docker_name="zentao-server"
 			docker_img="idoop/zentao:latest"
 			docker_port=82
 			docker_rum="docker run -d -p 82:80 -p 3308:3306 \
-							  -e ADMINER_USER="root" -e ADMINER_PASSWD="password" \
-							  -e BIND_ADDRESS="false" \
+							  -e ADMINER_USER=\"root\" -e ADMINER_PASSWD=\"password\" \
+							  -e BIND_ADDRESS=\"false\" \
 							  -v /home/docker/zentao-server/:/opt/zbox/ \
 							  --add-host smtp.exmail.qq.com:163.177.90.125 \
 							  --name zentao-server \
