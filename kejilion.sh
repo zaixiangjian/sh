@@ -5433,6 +5433,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                               ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai} "
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}96.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}97.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}98.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -10711,6 +10712,48 @@ done
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh)
 		    echo "✅ Openclaw安装完成。"
 		    ;;
+
+95)
+    docker_name="open-webui"
+    docker_img="ghcr.io/open-webui/open-webui:main"
+    docker_port=3000
+
+    # 自动获取公网IP（稳定三重备用）
+    IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+
+    docker_rum="docker run -d \
+                    --name open-webui \
+                    --restart always \
+                    -p ${docker_port}:8080 \
+                    -v /home/docker/open-webui:/app/backend/data \
+                    ${docker_img}"
+
+    docker_describe="一个类似ChatGPT的AI网页界面，支持多模型接入和API管理。"
+    docker_url="官网: https://github.com/open-webui/open-webui"
+
+    docker_use="浏览器访问: http://${IP}:${docker_port}"
+    docker_passwd="首次进入需要创建管理员账号"
+
+    docker_app
+;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
