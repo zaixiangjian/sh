@@ -3704,6 +3704,8 @@ linux_test() {
 	  echo -e "${gl_kjlan}综合性测试"
 	  echo -e "${gl_kjlan}31.  ${gl_bai}bench 性能测试"
 	  echo -e "${gl_kjlan}32.  ${gl_bai}spiritysdx 融合怪测评 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}99.  ${gl_bai}原始脚本IP质量体检脚本https://github.com/xykt/IPQuality ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}999.  ${gl_bai}IP质量体检脚本https://github.com/zaixiangjian/IPQuality/blob/main/ip.sh ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -3815,6 +3817,18 @@ linux_test() {
 			  send_stats "spiritysdx融合怪测评"
 			  clear
 			  curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh
+			  ;;
+
+		  99)
+			  send_stats "IP质量体检脚本https://github.com/xykt/IPQuality"
+			  clear
+			  bash <(curl -Ls https://Check.Place) -I
+			  ;;
+
+		  999)
+			  send_stats "IP质量体检脚本https://github.com/zaixiangjian/IPQuality"
+			  clear
+			  bash <(curl -sS https://raw.githubusercontent.com/zaixiangjian/IPQuality/main/ip.sh) 
 			  ;;
 
 		  0)
@@ -5202,7 +5216,7 @@ linux_ldnmp() {
 
 			  2)
 			  ldnmp_pods="mysql"
-			  read -e -p "请输入${ldnmp_pods}版本号 （如: 8.0 8.3 8.4 9.0）（回车获取最新版）: " version
+			  read -e -p "请输入${ldnmp_pods}版本号 （如: 8.0 8.3 8.4 9.0 9.5）（回车获取最新版）: " version
 			  version=${version:-latest}
 
 			  cd /home/web/
@@ -5219,7 +5233,7 @@ linux_ldnmp() {
 				  ;;
 			  3)
 			  ldnmp_pods="php"
-			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3）（回车获取最新版）: " version
+			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车获取最新版）: " version
 			  version=${version:-8.3}
 			  cd /home/web/
 			  cp /home/web/docker-compose.yml /home/web/docker-compose1.yml
@@ -5364,7 +5378,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}宝塔面板官方版                      ${gl_kjlan}2.   ${gl_bai}aaPanel宝塔国际版"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}1Panel新一代管理面板                ${gl_kjlan}4.   ${gl_bai}NginxProxyManager可视化面板"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}AList3.40.0开源                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版"
+	  echo -e "${gl_kjlan}5.   ${gl_bai}哪吒探针备份与恢复                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}哪吒探针VPS监控面板                 ${gl_kjlan}8.   ${gl_bai}QB离线BT磁力下载面板"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io邮件服务器程序              ${gl_kjlan}10.  ${gl_bai}RocketChat多人在线聊天系统"
 	  echo -e "${gl_kjlan}------------------------"
@@ -5375,7 +5389,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}19.  ${gl_bai}雷池WAF防火墙面板                   ${gl_kjlan}20.  ${gl_bai}portainer容器管理面板"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}21.  ${gl_bai}VScode网页版                        ${gl_kjlan}22.  ${gl_bai}UptimeKuma监控工具"
-	  echo -e "${gl_kjlan}23.  ${gl_bai}Memos网页备忘录                     ${gl_kjlan}24.  ${gl_bai}Webtop远程桌面网页版 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}23.  ${gl_bai}Memos网页备忘录                     ${gl_kjlan}24.  ${gl_bai}Webtop远程桌面   用6号或者99 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}25.  ${gl_bai}Nextcloud网盘                       ${gl_kjlan}26.  ${gl_bai}QD-Today定时任务管理框架"
 	  echo -e "${gl_kjlan}27.  ${gl_bai}Dockge容器堆栈管理面板              ${gl_kjlan}28.  ${gl_bai}LibreSpeed测速工具"
 	  echo -e "${gl_kjlan}29.  ${gl_bai}searxng聚合搜索站 ${gl_huang}★${gl_bai}                 ${gl_kjlan}30.  ${gl_bai}PhotoPrism私有相册系统"
@@ -5389,7 +5403,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
    	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
    	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)          ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-      	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}Cloudreve网盘从机"
+   	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}编译部署ssh Nexterm"
 	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
@@ -5397,16 +5411,38 @@ linux_panel() {
 	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
 	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
    	  echo -e "${gl_kjlan}------------------------"
-   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}            ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
+   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}           ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
 	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
+	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用（82.86） ${gl_huang}★${gl_bai}      ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份（82.86）"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}66.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}80.  ${gl_bai}PVE开小鸡面板"
-   	  echo -e "${gl_kjlan}88.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
-      	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}        ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
+	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}                    ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
+	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                      ${gl_kjlan}70.  ${gl_bai}安装盘搜"
+	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
+	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}           ${gl_kjlan}74.  ${gl_bai}添加对象存储api（73.88）"
+	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
+	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm ${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包（63.64.86） ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                     ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                               ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai} "
+	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}96.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}97.  ${gl_bai}PVE开小鸡面板"
+   	  echo -e "${gl_kjlan}98.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}102.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}                ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-   	  echo -e "${gl_kjlan}104.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
 	  read -e -p "请输入你的选择: " sub_choice
@@ -5505,61 +5541,64 @@ linux_panel() {
 
 			  ;;
 
-		  5)
-			if [ ! -d /home/docker/alist/ ]; then
-				mkdir -p /home/docker/alist/ > /dev/null 2>&1
-			fi
 
-			wget -O /home/docker/alist/alist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/3.40.0/alist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/docker/alist/alist-linux-amd64.tar.gz -C /home/docker/alist/ > /dev/null 2>&1
-			chmod +x /home/docker/alist/alist
+5)
+	clear
+	send_stats "哪吒监控管理"
+	while true; do
+		clear
+		echo "哪吒监控管理"
+		echo "开源、轻量、易用的服务器监控与运维工具"
+		echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
+		echo "------------------------"
+		echo "1. 安装 / 更新哪吒"
+		echo "=============================="
+		echo "♻️ 使用1安装然后使用3号恢复"
+		echo "=============================="
+		echo "22. 备份哪吒面板"
+		echo "=============================="
+		echo "3. 恢复哪吒面板"
+		echo "恢复后使用1安装脚本3号启动"
+		echo "=============================="
+		echo "0. 返回上一级"
+		echo "------------------------"
+		read -e -p "输入你的选择: " choice
 
-			nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &
-			sleep 5
-
-			# 提取密码与 IP
-			password=$(grep "initial password is:" /home/docker/alist/alist.log | tail -n 1 | awk '{print $NF}')
-			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
-			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
-
-			# 添加开机启动定时任务（延迟10秒）
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &') | crontab -
-			)
-
-			clear
-			echo "alist 已安装"
-			echo "Alist 是一个支持多种存储挂载的文件列表程序"
-			echo ""
-			echo "访问地址:"
-			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
-   			echo "如果打不开手动放行5244端口ufw命令为ufw allow 5244/tcp"
-			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/alist/alist.log"
-			echo ""
-			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 Alist"
-			echo "命令内容为："
-			echo "nohup /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
-			echo ""
-			echo "------------------------"
-			echo "1. 安装            2. 更新            3. 卸载"
-			echo "------------------------"
-			echo "0. 返回上一级"
-			echo "------------------------"
-			echo -n "请输入你的选择: "
-
-			exit 0  # 防止继续执行 case 后续内容
-
-			docker_name="alist"
-			docker_img=""
-			docker_port=5244
-			docker_rum="setsid /home/docker/alist/alist server > /home/docker/alist/alist.log 2>&1 &"
-			docker_describe="Alist 是一个支持多种存储挂载的文件列表程序"
-			docker_url=""
-			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
-			docker_passwd=""
-			docker_app
-			  ;;
+		case $choice in
+			1)
+				# 安装或更新哪吒面板
+				curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh
+				chmod +x nezha.sh
+				sudo ./nezha.sh
+				;;
+			22)
+				# 备份哪吒面板
+				mkdir -p /home/nezha
+				tar czvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha dashboard
+				echo "✅ 备份完成: /home/nezha/nezha_full_backup.tar.gz"
+				;;
+			3)
+				# 恢复哪吒面板
+				read -e -p "确定要恢复吗？这会覆盖现有面板！(y/n): " confirm
+				if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+					cd /opt/nezha
+					rm -rf dashboard
+					tar xzvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha
+					echo "✅ 恢复完成，正在重启面板..."
+				else
+					echo "已取消恢复"
+				fi
+				;;
+			0)
+				break
+				;;
+			*)
+				echo "无效选项"
+				;;
+		esac
+		read -n 1 -s -r -p "按任意键继续..."
+	done
+	;;
 
 
 		6)
@@ -5702,7 +5741,9 @@ linux_panel() {
 				echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
 				echo "------------------------"
 				echo "1. 使用           0. 返回上一级"
-				echo "------------------------"
+				echo "=============================="
+				echo "⚠️ 使用5号配置进行备份与恢复配置 ⚠️"
+				echo "=============================="
 				read -e -p "输入你的选择: " choice
 
 				case $choice in
@@ -6738,111 +6779,132 @@ nextcloud/all-in-one:latest"
 
 
 
-		  42)
+42)
 
+docker_name="vaultwarden"
+docker_img="vaultwarden/server"
+docker_port=3280
 
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
-			docker_rum="docker run -d \
-							--name vaultwarden \
-							--restart always \
-							-p 3280:80 \
-							-v /home/docker/vaultwarden/data:/data \
-							vaultwarden/server"
-			docker_describe="一个开源的 Bitwarden 服务端实现，注册功能已开启"
-			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+# 安装目录改为 /home/web/vaultwarden
+install_dir="/home/web/vaultwarden"
+mkdir -p "$install_dir"
 
-		  43)
-			# 交互式输入
-			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
-			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
-			read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
-			read -p "请输入发件邮箱密码: " smtp_pass
-
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
-			docker_rum="docker run -d \
+docker_rum="docker run -d \
 				--name vaultwarden \
 				--restart always \
 				-p 3280:80 \
+				-v $install_dir/data:/data \
+				vaultwarden/server"
+
+docker_describe="一个开源的 Bitwarden 服务端实现，注册功能已开启"
+docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+docker_use=""
+docker_passwd=""
+docker_app
+;;
+
+43)
+    # 交互式输入
+    read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
+    read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
+    read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
+    read -p "请输入发件邮箱密码: " smtp_pass
+
+    docker_name="vaultwarden"
+    docker_img="vaultwarden/server"
+    docker_port=3280
+
+    # 安装目录改为 /home/web/vaultwarden
+    install_dir="/home/web/vaultwarden"
+    mkdir -p "$install_dir"
+
+    docker_rum="docker run -d \
+        --name vaultwarden \
+        --restart always \
+        -p 3280:80 \
+        -e SIGNUPS_ALLOWED=false \
+        -e SIGNUPS_VERIFY=true \
+        -e DOMAIN=${user_domain} \
+        -e SMTP_HOST=${smtp_host} \
+        -e SMTP_FROM=${smtp_user} \
+        -e SMTP_PORT=587 \
+        -e SMTP_SECURITY=starttls \
+        -e SMTP_USERNAME=${smtp_user} \
+        -e SMTP_PASSWORD=${smtp_pass} \
+        -v $install_dir/data:/data \
+        vaultwarden/server"
+
+    docker_describe="Vaultwarden 禁止注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
+    docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+    docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
+    docker_passwd=""
+
+    docker_app
+    ;;
+
+
+44)
+
+docker_name="vaultwarden"
+docker_img="vaultwarden/server"
+docker_port=3280
+
+# 安装目录改为 /home/web/vaultwarden
+install_dir="/home/web/vaultwarden"
+mkdir -p "$install_dir"
+
+docker_rum="docker run -d \
+				--name vaultwarden \
 				-e SIGNUPS_ALLOWED=false \
-				-e SIGNUPS_VERIFY=true \
-				-e DOMAIN=${user_domain} \
-				-e SMTP_HOST=${smtp_host} \
-				-e SMTP_FROM=${smtp_user} \
-				-e SMTP_PORT=587 \
-				-e SMTP_SECURITY=starttls \
-				-e SMTP_USERNAME=${smtp_user} \
-				-e SMTP_PASSWORD=${smtp_pass} \
-				-v /home/docker/vaultwarden/data:/data \
-				vaultwarden/server"
-
-			docker_describe="Vaultwarden 禁止注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
-			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
-			docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
-			docker_passwd=""
-
-			docker_app
-			  ;;
-
-		  44)
-
-
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
-			docker_rum="docker run -d \
-							--name vaultwarden \
-							-e SIGNUPS_ALLOWED=false \
-							--restart always \
-							-p 3280:80 \
-							-v /home/docker/vaultwarden/data:/data \
-							vaultwarden/server"
-			docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，无 SMTP 设置）"
-			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  45)
-			# 交互式输入
-			read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
-			read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
-			read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
-			read -p "请输入发件邮箱密码: " smtp_pass
-
-			docker_name="vaultwarden"
-			docker_img="vaultwarden/server"
-			docker_port=3280
-			docker_rum="docker run -d \
-				--name vaultwarden \
 				--restart always \
 				-p 3280:80 \
-				-e SIGNUPS_VERIFY=true \
-				-e DOMAIN=${user_domain} \
-				-e SMTP_HOST=${smtp_host} \
-				-e SMTP_FROM=${smtp_user} \
-				-e SMTP_PORT=587 \
-				-e SMTP_SECURITY=starttls \
-				-e SMTP_USERNAME=${smtp_user} \
-				-e SMTP_PASSWORD=${smtp_pass} \
-				-v /home/docker/vaultwarden/data:/data \
+				-v $install_dir/data:/data \
 				vaultwarden/server"
 
-			docker_describe="Vaultwarden 可以注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
-			docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
-			docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
-			docker_passwd=""
+docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，无 SMTP 设置）"
+docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+docker_use=""
+docker_passwd=""
+docker_app
+;;
 
-			docker_app
-			  ;;
+45)
+    # 交互式输入
+    read -p "请输入 Vaultwarden 访问域名（如 https://mima.123.com）: " user_domain
+    read -p "请输入 SMTP 邮件服务器（如 smtp.zoho.com）: " smtp_host
+    read -p "请输入发件邮箱地址（如 admin@123.com）: " smtp_user
+    read -p "请输入发件邮箱密码: " smtp_pass
+
+    docker_name="vaultwarden"
+    docker_img="vaultwarden/server"
+    docker_port=3280
+
+    # 安装目录改为 /home/web/vaultwarden
+    install_dir="/home/web/vaultwarden"
+    mkdir -p "$install_dir"
+
+    docker_rum="docker run -d \
+        --name vaultwarden \
+        --restart always \
+        -p 3280:80 \
+        -e SIGNUPS_VERIFY=true \
+        -e DOMAIN=${user_domain} \
+        -e SMTP_HOST=${smtp_host} \
+        -e SMTP_FROM=${smtp_user} \
+        -e SMTP_PORT=587 \
+        -e SMTP_SECURITY=starttls \
+        -e SMTP_USERNAME=${smtp_user} \
+        -e SMTP_PASSWORD=${smtp_pass} \
+        -v $install_dir/data:/data \
+        vaultwarden/server"
+
+    docker_describe="Vaultwarden 可以注册 + SMTP 邮件设置（支持自定义域名和发信配置）"
+    docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+    docker_use="echo -e '\033[32m访问地址：$user_domain\033[0m\n邮箱发件人：$smtp_user（SMTP 启用）'"
+    docker_passwd=""
+
+    docker_app
+;;
 
 
 		  46)
@@ -6925,7 +6987,7 @@ EOF
 version: '3'
 services:
   cloudreve:
-    image: cloudreve/cloudreve:4.1.1
+    image: cloudreve/cloudreve:4.10.1
     container_name: cloudreve
     restart: always
     ports:
@@ -6961,7 +7023,7 @@ EOF
                   ;;
                 2)
                   docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  docker rmi -f cloudreve/cloudreve:4.10.1 p3terx/aria2-pro
 
                   cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
                   touch /home/docker/wangpan/cloudreve/conf.ini
@@ -6987,7 +7049,7 @@ EOF
 version: '3'
 services:
   cloudreve:
-    image: cloudreve/cloudreve:4.1.1
+    image: cloudreve/cloudreve:4.10.1
     container_name: cloudreve
     restart: always
     ports:
@@ -7022,7 +7084,7 @@ EOF
                   ;;
                 3)
                   docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
+                  docker rmi -f cloudreve/cloudreve:4.10.1 p3terx/aria2-pro
                   rm -rf /home/docker/wangpan
                   echo "应用已卸载"
                   ;;
@@ -7037,199 +7099,187 @@ EOF
             done
             ;;
 
-          48)
-            send_stats "搭建Cloudreve从机（4.1.1）"
-            has_ipv4_has_ipv6
 
-            docker_name=cloudreve
-            docker_port=5212
+
+
+48)
             while true; do
-              check_docker_app
               clear
-              echo -e "网盘服务 $check_docker"
-              echo "Cloudreve 从机部署（支持 Aria2）"
-              echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
-              if docker inspect "$docker_name" &>/dev/null; then
-                check_docker_app_ip
-              fi
-              echo ""
+              echo -e "------------------------------------------------"
+              echo -e "         Nexterm 维护者编译与发布工具"
+              echo -e "------------------------------------------------"
+              echo -e "21) 自动检测并安装构建环境 (Node, pnpm, Docker)"
+              echo -e "22) 克隆源码并编译 Docker 镜像"
+              echo -e "23) 登录 Docker Hub"
+              echo -e "24) 推送镜像到 Docker Hub (zaixiangjian/nexterm)"
+              echo -e "------------------------------------------------"
+              echo -e "5) 安装并运行本地容器 (测试用)"
+              echo -e "6) 更新已安装容器"
+              echo -e "7) 卸载并删除目录"
+              echo -e "8) 备份 Nexterm"
+              echo -e "9) 恢复 Nexterm"
+              echo -e "------------------------------------------------"
+              echo -e "0) 返回主菜单"
+              echo -e "------------------------------------------------"
+              read -p "请输入操作编号: " dev_choice
 
-              echo "------------------------"
-              echo "1. 安装           2. 更新           3. 卸载"
-              echo "------------------------"
-              echo "0. 返回上一级"
-              echo "------------------------"
-              read -e -p "输入你的选择: " choice
+              # 共享配置变量
+              base_dir="/home/docker/nexterm"
+              nexterm_dir="/home/docker/nexterm/data"
+              docker_name="nexterm"
+              docker_img="zaixiangjian/nexterm:latest"
+              docker_port=6989
 
-              case $choice in
-                1)
-                  install_docker
+              case $dev_choice in
+                21)
+                    echo "开始环境自检..."
+                    
+                    # 1. 检查 Docker
+                    if ! command -v docker &> /dev/null; then
+                        echo "未检测到 Docker，正在安装..."
+                        curl -fsSL https://get.docker.com | bash -
+                        systemctl enable --now docker
+                    else
+                        echo "✅ Docker 已安装"
+                    fi
 
-		  [ ! -d /home/docker ] && mkdir -p /home/docker
+                    # 2. 检查 Node.js
+                    if ! command -v node &> /dev/null; then
+                        echo "未检测到 Node.js，正在安装 (NodeSource v20)..."
+                        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+                        apt-get install -y nodejs
+                    else
+                        echo "✅ Node.js 已安装: $(node -v)"
+                    fi
 
-                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
-                  cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
-[System]
-Mode = slave
-Listen = :5212
+                    # 3. 检查 pnpm
+                    if ! command -v pnpm &> /dev/null; then
+                        echo "未检测到 pnpm，正在安装..."
+                        npm install -g pnpm
+                    else
+                        echo "✅ pnpm 已安装: $(pnpm -v)"
+                    fi
 
-[Slave]
-Secret = B3oDjh5C0X1cocPPA80KiBepHILMCcwRUEzOtZQ5TE3xPDfQWGmtUTExoy4NC8ih
+                    # 4. 开放防火墙端口 6989
+                    echo "正在检查防火墙并放行端口 ${docker_port}..."
+                    if command -v ufw &> /dev/null; then
+                        ufw allow ${docker_port}/tcp
+                    elif command -v firewall-cmd &> /dev/null; then
+                        firewall-cmd --permanent --add-port=${docker_port}/tcp
+                        firewall-cmd --reload
+                    fi
 
-[CORS]
-AllowOrigins = *
-AllowMethods = OPTIONS,GET,POST
-AllowHeaders = *
-EOF
-
-                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
-enable-rpc=true
-rpc-listen-port=6800
-rpc-secret=cloudreve
-continue=true
-max-concurrent-downloads=10
-max-connection-per-server=5
-split=5
-min-split-size=10M
-bt-enable-lpd=true
-bt-require-crypto=false
-bt-enable-dht=true
-bt-enable-trackers=true
-EOF
-
-                  chmod -R 777 /home/docker/wangpan/data/aria2
-
-                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
-version: '3'
-services:
-  cloudreve:
-    image: cloudreve/cloudreve:4.1.1
-    container_name: cloudreve
-    restart: always
-    entrypoint: ["./cloudreve", "-c", "/cloudreve/config.ini"]
-    ports:
-      - "5212:5212"
-    volumes:
-      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
-      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
-
-  aria2:
-    image: p3terx/aria2-pro
-    container_name: aria2
-    restart: always
-    environment:
-      - RPC_SECRET=cloudreve
-      - UPDATE_TRACKERS=true
-    ports:
-      - "6800:6800"
-    volumes:
-      - /home/docker/wangpan/aria2/config:/config
-      - /home/docker/wangpan/data/aria2:/downloads
-EOF
-
-                  cd /home/docker/wangpan && docker compose up -d
-
-                  clear
-                  echo "Cloudreve 已安装完成（从机模式）"
-                  check_docker_app_ip
-                  sleep 3
-                  docker logs cloudreve
-                  echo ""
-                  ;;
-                2)
-                  docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-
-                  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar,data} wangpan/aria2/config wangpan/data/aria2
-
-                  cat > /home/docker/wangpan/cloudreve/config.ini <<EOF
-[System]
-Mode = slave
-Listen = :5212
-
-[Slave]
-Secret = B3oDjh5C0X1cocPPA80KiBepHILMCcwRUEzOtZQ5TE3xPDfQWGmtUTExoy4NC8ih
-
-[CORS]
-AllowOrigins = *
-AllowMethods = OPTIONS,GET,POST
-AllowHeaders = *
-EOF
-
-                  cat > /home/docker/wangpan/aria2/config/aria2.conf <<EOF
-enable-rpc=true
-rpc-listen-port=6800
-rpc-secret=cloudreve
-continue=true
-max-concurrent-downloads=10
-max-connection-per-server=5
-split=5
-min-split-size=10M
-bt-enable-lpd=true
-bt-require-crypto=false
-bt-enable-dht=true
-bt-enable-trackers=true
-EOF
-
-                  chmod -R 777 /home/docker/wangpan/data/aria2
-
-                  cat > /home/docker/wangpan/docker-compose.yml <<EOF
-version: '3'
-services:
-  cloudreve:
-    image: cloudreve/cloudreve:4.1.1
-    container_name: cloudreve
-    restart: always
-    entrypoint: ["./cloudreve", "-c", "/cloudreve/config.ini"]
-    ports:
-      - "5212:5212"
-    volumes:
-      - /home/docker/wangpan/cloudreve/uploads:/cloudreve/uploads
-      - /home/docker/wangpan/cloudreve/avatar:/cloudreve/avatar
-      - /home/docker/wangpan/cloudreve/data:/cloudreve/data
-      - /home/docker/wangpan/cloudreve/config.ini:/cloudreve/config.ini
-
-  aria2:
-    image: p3terx/aria2-pro
-    container_name: aria2
-    restart: always
-    environment:
-      - RPC_SECRET=cloudreve
-      - UPDATE_TRACKERS=true
-    ports:
-      - "6800:6800"
-    volumes:
-      - /home/docker/wangpan/aria2/config:/config
-      - /home/docker/wangpan/data/aria2:/downloads
-EOF
-
-                  cd /home/docker/wangpan && docker compose up -d
-
-                  clear
-                  echo "Cloudreve 已更新完成（从机模式）"
-                  check_docker_app_ip
-                  sleep 3
-                  docker logs cloudreve
-                  echo ""
-                  ;;
-                3)
-                  docker rm -f cloudreve aria2
-                  docker rmi -f cloudreve/cloudreve:4.1.1 p3terx/aria2-pro
-                  rm -rf /home/docker/wangpan
-                  echo "Cloudreve 应用已卸载"
-                  ;;
-                0)
-                  break
-                  ;;
-                *)
-                  break
-                  ;;
+                    echo "✅ 环境准备就绪！"
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                22)
+                    echo "正在克隆并编译镜像..."
+                    # 检查是否安装了 git
+                    if ! command -v git &> /dev/null; then apt-get install -y git; fi
+                    
+                    mkdir -p /home/docker/build_temp
+                    cd /home/docker/build_temp
+                    rm -rf Nexterm
+                    git clone https://github.com/zaixiangjian/Nexterm.git
+                    cd Nexterm
+                    
+                    echo "开始构建 Docker 镜像，这可能需要几分钟..."
+                    docker build -t $docker_img .
+                    
+                    if [ $? -eq 0 ]; then
+                        echo "✅ 镜像构建完成: $docker_img"
+                    else
+                        echo "❌ 镜像构建失败，请检查源码或 Dockerfile"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                23)
+                    echo "正在登录 Docker Hub..."
+                    docker login
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                24)
+                    echo "正在推送镜像至云端..."
+                    docker push $docker_img
+                    [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                5)
+                    if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
+                        echo "❌ 容器 $docker_name 已经存在"
+                    else
+                        encryption_key=$(openssl rand -hex 32)
+                        mkdir -p $nexterm_dir
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$encryption_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 运行成功！"
+                        echo "本地访问地址: http://$(hostname -I | awk '{print $1}'):${docker_port}"
+                        echo "初始化密钥: $encryption_key"
+                    fi
+                    sleep 3
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                6)
+                    # 自动获取密钥更新
+                    old_key=$(docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' $docker_name 2>/dev/null | grep ENCRYPTION_KEY | cut -d'=' -f2)
+                    if [ -z "$old_key" ]; then
+                        echo "❌ 容器未运行，无法自动获取密钥升级"
+                    else
+                        echo "同步镜像并重启容器..."
+                        docker pull $docker_img
+                        docker rm -f $docker_name
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$old_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 更新完成"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                7)
+                    read -p "🚨 危险操作：确认卸载并彻底删除本地目录 $base_dir？[y/N]: " confirm
+                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        docker rm -f $docker_name 2>/dev/null
+                        rm -rf "$base_dir"
+                        echo "✅ 容器已删除，目录已彻底清理。"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                8)
+                    echo "正在执行备份..."
+                    timestamp=$(date +%Y%m%d%H%M%S)
+                    [ ! -d "$nexterm_dir" ] && echo "❌ 数据目录不存在" && break
+                    tar -czf "/home/docker/nexterm-${timestamp}.tar.gz" -C "$base_dir" data
+                    echo "✅ 备份成功: /home/docker/nexterm-${timestamp}.tar.gz"
+                    sleep 2
+                    ;;
+                9)
+                    backups=($(ls -1t /home/docker/nexterm-*.tar.gz 2>/dev/null))
+                    if [ ${#backups[@]} -eq 0 ]; then
+                        echo "❌ 目录下未发现备份文件"
+                    else
+                        for i in "${!backups[@]}"; do echo "$((i+1)). $(basename ${backups[$i]})"; done
+                        read -p "请选择恢复编号: " sel
+                        restore_file="${backups[$((sel-1))]}"
+                        read -p "请输入对应的原始加密密钥: " e_key
+                        
+                        docker rm -f $docker_name 2>/dev/null
+                        rm -rf "$base_dir" && mkdir -p "$nexterm_dir"
+                        tar -xzf "$restore_file" -C "$base_dir"
+                        
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$e_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 恢复完成！"
+                    fi
+                    sleep 2
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+                0) break ;;
+                *) echo "无效选择"; sleep 1 ;;
               esac
-              break_end
             done
             ;;
+
 
 
 
@@ -7526,61 +7576,109 @@ EOF
 			done
 			;;
 
-   		  55)
-			if [ ! -d /home/docker/openlist/ ]; then
-				mkdir -p /home/docker/openlist/ > /dev/null 2>&1
-			fi
-
-			wget -O /home/docker/openlist/openlist-linux-amd64.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-amd64.tar.gz > /dev/null 2>&1
-			tar -xzf /home/docker/openlist/openlist-linux-amd64.tar.gz -C /home/docker/openlist/ > /dev/null 2>&1
-			chmod +x /home/docker/openlist/openlist
-
-			nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &
-			sleep 5
-
-			# 提取密码与 IP
-			password=$(grep "initial password is:" /home/docker/openlist/openlist.log | tail -n 1 | awk '{print $NF}')
-			ipv4=$(curl -s4 --max-time 5 ifconfig.me)
-			ipv6=$(curl -s6 --max-time 5 ifconfig.me)
-
-			# 添加开机启动定时任务（延迟10秒）
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &') | crontab -
-			)
-
-			clear
-			echo "openlist 已安装"
-			echo "OpenList 是一个支持多种存储挂载的文件列表程序"
-			echo ""
-			echo "访问地址:"
-			[ -n "$ipv4" ] && echo "http://$ipv4:5244"
-   			echo "如果打不开手动放行5244端口ufw命令为ufw allow 5244/tcp"
-			[ -n "$ipv6" ] && echo "http://[$ipv6]:5244"
-			[ -n "$password" ] && echo "密码：$password" || echo "密码获取失败，请查看日志 /home/docker/openlist/openlist.log"
-			echo ""
-			echo "已自动添加定时任务：开机启动后延迟 10 秒运行 OpenList"
-			echo "命令内容为："
-			echo "nohup /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &"
-			echo ""
+55)
+			INSTALL_PATH="/home/docker/openlist"
+			SERVICE_FILE="/etc/systemd/system/openlist.service"
+			
 			echo "------------------------"
-			echo "1. 安装            2. 更新            3. 卸载"
+			echo "  OpenList 系统服务管理"
 			echo "------------------------"
-			echo "0. 返回上一级"
+			echo " 1. 安装 OpenList (Systemd 守护运行)"
+			echo " 2. 卸载 OpenList (完全清理)"
+			echo " 0. 返回上一级"
 			echo "------------------------"
-			echo -n "请输入你的选择: "
+			read -p "请输入选择 [0-2]: " sub_opt
 
-			exit 0  # 防止继续执行 case 后续内容
+			case $sub_opt in
+				1)
+					# --- 1. 下载与安装 ---
+					mkdir -p "$INSTALL_PATH" > /dev/null 2>&1
+					ARCH="amd64"
+					[[ "$(uname -m)" == "aarch64" ]] && ARCH="arm64"
+					
+					echo "正在下载 OpenList ($ARCH)..."
+					wget -O "$INSTALL_PATH/openlist.tar.gz" "https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-$ARCH.tar.gz" > /dev/null 2>&1
+					
+					if [ ! -s "$INSTALL_PATH/openlist.tar.gz" ]; then
+						echo "错误：下载失败！"
+						return 1
+					fi
 
-			docker_name="openlist"
-			docker_img=""
-			docker_port=5244
-			docker_rum="setsid /home/docker/openlist/openlist server > /home/docker/openlist/openlist.log 2>&1 &"
-			docker_describe="OpenList 是一个支持多种存储挂载的文件列表程序"
-			docker_url=""
-			docker_use="默认监听 http://<IP>:5244，首次运行请根据日志设置账户密码"
-			docker_passwd=""
-			docker_app
-			  ;;
+					tar -xzf "$INSTALL_PATH/openlist.tar.gz" -C "$INSTALL_PATH/" > /dev/null 2>&1
+					chmod +x "$INSTALL_PATH/openlist"
+
+					# --- 2. 创建 Systemd 服务文件 ---
+					echo "正在配置 Systemd 服务..."
+					cat <<EOF > $SERVICE_FILE
+[Unit]
+Description=OpenList Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_PATH
+ExecStart=$INSTALL_PATH/openlist server
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:$INSTALL_PATH/openlist.log
+StandardError=append:$INSTALL_PATH/openlist.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+					# --- 3. 启动服务 ---
+					systemctl daemon-reload
+					systemctl enable openlist > /dev/null 2>&1
+					systemctl restart openlist
+
+					echo "等待程序初始化并获取密码..."
+					password=""
+					for i in {1..15}; do
+						sleep 1
+						password=$(grep "initial password is:" "$INSTALL_PATH/openlist.log" | tail -n 1 | awk '{print $NF}')
+						[ -n "$password" ] && break
+					done
+
+					ipv4=$(curl -s4 --max-time 3 ifconfig.me)
+
+					clear
+					echo "✅ OpenList 已通过 Systemd 安装成功"
+					echo "------------------------------------------------"
+					echo "服务状态：$(systemctl is-active openlist)"
+					[ -n "$ipv4" ] && echo "访问地址：http://$ipv4:5244"
+					[ -n "$password" ] && echo "初始密码：$password"
+					echo "------------------------------------------------"
+					echo "常用命令："
+					echo "查看状态: systemctl status openlist"
+					echo "停止服务: systemctl stop openlist"
+					echo "查看日志: journalctl -u openlist -f"
+					echo "------------------------------------------------"
+					;;
+
+				2)
+					# --- 卸载逻辑 ---
+					echo "正在停止服务并清理残留..."
+					systemctl stop openlist > /dev/null 2>&1
+					systemctl disable openlist > /dev/null 2>&1
+					rm -f $SERVICE_FILE
+					systemctl daemon-reload
+					rm -rf "$INSTALL_PATH"
+					
+					# 清理旧的 crontab 防止冲突
+					crontab -l 2>/dev/null | grep -v "$INSTALL_PATH/openlist" | crontab -
+					
+					echo "✅ 卸载完成！所有文件和服务已移除。"
+					;;
+				*)
+					return 0
+					;;
+			esac
+			
+			echo ""
+			read -p "按回车键继续..."
+			;;
+
 
 
 		  56)
@@ -7894,11 +7992,492 @@ EOF
 		  ;;
 
 
-		  62)
+62)
+        while true; do
+            clear
+            echo "--- X-UI 安装管理界面 ---"
+            echo " 1. 安装原版 x-ui (vaxilu)"
+            echo " 2. 安装增强版 3x-ui (mhsanaei)"
+            echo " 0. 返回上一级菜单"
+            echo "------------------------"
+            read -p "请输入选项 [0-2]: " sub_num
+
+            case $sub_num in
+                1)
+                    echo "▶️ 开始安装原版 x-ui..."
+                    bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
+                    break # 安装完退出子循环，回到主菜单
+                    ;;
+                2)
+                    echo "▶️ 开始安装增强版 3x-ui..."
+                    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+                    break
+                    ;;
+                0)
+                    break # 跳出当前循环，返回主菜单
+                    ;;
+                *)
+                    echo "❌ 输入错误，请重新选择"
+                    sleep 1
+                    ;;
+            esac
+        done
+        ;;
+
+63)
+    # =======================
+    # Rclone 管理脚本
+    # =======================
+    # 显示当前 Rclone 定时任务
+    show_cron_jobs() {
+        echo "======================================"
+        echo "Rclone 定时任务："
+        crontab -l 2>/dev/null | grep "s3beifen" >/dev/null
+        if [[ $? -ne 0 ]]; then
+            echo "无"
+        else
+            crontab -l | grep "s3beifen"
+        fi
+        echo "======================================"
+    }
+
+    # 创建备份任务（5/6/7通用）
+    create_backup_job() {
+        script_name="$1"
+        echo "======== 添加 Rclone 备份任务 ($script_name) ========"
+        read -p "请输入要备份的目录名（默认：home）: " in_dir
+        if [[ -z "$in_dir" ]]; then
+            in_dir="home"
+        fi
+        local_dir="/${in_dir%/}/"
+        if [[ "$local_dir" == "/" ]]; then
+            echo "❌ 不允许备份系统根目录 /"
+            return
+        fi
+        dir_name="${in_dir}"
+        echo "目录名称成功识别：$dir_name"
+        echo
+        echo "当前 Rclone 远程："
+        rclone listremotes
+        echo
+        read -p "Rclone名称输入上方已连接名称: " remote_name
+        read -p "请输入存储桶名称（S3或者R2起的名称）: " bucket_name
+        backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${dir_name}"
+        echo
+        echo "生成的命令："
+        echo "$backup_cmd"
+        echo
+        echo "#!/bin/bash" > /root/${script_name}
+        echo "$backup_cmd" >> /root/${script_name}
+        chmod +x /root/${script_name}
+        echo "备份脚本已创建：/root/${script_name}"
+        echo "先执行一次备份……"
+        bash /root/${script_name}
+        echo
+        echo "======== 设置定时任务 ========"
+        read -p "每几天运行一次（0 = 每小时模式）: " period
+        if [[ "$period" == "0" ]]; then
+            read -p "每几小时运行一次（例如 4）: " hours
+            read -p "几分执行（0-59）: " minute
+            cron_rule="$minute */$hours * * * /bin/bash /root/${script_name}"
+        else
+            read -p "几点执行（0-23）: " hour
+            read -p "几分执行（0-59）: " minute
+            cron_rule="$minute $hour */$period * * /bin/bash /root/${script_name}"
+        fi
+        (crontab -l 2>/dev/null | grep -v "/root/${script_name}"; echo "$cron_rule") | crontab -
+        echo
+        echo "定时任务已添加："
+        echo "$cron_rule"
+        echo
+    }
+
+    # 删除定时任务
+    delete_backup_jobs() {
+        echo "======= 当前 Rclone 定时任务 ======="
+        crontab -l | grep "s3beifen"
+        echo "===================================="
+        read -p "是否删除所有 s3beifen 相关任务？(y/n): " confirm
+        if [[ "$confirm" == "y" ]]; then
+            crontab -l | grep -v "s3beifen" | crontab -
+            echo "定时任务已删除。"
+        else
+            echo "取消删除。"
+        fi
+    }
+
+    # 主菜单循环
+    while true; do
+        clear
+        show_cron_jobs
+        echo "官网: https://rclone.org/"
+        echo
+        echo "1. 安装 Rclone"
+        echo "2. 获取配置文件路径"
+        echo "3号配置填写如下r2为名称"
+        echo "[r2]
+type = s3
+provider = Cloudflare
+access_key_id =密钥id
+secret_access_key =密钥
+endpoint =存储桶访问地址"
+
+
+        echo "3. 修改配置文件"
+        echo "4. 查看已添加的 Rclone 远程"
+        echo "5. 添加目录备份任务 (生成 s3beifen.sh)"
+        echo "6. 添加目录备份任务 (生成 s3beifen1.sh)"
+        echo "7. 添加目录备份任务 (生成 s3beifen2.sh)"
+        echo "8. 删除定时任务"
+        echo "9. 卸载 Rclone"
+        echo "0. 返回上一级菜单"
+        echo
+        read -p "请输入操作编号: " choice
+        case $choice in
+            1)
+                sudo -v
+                curl https://rclone.org/install.sh | sudo bash
+                ;;
+            2)
+                rclone config file
+                ;;
+            3)
+                nano /root/.config/rclone/rclone.conf
+                ;;
+            4)
+                rclone listremotes
+                ;;
+            5)
+                create_backup_job "s3beifen.sh"
+                ;;
+            6)
+                create_backup_job "s3beifen1.sh"
+                ;;
+            7)
+                create_backup_job "s3beifen2.sh"
+                ;;
+            8)
+                delete_backup_jobs
+                ;;
+            9)
+                sudo rm -f /usr/bin/rclone
+                sudo rm -rf /root/.config/rclone
+                echo "Rclone 已卸载"
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo "无效输入"
+                ;;
+        esac
+        read -p "按回车键继续……"
+    done
+    ;;
+
+
+64)
+    docker_name="r2beifen"
+    docker_img="garethgeorge/backrest:latest"
+    docker_port=9898
+
+    # 获取宿主机时区
+    if [ -f /etc/timezone ]; then
+        host_tz=$(cat /etc/timezone)
+    else
+        host_tz=$(timedatectl show --property=Timezone --value)
+    fi
+
+    docker_rum="docker run -d \
+        --name $docker_name \
+        --hostname $docker_name \
+        --restart unless-stopped \
+        -v /root/backrest/data:/data \
+        -v /root/backrest/config:/config \
+        -v /root/backrest/cache:/cache \
+        -v /root/backrest/tmp:/tmp \
+        -v /root/.config/rclone:/root/.config/rclone \
+        -v /home:/userdata/home \
+        -e BACKREST_DATA=/data \
+        -e BACKREST_CONFIG=/config/config.json \
+        -e XDG_CACHE_HOME=/cache \
+        -e TMPDIR=/tmp \
+        -e TZ=$host_tz \
+        -p $docker_port:$docker_port \
+        $docker_img"
+
+    docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载，自动跟随宿主机时区"
+    docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest
+	添加仓库Repository URI具体如下
+	rclone:添加的名称:存储桶名称
+	rclone:r2:beifen"
+
+    docker_use=""
+    docker_passwd=""
+    docker_app
+;;
+
+		  65)
 		    clear
-		    echo "▶️ 正在运行安装x-ui一键脚本..."
-		    bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
-		    echo "✅ 安装x-ui脚本运行完成"
+		    echo "▶️ 正在启动caddy DNS版 安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhi.sh)
+		    echo "✅ caddy DNS版 安装完成。"
+		    ;;
+
+		  66)
+		    clear
+		    echo "▶️ 正在启动caddy DNS配置版..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhipeizhiwenjian.sh)
+		    echo "✅ caddy DNS配置版 。"
+		    ;;
+
+
+
+        67)
+            # 交互式输入
+            read -p "请输入 ownCloud 访问 IP（回车自动获取公网IP）: " user_ip
+            if [ -z "$user_ip" ]; then
+                user_ip=$(curl -s https://api.ipify.org)
+                echo "自动获取公网IP: $user_ip"
+            fi
+
+            read -p "请输入访问域名（回车使用默认 www.wangpan.dev）: " user_domain
+            if [ -z "$user_domain" ]; then
+                user_domain="www.wangpan.dev"
+                echo "使用默认域名: $user_domain"
+            fi
+
+            docker_name="owncloud"
+            docker_img="owncloud/server:latest"
+            docker_port=5210
+            docker_rum="docker run -d \
+                --name owncloud \
+                --restart=unless-stopped \
+                -p 5210:8080 \
+                -v /home/docker/owncloud/data:/mnt/data \
+                -e OWNCLOUD_DOMAIN=${user_ip},${user_domain} \
+                -e OWNCLOUD_TRUSTED_DOMAINS=${user_ip},${user_domain} \
+                -e OWNCLOUD_ADMIN_USERNAME=admin \
+                -e OWNCLOUD_ADMIN_PASSWORD=admin123 \
+                -e OWNCLOUD_DB_TYPE=sqlite \
+                owncloud/server:latest"
+
+            docker_describe="ownCloud 私有云文件存储，支持网页访问，SQLite 轻量版"
+            docker_url="官网介绍: https://owncloud.com/"
+            docker_use="echo -e '\033[32m访问地址：http://${user_ip}:5210 或 http://${user_domain}:5210\033[0m\n默认账号：admin 默认密码：admin'"
+
+            docker_passwd=""
+
+            docker_app
+        ;;
+
+
+
+		  68)
+		    clear
+		    echo "▶️ 安装M38u8..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/m3u8xiazai.sh)
+		    echo "✅ 安装M38u8完成 。"
+		    ;;
+
+	  69)
+	      docker_name="it-tools"
+	      docker_img="corentinth/it-tools:latest"
+	      docker_port=8064
+	      docker_rum="docker run -d \
+	                      --name it-tools \
+	                      --restart always \
+	                      -p ${docker_port}:80 \
+	                      -v /home/docker/it-tools/data:/data \
+	                      ${docker_img}"
+	      docker_describe="对开发人员和 IT 工作者来说非常有用的工具"
+	      docker_url="官网介绍: https://github.com/CorentinTh/it-tools"
+	      docker_use=""
+	      docker_passwd=""
+	      docker_app
+	  ;;
+
+
+
+	  70)
+	      docker_name="pansou"
+	      docker_img="ghcr.io/fish2018/pansou-web"
+	      docker_port=8107
+	      docker_rum="docker run -d \
+	                      --name pansou \
+	                      --restart always \
+	                      -p ${docker_port}:80 \
+	                      -v /home/docker/pansou/data:/app/data \
+	                      -v /home/docker/pansou/logs:/app/logs \
+	                      -e ENABLED_PLUGINS=hunhepan,jikepan,panwiki,pansearch,panta,qupansou,susu,thepiratebay,wanou,xuexizhinan,panyq,zhizhen,labi,muou,ouge,shandian,duoduo,huban,cyg,erxiao,miaoso,fox4k,pianku,clmao,wuji,cldi,xiaozhang,libvio,leijing,xb6v,xys,ddys,hdmoli,yuhuage,u3c3,javdb,clxiong,jutoushe,sdso,xiaoji,xdyh,haisou,bixin,djgou,nyaa,xinjuc,aikanzy,qupanshe,xdpan,discourse,yunsou,ahhhhfs,nsgame,gying \
+	                      ${docker_img}"
+	      docker_describe="PanSou 是一个高性能的网盘资源搜索 API 服务。"
+	      docker_url="官网介绍: https://github.com/fish2018/pansou"
+	      docker_use=""
+	      docker_passwd=""
+	      docker_app
+	  ;;
+
+
+
+	  71)
+	      docker_name="zfile"
+	      docker_img="zhaojun1998/zfile:latest"
+	      docker_port=8109
+	      docker_rum="docker run -d \
+	                      --name zfile \
+	                      --restart always \
+	                      -p ${docker_port}:8080 \
+	                      -v /home/docker/zfile/db:/root/.zfile-v4/db \
+	                      -v /home/docker/zfile/logs:/root/.zfile-v4/logs \
+	                      -v /home/docker/zfile/file:/data/file \
+	                      -v /home/docker/zfile/application.properties:/root/.zfile-v4/application.properties \
+	                      ${docker_img}"
+	      docker_describe="是一个适用于个人或小团队的在线网盘程序。"
+	      docker_url="官网介绍: https://github.com/zfile-dev/zfile"
+	      docker_use=""
+	      docker_passwd=""
+	      docker_app
+	  ;;
+
+		  72)
+		    clear
+		    echo "▶️ 安装discourse论坛..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/discourse.sh)
+		    echo "✅ 安装discourse论坛 。"
+		    ;;
+
+
+73)
+    docker_name="minio"
+    docker_img="minio/minio:latest"
+    docker_port=9000
+    docker_console_port=9001
+    # 自动生成 20 位随机强密码（只包含大小写字母和数字）
+    MINIO_ROOT_USER=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
+    MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+    
+    docker_rum="docker run -d \
+                    --name ${docker_name} \
+                    --restart always \
+                    -p 127.0.0.1:${docker_port}:9000 \
+                    -p 127.0.0.1:${docker_console_port}:9001 \
+                    -v /home/docker/minio/data:/data \
+                    -e MINIO_ROOT_USER=${MINIO_ROOT_USER} \
+                    -e MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} \
+                    ${docker_img} server /data --console-address :${docker_console_port}"
+    
+    docker_describe="MinIO 是一个高性能的分布式对象存储服务，兼容 S3 API，适合个人或团队使用。"
+    docker_url="官网介绍: https://min.io"
+    docker_use=""
+    docker_passwd="${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}"
+    docker_app
+;;
+
+
+		  74)
+		    clear
+		    echo "▶️ 安装minio..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/minlo.sh)
+		    echo "✅ 安装minio..."
+		    ;;
+
+
+
+
+
+75)
+    docker_name="openlist"
+    docker_img="openlistteam/openlist:v4.1.9"
+    docker_port=5244
+    docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
+    docker_url="官网介绍: https://github.com/OpenListTeam/OpenList
+
+查看密码使用
+在本机输入代码
+
+docker logs openlist
+"
+    # 创建数据目录并设置权限
+    mkdir -p /home/docker/openlist/data
+    chown -R 1000:1000 /home/docker/openlist/data
+    chmod -R 755 /home/docker/openlist/data
+
+    # 启动容器
+    docker run -d \
+      --name openlist \
+      --restart always \
+      -p ${docker_port}:5244 \
+      -v /home/docker/openlist/data:/opt/openlist/data \
+      --user 1000:1000 \
+      ${docker_img}
+
+    # 输出访问地址和首次密码提示
+    docker_use="访问地址：http://$(hostname -I | awk '{print $1}'):${docker_port}"
+    docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
+
+    echo "$docker_use"
+    echo "$docker_passwd"
+
+    docker_app
+;;
+
+
+
+
+
+
+76)
+
+# 随机生成 ADMIN_TOKEN
+ADMIN_TOKEN=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c20)
+
+# 自动获取本机 IP（取第一个非 127.0.0.1 的 IP）
+HOST_IP=$(hostname -I | awk '{print $1}')
+
+docker_name="vaultwarden"
+docker_img="vaultwarden/server"
+docker_port=3280
+
+# 安装目录改为 /home/web/vaultwarden
+install_dir="/home/web/vaultwarden"
+mkdir -p "$install_dir"
+
+docker_rum="docker run -d \
+                --name vaultwarden \
+                -e SIGNUPS_ALLOWED=false \
+                -e ADMIN_TOKEN=$ADMIN_TOKEN \
+                --restart always \
+                -p 3280:80 \
+                -v $install_dir/data:/data \
+                vaultwarden/server"
+
+docker_describe="更改false改为true可注册，一个开源的 Bitwarden 服务端实现（禁止注册，自动生成管理员 Token，无 SMTP 设置）"
+docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
+docker_use="echo \"✅ Vaultwarden 管理员 Token: $ADMIN_TOKEN\" && echo \"🌐 Web 访问: http://$HOST_IP:3280\""
+docker_passwd=""
+docker_app
+;;
+
+
+
+
+
+		  77)
+		    clear
+		    echo "▶️ 全部caddy与nginx邮箱安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginxcaddy.sh)
+		    echo "✅ caddy与nginx邮箱安装完成..."
+		    ;;
+
+
+
+
+		  78)
+		    clear
+		    echo "▶️ mailcow-dockerized邮箱安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailcaddy.sh)
+		    echo "✅ mailcow-dockerized邮箱安装完成..."
 		    ;;
 
 
@@ -7906,6 +8485,2257 @@ EOF
 
 
 
+79)
+            clear
+            echo "Nexterm - 基于 Web 的终端访问工具 (zaixiangjian 编译版)"
+            echo "官方 GitHub: https://github.com/gnmyt/Nexterm"
+            echo "功能介绍: 使用浏览器远程访问主机终端，支持 SSH、VNC、RDP 及 SFTP"
+            echo "------------------------------------------------"
+            echo "1. 安装 Nexterm"
+            echo "2. 备份 Nexterm"
+            echo "------------------------------------------------"
+            echo "3. 卸载 Nexterm (彻底删除本地数据)"
+            echo "------------------------------------------------"
+            echo "4. 恢复 Nexterm"
+            echo "99. 更新 Nexterm 镜像 (自动继承配置)"
+            echo "0. 返回主菜单"
+            echo "------------------------------------------------"
+            read -p "请输入操作编号: " sub_choice
+
+            # 配置信息
+            base_dir="/home/docker/nexterm"
+            nexterm_dir="/home/docker/nexterm/data"
+            backup_dir="/home/docker"
+            backup_prefix="nexterm"
+            docker_name="nexterm"
+            docker_img="zaixiangjian/nexterm:latest"
+            docker_port=6989
+
+            local_ip=$(hostname -I | awk '{print $1}')
+            ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+
+            case "$sub_choice" in
+                1)
+                    if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
+                        echo "$docker_name 已经安装完成"
+                    else
+                        encryption_key=$(openssl rand -hex 32)
+                        mkdir -p $nexterm_dir
+                        docker run -d \
+                            --name $docker_name \
+                            -e ENCRYPTION_KEY=$encryption_key \
+                            --restart always \
+                            -p ${docker_port}:6989 \
+                            -v $nexterm_dir:/app/data \
+                            $docker_img
+                        echo "------------------------------------------------"
+                        echo "✅ $docker_name 安装成功"
+                        echo "加密密钥为: $encryption_key (请务必保存)"
+                    fi
+                    ;;
+                2)
+                    echo "正在备份..."
+                    timestamp=$(date +%Y%m%d%H%M%S)
+                    backup_file="${backup_prefix}-${timestamp}.tar.gz"
+                    [ ! -d "$nexterm_dir" ] && echo "错误: 目录不存在" && break
+                    tar -czf "${backup_dir}/${backup_file}" -C "$base_dir" data
+                    echo "✅ 备份成功！保存为: ${backup_dir}/${backup_file}"
+                    ls -t ${backup_dir}/${backup_prefix}-*.tar.gz | sed -n '4,$p' | xargs -r rm -f
+                    ;;
+                3)
+                    read -p "🚨 确认卸载并彻底删除数据？将执行 [rm -rf $base_dir] [y/N]: " confirm
+                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                        echo "正在停止并删除容器..."
+                        docker rm -f $docker_name 2>/dev/null
+                        echo "正在清理本地文件夹..."
+                        rm -rf "$base_dir"
+                        echo "✅ Nexterm 已彻底卸载，数据已清空。"
+                    else
+                        echo "操作已取消。"
+                    fi
+                    ;;
+                4)
+                    echo "可用备份清单："
+                    backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+                    [ ${#backups[@]} -eq 0 ] && echo "❌ 无备份" && break
+                    for i in "${!backups[@]}"; do echo "$((i+1)). $(basename ${backups[$i]})"; done
+                    read -p "选择编号: " sel
+                    restore_file="${backups[$((sel-1))]:-${backups[0]}}"
+                    
+                    read -p "请输入原始加密密钥: " encryption_key
+                    [ -z "$encryption_key" ] && echo "密钥不能为空" && break
+
+                    docker rm -f $docker_name 2>/dev/null
+                    rm -rf "$base_dir"
+                    mkdir -p "$nexterm_dir"
+                    tar -xzf "$restore_file" -C "$base_dir"
+                    
+                    docker run -d --name $docker_name -e ENCRYPTION_KEY=$encryption_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                    echo "✅ 数据已恢复。"
+                    ;;
+                99)
+                    echo "检查更新中..."
+                    old_key=$(docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' $docker_name 2>/dev/null | grep ENCRYPTION_KEY | cut -d'=' -f2)
+                    if [ -z "$old_key" ]; then
+                        echo "❌ 容器未运行，无法自动获取密钥。"
+                    else
+                        docker pull $docker_img
+                        docker rm -f $docker_name 2>/dev/null
+                        docker run -d --name $docker_name -e ENCRYPTION_KEY=$old_key --restart always -p ${docker_port}:6989 -v $nexterm_dir:/app/data $docker_img
+                        echo "✅ 更新完成！"
+                    fi
+                    ;;
+                0) break ;;
+                *) echo "无效选项" ;;
+            esac
+            read -p "按任意键继续..." -n1
+            ;;
+
+
+80)
+while true; do
+
+  clear
+  echo -e "------------------------------------------------"
+  echo -e "         Sun-Panel 镜像维护工具"
+  echo -e "------------------------------------------------"
+  echo -e "21) 安装依赖环境 (Node.js, pnpm, Docker)"
+  echo -e "22) 克隆源码并编译 Docker 镜像"
+  echo -e "23) 登录 Docker Hub"
+  echo -e "24) 推送镜像到 Docker Hub (zaixiangjian/sun-panel:latest)"
+  echo -e "5) 安装并运行 sun-panel 容器 (/home/docker/sun-panel)"
+  echo -e "6) 更新已安装容器"
+  echo -e "7) 卸载 sun-panel 并删除 /home/docker/sun-panel"
+  echo -e "8) 备份 sun-panel 数据到 /home/docker"
+  echo -e "9) 恢复 sun-panel 数据并自动启动"
+  echo -e "0) 返回主菜单"
+  echo -e "------------------------------------------------"
+  read -e -p "请输入选择: " choice
+
+  case $choice in
+    21)
+      echo -e "\n🚀 安装依赖环境..."
+      apt update && apt install -y curl git build-essential lsb-release ca-certificates gnupg
+      curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+      apt install -y nodejs
+      npm install -g pnpm
+
+      if ! command -v docker &>/dev/null; then
+        echo "安装 Docker..."
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+        apt update
+        apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      else
+        echo "Docker 已安装，跳过。"
+      fi
+      sleep 2
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    22)
+      echo -e "\n📂 克隆源码并编译 Docker 镜像..."
+      mkdir -p /home/docker
+      cd /home/docker
+      rm -rf sun-panel
+      git clone https://github.com/zaixiangjian/sun-panel.git
+      cd sun-panel
+      git checkout dev
+      git pull
+
+      echo -e "\n📝 修改 package.json build 脚本..."
+      sed -i 's/"build": "run-p add-version type-check build-only"/"build": "run-p add-version build-only"/' package.json
+
+      echo -e "\n📦 安装依赖..."
+      pnpm install
+
+      echo -e "\n🏗️ 编译前端..."
+      pnpm build
+
+      echo -e "\n📦 安装 go-bindata 工具..."
+      go install github.com/elazarl/go-bindata-assetfs/...@latest
+
+      echo -e "\n🏗️ 生成 Go 绑定资源..."
+      cd service
+      go-bindata-assetfs -o assets/bindata.go -pkg assets ../dist/assets/...
+
+      echo -e "\n🏗️ 编译 Go 后端..."
+      go build -o /home/docker/sun-panel/sun-panel main.go
+
+      echo -e "\n🐳 构建 Docker 镜像 sun-panel:latest ..."
+      cd /home/docker/sun-panel
+      docker build -t sun-panel .
+
+      echo -e "\n✅ 编译和 Docker 构建完成！"
+      sleep 2
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    23)
+      echo -e "\n🔑 登录 Docker Hub ..."
+      docker login
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+    24)
+      echo -e "\n📤 推送镜像到 Docker Hub ..."
+      docker tag sun-panel zaixiangjian/sun-panel:latest
+      docker push zaixiangjian/sun-panel:latest
+      if [ $? -eq 0 ]; then
+        echo -e "✅ 镜像上传成功！"
+      else
+        echo -e "❌ 上传失败，请先登录 Docker Hub"
+      fi
+      sleep 2
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+
+5)
+  echo -e "\n📦 安装并运行 sun-panel 容器..."
+
+  DEFAULT_DIR="/home/docker/sun-panel"
+  DEFAULT_PORT="3002"
+
+  read -e -p "请输入宿主机目录 [默认: $DEFAULT_DIR]: " HOST_DIR
+  HOST_DIR=${HOST_DIR:-$DEFAULT_DIR}
+
+  read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+  HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+  # 创建必要的子目录
+  mkdir -p "$HOST_DIR"/{conf,data,database,lang,runtime}
+
+  # 停止并删除已有容器
+  docker stop sun-panel 2>/dev/null || true
+  docker rm sun-panel 2>/dev/null || true
+
+  # 启动容器，挂载全部目录
+  docker run -d \
+    --name sun-panel \
+    --restart unless-stopped \
+    -v "$HOST_DIR/conf":/app/conf \
+    -v "$HOST_DIR/data":/app/data \
+    -v "$HOST_DIR/database":/app/database \
+    -v "$HOST_DIR/lang":/app/lang \
+    -v "$HOST_DIR/runtime":/app/runtime \
+    -p "$HOST_PORT":3002 \
+    zaixiangjian/sun-panel:latest
+
+  # 获取本机 IP
+  HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+  [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+  echo -e "\n✅ 安装完成！"
+  echo -e "👉 访问地址: http://${HOST_IP}:${HOST_PORT}"
+  echo -e "账号: admin@sun.cc"
+  echo -e "密码: 12345678"
+  read -n1 -r -p "回车继续..." key
+  ;;
+
+6)
+  echo -e "\n🔄 更新已安装容器..."
+  DEFAULT_DIR="/home/docker/sun-panel"
+  DEFAULT_PORT="3002"
+
+  # 停止并删除旧容器
+  docker stop sun-panel 2>/dev/null || true
+  docker rm sun-panel 2>/dev/null || true
+
+  # 拉取最新镜像
+  docker pull zaixiangjian/sun-panel:latest
+
+  # 重新运行容器，挂载完整目录
+  docker run -d \
+    --name sun-panel \
+    --restart unless-stopped \
+    -v "$DEFAULT_DIR/conf":/app/conf \
+    -v "$DEFAULT_DIR/data":/app/data \
+    -v "$DEFAULT_DIR/database":/app/database \
+    -v "$DEFAULT_DIR/lang":/app/lang \
+    -v "$DEFAULT_DIR/runtime":/app/runtime \
+    -p "$DEFAULT_PORT":3002 \
+    zaixiangjian/sun-panel:latest
+
+  # 获取本机 IP
+  HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+  [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+  echo -e "\n✅ 更新完成！访问地址: http://${HOST_IP}:${DEFAULT_PORT}"
+  read -n1 -r -p "回车继续..." key
+  ;;
+
+
+    7)
+      echo -e "\n🗑️ 卸载 sun-panel 并删除目录..."
+      docker stop sun-panel 2>/dev/null || true
+      docker rm sun-panel 2>/dev/null || true
+      rm -rf /home/docker/sun-panel
+      echo -e "\n✅ 已卸载并删除 /home/docker/sun-panel"
+      read -n1 -r -p "回车继续..." key
+      ;;
+
+8)
+  echo -e "\n📦 备份 sun-panel 数据..."
+
+  BACKUP_DIR="/home/docker"
+  BACKUP_NAME="sun-panel-backup-$(date +%Y%m%d_%H%M%S).tar.gz"
+  CONTAINER_DATA="/home/docker/sun-panel"
+
+  if [ ! -d "$CONTAINER_DATA" ]; then
+    echo -e "❌ 数据目录不存在：$CONTAINER_DATA"
+    read -n1 -r -p "回车继续..." key
+    break
+  fi
+
+  tar -czf "$BACKUP_DIR/$BACKUP_NAME" -C "$CONTAINER_DATA" .
+
+  if [ $? -eq 0 ]; then
+    echo -e "✅ 备份成功：$BACKUP_DIR/$BACKUP_NAME"
+  else
+    echo -e "❌ 备份失败"
+  fi
+
+  read -n1 -r -p "回车继续..." key
+  ;;
+
+
+9)
+  echo -e "\n♻️ 恢复 sun-panel 数据并启动容器..."
+
+  DEFAULT_DIR="/home/docker/sun-panel"
+  DEFAULT_PORT="3002"
+  BACKUP_DIR="/home/docker"
+
+  # 获取最新备份文件
+  LATEST_BACKUP=$(ls -t $BACKUP_DIR/sun-panel-backup-*.tar.gz 2>/dev/null | head -n1)
+
+  if [ -z "$LATEST_BACKUP" ]; then
+    echo -e "❌ 没有找到任何备份文件"
+    read -n1 -r -p "回车继续..." key
+    break
+  fi
+
+  echo -e "\n📂 可用备份文件："
+  ls -lh $BACKUP_DIR/sun-panel-backup-*.tar.gz 2>/dev/null
+  echo -e "最新备份: $(basename "$LATEST_BACKUP")"
+
+  read -e -p "请输入要恢复的备份文件名 [回车使用最新]: " BACKUP_FILE
+  BACKUP_FILE=${BACKUP_FILE:-$(basename "$LATEST_BACKUP")}
+
+  if [ ! -f "$BACKUP_DIR/$BACKUP_FILE" ]; then
+    echo -e "❌ 备份文件不存在"
+    read -n1 -r -p "回车继续..." key
+    break
+  fi
+
+  read -e -p "恢复目录 [默认: $DEFAULT_DIR]: " HOST_DIR
+  HOST_DIR=${HOST_DIR:-$DEFAULT_DIR}
+
+  read -e -p "宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+  HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+  # 停止并删除旧容器
+  docker stop sun-panel 2>/dev/null || true
+  docker rm sun-panel 2>/dev/null || true
+
+  # 清空并恢复数据
+  rm -rf "$HOST_DIR"
+  mkdir -p "$HOST_DIR"
+  tar -xzf "$BACKUP_DIR/$BACKUP_FILE" -C "$HOST_DIR"
+
+  # 确保挂载所有子目录
+  mkdir -p "$HOST_DIR"/{conf,data,database,lang,runtime}
+
+  # 启动容器
+  docker run -d \
+    --name sun-panel \
+    --restart unless-stopped \
+    -v "$HOST_DIR/conf":/app/conf \
+    -v "$HOST_DIR/data":/app/data \
+    -v "$HOST_DIR/database":/app/database \
+    -v "$HOST_DIR/lang":/app/lang \
+    -v "$HOST_DIR/runtime":/app/runtime \
+    -p "$HOST_PORT":3002 \
+    zaixiangjian/sun-panel:latest
+
+  # 获取本机 IP
+  HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+  [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+  echo -e "\n✅ 恢复完成并已启动"
+  echo -e "👉 访问地址: http://${HOST_IP}:${HOST_PORT}"
+  read -n1 -r -p "回车继续..." key
+  ;;
+
+    0)
+      break
+      ;;
+
+    *)
+      echo "输入错误"
+      read -n1 -r -p "回车继续..." key
+      ;;
+  esac
+done
+;;
+
+
+81)
+        # 内部函数：更新 Hosts 回流
+        update_sun_panel_hosts() {
+            echo "🌐 正在配置本地回环地址 (Hosts)..."
+            local domains=("api.sun-panel.top" "www.sun-panel.top" "pro.sun-panel.top" "sun-panel.top")
+            for dom in "${domains[@]}"; do
+                if ! grep -qE "127.0.0.1[[:space:]]+$dom" /etc/hosts; then
+                    echo "127.0.0.1    $dom" >> /etc/hosts
+                fi
+                if ! grep -qE "::1[[:space:]]+$dom" /etc/hosts; then
+                    echo "::1          $dom" >> /etc/hosts
+                fi
+            done
+        }
+
+        while true; do
+            clear
+            echo "------------------------------------------------"
+            echo "          Sun-Panel 管理工具 (v1.8.1)"
+            echo "------------------------------------------------"
+            echo "1. 安装 Sun-Panel"
+            echo "2. 卸载 Sun-Panel (含启动任务与目录)"
+            echo "3. 备份 Sun-Panel (.tar.gz)"
+            echo "4. 恢复 Sun-Panel (智能检索/默认最新)"
+            echo "0. 返回上一级"
+            echo "------------------------------------------------"
+            read -e -p "请输入你的选择: " sub_choice
+
+            PANEL_DIR="/home/docker/sun-panel"
+            BACKUP_DIR="/home/docker"
+            SERVICE_FILE="/etc/systemd/system/sun-panel.service"
+
+            case $sub_choice in
+                1)
+                    echo "📦 正在安装 Sun-Panel..."
+                    # 强力清理旧环境
+                    systemctl stop sun-panel 2>/dev/null
+                    systemctl disable sun-panel 2>/dev/null
+                    fuser -k 3002/tcp 2>/dev/null 
+                    pkill -f "sun-panel" 2>/dev/null
+                    
+                    mkdir -p "$PANEL_DIR"
+                    cd "$PANEL_DIR" || continue
+                    
+                    echo "📥 正在下载资源包..."
+                    wget -q --show-progress -O sun-panel.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/1.8.1/sun-panel_v1.8.1_linux_amd64.tar.gz
+                    
+                    echo "📦 正在解压并整理环境..."
+                    tar -xzf sun-panel.tar.gz
+                    if [ -d "sun-panel_v1.8.1_linux_amd64" ]; then
+                        cp -rn sun-panel_v1.8.1_linux_amd64/* ./
+                        rm -rf sun-panel_v1.8.1_linux_amd64
+                    fi
+                    rm -f sun-panel.tar.gz
+                    chmod +x sun-panel
+                    
+                    update_sun_panel_hosts
+                    
+                    echo "⚙️ 写入服务配置..."
+                    cat <<EOF > "$SERVICE_FILE"
+[Unit]
+Description=Sun-Panel Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$PANEL_DIR
+ExecStart=$PANEL_DIR/sun-panel
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+                    echo "🚀 启动服务..."
+                    systemctl daemon-reload
+                    systemctl enable sun-panel
+                    systemctl start sun-panel
+                    
+                    echo "⏳ 正在验证端口 (3002)..."
+                    sleep 5
+                    if ss -tuln | grep -q ":3002 "; then
+                        echo "✅ 安装完成！服务已在端口 3002 成功运行。"
+                        echo "------------------------------------------------"
+                        echo "账号: admin@sun.cc | 密码: 12345678"
+                        echo "------------------------------------------------"
+                    else
+                        echo "⚠️ 服务已启动但端口未监听，请稍后检查。"
+                        journalctl -u sun-panel -n 10 --no-pager
+                    fi
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                2)
+                    echo "🗑️ 正在彻底卸载 Sun-Panel..."
+                    # 1. 停止服务
+                    echo "🛑 停止并禁用启动任务..."
+                    systemctl stop sun-panel 2>/dev/null
+                    systemctl disable sun-panel 2>/dev/null
+                    
+                    # 2. 删除服务文件
+                    echo "📄 移除服务配置文件..."
+                    rm -f "$SERVICE_FILE"
+                    systemctl daemon-reload
+                    systemctl reset-failed
+                    
+                    # 3. 清理残留进程
+                    fuser -k 3002/tcp 2>/dev/null
+                    pkill -f "sun-panel" 2>/dev/null
+                    
+                    # 4. 删除本地目录
+                    echo "📂 删除程序目录: $PANEL_DIR"
+                    rm -rf "$PANEL_DIR"
+                    
+                    echo "✅ 卸载完成！所有启动任务及本地目录已清除。"
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                3)
+                    echo "💾 正在压缩备份至 $BACKUP_DIR..."
+                    BACKUP_FILE="sun-panel-backup-$(date +%Y%m%d%H%M%S).tar.gz"
+                    tar -czf "$BACKUP_DIR/$BACKUP_FILE" --exclude="*.tar.gz" -C "$PANEL_DIR" .
+                    echo "✅ 备份成功: $BACKUP_FILE"
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                4)
+                    echo "♻️ 恢复 Sun-Panel..."
+                    mapfile -t backups < <(ls -t $BACKUP_DIR/sun-panel-backup-*.tar.gz 2>/dev/null)
+
+                    if [ ${#backups[@]} -eq 0 ]; then
+                        echo "❌ 未找到备份文件。"; read -n1 -r -p "回车返回..."; continue
+                    fi
+
+                    echo "💡 请选择备份（回车默认最新备份）:"
+                    for i in "${!backups[@]}"; do
+                        echo "  $((i+1)). $(basename "${backups[$i]}")"
+                    done
+
+                    read -p "选择序号: " b_idx
+                    b_idx=${b_idx:-1}
+                    SELECTED_BACKUP="${backups[$((b_idx-1))]}"
+
+                    echo "🔄 正在恢复环境..."
+                    systemctl stop sun-panel 2>/dev/null
+                    fuser -k 3002/tcp 2>/dev/null
+                    pkill -f "sun-panel" 2>/dev/null
+                    
+                    rm -rf "$PANEL_DIR"
+                    mkdir -p "$PANEL_DIR"
+
+                    echo "📦 正在解压备份数据..."
+                    tar -xzf "$SELECTED_BACKUP" -C "$PANEL_DIR"
+                    chmod +x "$PANEL_DIR/sun-panel"
+                    update_sun_panel_hosts
+
+                    echo "⚙️ 重构服务配置..."
+                    cat <<EOF > "$SERVICE_FILE"
+[Unit]
+Description=Sun-Panel Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$PANEL_DIR
+ExecStart=$PANEL_DIR/sun-panel
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+                    systemctl daemon-reload
+                    systemctl enable sun-panel
+                    systemctl start sun-panel
+                    
+                    echo "⏳ 正在验证恢复状态..."
+                    sleep 5
+                    if ss -tuln | grep -q ":3002 "; then
+                        echo "✅ 恢复完成且启动成功！"
+                    else
+                        echo "⚠️ 恢复完成，但端口响应较慢，请稍后确认。"
+                    fi
+                    read -n1 -r -p "回车返回菜单..."
+                    ;;
+
+                0)
+                    break
+                    ;;
+            esac
+        done
+        ;;
+
+82)
+        # --- 内部函数：显示定时任务 ---
+        show_cron_jobs() {
+            echo "======================================"
+            echo "📅 当前 Rclone 定时任务状态："
+            if crontab -l 2>/dev/null | grep -q "s3beifen"; then
+                crontab -l | grep "s3beifen"
+            else
+                echo "暂无定时备份任务"
+            fi
+            echo "======================================"
+        }
+
+        # --- 内部函数：创建 Rclone 备份脚本 ---
+        create_backup_job() {
+            script_name="$1"
+            echo "======== 添加 Rclone 备份任务 ($script_name) ========"
+            read -p "请输入要备份的本地目录全路径（例如 /home/docker）: " local_dir
+            if [ ! -d "$local_dir" ]; then echo "❌ 目录不存在！"; return; fi
+            
+            in_dir=$(basename "$local_dir")
+            echo "当前 Rclone 远程列表："
+            rclone listremotes
+            read -p "请输入远程名称 (例如 r2): " remote_name
+            read -p "请输入存储桶名称 (Bucket): " bucket_name
+            
+            backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${in_dir}"
+            
+            echo "#!/bin/bash" > "/root/${script_name}"
+            echo "$backup_cmd" >> "/root/${script_name}"
+            chmod +x "/root/${script_name}"
+            
+            echo "🚀 尝试首次运行备份..."
+            bash "/root/${script_name}"
+            
+            echo "📅 设置定时执行："
+            read -p "每几天运行一次 (输入数字，0表示每小时模式): " period
+            if [[ "$period" == "0" ]]; then
+                read -p "每几小时运行一次 (1-23): " hours
+                cron_rule="0 */$hours * * * /bin/bash /root/${script_name}"
+            else
+                read -p "每天几点执行 (0-23): " hour
+                cron_rule="0 $hour */$period * * /bin/bash /root/${script_name}"
+            fi
+
+            (crontab -l 2>/dev/null | grep -v "/root/${script_name}"; echo "$cron_rule") | crontab -
+            echo "✅ 定时任务已更新。"
+        }
+
+        while true; do
+            clear
+            show_cron_jobs
+            echo "------------------------------------------------"
+            echo "      Backrest & Rclone 综合管理 (备份专题)"
+            echo "------------------------------------------------"
+            echo " [ Backrest 网页备份 (端口 9898) ]"
+            echo " 1. 安装 Backrest (1.10.1)"
+            echo " 2. 卸载 Backrest (完全清理)"
+            echo " 3. 重启 Backrest 服务"
+            echo " 4. 查看服务状态/日志"
+            echo "============================================================"
+            echo "Backrest后台添加对象存储的配置路径"
+            echo "例如"
+            echo "rclone:r2:cunchu/全部备份"
+            echo "============================================================"
+            echo " [ Rclone 命令行/S3 备份 ]"
+            echo " 20. 安装 Rclone (v1.72.1)"
+            echo " 21. 获取配置文件路径"
+            echo " 22. 交互式添加 Rclone 远程配置 (S3)"
+            echo " 23. 修改配置文件 (nano)"
+            echo " 24. 查看已添加的 Rclone 远程"
+            echo " 25. 目录备份 -> s3beifen.sh"
+            echo " 26. 目录备份 -> s3beifen1.sh"
+            echo " 27. 目录备份 -> s3beifen2.sh"
+            echo " 28. 删除所有 Rclone 定时任务"
+            echo " 29. 卸载 Rclone"
+            echo "------------------------------------------------"
+            echo " [ 系统全量备份与恢复 ]"
+            echo " 88. 备份全部内容 (Backrest + Rclone)"
+            echo " 99. 自动恢复并启用 (从 /home/backrclone)"
+            echo "------------------------------------------------"
+            echo " 100. 完全卸载 (清理目录/服务/残留/环境)"
+            echo "------------------------------------------------"
+            echo " 0. 返回上一级菜单"
+            echo "------------------------------------------------"
+            read -e -p "请输入选择: " sub_choice
+
+            BASE_DIR="/home/docker/BackyuRclone"
+            BR_DIR="$BASE_DIR/backrest"
+            RC_DIR="$BASE_DIR/Rclone"
+            BR_SERVICE="/etc/systemd/system/backrest.service"
+            BACKUP_SAVE_DIR="/home/backrclone"
+
+            case $sub_choice in
+                1)
+                    echo "📦 正在安装 Backrest..."
+                    systemctl stop backrest 2>/dev/null
+                    mkdir -p "$BR_DIR" && cd "$BR_DIR"
+                    wget -q --show-progress -O br.tar.gz https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/backrest_Linux_x86_64.tar.gz
+                    tar -xzf br.tar.gz
+                    find . -maxdepth 1 -type f -name "backrest*" ! -name "*.tar.gz" -exec mv {} backrest \;
+                    chmod +x backrest
+                    rm -f br.tar.gz
+                    cat <<EOF > "$BR_SERVICE"
+[Unit]
+Description=Backrest Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$BR_DIR
+ExecStart=$BR_DIR/backrest
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+                    systemctl daemon-reload
+                    systemctl enable backrest
+                    systemctl start backrest
+                    sleep 2
+                    if systemctl is-active --quiet backrest; then
+                        echo "✅ 安装成功！访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
+                    else
+                        echo "❌ 启动失败，请检查端口 9898 是否被占用。"
+                        journalctl -u backrest --no-pager -n 10
+                    fi
+                    read -p "回车继续..." ;;
+
+                2)
+                    systemctl stop backrest 2>/dev/null
+                    systemctl disable backrest 2>/dev/null
+                    rm -f "$BR_SERVICE"
+                    rm -rf "$BR_DIR"
+                    echo "✅ 已完全卸载。"
+                    read -p "回车继续..." ;;
+
+                3)
+                    systemctl restart backrest
+                    echo "✅ 已发出重启指令。"
+                    read -p "回车继续..." ;;
+
+                4)
+                    journalctl -u backrest --no-pager -n 20
+                    read -p "回车继续..." ;;
+
+                20)
+                    echo "📦 正在安装 Rclone v1.72.1..."
+                    mkdir -p "$RC_DIR" && cd "$RC_DIR"
+                    apt-get install -y unzip || yum install -y unzip
+                    wget -q --show-progress -O rc.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/rclone-v1.72.1-linux-amd64.zip
+                    unzip -o rc.zip
+                    RBIN_TMP=$(find . -name "rclone" -type f)
+                    cp "$RBIN_TMP" /usr/bin/rclone
+                    chmod +x /usr/bin/rclone
+                    rm -rf rc.zip rclone-v1.72.1-linux-amd64
+                    echo "✅ Rclone 安装完成！"
+                    read -p "回车继续..." ;;
+
+                21) rclone config file; read -p "回车继续..." ;;
+
+
+                22)
+                    echo "📝 --- 添加 Rclone S3 配置文件 ---"
+                    read -p "请输入名称 (例如 r2): " rc_name
+                    read -p "提供商或者备注 (例如 Cloudflare): " rc_provider
+                    read -p "请输入 Access Key ID: " rc_id
+                    read -p "请输入 Secret Access Key: " rc_key
+                    read -p "请输入 Endpoint (例如 s3.ap-southeast-1.idrivee2.com): " rc_endpoint
+
+                    mkdir -p /root/.config/rclone
+                    cat >> /root/.config/rclone/rclone.conf <<EOF
+[$rc_name]
+type = s3
+provider = $rc_provider
+access_key_id = $rc_id
+secret_access_key = $rc_key
+endpoint = $rc_endpoint
+EOF
+                    echo "✅ 配置已写入 /root/.config/rclone/rclone.conf"
+                    read -p "回车继续..." ;;
+				23) nano /root/.config/rclone/rclone.conf ;;
+                24) rclone listremotes; read -p "回车继续..." ;;
+                25) create_backup_job "s3beifen.sh" ;;
+                26) create_backup_job "s3beifen1.sh" ;;
+                27) create_backup_job "s3beifen2.sh" ;;
+                28)
+                    crontab -l | grep -v "s3beifen" | crontab -
+                    echo "✅ 已清理所有 Rclone 定时任务。"
+                    read -p "回车继续..." ;;
+                29)
+                    rm -f /usr/bin/rclone
+                    echo "✅ Rclone 已卸载。"
+                    read -p "回车继续..." ;;
+
+
+
+88)
+                    echo "🗄️ 正在执行【深度全量】备份 (程序 + 数据库 + 账户配置)..."
+                    mkdir -p "$BACKUP_SAVE_DIR"
+                    BACKUP_FILE="$BACKUP_SAVE_DIR/backrclone-$(date +%Y%m%d%H%M%S).tar.gz"
+                    
+                    # 定义 Backrest 的三个核心路径
+                    BR_BIN_DIR="/home/docker/BackyuRclone"        # 自定义安装目录
+                    BR_DATA="/root/.local/share/backrest"    # 运行数据/restic路径
+                    BR_CONF="/root/.config/backrest"         # ⚠️ 账户/面板设置/config.json
+                    RC_CONF="/root/.config/rclone"           # Rclone配置
+                    
+                    echo "📦 正在全量压缩..."
+                    # 确保这些目录存在，否则 tar 会报错
+                    mkdir -p "$BR_DATA" "$BR_CONF" "$RC_CONF"
+                    
+                    tar -czf "$BACKUP_FILE" --absolute-names \
+                        "$BR_BIN_DIR" \
+                        "$BR_DATA" \
+                        "$BR_CONF" \
+                        "$RC_CONF" \
+                        $(ls /root/s3beifen*.sh 2>/dev/null) 2>/dev/null
+                    
+                    if [ -f "$BACKUP_FILE" ]; then
+                        echo "✅ 全量备份完成：$BACKUP_FILE"
+                        echo "💡 已包含账户、密码、面板设置及所有任务。"
+                    else
+                        echo "❌ 备份失败！"
+                    fi
+                    read -p "回车继续..." ;;
+
+99)
+    echo "♻️ 正在执行全环境自动恢复..."
+    LATEST_PKG=$(ls -t $BACKUP_SAVE_DIR/backrclone-*.tar.gz 2>/dev/null | head -n 1)
+    if [ -z "$LATEST_PKG" ]; then
+        echo "❌ /home/backrclone 下未发现备份文件"; read -p "回车继续..."; continue
+    fi
+    
+    echo "🛑 停止旧服务并清理冲突配置..."
+    systemctl stop backrest 2>/dev/null
+    rm -rf /root/.config/backrest
+
+    echo "📂 还原物理文件..."
+    tar -xzf "$LATEST_PKG" -P --overwrite -C /
+
+    echo "⚙️ 权限校准与服务重建..."
+    chmod +x "$BR_DIR/backrest" 2>/dev/null
+    [ -f "/root/.local/share/backrest/restic" ] && chmod +x "/root/.local/share/backrest/restic"
+    # 如果备份里有 rclone，还原它
+    [ -f "$RC_DIR/rclone" ] && cp -f "$RC_DIR/rclone" /usr/bin/rclone && chmod +x /usr/bin/rclone
+    chmod +x /root/s3beifen*.sh 2>/dev/null
+
+    cat > "$BR_SERVICE" <<EOF
+[Unit]
+Description=Backrest Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$BR_DIR
+ExecStart=$BR_DIR/backrest -bind-address :9898
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable backrest >/dev/null 2>&1
+    systemctl start backrest
+    
+    echo "⏳ 等待服务初始化 (5s)..."
+    sleep 5
+    
+    # 使用稳健的判断逻辑
+    BR_STATUS=$(systemctl is-active backrest)
+    if [ "$BR_STATUS" = "active" ]; then
+        echo "✅ Backrest 核心服务恢复成功！"
+        echo "🌍 访问地址: http://$(curl -s ipv4.icanhazip.com):9898"
+        
+        echo "------------------------------------------------"
+        echo "📦 正在自动为您安装 Rclone 环境..."
+        # 直接复用 20 号的安装逻辑
+        mkdir -p "$RC_DIR" && cd "$RC_DIR"
+        apt-get update && apt-get install -y unzip || yum install -y unzip
+        wget -q --show-progress -O rc.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.10.1/rclone-v1.72.1-linux-amd64.zip
+        unzip -o rc.zip >/dev/null
+        RBIN_TMP=$(find . -name "rclone" -type f)
+        cp -f "$RBIN_TMP" /usr/bin/rclone
+        chmod +x /usr/bin/rclone
+        echo "✅ Rclone 环境已自动就绪！"
+        echo "------------------------------------------------"
+        echo "💡 恢复流程已完成。"
+        echo "👉 请接下来手动输入 [ 21 ] 获取配置文件路径，确认 Rclone 配置是否生效。"
+    else
+        echo "❌ 服务启动状态异常 ($BR_STATUS)，请检查选项 4 日志。"
+    fi
+    read -p "回车继续..." ;;
+
+100)
+                    echo "⚠️  正在准备完全卸载 Backrest & Rclone 环境..."
+                    read -p "此操作将删除所有配置、备份任务及程序文件，确定吗？(y/n): " confirm
+                    if [[ "$confirm" != "y" ]]; then echo "已取消。"; read -p "回车继续..."; continue; fi
+
+                    echo "🛑 正在停止并禁用 Backrest 服务..."
+                    systemctl stop backrest 2>/dev/null
+                    systemctl disable backrest 2>/dev/null
+                    rm -f /etc/systemd/system/backrest.service
+                    systemctl daemon-reload
+
+                    echo "🗑️  正在删除程序目录: $BASE_DIR ..."
+                    # $BASE_DIR 即 /home/docker/BackyuRclone
+                    rm -rf "$BASE_DIR"
+
+                    echo "🗑️  正在清理 Backrest 系统残留 (配置与运行数据)..."
+                    rm -rf "/root/.config/backrest"
+                    rm -rf "/root/.local/share/backrest"
+
+                    echo "🗑️  正在清理 Rclone 系统残留 (程序与配置)..."
+                    rm -f /usr/bin/rclone
+                    rm -rf "/root/.config/rclone"
+
+                    echo "🗑️  正在清理定时任务 (Cron Jobs)..."
+                    crontab -l 2>/dev/null | grep -v "s3beifen" | crontab -
+
+                    echo "------------------------------------------------"
+                    echo "✅ 卸载完成！"
+                    echo "已清理清单："
+                    echo "1. 安装目录: $BASE_DIR"
+                    echo "2. 系统服务: backrest.service"
+                    echo "3. Backrest配置: /root/.config/backrest"
+                    echo "4. Rclone程序与配置: /usr/bin/rclone & .config/rclone"
+                    echo "5. 所有相关的定时备份任务"
+                    echo "------------------------------------------------"
+                    read -p "回车继续..." ;;
+
+                0) break ;;
+            esac
+        done
+        ;;
+
+
+83)
+    while true; do
+        clear
+        echo -e "------------------------------------------------"
+        echo -e "     Caddy & Cloudflare 自动化编译与安装工具"
+        echo -e "------------------------------------------------"
+        echo -e "【开发编译与推送】"
+        echo -e "1)  一键安装环境并编译 Caddy (含 Cloudflare 插件)"
+        echo -e "2)  登录 Docker Hub"
+        echo -e "3)  推送镜像到 Docker Hub"
+        echo -e "------------------------------------------------"
+        echo -e "【Docker-Compose 管理 (推荐)】"
+        echo -e "11) 安装/启动 Caddy (可自定义目录与 Token)"
+        echo -e "12) 更新 Caddy 镜像 (latest)"
+        echo -e "13) 查看 DNS 模块 (验证插件)"
+        echo -e "14) 重载 Caddy 配置 (热更新)"
+        echo -e "15) 卸载 Caddy (Compose 模式)"
+        echo -e "------------------------------------------------"
+        echo -e "【Docker Run 手动管理 (自定义路径)】"
+        echo -e "21) 手动路径安装 (可自定义挂载目录)"
+        echo -e "22) 更新 Caddy 镜像 (latest)"
+        echo -e "23) 卸载 Caddy (Run 模式)"
+        echo -e "------------------------------------------------"
+        echo -e "0)  返回主菜单"
+        echo -e "------------------------------------------------"
+        read -p "请输入操作编号: " dev_choice
+
+        # 基础变量配置
+        build_base="/home/docker/build_temp"
+        github_prefix="https://github.com/zaixiangjian"
+        docker_img="zaixiangjian/caddy:latest"
+
+        case $dev_choice in
+            1)
+                echo -e "\n--- 开始全自动构建环境与编译 ---"
+                apt update && apt install -y git curl
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                    systemctl enable --now docker
+                fi
+                mkdir -p "$build_base" && cd "$build_base"
+                rm -rf caddy
+                echo "正在克隆源码并开始构建..."
+                git clone "$github_prefix/caddy.git"
+                cd caddy
+                # 注意：此处依赖你仓库里的 Dockerfile 是否为多阶段插件编译版
+                docker build --pull -t "$docker_img" .
+                [ $? -eq 0 ] && echo "✅ 编译成功！" || echo "❌ 编译失败"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                docker push "$docker_img"
+                [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            11)
+                echo -e "\n--- Compose 安装模式 ---"
+                read -p "请输入安装根目录 (默认 /home/docker/caddy/): " caddy_path
+                caddy_path=${caddy_path:-/home/docker/caddy/}
+                mkdir -p "$caddy_path/data" "$caddy_path/config"
+                cd "$caddy_path" || exit
+
+                if [ ! -f "Caddyfile" ]; then
+                    echo "创建默认 Caddyfile..."
+                    echo -e ":80 {\n    respond \"Hello Caddy\"\n}" > Caddyfile
+                fi
+
+                if [ ! -f "docker-compose.yml" ]; then
+                    read -p "请输入 Cloudflare Token (CF_API_TOKEN): " cf_token
+                    cat <<EOF > docker-compose.yml
+services:
+  caddy:
+    image: $docker_img
+    container_name: caddy
+    restart: always
+    ports:
+      - "8080:80"
+      - "2053:443"
+      - "2053:443/udp"
+    environment:
+      - CF_API_TOKEN=$cf_token
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./data:/data
+      - ./config:/config
+EOF
+                fi
+                docker compose up -d
+                echo "✅ Compose 在 $caddy_path 启动完成"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            12|22)
+                echo "正在强制拉取最新镜像..."
+                docker pull "$docker_img"
+                docker restart caddy
+                echo "✅ 更新完毕（已尝试重启容器）"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            13)
+                echo "--- 检查 DNS 模块状态 ---"
+                if docker ps | grep -q caddy; then
+                    docker exec -it caddy caddy list-modules | grep cloudflare
+                else
+                    echo "❌ Caddy 容器未运行"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            14)
+                echo "正在平滑重载配置..."
+                docker exec -it caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            15)
+                echo "正在通过 Compose 停止并卸载..."
+                read -p "请输入安装根目录 (默认 /home/docker/caddy/): " del_path
+                del_path=${del_path:-/home/docker/caddy/}
+                if [ -d "$del_path" ]; then
+                    cd "$del_path" && docker compose down
+                    echo "✅ 容器已停止并移除"
+                else
+                    echo "❌ 找不到目录: $del_path"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            21)
+                read -p "请输入安装根目录 (默认 /home/docker/caddy/): " run_path
+                run_path=${run_path:-/home/docker/caddy/}
+                mkdir -p "$run_path/data" "$run_path/config"
+                [ ! -f "$run_path/Caddyfile" ] && echo ":80 { respond \"Hello\" }" > "$run_path/Caddyfile"
+                
+                read -p "请输入 Cloudflare API Token: " cf_token
+                docker run -d \
+                  --name caddy \
+                  -p 8080:80 -p 2053:443 -p 2053:443/udp \
+                  -v "$run_path/Caddyfile":/etc/caddy/Caddyfile \
+                  -v "$run_path/data":/data \
+                  -v "$run_path/config":/config \
+                  -e CF_API_TOKEN="$cf_token" \
+                  --restart always \
+                  "$docker_img"
+                echo "✅ Run 模式安装完成 (路径: $run_path)"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            23)
+                echo "正在强制卸载 Caddy 容器..."
+                docker rm -f caddy
+                echo "✅ 容器 caddy 已被移除"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
+
+
+
+
+84)
+        while true; do
+            clear
+            echo -e "------------------------------------------------"
+            echo -e "      Hitokoto API (一言) 自动化管理工具"
+            echo -e "------------------------------------------------"
+            echo -e "【源码编译与推送】"
+            echo -e "1)  一键安装环境并编译 Hitokoto API 镜像"
+            echo -e "2)  登录 Docker Hub"
+            echo -e "3)  推送镜像到 Docker Hub"
+            echo -e "------------------------------------------------"
+            echo -e "【部署与管理】"
+            echo -e "11) 快速部署 (Docker Compose 模式)"
+            echo -e "12) 查看 API 运行日志"
+            echo -e "13) 检查 API 健康状态 (Curl 测试)"
+            echo -e "14) 停止并卸载 API 容器"
+            echo -e "------------------------------------------------"
+            echo -e "0)  返回主菜单"
+            echo -e "------------------------------------------------"
+            read -p "请输入操作编号: " hito_choice
+
+            # 基础变量配置
+            build_base="/home/docker/build_hito"
+            github_url="https://github.com/zaixiangjian/hitokoto-api.git"
+            docker_img="zaixiangjian/hitokoto-api:latest"
+
+            case $hito_choice in
+                1)
+                    echo -e "\n--- 开始全自动构建环境与编译 ---"
+                    apt update && apt install -y git curl
+                    if ! command -v docker &> /dev/null; then
+                        curl -fsSL https://get.docker.com | bash -
+                        systemctl enable --now docker
+                    fi
+
+                    mkdir -p "$build_base" && cd "$build_base"
+                    rm -rf hitokoto-api
+
+                    echo "正在从 $github_url 克隆源码..."
+                    git clone "$github_url"
+                    cd hitokoto-api || exit 1
+
+                    echo "写入 Docker 专用 Dockerfile（禁用 husky）..."
+
+cat > Dockerfile <<'EOF'
+FROM node:20-slim
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json* ./
+
+# 关键：彻底禁用 husky / postinstall
+RUN npm install --legacy-peer-deps --omit=dev --ignore-scripts
+
+COPY . .
+
+EXPOSE 8000
+CMD ["npm", "run", "start"]
+EOF
+
+                    echo "正在构建 Docker 镜像: $docker_img"
+                    docker build --pull -t "$docker_img" .
+
+                    if [ $? -eq 0 ]; then
+                        echo "✅ 镜像编译成功！"
+                    else
+                        echo "❌ 编译失败"
+                    fi
+
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                2)
+                    docker login
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                3)
+                    echo "正在推送镜像到仓库..."
+                    docker push "$docker_img"
+                    [ $? -eq 0 ] && echo "✅ 推送成功！" || echo "❌ 推送失败"
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+11)
+    echo -e "\n--- Hitokoto API + Redis 强制配置部署 ---"
+    read -p "请输入部署目录 (默认 /home/docker/hitokoto): " hito_path
+    hito_path=${hito_path:-/home/docker/hitokoto}
+    mkdir -p "$hito_path" && cd "$hito_path"
+
+    # 创建一个强制配置文件
+    echo "正在生成生产环境配置..."
+    cat <<EOF > data.yml
+# Hitokoto API 运行时配置
+server:
+  host: 0.0.0.0
+  port: 8000
+redis:
+  host: hitokoto-redis
+  port: 6379
+  password: 
+  database: 0
+EOF
+
+    echo "正在写入 docker-compose.yml..."
+    cat <<EOF > docker-compose.yml
+services:
+  hitokoto-redis:
+    image: redis:7-alpine
+    container_name: hitokoto-redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  hitokoto:
+    image: $docker_img
+    container_name: hitokoto-api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      # 将外部配置强制覆盖到容器内的配置目录
+      # 假设项目配置路径为 /app/data/config.yml 或类似的，这里根据源码调整
+      - ./data.yml:/app/data/config.yml
+    depends_on:
+      hitokoto-redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=hitokoto-redis
+EOF
+
+    echo "正在重启服务..."
+    docker compose down
+    docker compose up -d
+    echo "✅ 部署更新完成！"
+    read -n1 -r -p "回车继续..." key
+    ;;
+
+
+
+                12)
+                    echo "--- 正在查看容器日志 (Ctrl+C 退出) ---"
+                    docker logs -f hitokoto-api
+                    ;;
+
+                13)
+                    echo "--- 正在测试接口响应 ---"
+                    curl -s http://127.0.0.1:8000 | jq . 2>/dev/null || curl -s http://127.0.0.1:8000
+                    echo -e "\n------------------------"
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                14)
+                    echo "正在停止并移除容器..."
+                    read -p "请输入部署目录 (默认 /home/docker/hitokoto): " del_path
+                    del_path=${del_path:-/home/docker/hitokoto}
+                    if [ -d "$del_path" ]; then
+                        cd "$del_path" && docker compose down
+                        echo "✅ 容器已移除"
+                    else
+                        echo "❌ 找不到目录: $del_path"
+                    fi
+                    read -n1 -r -p "回车继续..." key
+                    ;;
+
+                0) break ;;
+                *) echo "无效选择"; sleep 1 ;;
+            esac
+        done
+        ;;
+
+85)
+    while true; do
+        clear
+        echo -e "------------------------------------------------"
+        echo -e "      OpenList 最新版 (AList Fork) 编译工具"
+        echo -e "------------------------------------------------"
+        echo -e "【源码与镜像管理】"
+        echo -e "1)  安装环境并修复 Docker (解决 Dpkg/Sock 错误)"
+        echo -e "2)  一键克隆源码并开始 Docker 编译 (本地构建)"
+        echo -e "3)  登录 Docker Hub"
+        echo -e "4)  推送镜像到 Docker Hub"
+        echo -e "------------------------------------------------"
+        echo -e "【容器部署管理】"
+        echo -e "11) 部署/启动 容器 (使用本地最新镜像)"
+        echo -e "12) 查看运行日志 (获取初始密码)"
+        echo -e "13) 停止并彻底卸载 OpenList"
+        echo -e "------------------------------------------------"
+        echo -e "0)  返回主菜单"
+        echo -e "------------------------------------------------"
+        read -p "请输入操作编号: " ol_choice
+
+        # 核心变量配置 - 已更新为最新版 OpenList 地址
+        my_github_url="https://github.com/zaixiangjian/OpenList.git"
+        my_docker_img="zaixiangjian/openlist:latest"
+        build_dir="/home/docker/openlist_latest"
+
+        case $ol_choice in
+            1)
+                echo -e "\n--- [1/3] 正在强制修复系统基础环境 ---"
+                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+                sudo dpkg --configure -a
+                sudo apt --fix-broken install -y
+                
+                echo -e "\n--- [2/3] 更新基础工具 ---"
+                sudo apt update && sudo apt install -y git curl ca-certificates gnupg
+                
+                echo -e "\n--- [3/3] 修复 Docker 服务权限 ---"
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                fi
+                sudo systemctl enable --now docker
+                sudo systemctl start docker
+                sudo chmod 666 /var/run/docker.sock
+                echo -e "\n✅ 环境修复完成！"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                echo -e "\n--- 正在同步 OpenList 最新源码 ---"
+                mkdir -p "$build_dir" && cd "$build_dir"
+                [ -d "OpenList" ] && rm -rf OpenList
+                
+                git clone --depth 1 "$my_github_url"
+                cd OpenList
+
+                # 核心修复：针对 BASE_IMAGE_TAG 报错的暴力替换
+                echo "正在优化 Dockerfile 变量兼容性..."
+                sed -i 's/${BASE_IMAGE_TAG}/base/g' Dockerfile
+                
+                echo -e "\n--- 开始执行 Docker 多阶段编译 ---"
+                # 显式传入 build-arg 以防万一
+                sudo docker build --pull \
+                    --build-arg BASE_IMAGE_TAG=base \
+                    -t "$my_docker_img" .
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ OpenList 编译成功！"
+                else
+                    echo -e "\n❌ 编译失败，请检查上方日志。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                sudo docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            4)
+                echo "正在推送镜像到 Docker Hub..."
+                sudo docker push "$my_docker_img"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            11)
+                [ "$ol_choice" == "12" ] && echo -e "\n--- 正在尝试拉取远程镜像 ---" && sudo docker pull "$my_docker_img"
+                
+                echo -e "\n--- 正在清理旧容器并优化启动环境 ---"
+                sudo docker rm -f openlist &>/dev/null
+                
+                # 确保数据目录存在并权限正确
+                mkdir -p "$build_dir/data"
+                sudo chmod -R 777 "$build_dir/data"
+                
+                echo "正在启动 OpenList 容器 (端口 5244)..."
+                sudo docker run -d \
+                    --name openlist \
+                    -p 5244:5244 \
+                    -v "$build_dir/data:/opt/openlist/data" \
+                    --restart always \
+                    "$my_docker_img"
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ 启动成功！"
+                    echo "------------------------------------------------"
+                    echo "🔗 访问地址 (根据网络环境选择):"
+                    
+                    # 获取公网 IPv4
+                    pub_v4=$(curl -s4 --connect-timeout 2 ifconfig.me)
+                    [ -n "$pub_v4" ] && echo -e "   - 公网访问: \033[36mhttp://$pub_v4:5244\033[0m"
+                    
+                    # 获取内网 IPv4
+                    loc_v4=$(hostname -I | awk '{print $1}')
+                    echo -e "   - 局域网访问: \033[36mhttp://$loc_v4:5244\033[0m"
+                    
+                    # 获取全局 IPv6 (过滤 fe80)
+                    loc_v6=$(ip -6 addr show | grep -E 'inet6 [23]' | awk '{print $2}' | cut -d'/' -f1 | head -n 1)
+                    if [ -n "$loc_v6" ]; then
+                        echo -e "   - IPv6 访问: \033[36mhttp:[$loc_v6]:5244\033[0m"
+                    fi
+                    
+                    echo "------------------------------------------------"
+                    echo "正在提取管理员凭据..."
+                    sleep 5  # 等待容器内服务启动
+                    
+                    # 尝试从两个途径获取密码
+                    # 途径1: 容器日志
+                    password=$(sudo docker logs openlist 2>&1 | grep -E "password is:|Successfully generated password:" | awk -F': ' '{print $2}' | xargs)
+                    
+                    # 途径2: 如果日志没有，直接执行内部命令查询
+                    if [ -z "$password" ]; then
+                        password=$(sudo docker exec openlist ./alist admin 2>&1 | grep "admin password:" | awk -F': ' '{print $2}' | xargs)
+                    fi
+
+                    if [ -n "$password" ]; then
+                        echo -e "👤 默认账号: admin"
+                        echo -e "🔑 初始密码: \033[32m$password\033[0m"
+                    else
+                        echo -e "⚠️  提示: 未能自动抓取密码。可能已手动修改或数据库已存在。"
+                        echo -e "请执行选项 14 或输入 \033[33mdocker exec openlist ./alist admin\033[0m 查看。"
+                    fi
+                    echo "------------------------------------------------"
+                else
+                    echo -e "\n❌ 启动失败，请检查 Docker 环境。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            12)
+                echo -e "--- 容器运行日志 (Ctrl+C 退出) ---"
+                sudo docker logs -f --tail 100 openlist
+                ;;
+
+            13)
+                echo "正在停止并移除 OpenList 相关资源..."
+                sudo docker rm -f openlist &>/dev/null
+                sudo docker rmi "$my_docker_img" &>/dev/null
+                echo "✅ 已清理完成。"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
+
+86)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      Backrest 资源备份工具 管理脚本"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并完整编译 (前端+后端+Docker)"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 Backrest (/home/docker/backrest)"
+    echo "12) 更新镜像"
+    echo "13) 备份数据"
+    echo "14) 恢复备份"
+    echo "15) 卸载 Backrest"
+
+    echo "------------------------------------------------"
+    echo "在rclone目录创建"
+    echo "rclone.conf"
+    echo "添加下面s3代码"
+    echo "唯一名称r2"
+    echo "[r2]
+type = s3
+provider = 备注名
+access_key_id = 访问id
+secret_access_key = 访问密钥
+endpoint = s3地址"
+
+    echo "------------------------------------------------"
+    echo "0) 返回上一级"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " br_choice
+
+    my_github_url="https://github.com/zaixiangjian/backrest.git"
+    my_docker_img="zaixiangjian/backrest:latest"
+    build_dir="/home/docker/backrest_build"
+    app_base_dir="/home/docker/backrest"
+    docker_name="backrest"
+    host_tz=$(cat /etc/timezone)
+    host_port="9898"
+    container_port="9898"
+    data_volume="/data"
+
+    case $br_choice in
+
+    1)
+        echo "修复系统环境..."
+        sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock
+        sudo dpkg --configure -a
+        sudo apt --fix-broken install -y
+        sudo apt update
+        sudo apt install -y git curl ca-certificates
+
+        if ! command -v docker &>/dev/null; then
+            curl -fsSL https://get.docker.com | bash -
+        fi
+        sudo systemctl enable --now docker
+        sudo chmod 666 /var/run/docker.sock
+        echo "✅ 环境准备完成"
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    2)
+        echo "开始完整构建流程..."
+
+        mkdir -p "$build_dir"
+        cd "$build_dir"
+        [ -d backrest ] && rm -rf backrest
+
+        git clone --depth 1 "$my_github_url" || {
+            echo "❌ Git 克隆失败"
+            read -n1 -r -p "回车继续..."
+            break
+        }
+
+        cd backrest
+
+        # 安装 Node 20
+        if ! command -v node &>/dev/null; then
+            echo "安装 Node.js 20..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt install -y nodejs
+        fi
+
+        # 构建前端
+        echo "构建 WebUI..."
+        cd webui || { echo "找不到 webui 目录"; break; }
+        npm install
+        npm run build
+
+        if [ ! -d dist ]; then
+            echo "❌ 前端构建失败"
+            read -n1 -r -p "回车继续..."
+            break
+        fi
+
+        cd ..
+
+        # 安装 Go
+        if ! command -v go &>/dev/null; then
+            echo "安装 Go..."
+            sudo apt install -y golang
+        fi
+
+        # 编译后端
+        echo "编译 Go 二进制..."
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags="-s -w" -o backrest ./cmd/backrest
+
+        if [ ! -f backrest ]; then
+            echo "❌ Go 编译失败"
+            read -n1 -r -p "回车继续..."
+            break
+        fi
+
+        # 构建 Docker
+        echo "构建 Docker 镜像..."
+        sudo docker build \
+            --pull \
+            --no-cache \
+            -t "$my_docker_img" \
+            -f Dockerfile.alpine \
+            .
+
+        if [ $? -eq 0 ]; then
+            echo "✅ 镜像构建成功"
+        else
+            echo "❌ Docker 构建失败"
+        fi
+
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    3)
+        sudo docker login
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    4)
+        sudo docker push "$my_docker_img"
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    11)
+        echo "正在部署 Backrest..."
+        sudo docker rm -f $docker_name &>/dev/null
+
+        mkdir -p "$app_base_dir/data" \
+                 "$app_base_dir/config" \
+                 "$app_base_dir/cache" \
+                 "$app_base_dir/tmp" \
+                 "$app_base_dir/rclone"
+
+
+        sudo docker run -d \
+            --name $docker_name \
+            --hostname $docker_name \
+            --restart unless-stopped \
+            -v "$app_base_dir/data:/data" \
+            -v "$app_base_dir/config:/config" \
+            -v "$app_base_dir/cache:/cache" \
+            -v "$app_base_dir/tmp:/tmp" \
+            -v "$app_base_dir/rclone:/root/.config/rclone" \
+            -v /home:/userdata/home \
+            -e BACKREST_DATA=/data \
+            -e BACKREST_CONFIG=/config/config.json \
+            -e XDG_CACHE_HOME=/cache \
+            -e TMPDIR=/tmp \
+            -e TZ=$host_tz \
+            -p "$host_port:$container_port" \
+            $my_docker_img
+
+        if [ $? -eq 0 ]; then
+            ip=$(hostname -I | awk '{print $1}')
+            echo "✅ 启动成功"
+            echo "访问地址: http://$ip:$host_port"
+        else
+            echo "❌ 启动失败"
+        fi
+        read -n1 -r -p "回车继续..."
+        ;;
+    12)
+        echo "正在从 Docker Hub 拉取最新镜像..."
+        sudo docker pull "$my_docker_img"
+        echo "✅ 更新完成"
+        read -n1 -r -p "回车继续..."
+        ;;
+    13)
+        timestamp=$(date +%Y%m%d%H%M%S)
+        backup_file="/home/backrest-backup-$timestamp.tar.gz"
+        echo "正在备份 $app_base_dir 到 $backup_file ..."
+        tar -czvf "$backup_file" -C /home docker/backrest
+        echo "✅ 备份完成: $backup_file"
+        read -n1 -r -p "回车继续..."
+        ;;
+14)
+    echo "可用备份文件列表:"
+    ls -1 /home/backrest-backup-*.tar.gz
+    read -p "输入要恢复的备份文件 (回车默认最新): " restore_file
+    restore_file=${restore_file:-$(ls -1t /home/backrest-backup-*.tar.gz | head -n1)}
+    echo "恢复备份: $restore_file ..."
+
+    # 停止容器
+    sudo docker rm -f $docker_name &>/dev/null
+
+    # 清空原目录并恢复
+    sudo rm -rf "$app_base_dir"
+    mkdir -p "$app_base_dir"
+    tar -xzvf "$restore_file" -C /home
+
+    # 恢复完成后重启容器
+    echo "重启 Backrest 容器..."
+    sudo docker run -d \
+        --name $docker_name \
+        --hostname $docker_name \
+        --restart unless-stopped \
+        -v "$app_base_dir/data:/data" \
+        -v "$app_base_dir/config:/config" \
+        -v "$app_base_dir/cache:/cache" \
+        -v "$app_base_dir/tmp:/tmp" \
+        -v "$app_base_dir/rclone:/root/.config/rclone" \
+        -v /home:/userdata/home \
+        -e BACKREST_DATA=/data \
+        -e BACKREST_CONFIG=/config/config.json \
+        -e XDG_CACHE_HOME=/cache \
+        -e TMPDIR=/tmp \
+        -e TZ=$host_tz \
+        -p "$host_port:$container_port" \
+        $my_docker_img
+
+    if [ $? -eq 0 ]; then
+        ip=$(hostname -I | awk '{print $1}')
+        echo "✅ 恢复并重启完成"
+        echo "访问地址: http://$ip:$host_port"
+    else
+        echo "❌ 恢复后启动失败"
+    fi
+
+    read -n1 -r -p "回车继续..."
+    ;;
+    15)
+        echo "卸载 Backrest ..."
+        sudo docker rm -f $docker_name &>/dev/null
+        sudo docker rmi -f $my_docker_img &>/dev/null
+        sudo rm -rf "$app_base_dir"
+        echo "✅ 已卸载"
+        read -n1 -r -p "回车继续..."
+        ;;
+
+    0) break ;;
+    *) echo "无效选择"; sleep 1 ;;
+    esac
+done
+;;
+
+87)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      Certimate SSL 证书管理工具 编译脚本"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并构建镜像"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 Certimate (/home/docker/certimate)"
+    echo "12) 更新镜像到最新版本"
+    echo "13) 卸载 Certimate"
+    echo "0) 返回主菜单"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " ct_choice
+
+    # 核心变量配置
+    my_github_url="https://github.com/zaixiangjian/certimate.git"
+    my_docker_img="zaixiangjian/certimate:latest"
+
+
+    case $ct_choice in
+            1)
+                echo -e "\n--- [1/3] 正在修复系统基础环境 ---"
+                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+                sudo dpkg --configure -a
+                sudo apt --fix-broken install -y
+                
+                echo -e "\n--- [2/3] 更新基础工具 ---"
+                sudo apt update && sudo apt install -y git curl ca-certificates
+                
+                echo -e "\n--- [3/3] 检查并启动 Docker ---"
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                fi
+                sudo systemctl enable --now docker
+                sudo chmod 666 /var/run/docker.sock
+                echo -e "\n✅ 环境准备就绪！"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                echo -e "\n--- 正在同步 Certimate 最新源码 ---"
+                mkdir -p "$build_dir" && cd "$build_dir"
+                [ -d "certimate" ] && rm -rf certimate
+                
+                git clone --depth 1 "$my_github_url"
+                cd certimate
+                
+                echo -e "\n--- 开始执行 Docker 编译 (使用项目默认配置) ---"
+                # 直接使用源码中的 Dockerfile 进行构建
+                sudo docker build -t "$my_docker_img" .
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ Certimate 镜像构建成功！"
+                else
+                    echo -e "\n❌ 编译失败，请检查 Dockerfile 内容或网络环境。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                sudo docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            4)
+                echo "正在推送镜像到 Docker Hub..."
+                sudo docker push "$my_docker_img"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+        11)
+            echo "--- 部署/启动 Certimate ---"
+            sudo docker rm -f certimate &>/dev/null
+            mkdir -p "$install_dir/data"
+            sudo chmod -R 777 "$install_dir/data"
+            sudo docker run -d \
+                --name certimate \
+                --restart unless-stopped \
+                -p 8090:8090 \
+                -v /etc/localtime:/etc/localtime:ro \
+                -v /etc/timezone:/etc/timezone:ro \
+                -v "$install_dir/data:/app/pb_data" \
+                "$my_docker_img"
+            if [ $? -eq 0 ]; then
+                loc_v4=$(hostname -I | awk '{print $1}')
+                echo "✅ 启动成功！访问 http://$loc_v4:8090"
+            else
+                echo "❌ 启动失败"
+            fi
+                echo "账号"
+                echo "admin@certimate.fun"
+                echo "密码"
+                echo "1234567890"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        12)
+            echo "--- 拉取最新镜像 ---"
+            sudo docker pull "$my_docker_img"
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+
+        13)
+            echo "--- 卸载 Certimate ---"
+            sudo docker rm -f certimate &>/dev/null
+            sudo docker rmi "$my_docker_img" &>/dev/null
+            sudo rm -rf "$install_dir"
+            echo "✅ 已卸载完成"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
+
+88)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      MinIO 自编译管理脚本 (自动下载二进制)"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并准备 Docker 镜像"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 MinIO (/home/docker/minio)"
+    echo "12) 更新镜像到最新版本"
+    echo "13) 卸载 MinIO"
+    echo "0) 返回主菜单"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " ct_choice
+
+    build_dir="/home/docker/build"
+    install_dir="/home/docker/minio"
+    my_github_url="https://github.com/zaixiangjian/minio.git"
+    my_docker_img="zaixiangjian/minio:latest"
+    TARGETARCH=amd64
+    RELEASE=latest
+
+    case $ct_choice in
+        1)
+            echo -e "\n--- [1/3] 修复系统基础环境 ---"
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+            sudo dpkg --configure -a
+            sudo apt --fix-broken install -y
+
+            echo -e "\n--- [2/3] 安装基础工具 ---"
+            sudo apt update
+            sudo apt install -y git curl ca-certificates build-essential make golang
+
+            echo -e "\n--- [3/3] 检查并启动 Docker ---"
+            if ! command -v docker &> /dev/null; then
+                curl -fsSL https://get.docker.com | bash -
+            fi
+            sudo systemctl enable --now docker
+            sudo chmod 666 /var/run/docker.sock
+            echo -e "\n✅ 环境准备就绪！"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        2)
+            echo -e "\n--- 正在同步 MinIO 源码 ---"
+            mkdir -p "$build_dir" && cd "$build_dir"
+            [ -d "minio" ] && rm -rf minio
+            git clone --depth 1 "$my_github_url"
+            cd minio
+
+            echo "--- 准备 MinIO 二进制文件 ---"
+            # 检查是否存在二进制文件，如果没有则从官方 release 下载
+            if [ ! -f "minio-${TARGETARCH}.${RELEASE}" ]; then
+                echo "--- 从官方 MinIO 下载二进制文件 ---"
+                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio -o minio-${TARGETARCH}.${RELEASE}
+                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio.minisig -o minio-${TARGETARCH}.${RELEASE}.minisig
+                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio.sha256sum -o minio-${TARGETARCH}.${RELEASE}.sha256sum
+                chmod +x minio-${TARGETARCH}.${RELEASE}
+            fi
+
+            echo "--- 开始 Docker 构建镜像 ---"
+            sudo docker build --build-arg TARGETARCH=$TARGETARCH --build-arg RELEASE=$RELEASE -t "$my_docker_img" .
+
+            if [ $? -eq 0 ]; then
+                echo -e "\n✅ MinIO 镜像构建成功！"
+            else
+                echo -e "\n❌ Docker 构建失败，请检查二进制文件或 Dockerfile"
+            fi
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        3)
+            sudo docker login
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        4)
+            echo "正在推送镜像到 Docker Hub..."
+            sudo docker push "$my_docker_img"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+11)
+            echo "--- 部署/启动 MinIO ---"
+            
+            # 1. 交互式获取账号
+            read -p "请输入 MinIO 管理员账号 (直接回车将随机生成): " input_user
+            if [ -z "$input_user" ]; then
+                MINIO_ROOT_USER=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
+                echo "-> 使用随机账号: $MINIO_ROOT_USER"
+            else
+                MINIO_ROOT_USER=$input_user
+            fi
+
+            # 2. 交互式获取密码
+            read -p "请输入 MinIO 管理员密码 (直接回车将随机生成): " input_pass
+            if [ -z "$input_pass" ]; then
+                MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+                echo "-> 使用随机密码: $MINIO_ROOT_PASSWORD"
+            else
+                MINIO_ROOT_PASSWORD=$input_pass
+            fi
+
+            # 3. 执行部署
+            sudo docker rm -f minio &>/dev/null
+            mkdir -p "$install_dir/data"
+            sudo chmod -R 777 "$install_dir/data"
+
+            sudo docker run -d \
+                --name minio \
+                --restart unless-stopped \
+                -p 9000:9000 \
+                -p 9001:9001 \
+                -v "$install_dir/data:/data" \
+                -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
+                -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
+                "$my_docker_img" server /data --console-address ":9001"
+
+            if [ $? -eq 0 ]; then
+                loc_v4=$(hostname -I | awk '{print $1}')
+                echo "------------------------------------------------"
+                echo "✅ 启动成功！"
+                echo "管理界面: http://$loc_v4:9001"
+                echo "API 地址: http://$loc_v4:9000"
+                echo "管理员账号: $MINIO_ROOT_USER"
+                echo "管理员密码: $MINIO_ROOT_PASSWORD"
+                echo "------------------------------------------------"
+                echo "请务必妥善保存上述信息！"
+            else
+                echo "❌ 启动失败，请检查 Docker 日志"
+            fi
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        12)
+            echo "--- 拉取最新镜像 ---"
+            sudo docker pull "$my_docker_img"
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        13)
+            echo "--- 卸载 MinIO（删除容器与镜像，保留本地数据）---"
+
+            # 删除容器（如果存在）
+            if sudo docker ps -a --format '{{.Names}}' | grep -q '^minio$'; then
+                sudo docker rm -f minio
+                echo "✅ 容器已删除"
+            else
+                echo "ℹ️ 容器不存在"
+            fi
+
+            # 删除镜像（如果存在）
+            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^$my_docker_img$"; then
+                sudo docker rmi "$my_docker_img"
+                echo "✅ 镜像已删除"
+            else
+                echo "ℹ️ 镜像不存在"
+            fi
+
+            echo "📦 本地数据目录已保留：$install_dir"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        0) break ;;
+        *) echo "无效选择"; sleep 1 ;;
+    esac
+done
+;;
+
+
+89)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "        Nezha 面板 Docker 管理脚本"
+
+    echo "如果官方删除了可以使用这个版本"
+    echo "Linux"
+    echo "curl -L https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.sh -o agent.sh && chmod +x agent.sh && env NZ_SERVER=Agent对接地址:8008 NZ_TLS=false NZ_CLIENT_SECRET=hkQ9g4oFkA5qrdfeLQTaHY0AA6BHqfFX NZ_UUID=54180658-5d44-a82c-cdfe-7ef48ec1f864 ./agent.sh"
+    echo "只需要把nezhahq改成zaixiangjian"
+    echo "和更改Agent对接地址:8008"
+    echo "------------------------------------------------"
+    echo "Windows与macOS通用"
+    echo "$env:NZ_SERVER="Agent对接地址:8008";$env:NZ_TLS="false";$env:NZ_CLIENT_SECRET="hkQ9g4oFkA5qrdfeLQTaHY0AA6BHqfFX";$env:NZ_UUID="54180658-5d44-a82c-cdfe-7ef48ec1f864"; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Ssl3 -bor [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12;set-ExecutionPolicy RemoteSigned;Invoke-WebRequest https://raw.githubusercontent.com/nezhahq/scripts/main/agent/install.ps1 -OutFile C:install.ps1;powershell.exe C:install.ps1"
+    echo "只需要把nezhahq改成zaixiangjian"
+    echo "和更改Agent对接地址:8008"
+    echo "------------------------------------------------"
+    echo "【安装与更新】"
+    echo "1) 安装 Nezha 面板"
+    echo "2) 更新镜像到最新版本"
+    echo "------------------------------------------------"
+    echo "【数据备份与恢复】"
+    echo "3) 备份数据 (/home/nezhav2-时间)"
+    echo "4) 从 /home/ 恢复数据"
+    echo "------------------------------------------------"
+    echo "5) 卸载 Nezha 面板（含 /home/docker/nezha 和 /opt/agent）"
+    echo "6) 只卸载/opt/agent"
+    echo "0) 返回上一级"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " choice
+
+    install_dir="/home/docker/nezha"
+    container_name="nezha-dashboard"
+    docker_img="zaixiangjian/nezha:latest"
+    agent_dir="/opt/nezha/agent"
+
+    case $choice in
+        1)
+            echo "--- 安装 Nezha 面板 ---"
+
+            DEFAULT_PORT="8008"
+            read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+            HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+            mkdir -p "$install_dir/data"
+
+            docker stop $container_name 2>/dev/null || true
+            docker rm $container_name 2>/dev/null || true
+
+            docker run -d \
+                --name $container_name \
+                --restart unless-stopped \
+                -v "$install_dir/data":/dashboard/data \
+                -p "$HOST_PORT":8008 \
+                -e ADMIN_USERNAME=admin \
+                -e ADMIN_PASSWORD=admin \
+                $docker_img
+
+            HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+            [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+            echo "✅ 安装完成！访问 http://${HOST_IP}:${HOST_PORT} 账号:admin 密码:admin"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        2)
+            echo "--- 更新镜像 ---"
+            docker pull $docker_img
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        3)
+            timestamp=$(date +"%Y%m%d%H%M%S")
+            backup_file="/home/nezhav2-$timestamp.tar.gz"
+            
+            if [ -d "$install_dir" ]; then
+                tar -czf "$backup_file" -C "$install_dir" .
+                echo "✅ 数据已备份到 $backup_file"
+            else
+                echo "❌ 安装目录 $install_dir 不存在，无法备份"
+            fi
+
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+4)
+    echo "可用备份文件："
+    ls -1 /home/nezhav2-*.tar.gz 2>/dev/null
+    latest_backup=$(ls -1 /home/nezhav2-*.tar.gz 2>/dev/null | sort | tail -n1)
+
+    if [ -z "$latest_backup" ]; then
+        echo "❌ 没有找到备份文件"
+        read -n1 -r -p "回车继续..." key
+        continue
+    fi
+
+    read -e -p "请输入要恢复的备份文件全路径 [回车使用最新: $latest_backup]: " restore_file
+    restore_file=${restore_file:-$latest_backup}
+
+    if [ ! -f "$restore_file" ]; then
+        echo "❌ 文件不存在: $restore_file"
+        read -n1 -r -p "回车继续..." key
+        continue
+    fi
+
+    # 如果容器已存在，先停止
+    if docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
+        echo "--- 停止已有容器 ---"
+        docker stop $container_name
+        docker rm $container_name
+    else
+        # 容器不存在，先确保安装镜像可用
+        docker pull $docker_img
+    fi
+
+    mkdir -p "$install_dir"
+    tar -xzf "$restore_file" -C "$install_dir"
+    echo "✅ 数据已恢复到 $install_dir"
+
+    # 重新启动容器
+    DEFAULT_PORT="8008"
+    read -e -p "请输入宿主机端口 [默认: $DEFAULT_PORT]: " HOST_PORT
+    HOST_PORT=${HOST_PORT:-$DEFAULT_PORT}
+
+    docker run -d \
+        --name $container_name \
+        --restart unless-stopped \
+        -v "$install_dir/data":/dashboard/data \
+        -p "$HOST_PORT":8008 \
+        -e ADMIN_USERNAME=admin \
+        -e ADMIN_PASSWORD=admin \
+        $docker_img
+
+    HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')
+    [ -z "$HOST_IP" ] && HOST_IP=$(hostname -I | awk '{print $1}')
+
+    echo "✅ 恢复并启动完成！"
+    echo "http://${HOST_IP}:${HOST_PORT}"
+    echo "账号"
+    echo "admin"
+    echo "密码"
+    echo "admin"
+    read -n1 -r -p "回车继续..." key
+    ;;
+
+        5)
+            echo "--- 卸载 Nezha 面板 ---"
+            docker stop $container_name 2>/dev/null || true
+            docker rm $container_name 2>/dev/null || true
+            docker rmi -f $docker_img 2>/dev/null || true
+            rm -rf "$install_dir"
+            rm -rf "$agent_dir"
+            echo "✅ 卸载完成，已删除容器、镜像和目录"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+6)
+    echo "--- 彻底卸载 Nezha Agent ---"
+
+    # 查找并停止正在运行的 Agent
+    pid=$(pgrep -f 'nezha-agent|nezha/agent|agent' | head -n1)
+    if [ -n "$pid" ]; then
+        kill -9 $pid
+        echo "✅ Agent 已停止 (PID: $pid)"
+    else
+        echo "ℹ️ 没有正在运行的 Agent"
+    fi
+
+    # 删除本地 Agent 目录
+    if [ -d "$agent_dir" ]; then
+        rm -rf "$agent_dir"
+        echo "✅ 本地 Agent 目录已删除: $agent_dir"
+    else
+        echo "ℹ️ 本地 Agent 目录不存在"
+    fi
+
+    read -n1 -r -p "回车继续..." key
+    ;;
+
+
+        0) break ;;
+        *) echo "无效选择"; sleep 1 ;;
+    esac
+done
+;;
+
+		  90)
+		    clear
+		    echo "▶️ 正在启动btcpayserver-docker安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/btcpayserver-docker.sh)
+		    echo "✅ btcpayserver-docker安装完成。"
+		    ;;
+
+		  91)
+		    clear
+		    echo "▶️ 正在启动谷歌自动浏览..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongliulan.sh)
+		    echo "✅ 谷歌自动浏览安装完成。"
+		    ;;
+
+		  92)
+		    clear
+		    echo "▶️ 正在启动CLIProxyAPI安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/CLIProxyAPI.sh)
+		    echo "✅ CLIProxyAPI安装完成。"
+		    ;;
+
+		  93)
+		    clear
+		    echo "▶️ 正在启动Sub2API安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Sub2API.sh)
+		    echo "✅ Sub2API安装完成。"
+		    ;;
+
+		  94)
+		    clear
+		    echo "▶️ 正在启动Openclaw安装..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh)
+		    echo "✅ Openclaw安装完成。"
+		    ;;
+
+95)
+    docker_name="open-webui"
+    docker_img="ghcr.io/open-webui/open-webui:main"
+    docker_port=3000
+
+    # 自动获取公网IP（稳定三重备用）
+    IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+
+    docker_rum="docker run -d \
+                    --name open-webui \
+                    --restart always \
+                    -p ${docker_port}:8080 \
+                    -v /home/docker/open-webui:/app/backend/data \
+                    ${docker_img}"
+
+    docker_describe="一个类似ChatGPT的AI网页界面，支持多模型接入和API管理。"
+    docker_url="官网: https://github.com/open-webui/open-webui"
+
+    docker_use="浏览器访问: http://${IP}:${docker_port}"
+    docker_passwd="首次进入需要创建管理员账号"
+
+    docker_app
+;;
 
 
 
@@ -7931,7 +10761,13 @@ EOF
 
 
 
-		  66)
+
+
+
+
+
+
+		  96)
 
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -7983,7 +10819,7 @@ EOF
 			systemctl enable mariadb
 
 			# 生成随机 root 密码
-			root_pass="RootPass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
+			root_pass="RootPass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
 
 			# 设置 root 密码
 			mysql -uroot <<EOF
@@ -7994,7 +10830,7 @@ EOF
 			# 创建数据库名和用户及密码
 			db_name="edge_admin"
 			db_user="edge_admin"
-			db_pass="EdgePass$(head -c 4 /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 8)"
+			db_pass="EdgePass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
 
 			# 创建数据库及用户
 			mysql -uroot -p"${root_pass}" <<EOF
@@ -8032,14 +10868,14 @@ EOF
 		  ;;
 
 
-		  80)
+		  97)
 			clear
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
 		  ;;
 
 
-		  88)
+		  98)
 			echo "正在添加本地 hosts 解析..."
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -8261,30 +11097,30 @@ EOF
 			read img_choice
 
 			case "$img_choice" in
-				1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3001;;
-				2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3002;;
-				3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3003;;
-				4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3004;;
-				5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3005;;
-				6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3006;;
-				7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3007;;
-				8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3008;;
-				9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3009;;
-				10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3010;;
-				11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=3011;;
-				12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3012;;
-				13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3013;;
-				14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3014;;
-				15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3015;;
-				16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3016;;
-				17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3017;;
-				18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3018;;
-				19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3019;;
-				20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3020;;
-				21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3021;;
-				22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3022;;
-				23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3023;;
-				24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3024;;
+				1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3331;;
+				2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3332;;
+				3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3333;;
+				4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3334;;
+				5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3335;;
+				6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3336;;
+				7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3337;;
+				8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3338;;
+				9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3339;;
+				10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3340;;
+				11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=33341;;
+				12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3342;;
+				13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3343;;
+				14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3344;;
+				15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3345;;
+				16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3346;;
+				17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3347;;
+				18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3348;;
+				19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3349;;
+				20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3350;;
+				21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3351;;
+				22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3352;;
+				23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3353;;
+				24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3354;;
 				0)
 					echo "返回上一级"
 					;;
@@ -8393,8 +11229,8 @@ EOF
 
 		  102)
 		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
+		    echo "▶️ 正在启动win10ltls模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
 		    ;;
 
@@ -8463,16 +11299,16 @@ EOF
 
 		  104)
 		    clear
+		    echo "▶️ 正在启动105脚本必装模块..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
+		    echo "✅ 动105脚本必装模块执行完成。"
+		    ;;
+		  105)
+		    clear
 		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
 		    ;;
-
-
-
-
-
-
 
 
 
