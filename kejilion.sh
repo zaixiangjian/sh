@@ -5727,6 +5727,7 @@ linux_panel() {
 5)
 	clear
 	send_stats "哪吒监控管理"
+
 	while true; do
 		clear
 		echo "哪吒监控管理"
@@ -5734,50 +5735,107 @@ linux_panel() {
 		echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
 		echo "------------------------"
 		echo "1. 安装 / 更新哪吒"
-		echo "=============================="
-		echo "♻️ 使用1安装然后使用3号恢复"
-		echo "=============================="
-		echo "22. 备份哪吒面板"
-		echo "=============================="
-		echo "3. 恢复哪吒面板"
-		echo "恢复后使用1安装脚本3号启动"
-		echo "=============================="
-		echo "0. 返回上一级"
+		echo "2. 恢复哪吒面板"
+		echo "999. 备份哪吒面板"
+		echo "0. 退出"
 		echo "------------------------"
+
 		read -e -p "输入你的选择: " choice
 
 		case $choice in
+
 			1)
-				# 安装或更新哪吒面板
+				# 安装 / 更新
 				curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh
 				chmod +x nezha.sh
-				sudo ./nezha.sh
+				sudo bash ./nezha.sh
 				;;
-			22)
-				# 备份哪吒面板
+
+			2)
+				# 恢复（稳定安全版）
+				read -e -p "确认恢复？会覆盖当前数据 (y/n): " confirm
+				if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+					echo "已取消"
+					sleep 1
+					continue
+				fi
+
+				if [ ! -f /home/nezha/nezha_full_backup.tar.gz ]; then
+					echo "❌ 未找到备份文件"
+					sleep 2
+					continue
+				fi
+
+				echo "🛑 停止服务..."
+				systemctl stop nezha-dashboard 2>/dev/null
+				pkill app 2>/dev/null
+
+				echo "⏳ 等待数据库落盘..."
+				sleep 3
+
+				echo "📦 恢复数据..."
+
+				mkdir -p /opt/nezha/dashboard/data
+
+				tar xOf /home/nezha/nezha_full_backup.tar.gz dashboard/data/sqlite.db > /opt/nezha/dashboard/data/sqlite.db
+				tar xOf /home/nezha/nezha_full_backup.tar.gz dashboard/data/config.yaml > /opt/nezha/dashboard/data/config.yaml
+
+				echo "🔐 修复权限..."
+				chmod 600 /opt/nezha/dashboard/data/sqlite.db
+				chmod 600 /opt/nezha/dashboard/data/config.yaml
+
+				echo "🚀 启动服务..."
+				cd /opt/nezha/dashboard
+				nohup ./app > /dev/null 2>&1 &
+
+				sleep 2
+				ss -lntp | grep app
+
+				echo "✅ 恢复完成"
+				;;
+
+			999)
+				# 备份（生产级安全版）
+
+				echo "🛑 正在优雅停止服务..."
+				systemctl stop nezha-dashboard 2>/dev/null
+				pkill app 2>/dev/null
+
+				echo "⏳ 等待数据落盘..."
+				sleep 3
+
+				if [ ! -f /opt/nezha/dashboard/data/sqlite.db ]; then
+					echo "❌ 数据库不存在，备份终止"
+					sleep 2
+					continue
+				fi
+
 				mkdir -p /home/nezha
-				tar czvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha dashboard
-				echo "✅ 备份完成: /home/nezha/nezha_full_backup.tar.gz"
-				;;
-			3)
-				# 恢复哪吒面板
-				read -e -p "确定要恢复吗？这会覆盖现有面板！(y/n): " confirm
-				if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
-					cd /opt/nezha
-					rm -rf dashboard
-					tar xzvf /home/nezha/nezha_full_backup.tar.gz -C /opt/nezha
-					echo "✅ 恢复完成，正在重启面板..."
+
+				echo "📦 开始备份..."
+
+				tar czvf /home/nezha/nezha_full_backup.tar.gz \
+					/opt/nezha/dashboard/data \
+					/opt/nezha/dashboard/app \
+					/opt/nezha/dashboard/resource
+
+				if [ $? -eq 0 ]; then
+					echo "✅ 备份成功: /home/nezha/nezha_full_backup.tar.gz"
 				else
-					echo "已取消恢复"
+					echo "❌ 备份失败"
 				fi
 				;;
+
 			0)
 				break
 				;;
+
 			*)
 				echo "无效选项"
+				sleep 1
 				;;
 		esac
+
 		read -n 1 -s -r -p "按任意键继续..."
 	done
 	;;
