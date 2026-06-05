@@ -5486,15 +5486,15 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                               ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai} "
+	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                             ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}96.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}97.  ${gl_bai}PVE开小鸡面板"
-   	  echo -e "${gl_kjlan}98.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}99.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
+   	  echo -e "${gl_kjlan}998.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}999.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}100.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}101.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}102.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}103.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-   	  echo -e "${gl_kjlan}104.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}105.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}1000.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}1001.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}1002.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}1003.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+   	  echo -e "${gl_kjlan}1004.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}1005.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
 	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
@@ -10987,6 +10987,145 @@ done
 ;;
 
 
+96)
+    clear
+    echo "=================================="
+    echo "▶️ Google监控系统安装"
+    echo "=================================="
+    echo "888) Resend 邮件通知（2小时一次）"
+    echo "999) Telegram 通知（1小时一次）"
+    echo "0) 返回"
+    echo "=================================="
+
+    read -p "请输入选项: " opt
+
+    # ==========================================
+    # 888 Resend邮件通知
+    # ==========================================
+    if [ "$opt" = "888" ]; then
+
+        clear
+        echo "=================================="
+        echo "▶️ Resend 邮件通知安装"
+        echo "=================================="
+
+        read -p "请输入备注名称: " REMARK
+        read -p "请输入 Resend API Key: " RESEND_KEY
+        read -p "请输入发件邮箱(From): " FROM_EMAIL
+        read -p "请输入收件邮箱(To): " TO_EMAIL
+
+        cat > /home/jiancegoogleemail.sh <<EOF
+#!/bin/bash
+
+URL="https://www.youtube.com/red"
+HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
+
+echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
+
+if [ \$? -eq 0 ]; then
+
+
+BODY="🏷️ 节点：美国
+
+⚠️ YouTube Premium 区域限制触发
+https://www.youtube.com/red
+
+❗可能送中了❌更多详情查看❌
+https://www.google.com/search?q=家具"
+
+
+
+
+curl -s https://api.resend.com/emails \
+  -H "Authorization: Bearer ${RESEND_KEY}" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "from=${FROM_EMAIL}" \
+  --data-urlencode "to=${TO_EMAIL}" \
+  --data-urlencode "subject=[${REMARK}] YouTube 区域监控告警" \
+  --data-urlencode "text=\$BODY" >/dev/null 2>&1
+
+fi
+
+exit 0
+EOF
+
+        chmod +x /home/jiancegoogleemail.sh
+
+        (
+            crontab -l 2>/dev/null | grep -v "jiancegoogleemail.sh"
+            echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogleemail.sh' >/dev/null 2>&1"
+        ) | crontab -
+
+        echo ""
+        echo "✅ 邮件通知安装完成"
+        echo "📄 脚本路径: /home/jiancegoogleemail.sh"
+        echo "🏷️ 备注: ${REMARK}"
+        echo "⏰ 每2小时执行一次（随机延迟0-300秒）"
+    fi
+
+
+    # ==========================================
+    # 999 Telegram通知
+    # ==========================================
+    if [ "$opt" = "999" ]; then
+
+        clear
+        echo "=================================="
+        echo "▶️ Telegram 通知安装"
+        echo "=================================="
+
+        read -p "请输入备注名称: " REMARK
+        read -p "请输入 Bot Token: " BOT_TOKEN
+        # 自动清理错误输入
+        BOT_TOKEN=$(echo "$BOT_TOKEN" | sed 's#https://api.telegram.org/bot##g')
+        BOT_TOKEN=$(echo "$BOT_TOKEN" | sed 's#/sendMessage##g')
+        read -p "请输入 Chat ID: " CHAT_ID
+
+        cat > /home/jiancegoogle.sh <<EOF
+#!/bin/bash
+
+URL="https://www.youtube.com/red"
+HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
+
+echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
+
+if [ \$? -eq 0 ]; then
+
+TEXT="🏷️ 节点：${REMARK}
+
+⚠️ YouTube Premium 区域限制触发
+https://www.youtube.com/red
+
+❗可能送中了❌更多详情查看❌
+https://www.google.com/search?q=家具"
+
+curl -s -m 10 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+  -d chat_id="${CHAT_ID}" \
+  --data-urlencode text="\$TEXT" >/dev/null 2>&1
+
+fi
+
+exit 0
+EOF
+
+        chmod +x /home/jiancegoogle.sh
+
+        (
+            crontab -l 2>/dev/null | grep -v "jiancegoogle.sh"
+            echo "0 * * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle.sh' >/dev/null 2>&1"
+        ) | crontab -
+
+        echo ""
+        echo "✅ Telegram通知安装完成"
+        echo "📄 脚本路径: /home/jiancegoogle.sh"
+        echo "🏷️ 备注: ${REMARK}"
+        echo "⏰ 每1小时执行一次（随机延迟0-300秒）"
+    fi
+
+    if [ "$opt" = "0" ]; then
+        break
+    fi
+;;
 
 
 
@@ -11008,15 +11147,7 @@ done
 
 
 
-
-
-
-
-
-
-
-
-		  96)
+		  996)
 
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -11117,14 +11248,14 @@ EOF
 		  ;;
 
 
-		  97)
+		  997)
 			clear
 			send_stats "PVE开小鸡"
 			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
 		  ;;
 
 
-		  98)
+		  998)
 			echo "正在添加本地 hosts 解析..."
 			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
 			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
@@ -11270,7 +11401,7 @@ EOF
 
 
 
-		99)
+		999)
 			show_installed_webtop(){
 			  local installed=0
 			  echo "---------------------------------------------"
@@ -11460,7 +11591,7 @@ EOF
 			fi
 			;;
 
-		  100)
+		  1000)
 		    clear
 		    echo "▶️ 正在启动定时远程备份与传送模块..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongbeifen.sh)
@@ -11469,21 +11600,21 @@ EOF
 
 
 
-		  101)
+		  1001)
 		    clear
 		    echo "▶️ 正在启动定时远程备份与传送模块..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongmima.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
 		    ;;
 
-		  102)
+		  1002)
 		    clear
 		    echo "▶️ 正在启动win10ltls模块..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
 		    echo "✅ 远程备份与传送模块执行完成。"
 		    ;;
 
-		  103)
+		  1003)
 		    clear
 		    echo "▶️ 正在准备使用 rsync 手动传送文件夹..."
 
@@ -11546,13 +11677,13 @@ EOF
 		    ;;
 
 
-		  104)
+		  1004)
 		    clear
 		    echo "▶️ 正在启动105脚本必装模块..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
 		    echo "✅ 动105脚本必装模块执行完成。"
 		    ;;
-		  105)
+		  1005)
 		    clear
 		    echo "▶️ 正在启动定时远程备份与传送模块..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
