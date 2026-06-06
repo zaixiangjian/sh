@@ -5774,27 +5774,22 @@ linux_panel() {
 					continue
 				fi
 
-				echo "🛑 停止服务..."
-				systemctl stop nezha-dashboard 2>/dev/null
-				pkill app 2>/dev/null
+echo "🛑 停止服务..."
+systemctl stop nezha-dashboard 2>/dev/null
+pkill app 2>/dev/null
 
-				echo "⏳ 等待数据库落盘..."
-				sleep 3
+echo "📦 恢复数据..."
+tar xzvf /home/nezha/nezha_full_backup.tar.gz -C /
 
-				echo "📦 恢复数据..."
+echo "🔐 修复权限..."
+chmod 600 /opt/nezha/dashboard/data/sqlite.db
+chmod 600 /opt/nezha/dashboard/data/config.yaml
 
-				mkdir -p /opt/nezha/dashboard/data
-
-				tar xOf /home/nezha/nezha_full_backup.tar.gz dashboard/data/sqlite.db > /opt/nezha/dashboard/data/sqlite.db
-				tar xOf /home/nezha/nezha_full_backup.tar.gz dashboard/data/config.yaml > /opt/nezha/dashboard/data/config.yaml
-
-				echo "🔐 修复权限..."
-				chmod 600 /opt/nezha/dashboard/data/sqlite.db
-				chmod 600 /opt/nezha/dashboard/data/config.yaml
-
-				echo "🚀 启动服务..."
-				cd /opt/nezha/dashboard
-				nohup ./app > /dev/null 2>&1 &
+echo "🚀 启动服务..."
+systemctl start nezha-dashboard 2>/dev/null || {
+    cd /opt/nezha/dashboard
+    nohup ./app > /dev/null 2>&1 &
+}
 
 				sleep 2
 				ss -lntp | grep app
