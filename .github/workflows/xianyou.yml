@@ -1,0 +1,58 @@
+name: Bulk Docker Hub Keep Alive
+# Actions变量名称
+# 名称DOCKER_USERNAME
+# 用户名例如zaixiangjian
+# 密钥DOCKER_PASSWORD
+# 获取https://app.docker.com/accounts/zaixiangjian/settings/personal-access-tokens
+on:
+  schedule:
+    # 设定为每月26号 UTC 时间 10点运行一次
+    - cron: '0 10 26 * *'   # 每月26号 UTC 10点
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Pull and Re-Push Images
+        run: |
+          IMAGES=(
+            "zaixiangjian/aurora-redis"
+            "zaixiangjian/aurora-postgres:13-alpine"
+            "zaixiangjian/aurora-frontend"
+            "zaixiangjian/aurora-worker"
+            "zaixiangjian/aurora-backend"
+            "zaixiangjian/minio"
+            "zaixiangjian/backrest"
+            "zaixiangjian/certimate"
+            "zaixiangjian/openlist"
+            "zaixiangjian/hitokoto-api"
+            "zaixiangjian/caddy"
+            "zaixiangjian/nexterm"
+            "zaixiangjian/sun-panel"
+            "zaixiangjian/sun-panel-guanfang"
+            "zaixiangjian/aurora-redis"
+            "zaixiangjian/aurora-postgres:13-alpine"
+            "zaixiangjian/aurora-frontend"
+            "zaixiangjian/aurora-worker"
+            "zaixiangjian/aurora-backend"
+            "zaixiangjian/nezha"
+            "zaixiangjian/nezhav0"
+          )
+
+          echo "Processing ${#IMAGES[@]} images..."
+
+          for image in "${IMAGES[@]}"; do
+            echo "----------------------------------------"
+            echo "Processing $image"
+
+            docker pull $image || { echo "Pull failed, skipping..."; continue; }
+            docker push $image || echo "Push failed, skipping..."
+
+          done
+
+          echo "All done."
