@@ -5735,16 +5735,18 @@ linux_panel() {
 		echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
 		echo "------------------------"
 		echo "1. 安装 / 更新哪吒"
+		echo "恢复前先使用1号配置的4停止在使用3号启动"
 		echo "------------------------"
+		echo "2. 恢复哪吒面板"
 		echo "恢复前先使用1号配置的4停止在使用3号启动"
 		echo "------------------------"
 		echo "------------------------"
-		echo "2. 恢复哪吒面板"
+		echo "9. docker安装面板"
 		echo "------------------------"
-		echo "------------------------"
-		echo "备份前先使用1号配置的4停止"
 		echo "------------------------"
 		echo "999. 备份哪吒面板"
+		echo "备份前先使用1号配置的4停止"
+		echo "------------------------"
 		echo "0. 退出"
 		echo "------------------------"
 
@@ -5796,6 +5798,13 @@ systemctl start nezha-dashboard 2>/dev/null || {
 
 				echo "✅ 恢复完成"
 				;;
+
+		  9)
+		    clear
+		    echo "▶️ 正在启动哪吒docker安装..."
+		    bash <(curl -sS https://raw.githubusercontent.com/zaixiangjian/sh/main/ai/dockernezhav0.sh)
+		    echo "✅ 哪吒docker安装完成。"
+		    ;;
 
 			999)
 				# 备份（生产级安全版）
