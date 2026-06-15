@@ -458,10 +458,17 @@ update_mailcow() {
     fi
 
     echo "🔄 正在更新 Mailcow..."
+
+    # 确保 update.sh 所需依赖已安装
+    for cmd in git jq curl; do
+        if ! command -v $cmd >/dev/null 2>&1; then
+            echo "📦 安装缺失依赖: $cmd"
+            apt install -y $cmd
+        fi
+    done
+
     cd "${MAILCOW_DIR}"
-    git pull
-    docker compose pull
-    docker compose up -d
+    ./update.sh
 
     echo "⏰ 正在检查/修复定时任务..."
     ZSFZ2_SCRIPT="/home/docker/mailcow-dockerized/zhengshucaddy.sh"
