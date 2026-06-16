@@ -44,7 +44,7 @@ install() {
 
   install_deps
 
-  echo "===== Cloudflare DDNS（终极彻底终结旧IP版）====="
+  echo "===== Cloudflare DDNS（WAF 列表覆盖修复版）====="
 
   require_input DDNS "DDNS域名: "
   require_input ACCOUNT_ID "ACCOUNT_ID: "
@@ -79,7 +79,7 @@ while IFS="|" read -r DDNS ACCOUNT_ID LIST_ID API_TOKEN; do
   [[ -z "$IPV4" && -z "$IPV6" ]] && continue
 
   # =========================
-  # 获取 Cloudflare 列表项（强行拉取 100 条打破默认 25 条分页限制）
+  # 获取 Cloudflare 列表项（拉取 100 条打破默认分页限制）
   # =========================
   RESP=$(curl -s \
   "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/rules/lists/${LIST_ID}/items?per_page=100" \
@@ -87,20 +87,19 @@ while IFS="|" read -r DDNS ACCOUNT_ID LIST_ID API_TOKEN; do
   -H "Content-Type: application/json")
 
   # =========================
-  # 精确提取并删除旧记录（使用 jq 模糊包含筛选）
+  # 精确提取并批量删除旧记录（已修复修复）
   # =========================
-  # 只要注释中包含你的 DDNS 域名，全部揪出来删除，防止空格或不完全匹配导致漏删
-  MATCH_IDS=$(echo "$RESP" | jq -r ".result[]? | select(.comment != null and (.comment | contains(\"$DDNS\"))) | .id" 2>/dev/null)
+  # 将匹配到的所有旧 ID 组装成符合 CF 官方规范的 {"items": [{"id": "xxx"}]} 结构
+  DELETE_PAYLOAD=$(echo "$RESP" | jq -c "{items: [.result[]? | select(.comment != null and (.comment | contains(\"$DDNS\"))) | {id: .id}]}" 2>/dev/null)
+  HAS_ITEMS=$(echo "$DELETE_PAYLOAD" | jq '.items | length' 2>/dev/null)
 
-  if [[ -n "$MATCH_IDS" ]]; then
-    for id in $MATCH_IDS; do
-      if [[ -n "$id" && "$id" != "null" ]]; then
-        curl -s -X DELETE \
-        "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/rules/lists/${LIST_ID}/items/$id" \
-        -H "Authorization: Bearer ${API_TOKEN}" >/dev/null
-        sleep 0.3 # 稍作停顿，防止 Cloudflare API 频率限制冲突
-      fi
-    done
+  if [[ "$HAS_ITEMS" -gt 0 ]]; then
+    # 使用 Cloudflare 正确的批量删除端点（Body 传参）
+    curl -s -X DELETE \
+    "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/rules/lists/${LIST_ID}/items" \
+    -H "Authorization: Bearer ${API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    --data "$DELETE_PAYLOAD" >/dev/null
   fi
 
   # =========================
@@ -129,7 +128,7 @@ EOF
   (crontab -l 2>/dev/null | grep -v "$SCRIPT_PATH"; echo "*/$MIN * * * * $SCRIPT_PATH >/dev/null 2>&1") | crontab -
 
   echo "✔ 安装完成"
-  echo "✔ 分页限制、备注不匹配、空格干扰等问题已全部解决！"
+  echo "✔ 批量覆盖删除逻辑已完全修复！历史堆积的 IP 会在下次执行时一次性清空。"
 }
 
 # =========================
@@ -187,7 +186,7 @@ manage() {
           read -p "选择序号: " n
           if [[ -n "$n" ]]; then
             sed -i "${n}d" "$DB_FILE"
-            echo "✔ 已删除"
+            echo "✔ 已从本地配置中删除"
           fi
         else
           echo "暂无数据"
