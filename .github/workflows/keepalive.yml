@@ -2,7 +2,7 @@ name: Repo Keep Alive
 
 on:
   schedule:
-    - cron: "0 3 */3 * *"   # 每3天运行一次（UTC时间）
+    - cron: "0 3 */15 * *"   # 每15天运行一次（UTC时间）
   workflow_dispatch:
 
 permissions:
