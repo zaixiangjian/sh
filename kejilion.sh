@@ -8255,6 +8255,11 @@ EOF
             echo " 2. 安装增强版 3x-ui (mhsanaei)"
             echo " 0. 返回上一级菜单"
             echo "------------------------"
+            echo "删除程序目录"
+            echo "------------------------"
+            echo "rm -rf /usr/local/x-ui
+rm -rf /etc/x-ui"
+            echo "------------------------"
             read -p "请输入选项 [0-2]: " sub_num
 
             case $sub_num in
