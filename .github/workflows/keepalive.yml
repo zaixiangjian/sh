@@ -1,29 +1,18 @@
-name: Repo Keep Alive
+name: Repository Maintenance
 
 on:
   schedule:
-    - cron: "0 3 */15 * *"   # 每15天运行一次（UTC时间）
+    - cron: '0 3 1 * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Update keepalive file
+      - name: Heartbeat
         run: |
-          echo "keep alive: $(date)" > keepalive.txt
-
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add keepalive.txt
-          git commit -m "chore: keep alive $(date)" || exit 0
-          git push
+          echo "Heartbeat: $(date -u)"
