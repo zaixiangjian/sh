@@ -5488,7 +5488,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                             ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
-	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式 "
+	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                                                ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
@@ -5602,6 +5602,7 @@ linux_panel() {
 	  check_docker "93" "sub2api"
 	  check_docker "94" "openclaw"
 	  check_docker "95" "open-webui"
+	  check_docker "98" "chromium"
 	  check_docker "102" "windows"
 
 	  # 打印已安装的项目列表并自动折行输出
@@ -11146,7 +11147,12 @@ EOF
 		    echo "✅ 安装IP白名单模式..."
 		    ;;
 
-
+		  98)
+		    clear
+		    echo "▶️ 安装谷歌浏览器..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/chromium.sh)
+		    echo "✅ 谷歌浏览器安装成功..."
+		    ;;
 
 
 
