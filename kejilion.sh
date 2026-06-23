@@ -5488,7 +5488,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                             ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
-	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                                                ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
+	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
