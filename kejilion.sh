@@ -5598,7 +5598,7 @@ linux_panel() {
 	  check_docker "89" "nezha-dashboard"
 	  check_docker "90" "btc"
 	  check_docker "91" "chrome"
-	  check_docker "92" "cliproxy"
+	  check_docker "92" "cli-proxy-api"
 	  check_docker "93" "sub2api"
 	  check_docker "94" "openclaw"
 	  check_docker "95" "open-webui"
