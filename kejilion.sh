@@ -5490,6 +5490,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
 	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
 	  echo -e "${gl_kjlan}------------------------"
+	  echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
    	  echo -e "${gl_kjlan}998.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}999.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
@@ -11154,7 +11155,12 @@ EOF
 		    echo "✅ 谷歌浏览器安装成功..."
 		    ;;
 
-
+		  99)
+		    clear
+		    echo "▶️ 安装hermes-agent..."
+		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh)
+		    echo "✅ hermes-agent安装成功..."
+		    ;;
 
 
 
