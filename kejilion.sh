@@ -5505,10 +5505,16 @@ linux_panel() {
 	  
 	  # ================= 动态检测已安装面板服务 =================
 	  declare -a installed_items=()
+	  # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
+	  # 现在只执行一次 docker ps -a，把所有容器名缓存起来，后面用 grep 精确匹配。
+	  local docker_container_list=""
+	  if command -v docker &>/dev/null; then
+	      docker_container_list="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+	  fi
 	  check_docker() {
 	      local num="$1"
 	      local container_name="$2"
-	      if command -v docker &>/dev/null && docker inspect "$container_name" &>/dev/null; then
+	      if [ -n "$docker_container_list" ] && echo "$docker_container_list" | grep -Fxq "$container_name"; then
 	          installed_items+=("$num")
 	      fi
 	  }
