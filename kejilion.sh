@@ -5601,7 +5601,7 @@ linux_panel() {
 	  check_docker "91" "chrome"
 	  check_docker "92" "cli-proxy-api"
 	  check_docker "93" "sub2api"
-	  check_docker "94" "openclaw"
+	  check_path "94" "/root/.openclaw"
 	  check_docker "95" "open-webui"
 	  check_docker "98" "chromium"
 	  check_path "99" "/root/.hermes"
