@@ -9196,13 +9196,17 @@ EOF
 			;;
 		  58)
 		    clear
-		    echo "▶️ 正在启动caddy安装..."
-		    if [ -f /root/caddy.sh ]; then
-		      bash /root/caddy.sh
+		    echo "▶️ 正在下载并启动 caddy 安装脚本..."
+		    caddy_script="/root/caddy.sh"
+		    caddy_script_url="https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh"
+		    if curl -fsSL "$caddy_script_url" -o "$caddy_script"; then
+		      chmod +x "$caddy_script"
+		      bash "$caddy_script"
+		      echo "✅ caddy安装完成，脚本已保存到：$caddy_script"
 		    else
-		      bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh)
+		      echo "❌ 下载失败：$caddy_script_url"
+		      return 1
 		    fi
-		    echo "✅ caddy安装完成。"
 		    ;;
 
 
