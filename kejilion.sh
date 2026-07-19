@@ -5996,7 +5996,8 @@ kj_app_add_domain_nginx() {
 	local port="$1"
 	local target="$2"
 	local type="$3"
-	local backend_host="127.0.0.1"
+	# 非 Docker/未识别为容器的应用，默认反代到宿主机；nginx 容器需已配置 host.docker.internal:host-gateway。
+	local backend_host="host.docker.internal"
 	local backend_port="$port"
 	nginx_install_status
 	add_yuming
