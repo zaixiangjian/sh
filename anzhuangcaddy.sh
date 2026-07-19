@@ -24,8 +24,10 @@ RESET="\033[0m"
 install_caddy() {
     echo -e "${GREEN}🔄 正在检查并安装/修复 Caddy...${RESET}"
     
-    # 基础依赖安装
-    apt update && apt install -y sudo curl ca-certificates gnupg lsb-release
+    # 基础依赖安装（非交互，保留现有 Caddyfile，避免 dpkg 卡在配置文件确认）
+    export DEBIAN_FRONTEND=noninteractive
+    chmod 1777 /tmp 2>/dev/null || true
+    apt-get update && apt-get install -y -o Dpkg::Options::="--force-confold" sudo curl ca-certificates gnupg lsb-release
 
     if command -v caddy >/dev/null 2>&1; then
         if ! caddy version >/dev/null 2>&1; then
@@ -37,7 +39,7 @@ install_caddy() {
     if ! command -v caddy >/dev/null 2>&1; then
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-        apt update && apt install -y caddy
+        apt-get update && apt-get install -y -o Dpkg::Options::="--force-confold" caddy
     fi
 
     # --- 关键改进点 ---
@@ -331,26 +333,84 @@ update_caddy() {
 # 000. 一键修复运行环境
 fix_caddy_env() {
     echo -e "${YELLOW}🛠 正在检测并修复 Caddy 运行环境...${RESET}"
-    
-    # 1. 补齐组
+
+    # 0. 修复 /tmp 权限。apt/gpg 需要普通 _apt 用户可写 /tmp；权限错误会导致 mkstemp Permission denied。
+    chmod 1777 /tmp 2>/dev/null || true
+
+    # 1. 如果 Caddy 未安装，优先 apt 安装；apt 失败则下载官方单文件兜底。
+    if ! command -v caddy >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️ 未检测到 caddy，尝试安装...${RESET}"
+        apt-get update && apt-get install -y -o Dpkg::Options::="--force-confold" caddy || {
+            echo -e "${YELLOW}⚠️ apt 安装失败，尝试官方下载二进制...${RESET}"
+            ARCH=$(uname -m)
+            [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
+            [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && ARCH="arm64"
+            curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=$ARCH" -o /usr/bin/caddy
+            chmod +x /usr/bin/caddy
+        }
+    fi
+
+    # 2. 补齐组
     grep -q "^caddy:" /etc/group || groupadd --system caddy
 
-    # 2. 补齐用户 (使用兼容性更好的短参数)
+    # 3. 补齐用户
     if ! id "caddy" >/dev/null 2>&1; then
         useradd --system -g caddy -d /var/lib/caddy -s /usr/sbin/nologin -c "Caddy web server" caddy
         echo -e "${GREEN}✅ 已创建 caddy 用户${RESET}"
     fi
 
-    # 3. 修正目录权限
+    # 4. 修正目录权限
     mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy
+    [ -f "$CONFIG_FILE" ] || cat > "$CONFIG_FILE" <<'EOF'
+:80 {
+    respond "Caddy is running"
+}
+EOF
     chown -R caddy:caddy /etc/caddy /var/lib/caddy /var/log/caddy
-    
-    # 4. 重启尝试
+
+    # 5. 如果 service 缺失，创建 systemd 服务
+    if ! systemctl cat caddy >/dev/null 2>&1; then
+        cat > /etc/systemd/system/caddy.service <<'EOF'
+[Unit]
+Description=Caddy web server
+Documentation=https://caddyserver.com/docs/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+
+    # 6. 校验配置并启动
     systemctl daemon-reload
+    systemctl enable caddy >/dev/null 2>&1 || true
+    if ! caddy validate --config "$CONFIG_FILE" --adapter caddyfile >/dev/null 2>&1; then
+        echo -e "${RED}❌ Caddyfile 配置有误，请先修复: $CONFIG_FILE${RESET}"
+        caddy validate --config "$CONFIG_FILE" --adapter caddyfile
+        sleep 2
+        return 1
+    fi
     if systemctl restart caddy; then
         echo -e "${GREEN}✅ 环境修复成功，Caddy 已启动！${RESET}"
     else
-        echo -e "${RED}❌ 权限已修复，但启动失败。请运行选项 9 查看日志。${RESET}"
+        echo -e "${RED}❌ 启动失败，最近日志如下：${RESET}"
+        journalctl -u caddy -n 40 --no-pager
     fi
     sleep 2
 }
@@ -405,6 +465,9 @@ menu() {
     echo "0. 退出"
     echo "=============================="
     read -p "请输入选项: " choice
+
+    # 非交互管道输入结束时直接退出，避免 EOF 后无限循环刷“无效选项”
+    [ -z "$choice" ] && exit 0
 
     case "$choice" in
         1) install_caddy ;; 2) add_domain ;; 3) reload_caddy ;;
