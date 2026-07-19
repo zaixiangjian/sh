@@ -792,6 +792,8 @@ ldnmp_v() {
 
 
 
+
+
 install_ldnmp_conf() {
 
   # 创建必要的目录和文件
@@ -5473,7 +5475,7 @@ kj_app_label() {
 		openlist) echo "55|openlist4.0.8" ;;
 		umami) echo "56|umami网站流量统计系统" ;;
 		dify) echo "57|dify安装" ;;
-		caddy) echo "58|安装caddy" ;;
+		caddy) echo "100|caddy官方docker安装" ;;
 		hbbs) echo "59|docker安装rustdesk服务端" ;;
 		hbbr) echo "60|docker安装rustdesk中继端" ;;
 		x-ui|xui) echo "62|安装x-ui" ;;
@@ -5553,9 +5555,10 @@ kj_app_domains_for_ports() {
 		done < <(grep -E "^[[:space:]]*proxy_pass[[:space:]]+https?://" "$conf" 2>/dev/null)
 	done
 
-	# 同时识别 Caddyfile 里的域名：domain { reverse_proxy 127.0.0.1:PORT }
-	local caddyfile="/etc/caddy/Caddyfile"
-	if [ -f "$caddyfile" ]; then
+	# 同时识别本地 Caddy 与 Docker Caddy 的 Caddyfile：domain { reverse_proxy host:PORT }
+	local caddyfile
+	for caddyfile in /etc/caddy/Caddyfile /home/docker/caddy/Caddyfile; do
+		[ -f "$caddyfile" ] || continue
 		local current_domains line rp_host rp_port matched d
 		current_domains=""
 		while IFS= read -r line; do
@@ -5583,7 +5586,7 @@ kj_app_domains_for_ports() {
 				fi
 			fi
 		done < "$caddyfile"
-	fi
+	done
 
 	domains=$(echo "$domains" | xargs 2>/dev/null)
 	[ -n "$domains" ] && echo "$domains" || echo "-"
@@ -6186,6 +6189,290 @@ linux_app_ports() {
 # ===== Hermes: 已安装应用端口管理（990）结束 =====
 
 
+# ===== Hermes: Caddy 官方 Docker 管理（100） =====
+caddy_docker_dir="/home/docker/caddy"
+caddy_docker_backup_dir="/home/caddy"
+caddy_docker_compose_file="$caddy_docker_dir/docker-compose.yml"
+caddy_docker_caddyfile="$caddy_docker_dir/Caddyfile"
+
+caddy_docker_ensure_installed() {
+	install docker docker-compose-plugin
+	mkdir -p "$caddy_docker_dir/data" "$caddy_docker_dir/config" "$caddy_docker_backup_dir"
+	if [ ! -f "$caddy_docker_caddyfile" ]; then
+		cat > "$caddy_docker_caddyfile" <<'EOF'
+:80 {
+    respond "Caddy Docker is running"
+}
+EOF
+	fi
+	cat > "$caddy_docker_compose_file" <<'EOF'
+services:
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./data:/data
+      - ./config:/config
+EOF
+	cd "$caddy_docker_dir" || return 1
+	docker compose up -d
+}
+
+caddy_docker_reload() {
+	cd "$caddy_docker_dir" || return 1
+	if ! docker ps --format '{{.Names}}' | grep -Fxq caddy; then
+		docker compose up -d
+	fi
+	if docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
+		docker exec caddy caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1 || docker compose restart caddy
+		echo "✅ Caddy Docker 配置已生效"
+	else
+		echo "❌ Caddyfile 配置有误："
+		docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+	fi
+}
+
+caddy_docker_list_config_internal() {
+	if [ ! -s "$caddy_docker_caddyfile" ]; then
+		echo "⚠️ 无配置。"
+		return
+	fi
+	awk '
+	BEGIN { tag = ""; block = ""; inside = 0 }
+	/^# TAG: / { tag = substr($0, 8); next }
+	/^[^# \t].*\{$/ { inside = 1; block = $0; next }
+	inside == 1 {
+		block = block "\n" $0
+		if ($0 ~ /^}/) {
+			printf "[\033[36m%s\033[0m] %s\n\n", (tag==""?"无备注":tag), block
+			tag = ""; block = ""; inside = 0
+		}
+	}' "$caddy_docker_caddyfile"
+}
+
+caddy_docker_add_site() {
+	caddy_docker_ensure_installed
+	local DOMAIN PORT COMMENT
+	while true; do
+		read -e -p "请输入你的域名（例如 www.123.com）: " DOMAIN
+		[ -n "$DOMAIN" ] && break
+		echo "❌ 域名不能为空"
+	done
+	while true; do
+		read -e -p "请输入反向代理端口（例如 18080）: " PORT
+		[[ "$PORT" =~ ^[0-9]+$ ]] && break
+		echo "❌ 端口必须是纯数字"
+	done
+	read -e -p "请输入该网站的备注（可留空，默认域名）: " COMMENT
+	COMMENT=${COMMENT:-$DOMAIN}
+	if grep -qE "^[[:space:]]*$DOMAIN[[:space:]]*\{" "$caddy_docker_caddyfile" 2>/dev/null; then
+		echo "⚠️ 域名 $DOMAIN 已存在，请勿重复添加。"
+		return
+	fi
+	cat >> "$caddy_docker_caddyfile" <<EOF
+
+# TAG: $COMMENT
+$DOMAIN {
+    reverse_proxy host.docker.internal:$PORT {
+        header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+    }
+}
+EOF
+	docker run --rm -v "$caddy_docker_caddyfile:/etc/caddy/Caddyfile" caddy:latest caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null 2>&1 || true
+	caddy_docker_reload
+}
+
+caddy_docker_delete_site() {
+	[ -f "$caddy_docker_caddyfile" ] || { echo "❌ 配置文件不存在"; return; }
+	mapfile -t INDEX_LIST < <(awk '/^# TAG: / { tag = substr($0, 8); next } /^[^# \t].*\{$/ { d=$1; gsub(/,/, "", d); printf "[%s] %s\n", (tag==""?"无备注":tag), d; tag="" }' "$caddy_docker_caddyfile")
+	if [ ${#INDEX_LIST[@]} -eq 0 ]; then
+		echo "⚠️ 未发现可删除的网站配置"
+		return
+	fi
+	echo "请选择要删除的网站配置："
+	for i in "${!INDEX_LIST[@]}"; do
+		echo "$((i+1)). ${INDEX_LIST[$i]}"
+	done
+	echo "0. 退出"
+	read -e -p "请输入序号: " SELECTED
+	[ "$SELECTED" = "0" ] && return
+	if [[ ! "$SELECTED" =~ ^[0-9]+$ ]] || [ "$SELECTED" -lt 1 ] || [ "$SELECTED" -gt "${#INDEX_LIST[@]}" ]; then
+		echo "❌ 无效选择"
+		return
+	fi
+	TARGET_INFO="${INDEX_LIST[$((SELECTED-1))]}"
+	TARGET_DOMAIN=$(echo "$TARGET_INFO" | awk '{print $2}')
+	TARGET_TAG=$(echo "$TARGET_INFO" | cut -d']' -f1 | sed 's/\[//')
+	read -e -p "确定删除 $TARGET_DOMAIN 吗？(y/n): " CONFIRM
+	if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+		awk -v domain="$TARGET_DOMAIN" -v tag="$TARGET_TAG" '
+		BEGIN { skip=0; brace=0 }
+		$0 == "# TAG: " tag { pending=1; next }
+		pending && $0 ~ "^" domain "[[:space:]]*\\{" { skip=1; pending=0; brace=1; next }
+		pending { print "# TAG: " tag; pending=0 }
+		skip {
+			if ($0 ~ /^}/) { skip=0; brace=0 }
+			next
+		}
+		{ print }
+		' "$caddy_docker_caddyfile" > "$caddy_docker_caddyfile.tmp" && mv "$caddy_docker_caddyfile.tmp" "$caddy_docker_caddyfile"
+		caddy_docker_reload
+		 echo "🗑 已删除 $TARGET_DOMAIN"
+	fi
+}
+
+caddy_docker_backup() {
+	mkdir -p "$caddy_docker_backup_dir"
+	local ts backup_file
+	ts=$(date +%Y-%m%d-%H%M)
+	backup_file="$caddy_docker_backup_dir/caddy-$ts.tar.gz"
+	if [ ! -d "$caddy_docker_dir" ]; then
+		echo "❌ 未找到 $caddy_docker_dir，无法备份"
+		return 1
+	fi
+	tar -czf "$backup_file" -C /home/docker caddy
+	echo "✅ 备份完成：$backup_file"
+}
+
+caddy_docker_restore_from_dir() {
+	local src_dir="$1"
+	mapfile -t backups < <(ls -t "$src_dir"/caddy-*.tar.gz "$src_dir"/caddy*.tar.gz 2>/dev/null | awk '!seen[$0]++')
+	if [ ${#backups[@]} -eq 0 ]; then
+		echo "❌ $src_dir 没有找到 caddy 备份包"
+		return
+	fi
+	echo "请选择恢复包："
+	for i in "${!backups[@]}"; do
+		echo "$((i+1)). $(basename "${backups[$i]}")"
+	done
+	echo "0. 退出"
+	read -e -p "请输入序号（回车默认最新）: " sel
+	[ "$sel" = "0" ] && return
+	if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#backups[@]}" ]; then
+		restore_file="${backups[$((sel-1))]}"
+	else
+		restore_file="${backups[0]}"
+	fi
+	if [ -d "$caddy_docker_dir" ]; then
+		cd "$caddy_docker_dir" && docker compose down >/dev/null 2>&1 || true
+		mv "$caddy_docker_dir" "${caddy_docker_dir}.before_restore_$(date +%Y%m%d%H%M%S)"
+	fi
+	mkdir -p /home/docker
+	tar -xzf "$restore_file" -C /home/docker
+	echo "✅ 已恢复：$restore_file"
+	caddy_docker_ensure_installed
+}
+
+caddy_docker_restore_menu() {
+	caddy_docker_ensure_installed
+	echo "1. 从 /home/ 恢复"
+	echo "2. 从 /home/caddy 恢复"
+	echo "0. 退出"
+	read -e -p "请输入你的选择: " src_choice
+	case "$src_choice" in
+		1) caddy_docker_restore_from_dir "/home" ;;
+		2|"") caddy_docker_restore_from_dir "/home/caddy" ;;
+		0) return ;;
+		*) echo "无效选择" ;;
+	esac
+}
+
+caddy_docker_update() {
+	caddy_docker_ensure_installed
+	cd "$caddy_docker_dir" || return 1
+	docker compose pull
+	docker compose up -d
+	echo "✅ Caddy Docker 已更新"
+}
+
+caddy_docker_start_restart() {
+	caddy_docker_ensure_installed
+	cd "$caddy_docker_dir" || return 1
+	docker compose up -d
+	docker compose restart caddy >/dev/null 2>&1 || true
+	caddy_docker_reload
+	echo "✅ Caddy Docker 已启动/重启"
+}
+
+caddy_docker_stop() {
+	if [ ! -d "$caddy_docker_dir" ]; then
+		echo "❌ 未找到 $caddy_docker_dir"
+		return 1
+	fi
+	cd "$caddy_docker_dir" || return 1
+	docker compose down
+	echo "✅ Caddy Docker 已停止"
+}
+
+caddy_docker_uninstall() {
+	if [ ! -d "$caddy_docker_dir" ]; then
+		echo "❌ 未找到 $caddy_docker_dir，无需卸载"
+		return 1
+	fi
+	echo "⚠️ 将停止并删除 Caddy Docker：$caddy_docker_dir"
+	echo "   备份目录 $caddy_docker_backup_dir 不会删除。"
+	read -e -p "卸载前是否先备份？(Y/n): " backup_confirm
+	if [[ ! "$backup_confirm" =~ ^[Nn]$ ]]; then
+		caddy_docker_backup || return 1
+	fi
+	read -e -p "确认卸载并删除 $caddy_docker_dir 吗？(y/N): " confirm
+	if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+		echo "已取消卸载"
+		return
+	fi
+	cd "$caddy_docker_dir" && docker compose down >/dev/null 2>&1 || true
+	rm -rf "$caddy_docker_dir"
+	echo "✅ Caddy Docker 已卸载，备份保留在：$caddy_docker_backup_dir"
+}
+
+caddy_docker_manager() {
+	while true; do
+		clear
+		echo "=============================="
+		echo "      🛠 Caddy Docker 管理脚本"
+		echo "📄 当前配置内容："
+		echo "=============================="
+		caddy_docker_list_config_internal
+		echo "1. 安装到 /home/docker/caddy（可备注，端口 80/443/443udp）"
+		echo "2. 添加网站配置"
+		echo "3. 删除网站配置"
+		echo "4. 备份到 /home/caddy/caddy-时间.tar.gz"
+		echo "5. 恢复（从 /home 或 /home/caddy 选择）"
+		echo "6. 更新"
+		echo "7. 启动或重启"
+		echo "8. 停止"
+		echo "9. 卸载"
+		echo "0. 退出"
+		echo "=============================="
+		read -e -p "请输入你的选择: " choice
+		case "$choice" in
+			1) caddy_docker_ensure_installed ;;
+			2) caddy_docker_ensure_installed; caddy_docker_add_site ;;
+			3) caddy_docker_delete_site ;;
+			4) caddy_docker_backup ;;
+			5) caddy_docker_restore_menu ;;
+			6) caddy_docker_update ;;
+			7) caddy_docker_start_restart ;;
+			8) caddy_docker_stop ;;
+			9) caddy_docker_uninstall ;;
+			0) break ;;
+			*) echo "无效选择" ;;
+		esac
+		break_end
+	done
+}
+# ===== Hermes: Caddy 官方 Docker 管理（100）结束 =====
+
+
 linux_panel() {
 
 	while true; do
@@ -6253,7 +6540,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
 	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕"
+	  echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                 ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
 	  echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
@@ -6375,6 +6662,7 @@ linux_panel() {
 	  check_docker "95" "open-webui"
 	  check_docker "98" "chromium"
 	  check_path "99" "/root/.hermes"
+	  check_docker "100" "caddy"
 	  check_docker "102" "windows"
 
 	  # 打印已安装的项目列表并自动折行输出
@@ -11935,6 +12223,10 @@ EOF
 		    echo "▶️ 安装hermes-agent..."
 		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh)
 		    echo "✅ hermes-agent安装成功..."
+		    ;;
+
+		  100)
+		    caddy_docker_manager
 		    ;;
 
 
