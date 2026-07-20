@@ -1144,15 +1144,52 @@ restart_ldnmp() {
 nginx_upgrade() {
 
   ldnmp_pods="nginx"
-  cd /home/web/
+  cd /home/web/ || return 1
+
+  if [ ! -f /home/web/docker-compose.yml ]; then
+    echo "错误：未找到 /home/web/docker-compose.yml，无法更新 nginx。"
+    return 1
+  fi
+
+  echo "正在更新 nginx 镜像并重建容器..."
   docker rm -f $ldnmp_pods > /dev/null 2>&1
-  docker images --filter=reference="$ldnmp_pods*" -q | xargs docker rmi > /dev/null 2>&1
-  docker compose up -d --force-recreate $ldnmp_pods
-  docker exec $ldnmp_pods chmod -R 777 /var/www/html
-  docker exec nginx mkdir -p /var/cache/nginx/proxy
-  docker exec nginx chmod 777 /var/cache/nginx/proxy
-  docker exec nginx mkdir -p /var/cache/nginx/fastcgi
-  docker exec nginx chmod 777 /var/cache/nginx/fastcgi
+
+  local old_images
+  old_images=$(docker images --filter=reference="$ldnmp_pods*" -q | sort -u)
+  if [ -n "$old_images" ]; then
+    echo "$old_images" | xargs -r docker rmi > /dev/null 2>&1 || true
+  fi
+
+  if ! docker compose up -d --pull always --force-recreate $ldnmp_pods; then
+    echo "错误：nginx 容器重建失败。请检查上面的 Docker 输出。"
+    return 1
+  fi
+
+  # 如果 nginx 配置里反代了其它 Docker 容器，重建 nginx 后会丢失手动连接的外部网络。
+  # 自动把 nginx 重新加入这些后端容器所在的网络，避免出现：host not found in upstream "xxx"。
+  local backend_hosts backend_host backend_networks backend_network
+  backend_hosts=$(grep -RhoP 'proxy_pass\s+https?://\K[A-Za-z0-9_.-]+' /home/web/conf.d/*.conf 2>/dev/null | sort -u)
+  for backend_host in $backend_hosts; do
+    if docker inspect "$backend_host" > /dev/null 2>&1; then
+      backend_networks=$(docker inspect "$backend_host" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' 2>/dev/null)
+      for backend_network in $backend_networks; do
+        docker network connect "$backend_network" $ldnmp_pods > /dev/null 2>&1 || true
+      done
+    fi
+  done
+
+  docker exec $ldnmp_pods chmod -R 777 /var/www/html || true
+  docker exec $ldnmp_pods mkdir -p /var/cache/nginx/proxy || true
+  docker exec $ldnmp_pods chmod 777 /var/cache/nginx/proxy || true
+
+  local nginx_test_output
+  if ! nginx_test_output=$(docker exec $ldnmp_pods nginx -t 2>&1); then
+    echo "$nginx_test_output"
+    echo "错误：nginx 配置检测失败，请检查 /home/web/nginx.conf 和 /home/web/conf.d/*.conf。"
+    return 1
+  fi
+
+  echo "nginx 配置检测通过。"
   docker restart $ldnmp_pods > /dev/null 2>&1
 
 }
@@ -5264,9 +5301,12 @@ linux_ldnmp() {
 		  read -e -p "请输入你的选择: " sub_choice
 		  case $sub_choice in
 			  1)
-			  nginx_upgrade
-			  send_stats "更新$ldnmp_pods"
-			  echo "更新${ldnmp_pods}完成"
+			  if nginx_upgrade; then
+				send_stats "更新$ldnmp_pods"
+				echo "更新${ldnmp_pods}完成"
+			  else
+				echo "更新${ldnmp_pods}失败，请根据上方错误处理。"
+			  fi
 
 				  ;;
 
@@ -5962,13 +6002,43 @@ kj_app_ensure_proxy_same_network() {
 	fi
 }
 
+kj_app_reload_proxy_after_network_fix() {
+	local proxy_type="$1"
+	case "$proxy_type" in
+		nginx)
+			if docker inspect nginx >/dev/null 2>&1; then
+				echo "正在重启 Docker nginx..."
+				docker restart nginx
+			elif systemctl is-active --quiet nginx 2>/dev/null; then
+				echo "正在重载本地 nginx..."
+				systemctl reload nginx || systemctl restart nginx
+			else
+				echo "未检测到正在运行的 nginx，跳过重启。"
+			fi
+			;;
+		caddy)
+			if [ "$(systemctl is-active caddy 2>/dev/null)" = "active" ]; then
+				echo "正在重载本地 Caddy..."
+				systemctl reload caddy || systemctl restart caddy
+			elif docker inspect caddy >/dev/null 2>&1; then
+				echo "正在重启 Docker caddy..."
+				docker restart caddy
+			else
+				echo "未检测到正在运行的 caddy，跳过重载。"
+			fi
+			;;
+	esac
+}
+
 kj_app_fix_proxy_network_menu() {
 	local target="$1"
 	local type="$2"
 	local proxy_type
 	proxy_type=$(kj_app_select_proxy)
 	[ -z "$proxy_type" ] && return 0
-	kj_app_ensure_proxy_same_network "$proxy_type" "$target" "$type"
+	if kj_app_ensure_proxy_same_network "$proxy_type" "$target" "$type"; then
+		kj_app_reload_proxy_after_network_fix "$proxy_type"
+	fi
 }
 
 kj_app_nginx_backend_host() {
