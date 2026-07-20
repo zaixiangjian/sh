@@ -6546,369 +6546,369 @@ caddy_docker_manager() {
 
 linux_panel() {
 
-	while true; do
-	  clear
-	  # send_stats "面板工具"
-	  echo -e "▶ 面板工具"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}1.   ${gl_bai}宝塔面板官方版                      ${gl_kjlan}2.   ${gl_bai}aaPanel宝塔国际版"
-	  echo -e "${gl_kjlan}3.   ${gl_bai}1Panel新一代管理面板                ${gl_kjlan}4.   ${gl_bai}NginxProxyManager可视化面板"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}哪吒探针备份与恢复                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
-	  echo -e "${gl_kjlan}7.   ${gl_bai}哪吒探针VPS监控面板                 ${gl_kjlan}8.   ${gl_bai}QB离线BT磁力下载面板"
-	  echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io邮件服务器程序              ${gl_kjlan}10.  ${gl_bai}RocketChat多人在线聊天系统"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}11.  ${gl_bai}禅道项目管理软件                    ${gl_kjlan}12.  ${gl_bai}青龙面板定时任务管理平台"
-	  echo -e "${gl_kjlan}13.  ${gl_bai}Cloudreve网盘 ${gl_huang}★${gl_bai}                     ${gl_kjlan}14.  ${gl_bai}简单图床图片管理程序"
-	  echo -e "${gl_kjlan}15.  ${gl_bai}emby多媒体管理系统                  ${gl_kjlan}16.  ${gl_bai}Speedtest测速面板"
-	  echo -e "${gl_kjlan}17.  ${gl_bai}AdGuardHome去广告软件               ${gl_kjlan}18.  ${gl_bai}onlyoffice在线办公OFFICE"
-	  echo -e "${gl_kjlan}19.  ${gl_bai}雷池WAF防火墙面板                   ${gl_kjlan}20.  ${gl_bai}portainer容器管理面板"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}21.  ${gl_bai}VScode网页版                        ${gl_kjlan}22.  ${gl_bai}UptimeKuma监控工具"
-	  echo -e "${gl_kjlan}23.  ${gl_bai}Memos网页备忘录                     ${gl_kjlan}24.  ${gl_bai}Webtop远程桌面   用6号或者99 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}25.  ${gl_bai}Nextcloud网盘                       ${gl_kjlan}26.  ${gl_bai}QD-Today定时任务管理框架"
-	  echo -e "${gl_kjlan}27.  ${gl_bai}Dockge容器堆栈管理面板              ${gl_kjlan}28.  ${gl_bai}LibreSpeed测速工具"
-	  echo -e "${gl_kjlan}29.  ${gl_bai}searxng聚合搜索站 ${gl_huang}★${gl_bai}                 ${gl_kjlan}30.  ${gl_bai}PhotoPrism私有相册系统"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}31.  ${gl_bai}StirlingPDF工具大全                 ${gl_kjlan}32.  ${gl_bai}drawio免费的在线图表软件 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}33.  ${gl_bai}Sun-Panel导航面板                   ${gl_kjlan}34.  ${gl_bai}Pingvin-Share文件分享平台"
-	  echo -e "${gl_kjlan}35.  ${gl_bai}极简朋友圈                          ${gl_kjlan}36.  ${gl_bai}LobeChatAI聊天聚合网站"
-	  echo -e "${gl_kjlan}37.  ${gl_bai}MyIP工具箱 ${gl_huang}★${gl_bai}                        ${gl_kjlan}38.  ${gl_bai}小雅alist全家桶"
-	  echo -e "${gl_kjlan}39.  ${gl_bai}Bililive直播录制工具                ${gl_kjlan}40.  ${gl_bai}远程Windows11"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
-   	  echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
-   	  echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)          ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-   	  echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}编译部署ssh Nexterm  53 79"
-	  echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-	  echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}                   ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
-	  echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
-   	  echo -e "${gl_kjlan}------------------------"
-   	  echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}           ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
-	  echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
-	  echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用（82.86） ${gl_huang}★${gl_bai}      ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份（82.86）"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}        ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
-	  echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}                    ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
-	  echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                      ${gl_kjlan}70.  ${gl_bai}安装盘搜"
-	  echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}           ${gl_kjlan}74.  ${gl_bai}添加对象存储api（73.88）"
-	  echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
-	  echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包（63.64.86） ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                     ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                             ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
-	  echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                 ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
-	  echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
-   	  echo -e "${gl_kjlan}998.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}999.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}1000.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}1001.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}1002.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}1003.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-   	  echo -e "${gl_kjlan}1004.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}1005.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
-	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
-	  echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
-	  echo -e "${gl_kjlan}------------------------${gl_bai}"
-	  
-	  # ================= 动态检测已安装面板服务 =================
-	  declare -a installed_items=()
-	  # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
-	  # 现在只执行一次 docker ps -a，把所有容器名缓存起来，后面用 grep 精确匹配。
-	  local docker_container_list=""
-	  if command -v docker &>/dev/null; then
-	      docker_container_list="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
-	  fi
-	  check_docker() {
-	      local num="$1"
-	      local container_name="$2"
-	      if [ -n "$docker_container_list" ] && echo "$docker_container_list" | grep -Fxq "$container_name"; then
-	          installed_items+=("$num")
-	      fi
-	  }
-	  check_path() {
-	      local num="$1"
-	      local path="$2"
-	      if [ -d "$path" ] || [ -f "$path" ]; then
-	          installed_items+=("$num")
-	      fi
-	  }
-	  check_cmd() {
-	      local num="$1"
-	      local cmd="$2"
-	      if command -v "$cmd" &>/dev/null; then
-	          installed_items+=("$num")
-	      fi
-	  }
+  while true; do
+    clear
+    # send_stats "面板工具"
+    echo -e "▶ 面板工具"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}1.   ${gl_bai}宝塔面板官方版                      ${gl_kjlan}2.   ${gl_bai}aaPanel宝塔国际版"
+    echo -e "${gl_kjlan}3.   ${gl_bai}1Panel新一代管理面板                ${gl_kjlan}4.   ${gl_bai}NginxProxyManager可视化面板"
+    echo -e "${gl_kjlan}5.   ${gl_bai}哪吒探针备份与恢复                    ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
+    echo -e "${gl_kjlan}7.   ${gl_bai}哪吒探针VPS监控面板                 ${gl_kjlan}8.   ${gl_bai}QB离线BT磁力下载面板"
+    echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io邮件服务器程序              ${gl_kjlan}10.  ${gl_bai}RocketChat多人在线聊天系统"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}11.  ${gl_bai}禅道项目管理软件                    ${gl_kjlan}12.  ${gl_bai}青龙面板定时任务管理平台"
+    echo -e "${gl_kjlan}13.  ${gl_bai}Cloudreve网盘 ${gl_huang}★${gl_bai}                     ${gl_kjlan}14.  ${gl_bai}简单图床图片管理程序"
+    echo -e "${gl_kjlan}15.  ${gl_bai}emby多媒体管理系统                  ${gl_kjlan}16.  ${gl_bai}Speedtest测速面板"
+    echo -e "${gl_kjlan}17.  ${gl_bai}AdGuardHome去广告软件               ${gl_kjlan}18.  ${gl_bai}onlyoffice在线办公OFFICE"
+    echo -e "${gl_kjlan}19.  ${gl_bai}雷池WAF防火墙面板                   ${gl_kjlan}20.  ${gl_bai}portainer容器管理面板"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}21.  ${gl_bai}VScode网页版                        ${gl_kjlan}22.  ${gl_bai}UptimeKuma监控工具"
+    echo -e "${gl_kjlan}23.  ${gl_bai}Memos网页备忘录                     ${gl_kjlan}24.  ${gl_bai}Webtop远程桌面   用6号或者99 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}25.  ${gl_bai}Nextcloud网盘                       ${gl_kjlan}26.  ${gl_bai}QD-Today定时任务管理框架"
+    echo -e "${gl_kjlan}27.  ${gl_bai}Dockge容器堆栈管理面板              ${gl_kjlan}28.  ${gl_bai}LibreSpeed测速工具"
+    echo -e "${gl_kjlan}29.  ${gl_bai}searxng聚合搜索站 ${gl_huang}★${gl_bai}                 ${gl_kjlan}30.  ${gl_bai}PhotoPrism私有相册系统"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}31.  ${gl_bai}StirlingPDF工具大全                 ${gl_kjlan}32.  ${gl_bai}drawio免费的在线图表软件 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}33.  ${gl_bai}Sun-Panel导航面板                   ${gl_kjlan}34.  ${gl_bai}Pingvin-Share文件分享平台"
+    echo -e "${gl_kjlan}35.  ${gl_bai}极简朋友圈                          ${gl_kjlan}36.  ${gl_bai}LobeChatAI聊天聚合网站"
+    echo -e "${gl_kjlan}37.  ${gl_bai}MyIP工具箱 ${gl_huang}★${gl_bai}                        ${gl_kjlan}38.  ${gl_bai}小雅alist全家桶"
+    echo -e "${gl_kjlan}39.  ${gl_bai}Bililive直播录制工具                ${gl_kjlan}40.  ${gl_bai}远程Windows11"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
+       echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
+       echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)          ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
+       echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}编译部署ssh Nexterm  53 79"
+    echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
+    echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}                   ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
+    echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                         ${gl_kjlan}58.  ${gl_bai}安装caddy"
+       echo -e "${gl_kjlan}------------------------"
+       echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}           ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
+    echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
+    echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用（82.86） ${gl_huang}★${gl_bai}      ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份（82.86）"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}        ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
+    echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}                    ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
+    echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                      ${gl_kjlan}70.  ${gl_bai}安装盘搜"
+    echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}           ${gl_kjlan}74.  ${gl_bai}添加对象存储api（73.88）"
+    echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
+    echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}                  ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包（63.64.86） ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                    ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                     ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                             ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
+    echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                 ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
+    echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
+       echo -e "${gl_kjlan}998.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}999.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}1000.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}1001.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}1002.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}1003.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+       echo -e "${gl_kjlan}1004.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}1005.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
+    echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
+    echo -e "${gl_kjlan}------------------------${gl_bai}"
+    
+    # ================= 动态检测已安装面板服务 =================
+    declare -a installed_items=()
+    # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
+    # 现在只执行一次 docker ps -a，把所有容器名缓存起来，后面用 grep 精确匹配。
+    local docker_container_list=""
+    if command -v docker &>/dev/null; then
+        docker_container_list="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+    fi
+    check_docker() {
+        local num="$1"
+        local container_name="$2"
+        if [ -n "$docker_container_list" ] && echo "$docker_container_list" | grep -Fxq "$container_name"; then
+            installed_items+=("$num")
+        fi
+    }
+    check_path() {
+        local num="$1"
+        local path="$2"
+        if [ -d "$path" ] || [ -f "$path" ]; then
+            installed_items+=("$num")
+        fi
+    }
+    check_cmd() {
+        local num="$1"
+        local cmd="$2"
+        if command -v "$cmd" &>/dev/null; then
+            installed_items+=("$num")
+        fi
+    }
 
-	  # 检测各项服务
-	  check_path "1" "/www/server/panel"
-	  if [ -d "/www/server/panel" ] && grep -q "aapanel" /www/server/panel/class/common.py 2>/dev/null; then installed_items+=("2"); fi
-	  check_cmd "3" "1pctl"
-	  check_docker "4" "npm"
-	  check_path "5" "/opt/nezha"
-	  check_docker "6" "webtop-ubuntu"
-	  check_path "7" "/opt/nezha/dashboard"
-	  check_docker "8" "qbittorrent"
-	  check_docker "9" "mailserver"
-	  check_docker "10" "rocketchat"
-	  check_docker "11" "zentao-server"
-	  check_docker "12" "qinglong"
-	  check_docker "13" "cloudreve"
-	  check_docker "14" "easyimage"
-	  check_docker "15" "emby"
-	  check_docker "16" "looking-glass"
-	  check_docker "17" "adguardhome"
-	  check_docker "18" "onlyoffice"
-	  check_docker "19" "safeline-mgt"
-	  check_docker "20" "portainer"
-	  check_docker "21" "vscode-web"
-	  check_docker "22" "uptime-kuma"
-	  check_docker "23" "memos"
-	  check_docker "24" "webtop"
-	  check_docker "25" "nextcloud-aio"
-	  check_docker "26" "qd"
-	  check_docker "27" "dockge"
-	  check_docker "28" "speedtest"
-	  check_docker "29" "searxng"
-	  check_docker "30" "photoprism"
-	  check_docker "31" "s-pdf"
-	  check_docker "32" "drawio"
-	  check_docker "33" "sun-panel"
-	  check_docker "34" "pingvin-share"
-	  check_docker "35" "moments"
-	  check_docker "36" "lobe-chat"
-	  check_docker "37" "myip"
-	  check_docker "38" "alist"
-	  check_docker "39" "bililive-go"
-	  check_docker "40" "windows"
-	  check_path "41" "/www/server/panel-haozi"
-	  check_docker "42" "vaultwarden"
-	  check_docker "46" "aria2-pro"
-	  check_docker "48" "nexterm"
-	  check_docker "49" "libretv"
-	  check_docker "50" "moontv"
-	  check_path "51" "/home/docker/jiguang"
-	  check_docker "54" "webssh"
-	  check_docker "55" "openlist"
-	  check_docker "56" "umami"
-	  check_docker "57" "dify"
-	  check_cmd "58" "caddy"
-	  check_docker "59" "hbbs"
-	  check_docker "60" "hbbr"
-	  check_path "62" "/usr/local/x-ui"
-	  check_cmd "63" "rclone"
-	  check_docker "64" "r2beifen"
-	  check_docker "67" "owncloud"
-	  check_docker "68" "m38u8"
-	  check_docker "69" "it-tools"
-	  check_docker "70" "pansou"
-	  check_docker "71" "zfile"
-	  check_docker "72" "discourse"
-	  check_docker "73" "minio"
-	  check_docker "78" "mailcow"
-	  check_docker "84" "hitokoto"
-	  check_docker "86" "backrest"
-	  check_docker "87" "certimate"
-	  check_docker "89" "nezha-dashboard"
-	  check_docker "90" "btc"
-	  check_docker "91" "chrome"
-	  check_docker "92" "cli-proxy-api"
-	  check_docker "93" "sub2api"
-	  check_path "94" "/root/.openclaw"
-	  check_docker "95" "open-webui"
-	  check_docker "98" "chromium"
-	  check_path "99" "/root/.hermes"
-	  check_docker "100" "caddy"
-	  check_docker "102" "windows"
+    # 检测各项服务
+    check_path "1" "/www/server/panel"
+    if [ -d "/www/server/panel" ] && grep -q "aapanel" /www/server/panel/class/common.py 2>/dev/null; then installed_items+=("2"); fi
+    check_cmd "3" "1pctl"
+    check_docker "4" "npm"
+    check_path "5" "/opt/nezha"
+    check_docker "6" "webtop-ubuntu"
+    check_path "7" "/opt/nezha/dashboard"
+    check_docker "8" "qbittorrent"
+    check_docker "9" "mailserver"
+    check_docker "10" "rocketchat"
+    check_docker "11" "zentao-server"
+    check_docker "12" "qinglong"
+    check_docker "13" "cloudreve"
+    check_docker "14" "easyimage"
+    check_docker "15" "emby"
+    check_docker "16" "looking-glass"
+    check_docker "17" "adguardhome"
+    check_docker "18" "onlyoffice"
+    check_docker "19" "safeline-mgt"
+    check_docker "20" "portainer"
+    check_docker "21" "vscode-web"
+    check_docker "22" "uptime-kuma"
+    check_docker "23" "memos"
+    check_docker "24" "webtop"
+    check_docker "25" "nextcloud-aio"
+    check_docker "26" "qd"
+    check_docker "27" "dockge"
+    check_docker "28" "speedtest"
+    check_docker "29" "searxng"
+    check_docker "30" "photoprism"
+    check_docker "31" "s-pdf"
+    check_docker "32" "drawio"
+    check_docker "33" "sun-panel"
+    check_docker "34" "pingvin-share"
+    check_docker "35" "moments"
+    check_docker "36" "lobe-chat"
+    check_docker "37" "myip"
+    check_docker "38" "alist"
+    check_docker "39" "bililive-go"
+    check_docker "40" "windows"
+    check_path "41" "/www/server/panel-haozi"
+    check_docker "42" "vaultwarden"
+    check_docker "46" "aria2-pro"
+    check_docker "48" "nexterm"
+    check_docker "49" "libretv"
+    check_docker "50" "moontv"
+    check_path "51" "/home/docker/jiguang"
+    check_docker "54" "webssh"
+    check_docker "55" "openlist"
+    check_docker "56" "umami"
+    check_docker "57" "dify"
+    check_cmd "58" "caddy"
+    check_docker "59" "hbbs"
+    check_docker "60" "hbbr"
+    check_path "62" "/usr/local/x-ui"
+    check_cmd "63" "rclone"
+    check_docker "64" "r2beifen"
+    check_docker "67" "owncloud"
+    check_docker "68" "m38u8"
+    check_docker "69" "it-tools"
+    check_docker "70" "pansou"
+    check_docker "71" "zfile"
+    check_docker "72" "discourse"
+    check_docker "73" "minio"
+    check_docker "78" "mailcow"
+    check_docker "84" "hitokoto"
+    check_docker "86" "backrest"
+    check_docker "87" "certimate"
+    check_docker "89" "nezha-dashboard"
+    check_docker "90" "btc"
+    check_docker "91" "chrome"
+    check_docker "92" "cli-proxy-api"
+    check_docker "93" "sub2api"
+    check_path "94" "/root/.openclaw"
+    check_docker "95" "open-webui"
+    check_docker "98" "chromium"
+    check_path "99" "/root/.hermes"
+    check_docker "100" "caddy"
+    check_docker "102" "windows"
 
-	  # 打印已安装的项目列表并自动折行输出
-	  if [ ${#installed_items[@]} -eq 0 ]; then
-	      echo -e "${gl_kjlan}已安装：无${gl_bai}"
-	  else
-	      echo -e -n "${gl_kjlan}已安装：${gl_bai}"
-	      local line=""
-	      local count=0
-	      for item in "${installed_items[@]}"; do
-	          if [ $count -eq 0 ]; then
-	              line="$item"
-	          else
-	              line="$line $item"
-	          fi
-	          count=$((count + 1))
-	          if [ $((count % 12)) -eq 0 ]; then
-	              echo -e "${gl_lv}$line${gl_bai}"
-	              line=""
-	              count=0
-	          fi
-	      done
-	      if [ -n "$line" ]; then
-	          echo -e "${gl_lv}$line${gl_bai}"
-	      fi
-	  fi
-	  echo -e "${gl_kjlan}------------------------${gl_bai}"
-	  read -e -p "请输入你的选择: " sub_choice
+    # 打印已安装的项目列表并自动折行输出
+    if [ ${#installed_items[@]} -eq 0 ]; then
+        echo -e "${gl_kjlan}已安装：无${gl_bai}"
+    else
+        echo -e -n "${gl_kjlan}已安装：${gl_bai}"
+        local line=""
+        local count=0
+        for item in "${installed_items[@]}"; do
+            if [ $count -eq 0 ]; then
+                line="$item"
+            else
+                line="$line $item"
+            fi
+            count=$((count + 1))
+            if [ $((count % 12)) -eq 0 ]; then
+                echo -e "${gl_lv}$line${gl_bai}"
+                line=""
+                count=0
+            fi
+        done
+        if [ -n "$line" ]; then
+            echo -e "${gl_lv}$line${gl_bai}"
+        fi
+    fi
+    echo -e "${gl_kjlan}------------------------${gl_bai}"
+    read -e -p "请输入你的选择: " sub_choice
 
-	  case $sub_choice in
-		  1)
+    case $sub_choice in
+      1)
 
-			lujing="[ -d "/www/server/panel" ]"
-			panelname="宝塔面板"
+      lujing="[ -d "/www/server/panel" ]"
+      panelname="宝塔面板"
 
-			gongneng1="bt"
-			gongneng1_1=""
-			gongneng2="curl -o bt-uninstall.sh http://download.bt.cn/install/bt-uninstall.sh > /dev/null 2>&1 && chmod +x bt-uninstall.sh && ./bt-uninstall.sh"
-			gongneng2_1="chmod +x bt-uninstall.sh"
-			gongneng2_2="./bt-uninstall.sh"
+      gongneng1="bt"
+      gongneng1_1=""
+      gongneng2="curl -o bt-uninstall.sh http://download.bt.cn/install/bt-uninstall.sh > /dev/null 2>&1 && chmod +x bt-uninstall.sh && ./bt-uninstall.sh"
+      gongneng2_1="chmod +x bt-uninstall.sh"
+      gongneng2_2="./bt-uninstall.sh"
 
-			panelurl="https://www.bt.cn/new/index.html"
-
-
-			centos_mingling="wget -O install.sh https://download.bt.cn/install/install_6.0.sh"
-			centos_mingling2="sh install.sh ed8484bec"
-
-			ubuntu_mingling="wget -O install.sh https://download.bt.cn/install/install-ubuntu_6.0.sh"
-			ubuntu_mingling2="bash install.sh ed8484bec"
-
-			install_panel
+      panelurl="https://www.bt.cn/new/index.html"
 
 
+      centos_mingling="wget -O install.sh https://download.bt.cn/install/install_6.0.sh"
+      centos_mingling2="sh install.sh ed8484bec"
 
-			  ;;
-		  2)
+      ubuntu_mingling="wget -O install.sh https://download.bt.cn/install/install-ubuntu_6.0.sh"
+      ubuntu_mingling2="bash install.sh ed8484bec"
 
-			lujing="[ -d "/www/server/panel" ]"
-			panelname="aapanel"
-
-			gongneng1="bt"
-			gongneng1_1=""
-			gongneng2="curl -o bt-uninstall.sh http://download.bt.cn/install/bt-uninstall.sh > /dev/null 2>&1 && chmod +x bt-uninstall.sh && ./bt-uninstall.sh"
-			gongneng2_1="chmod +x bt-uninstall.sh"
-			gongneng2_2="./bt-uninstall.sh"
-
-			panelurl="https://www.aapanel.com/new/index.html"
-
-			centos_mingling="wget -O install.sh http://www.aapanel.com/script/install_6.0_en.sh"
-			centos_mingling2="bash install.sh aapanel"
-
-			ubuntu_mingling="wget -O install.sh http://www.aapanel.com/script/install-ubuntu_6.0_en.sh"
-			ubuntu_mingling2="bash install.sh aapanel"
-
-			install_panel
-
-			  ;;
-		  3)
-
-			lujing="command -v 1pctl > /dev/null 2>&1 "
-			panelname="1Panel"
-
-			gongneng1="1pctl user-info"
-			gongneng1_1="1pctl update password"
-			gongneng2="1pctl uninstall"
-			gongneng2_1=""
-			gongneng2_2=""
-
-			panelurl="https://1panel.cn/"
+      install_panel
 
 
-			centos_mingling="curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh"
-			centos_mingling2="sh quick_start.sh"
 
-			ubuntu_mingling="curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh"
-			ubuntu_mingling2="bash quick_start.sh"
+        ;;
+      2)
 
-			install_panel
+      lujing="[ -d "/www/server/panel" ]"
+      panelname="aapanel"
 
-			  ;;
-		  4)
+      gongneng1="bt"
+      gongneng1_1=""
+      gongneng2="curl -o bt-uninstall.sh http://download.bt.cn/install/bt-uninstall.sh > /dev/null 2>&1 && chmod +x bt-uninstall.sh && ./bt-uninstall.sh"
+      gongneng2_1="chmod +x bt-uninstall.sh"
+      gongneng2_2="./bt-uninstall.sh"
 
-			docker_name="npm"
-			docker_img="jc21/nginx-proxy-manager:latest"
-			docker_port=81
-			docker_rum="docker run -d \
-						  --name=$docker_name \
-						  -p 80:80 \
-						  -p 81:$docker_port \
-						  -p 443:443 \
-						  -v /home/docker/npm/data:/data \
-						  -v /home/docker/npm/letsencrypt:/etc/letsencrypt \
-						  --restart=always \
-						  $docker_img"
-			docker_describe="如果您已经安装了其他面板工具或者LDNMP建站环境，建议先卸载，再安装npm！"
-			docker_url="官网介绍: https://nginxproxymanager.com/"
-			docker_use="echo \"初始用户名: admin@example.com\""
-			docker_passwd="echo \"初始密码: changeme\""
+      panelurl="https://www.aapanel.com/new/index.html"
 
-			docker_app
+      centos_mingling="wget -O install.sh http://www.aapanel.com/script/install_6.0_en.sh"
+      centos_mingling2="bash install.sh aapanel"
 
-			  ;;
+      ubuntu_mingling="wget -O install.sh http://www.aapanel.com/script/install-ubuntu_6.0_en.sh"
+      ubuntu_mingling2="bash install.sh aapanel"
+
+      install_panel
+
+        ;;
+      3)
+
+      lujing="command -v 1pctl > /dev/null 2>&1 "
+      panelname="1Panel"
+
+      gongneng1="1pctl user-info"
+      gongneng1_1="1pctl update password"
+      gongneng2="1pctl uninstall"
+      gongneng2_1=""
+      gongneng2_2=""
+
+      panelurl="https://1panel.cn/"
+
+
+      centos_mingling="curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh"
+      centos_mingling2="sh quick_start.sh"
+
+      ubuntu_mingling="curl -sSL https://resource.fit2cloud.com/1panel/package/quick_start.sh -o quick_start.sh"
+      ubuntu_mingling2="bash quick_start.sh"
+
+      install_panel
+
+        ;;
+      4)
+
+      docker_name="npm"
+      docker_img="jc21/nginx-proxy-manager:latest"
+      docker_port=81
+      docker_rum="docker run -d \
+              --name=$docker_name \
+              -p 80:80 \
+              -p 81:$docker_port \
+              -p 443:443 \
+              -v /home/docker/npm/data:/data \
+              -v /home/docker/npm/letsencrypt:/etc/letsencrypt \
+              --restart=always \
+              $docker_img"
+      docker_describe="如果您已经安装了其他面板工具或者LDNMP建站环境，建议先卸载，再安装npm！"
+      docker_url="官网介绍: https://nginxproxymanager.com/"
+      docker_use="echo \"初始用户名: admin@example.com\""
+      docker_passwd="echo \"初始密码: changeme\""
+
+      docker_app
+
+        ;;
 
 
 5)
-	clear
-	send_stats "哪吒监控管理"
+  clear
+  send_stats "哪吒监控管理"
 
-	while true; do
-		clear
-		echo "哪吒监控管理"
-		echo "开源、轻量、易用的服务器监控与运维工具"
-		echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
-		echo "------------------------"
-		echo "1. 安装 / 更新哪吒"
-		echo "恢复前先使用1号配置的4停止在使用3号启动"
-		echo "------------------------"
-		echo "2. 恢复哪吒面板"
-		echo "恢复前先使用1号配置的4停止在使用3号启动"
-		echo "------------------------"
-		echo "------------------------"
-		echo "9. docker安装面板"
-		echo "------------------------"
-		echo "------------------------"
-		echo "999. 备份哪吒面板"
-		echo "备份前先使用1号配置的4停止"
-		echo "------------------------"
-		echo "0. 退出"
-		echo "------------------------"
+  while true; do
+    clear
+    echo "哪吒监控管理"
+    echo "开源、轻量、易用的服务器监控与运维工具"
+    echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
+    echo "------------------------"
+    echo "1. 安装 / 更新哪吒"
+    echo "恢复前先使用1号配置的4停止在使用3号启动"
+    echo "------------------------"
+    echo "2. 恢复哪吒面板"
+    echo "恢复前先使用1号配置的4停止在使用3号启动"
+    echo "------------------------"
+    echo "------------------------"
+    echo "9. docker安装面板"
+    echo "------------------------"
+    echo "------------------------"
+    echo "999. 备份哪吒面板"
+    echo "备份前先使用1号配置的4停止"
+    echo "------------------------"
+    echo "0. 退出"
+    echo "------------------------"
 
-		read -e -p "输入你的选择: " choice
+    read -e -p "输入你的选择: " choice
 
-		case $choice in
+    case $choice in
 
-			1)
-				# 安装 / 更新
-				curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh
-				chmod +x nezha.sh
-				sudo bash ./nezha.sh
-				;;
+      1)
+        # 安装 / 更新
+        curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh
+        chmod +x nezha.sh
+        sudo bash ./nezha.sh
+        ;;
 
-			2)
-				# 恢复（稳定安全版）
-				read -e -p "确认恢复？会覆盖当前数据 (y/n): " confirm
-				if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-					echo "已取消"
-					sleep 1
-					continue
-				fi
+      2)
+        # 恢复（稳定安全版）
+        read -e -p "确认恢复？会覆盖当前数据 (y/n): " confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+          echo "已取消"
+          sleep 1
+          continue
+        fi
 
-				if [ ! -f /home/nezha/nezha_full_backup.tar.gz ]; then
-					echo "❌ 未找到备份文件"
-					sleep 2
-					continue
-				fi
+        if [ ! -f /home/nezha/nezha_full_backup.tar.gz ]; then
+          echo "❌ 未找到备份文件"
+          sleep 2
+          continue
+        fi
 
 echo "🛑 停止服务..."
 systemctl stop nezha-dashboard 2>/dev/null
@@ -6927,944 +6927,944 @@ systemctl start nezha-dashboard 2>/dev/null || {
     nohup ./app > /dev/null 2>&1 &
 }
 
-				sleep 2
-				ss -lntp | grep app
-
-				echo "✅ 恢复完成"
-				;;
-
-		  9)
-		    clear
-		    echo "▶️ 正在启动哪吒docker安装..."
-		    bash <(curl -sS https://raw.githubusercontent.com/zaixiangjian/sh/main/ai/dockernezhav0.sh)
-		    echo "✅ 哪吒docker安装完成。"
-		    ;;
-
-			999)
-				# 备份（生产级安全版）
-
-				echo "🛑 正在优雅停止服务..."
-				systemctl stop nezha-dashboard 2>/dev/null
-				pkill app 2>/dev/null
-
-				echo "⏳ 等待数据落盘..."
-				sleep 3
-
-				if [ ! -f /opt/nezha/dashboard/data/sqlite.db ]; then
-					echo "❌ 数据库不存在，备份终止"
-					sleep 2
-					continue
-				fi
-
-				mkdir -p /home/nezha
-
-				echo "📦 开始备份..."
-
-				tar czvf /home/nezha/nezha_full_backup.tar.gz \
-					/opt/nezha/dashboard/data \
-					/opt/nezha/dashboard/app \
-					/opt/nezha/dashboard/resource
-
-				if [ $? -eq 0 ]; then
-					echo "✅ 备份成功: /home/nezha/nezha_full_backup.tar.gz"
-				else
-					echo "❌ 备份失败"
-				fi
-				;;
-
-			0)
-				break
-				;;
-
-			*)
-				echo "无效选项"
-				sleep 1
-				;;
-		esac
-
-		read -n 1 -s -r -p "按任意键继续..."
-	done
-	;;
-
-
-		6)
-			docker_name="webtop-ubuntu"
-			docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"
-			docker_port=3006
-			docker_dir="/home/docker/webtop"
-
-			clear
-			echo "------------------------"
-			echo "1. 安装"
-			echo "2. 备份"
-			echo "3. 卸载"
-			echo "4. 恢复最新备份"
-			echo "------------------------"
-			echo "0. 返回上一级"
-			echo "------------------------"
-			echo -n "请输入你的选择: "
-			read sub_choice
-
-			case "$sub_choice" in
-				1)
-					# 生成随机18位密码
-					random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
-
-					docker_rum="docker run -d \
-						  --name=webtop-ubuntu \
-						  --security-opt seccomp=unconfined \
-						  -e PUID=1000 \
-						  -e PGID=1000 \
-						  -e TZ=Asia/Shanghai \
-						  -e LC_ALL=zh_CN.UTF-8 \
-						  -e CUSTOM_USER=admin \
-						  -e PASSWORD=$random_passwd \
-						  -e SUBFOLDER=/ \
-						  -e TITLE=我的网站目录 \
-						  -p $docker_port:3000 \
-						  -v $docker_dir/data:/config \
-						  -v $docker_dir/Downloads:/home/abc/Downloads \
-						  --shm-size=\"1gb\" \
-						  --restart unless-stopped \
-						  $docker_img"
-
-					# 启动容器
-					eval "$docker_rum"
-
-					echo ""
-					echo "$docker_name 已安装 ✅"
-					echo "webtop基于Ubuntu的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
-					echo "官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
-					echo ""
-					echo "访问地址:"
-					echo "http://$(curl -s ipv4.ip.sb):$docker_port"
-					echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
-					echo ""
-					echo "用户名: admin"
-					echo "密码: $random_passwd"
-					echo "⚠️ 此密码仅显示一次，请妥善保存！"
-					;;
-				2)
-					echo "正在备份 Webtop 数据..."
-					backup_file="/home/docker/webtop_backup_$(date +%F_%H%M%S).tar.gz"
-					tar -czvf "$backup_file" -C /home/docker webtop
-					if [ $? -eq 0 ]; then
-						echo "备份完成 ✅"
-						echo "备份文件: $backup_file"
-					else
-						echo "⚠️ 备份失败"
-					fi
-					;;
-				3)
-					echo "正在停止并删除容器 $docker_name ..."
-					docker stop $docker_name >/dev/null 2>&1
-					docker rm $docker_name >/dev/null 2>&1
-
-					if [ $? -eq 0 ]; then
-						echo "容器已成功删除 ✅"
-					else
-						echo "⚠️ 容器不存在或删除失败"
-					fi
-
-					echo "正在删除本地目录 $docker_dir ..."
-					if [ -d "$docker_dir" ]; then
-						rm -rf "$docker_dir"
-						echo "目录已删除 ✅"
-					else
-						echo "⚠️ 本地目录不存在或已被删除"
-					fi
-
-					echo "Webtop 容器及数据已卸载完成 ✅"
-					;;
-				4)
-					echo "正在查找最新的备份文件..."
-					latest_backup=$(ls -t /home/docker/webtop_backup_*.tar.gz 2>/dev/null | head -n 1)
-
-					if [ -z "$latest_backup" ]; then
-						echo "⚠️ 未找到任何备份文件"
-					else
-						echo "找到备份文件: $latest_backup"
-						echo "正在恢复备份..."
-
-						# 停止容器
-						docker stop $docker_name >/dev/null 2>&1
-
-						# 删除原数据
-						rm -rf "$docker_dir"
-
-						# 解压备份
-						tar -xzvf "$latest_backup" -C /home/docker
-
-						# 重启容器
-						docker restart $docker_name >/dev/null 2>&1
-
-						if [ $? -eq 0 ]; then
-							echo "恢复并重启容器成功 ✅"
-						else
-							echo "⚠️ 恢复失败或容器启动失败"
-						fi
-					fi
-					;;
-				0)
-					echo "返回上一级菜单..."
-					;;
-				*)
-					echo "无效选项，请重新输入！"
-					;;
-			esac
-			;;
-
-
-
-
-		  7)
-			clear
-			send_stats "搭建哪吒"
-			while true; do
-				clear
-				echo "哪吒监控管理"
-				echo "开源、轻量、易用的服务器监控与运维工具"
-				echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
-				echo "------------------------"
-				echo "1. 使用           0. 返回上一级"
-				echo "=============================="
-				echo "⚠️ 使用5号配置进行备份与恢复配置 ⚠️"
-				echo "=============================="
-				read -e -p "输入你的选择: " choice
-
-				case $choice in
-					1)
-						curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh && chmod +x nezha.sh && sudo ./nezha.sh
-						;;
-					0)
-						break
-						;;
-					*)
-						break
-						;;
-
-				esac
-				break_end
-			done
-			  ;;
-
-		  8)
-
-			docker_name="qbittorrent"
-			docker_img="lscr.io/linuxserver/qbittorrent:latest"
-			docker_port=8081
-			docker_rum="docker run -d \
-								  --name=qbittorrent \
-								  -e PUID=1000 \
-								  -e PGID=1000 \
-								  -e TZ=Etc/UTC \
-								  -e WEBUI_PORT=8081 \
-								  -p 8081:8081 \
-								  -p 6881:6881 \
-								  -p 6881:6881/udp \
-								  -v /home/docker/qbittorrent/config:/config \
-								  -v /home/docker/qbittorrent/downloads:/downloads \
-								  --restart unless-stopped \
-								  lscr.io/linuxserver/qbittorrent:latest"
-			docker_describe="qbittorrent离线BT磁力下载服务"
-			docker_url="官网介绍: https://hub.docker.com/r/linuxserver/qbittorrent"
-			docker_use="sleep 3"
-			docker_passwd="docker logs qbittorrent"
-
-			docker_app
-
-			  ;;
-
-		  9)
-			send_stats "搭建邮局"
-			clear
-			install telnet
-			docker_name="mailserver"
-			while true; do
-				check_docker_app
-
-				clear
-				echo -e "邮局服务 $check_docker"
-				echo "poste.io 是一个开源的邮件服务器解决方案，"
-				echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
-
-				echo ""
-				echo "端口检测"
-				port=25
-				timeout=3
-				if echo "quit" | timeout $timeout telnet smtp.qq.com $port | grep 'Connected'; then
-				  echo -e "${gl_lv}端口 $port 当前可用${gl_bai}"
-				else
-				  echo -e "${gl_hong}端口 $port 当前不可用${gl_bai}"
-				fi
-				echo ""
-
-				if docker inspect "$docker_name" &>/dev/null; then
-					yuming=$(cat /home/docker/mail/mail.txt)
-					echo "访问地址: "
-					echo "https://$yuming"
-				fi
-
-				echo "------------------------"
-				echo "1. 安装           2. 更新           3. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
-
-				case $choice in
-					1)
-						read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
-						mkdir -p /home/docker/mail
-						echo "$yuming" > /home/docker/mail/mail.txt
-						echo "------------------------"
-						ip_address
-						echo "先解析这些DNS记录"
-						echo "A           mail            $ipv4_address"
-						echo "CNAME       imap            $yuming"
-						echo "CNAME       pop             $yuming"
-						echo "CNAME       smtp            $yuming"
-						echo "MX          @               $yuming"
-						echo "TXT         @               v=spf1 mx ~all"
-						echo ""
-						echo "------------------------"
-						echo "按任意键继续..."
-						read -n 1 -s -r -p ""
-
-						install_docker
-
-						docker run -d \
-							--name mailserver \
-							--hostname "$yuming" \
-							-e TZ=Asia/Shanghai \
-							-v /home/docker/mail/data:/data \
-							-p 80:80 \
-							-p 443:443 \
-							-p 25:25 \
-							-p 587:587 \
-							-p 993:993 \
-							-p 110:110 \
-							-p 995:995 \
-							-p 143:143 \
-							-p 465:465 \
-							-p 4190:4190 \
-							--restart=always \
-							analogic/poste.io
-
-						clear
-						echo "poste.io已经安装完成"
-						echo "------------------------"
-						echo "您可以使用以下地址访问poste.io:"
-						echo "https://$yuming"
-						echo ""
-						;;
-
-					2)
-						docker rm -f mailserver
-						docker rmi -f analogic/poste.io
-						yuming=$(cat /home/docker/mail/mail.txt)
-						docker run -d \
-							--name mailserver \
-							--hostname "$yuming" \
-							-e TZ=Asia/Shanghai \
-							-v /home/docker/mail/data:/data \
-							-p 80:80 \
-							-p 443:443 \
-							-p 25:25 \
-							-p 587:587 \
-							-p 993:993 \
-							-p 110:110 \
-							-p 995:995 \
-							-p 143:143 \
-							-p 465:465 \
-							-p 4190:4190 \
-							--restart=always \
-							analogic/poste.io
-						clear
-						echo "poste.io已经安装完成"
-						echo "------------------------"
-						echo "您可以使用以下地址访问poste.io:"
-						echo "https://$yuming"
-						echo ""
-						;;
-
-					3)
-						docker rm -f mailserver
-						docker rmi -f analogic/poste.io
-						rm /home/docker/mail/mail.txt
-						rm -rf /home/docker/mail/data
-						echo "应用已卸载"
-						;;
-
-					0)
-						break
-						;;
-
-					*)
-						echo "无效选项"
-						;;
-
-				esac
-				break_end
-			done
-			;;
-
-
-
-		  10)
-			send_stats "搭建聊天"
-			has_ipv4_has_ipv6
-			docker_name=rocketchat
-			docker_port=3897
-			while true; do
-				check_docker_app
-				clear
-				echo -e "聊天服务 $check_docker"
-				echo "Rocket.Chat 是一个开源的团队通讯平台，支持实时聊天、音视频通话、文件共享等多种功能，"
-				echo "官网介绍: https://www.rocket.chat"
-				if docker inspect "$docker_name" &>/dev/null; then
-					check_docker_app_ip
-				fi
-				echo ""
-
-				echo "------------------------"
-				echo "1. 安装           2. 更新           3. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
-
-				case $choice in
-					1)
-						install_docker
-						docker run --name db -d --restart=always \
-							-v /home/docker/mongo/dump:/dump \
-							mongo:latest --replSet rs5 --oplogSize 256
-						sleep 1
-						docker exec -it db mongosh --eval "printjson(rs.initiate())"
-						sleep 5
-						docker run --name rocketchat --restart=always -p 3897:3000 --link db --env ROOT_URL=http://localhost --env MONGO_OPLOG_URL=mongodb://db:27017/rs5 -d rocket.chat
-
-						clear
-
-						ip_address
-						echo "rocket.chat已经安装完成"
-						check_docker_app_ip
-						echo ""
-
-						;;
-
-					2)
-						docker rm -f rocketchat
-						docker rmi -f rocket.chat:6.3
-						docker run --name rocketchat --restart=always -p 3897:3000 --link db --env ROOT_URL=http://localhost --env MONGO_OPLOG_URL=mongodb://db:27017/rs5 -d rocket.chat
-						clear
-						ip_address
-						echo "rocket.chat已经安装完成"
-						check_docker_app_ip
-						echo ""
-						;;
-					3)
-						docker rm -f rocketchat
-						docker rmi -f rocket.chat
-						docker rm -f db
-						docker rmi -f mongo:latest
-						rm -rf /home/docker/mongo
-						echo "应用已卸载"
-
-						;;
-
-					0)
-						break
-						;;
-					*)
-						break
-						;;
-
-				esac
-				break_end
-			done
-			  ;;
-
-
-
-		  11)
-			echo "正在安装: 禅道项目管理软件"
-			docker_name="zentao-server"
-			docker_img="idoop/zentao:latest"
-			docker_port=82
-			docker_rum="docker run -d -p 82:80 -p 3308:3306 \
-							  -e ADMINER_USER=\"root\" -e ADMINER_PASSWD=\"password\" \
-							  -e BIND_ADDRESS=\"false\" \
-							  -v /home/docker/zentao-server/:/opt/zbox/ \
-							  --add-host smtp.exmail.qq.com:163.177.90.125 \
-							  --name zentao-server \
-							  --restart=always \
-							  idoop/zentao:latest"
-			docker_describe="禅道是通用的项目管理软件"
-			docker_url="官网介绍: https://www.zentao.net/"
-			docker_use="echo \"初始用户名: admin\""
-			docker_passwd="echo \"初始密码: 123456\""
-			docker_app
-
-			  ;;
-
-		  12)
-			docker_name="qinglong"
-			docker_img="whyour/qinglong:latest"
-			docker_port=5700
-			docker_rum="docker run -d \
-					  -v /home/docker/qinglong/data:/ql/data \
-					  -p 5700:5700 \
-					  --name qinglong \
-					  --hostname qinglong \
-					  --restart unless-stopped \
-					  whyour/qinglong:latest"
-			docker_describe="青龙面板是一个定时任务管理平台"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/whyour/qinglong"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-
-			  ;;
-		  13)
-			send_stats "搭建网盘"
-			has_ipv4_has_ipv6
-
-			docker_name=cloudreve
-			docker_port=5212
-			while true; do
-				check_docker_app
-				clear
-				echo -e "网盘服务 $check_docker"
-				echo "cloudreve是一个支持多家云存储的网盘系统"
-				echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
-				if docker inspect "$docker_name" &>/dev/null; then
-					check_docker_app_ip
-				fi
-				echo ""
-
-				echo "------------------------"
-				echo "1. 安装           2. 更新           3. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
-
-				case $choice in
-					1)
-						install_docker
-						cd /home/ && mkdir -p docker/cloud && cd docker/cloud && mkdir temp_data && mkdir -vp cloudreve/{uploads,avatar} && touch cloudreve/conf.ini && touch cloudreve/cloudreve.db && mkdir -p aria2/config && mkdir -p data/aria2 && chmod -R 777 data/aria2
-						curl -o /home/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
-						cd /home/docker/cloud/ && docker compose up -d
-
-						clear
-						echo "cloudreve已经安装完成"
-						check_docker_app_ip
-						sleep 3
-						docker logs cloudreve
-						echo ""
-
-
-						;;
-
-					2)
-						docker rm -f cloudreve
-						docker rmi -f cloudreve/cloudreve:latest
-						docker rm -f aria2
-						docker rmi -f p3terx/aria2-pro
-						cd /home/ && mkdir -p docker/cloud && cd docker/cloud && mkdir temp_data && mkdir -vp cloudreve/{uploads,avatar} && touch cloudreve/conf.ini && touch cloudreve/cloudreve.db && mkdir -p aria2/config && mkdir -p data/aria2 && chmod -R 777 data/aria2
-						curl -o /home/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
-						cd /home/docker/cloud/ && docker compose up -d
-						clear
-						echo "cloudreve已经安装完成"
-						check_docker_app_ip
-						sleep 3
-						docker logs cloudreve
-						echo ""
-						;;
-					3)
-
-						docker rm -f cloudreve
-						docker rmi -f cloudreve/cloudreve:latest
-						docker rm -f aria2
-						docker rmi -f p3terx/aria2-pro
-						rm -rf /home/docker/cloud
-						echo "应用已卸载"
-
-						;;
-
-					0)
-						break
-						;;
-					*)
-						break
-						;;
-
-				esac
-				break_end
-			done
-			  ;;
-
-		  14)
-			docker_name="easyimage"
-			docker_img="ddsderek/easyimage:latest"
-			docker_port=85
-			docker_rum="docker run -d \
-					  --name easyimage \
-					  -p 85:80 \
-					  -e TZ=Asia/Shanghai \
-					  -e PUID=1000 \
-					  -e PGID=1000 \
-					  -v /home/docker/easyimage/config:/app/web/config \
-					  -v /home/docker/easyimage/i:/app/web/i \
-					  --restart unless-stopped \
-					  ddsderek/easyimage:latest"
-			docker_describe="简单图床是一个简单的图床程序"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/icret/EasyImages2.0"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  15)
-			docker_name="emby"
-			docker_img="linuxserver/emby:latest"
-			docker_port=8096
-			docker_rum="docker run -d --name=emby --restart=always \
-						-v /homeo/docker/emby/config:/config \
-						-v /homeo/docker/emby/share1:/mnt/share1 \
-						-v /homeo/docker/emby/share2:/mnt/share2 \
-						-v /mnt/notify:/mnt/notify \
-						-p 8096:8096 -p 8920:8920 \
-						-e UID=1000 -e GID=100 -e GIDLIST=100 \
-						linuxserver/emby:latest"
-			docker_describe="emby是一个主从式架构的媒体服务器软件，可以用来整理服务器上的视频和音频，并将音频和视频流式传输到客户端设备"
-			docker_url="官网介绍: https://emby.media/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  16)
-			docker_name="looking-glass"
-			docker_img="wikihostinc/looking-glass-server"
-			docker_port=89
-			docker_rum="docker run -d --name looking-glass --restart always -p 89:80 wikihostinc/looking-glass-server"
-			docker_describe="Speedtest测速面板是一个VPS网速测试工具，多项测试功能，还可以实时监控VPS进出站流量"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/wikihost-opensource/als"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-
-			  ;;
-		  17)
-
-			docker_name="adguardhome"
-			docker_img="adguard/adguardhome"
-			docker_port=3000
-			docker_rum="docker run -d \
-							--name adguardhome \
-							-v /home/docker/adguardhome/work:/opt/adguardhome/work \
-							-v /home/docker/adguardhome/conf:/opt/adguardhome/conf \
-							-p 53:53/tcp \
-							-p 53:53/udp \
-							-p 3000:3000/tcp \
-							--restart always \
-							adguard/adguardhome"
-			docker_describe="AdGuardHome是一款全网广告拦截与反跟踪软件，未来将不止是一个DNS服务器。"
-			docker_url="官网介绍: https://hub.docker.com/r/adguard/adguardhome"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-
-			  ;;
-
-
-		  18)
-
-			docker_name="onlyoffice"
-			docker_img="onlyoffice/documentserver"
-			docker_port=8082
-			docker_rum="docker run -d -p 8082:80 \
-						--restart=always \
-						--name onlyoffice \
-						-v /home/docker/onlyoffice/DocumentServer/logs:/var/log/onlyoffice  \
-						-v /home/docker/onlyoffice/DocumentServer/data:/var/www/onlyoffice/Data  \
-						 onlyoffice/documentserver"
-			docker_describe="onlyoffice是一款开源的在线office工具，太强大了！"
-			docker_url="官网介绍: https://www.onlyoffice.com/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-
-			  ;;
-
-		  19)
-			send_stats "搭建雷池"
-
-			has_ipv4_has_ipv6
-			docker_name=safeline-mgt
-			docker_port=9443
-			while true; do
-				check_docker_app
-				clear
-				echo -e "雷池服务 $check_docker"
-				echo "雷池是长亭科技开发的WAF站点防火墙程序面板，可以反代站点进行自动化防御"
-				echo "视频介绍: https://www.bilibili.com/video/BV1mZ421T74c?t=0.1"
-				if docker inspect "$docker_name" &>/dev/null; then
-					check_docker_app_ip
-				fi
-				echo ""
-
-				echo "------------------------"
-				echo "1. 安装           2. 更新           3. 重置密码           4. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
-
-				case $choice in
-					1)
-						install_docker
-						bash -c "$(curl -fsSLk https://waf-ce.chaitin.cn/release/latest/setup.sh)"
-						clear
-						echo "雷池WAF面板已经安装完成"
-						check_docker_app_ip
-						docker exec safeline-mgt resetadmin
-
-						;;
-
-					2)
-						bash -c "$(curl -fsSLk https://waf-ce.chaitin.cn/release/latest/upgrade.sh)"
-						docker rmi $(docker images | grep "safeline" | grep "none" | awk '{print $3}')
-						echo ""
-						clear
-						echo "雷池WAF面板已经更新完成"
-						check_docker_app_ip
-						;;
-					3)
-						docker exec safeline-mgt resetadmin
-						;;
-					4)
-						cd /data/safeline
-						docker compose down
-						docker compose down --rmi all
-						echo "如果你是默认安装目录那现在项目已经卸载。如果你是自定义安装目录你需要到安装目录下自行执行:"
-						echo "docker compose down && docker compose down --rmi all"
-						;;
-
-					0)
-						break
-						;;
-					*)
-						break
-						;;
-
-				esac
-				break_end
-			done
-
-			  ;;
-
-		  20)
-			docker_name="portainer"
-			docker_img="portainer/portainer"
-			docker_port=9050
-			docker_rum="docker run -d \
-					--name portainer \
-					-p 9050:9000 \
-					-v /var/run/docker.sock:/var/run/docker.sock \
-					-v /home/docker/portainer:/data \
-					--restart always \
-					portainer/portainer"
-			docker_describe="portainer是一个轻量级的docker容器管理面板"
-			docker_url="官网介绍: https://www.portainer.io/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-
-			  ;;
-
-		  21)
-			docker_name="vscode-web"
-			docker_img="codercom/code-server"
-			docker_port=8180
-			docker_rum="docker run -d -p 8180:8080 -v /home/docker/vscode-web:/home/coder/.local/share/code-server --name vscode-web --restart always codercom/code-server"
-			docker_describe="VScode是一款强大的在线代码编写工具"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/coder/code-server"
-			docker_use="sleep 3"
-			docker_passwd="docker exec vscode-web cat /home/coder/.config/code-server/config.yaml"
-			docker_app
-			  ;;
-		  22)
-			docker_name="uptime-kuma"
-			docker_img="louislam/uptime-kuma:latest"
-			docker_port=3003
-			docker_rum="docker run -d \
-							--name=uptime-kuma \
-							-p 3003:3001 \
-							-v /home/docker/uptime-kuma/uptime-kuma-data:/app/data \
-							--restart=always \
-							louislam/uptime-kuma:latest"
-			docker_describe="Uptime Kuma 易于使用的自托管监控工具"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/louislam/uptime-kuma"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  23)
-			docker_name="memos"
-			docker_img="ghcr.io/usememos/memos:latest"
-			docker_port=5230
-			docker_rum="docker run -d --name memos -p 5230:5230 -v /home/docker/memos:/var/opt/memos --restart always ghcr.io/usememos/memos:latest"
-			docker_describe="Memos是一款轻量级、自托管的备忘录中心"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/usememos/memos"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		24)
-			docker_name="webtop"
-			docker_img="lscr.io/linuxserver/webtop:latest"
-			docker_port=3083
-			docker_dir="/home/docker/webtop"
-
-			clear
-			echo "------------------------"
-			echo "1. 安装"
-			echo "2. 备份"
-			echo "3. 卸载"
-			echo "4. 恢复最新备份"
-			echo "------------------------"
-			echo "0. 返回上一级"
-			echo "------------------------"
-			echo -n "请输入你的选择: "
-			read sub_choice
-
-			case "$sub_choice" in
-				1)
-					# 生成随机18位密码
-					random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
-
-					docker_rum="docker run -d \
-					  --name=webtop \
-					  --security-opt seccomp=unconfined \
-					  -e PUID=1000 \
-					  -e PGID=1000 \
-					  -e TZ=Asia/Shanghai \
-					  -e LC_ALL=zh_CN.UTF-8 \
-					  -e DOCKER_MODS=linuxserver/mods:universal-package-install \
-					  -e INSTALL_PACKAGES=font-noto-cjk \
-					  -e CUSTOM_USER=admin \
-					  -e PASSWORD=$random_passwd \
-					  -e SUBFOLDER=/ \
-					  -e TITLE=我的网站目录 \
-					  -p $docker_port:3000 \
-					  -v $docker_dir/data:/config \
-					  -v $docker_dir/Downloads:/home/abc/Downloads \
-					  --shm-size=\"1gb\" \
-					  --restart unless-stopped \
-					  $docker_img"
-
-					# 启动容器
-					eval "$docker_rum"
-
-					echo ""
-					echo "安装完成"
-					echo ""
-					echo "$docker_name 已安装"
-					echo "webtop基于 Alpine、Ubuntu、Fedora 和 Arch 的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
-					echo "官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
-					echo "------------------------"
-					echo "Webtop 容器已安装完成 ✅"
-					echo ""
-					echo "访问地址:"
-					echo "http://$(curl -s ipv4.ip.sb):$docker_port"
-					echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
-					echo ""
-					echo "用户名: admin"
-					echo "密码: $random_passwd"
-					echo "⚠️ 此密码仅显示一次，请妥善保存！"
-					;;
-				2)
-					echo "正在备份 Webtop 数据..."
-					backup_file="/home/docker/webtop_backup_$(date +%F_%H%M%S).tar.gz"
-					tar -czvf "$backup_file" -C /home/docker webtop
-					if [ $? -eq 0 ]; then
-						echo "备份完成 ✅"
-						echo "备份文件: $backup_file"
-					else
-						echo "⚠️ 备份失败"
-					fi
-					;;
-				3)
-					echo "正在停止并删除容器 $docker_name ..."
-					docker stop $docker_name >/dev/null 2>&1
-					docker rm $docker_name >/dev/null 2>&1
-
-					if [ $? -eq 0 ]; then
-						echo "容器已成功删除 ✅"
-					else
-						echo "⚠️ 容器不存在或删除失败"
-					fi
-
-					echo "正在删除本地目录 $docker_dir ..."
-					if [ -d "$docker_dir" ]; then
-						rm -rf "$docker_dir"
-						echo "目录已删除 ✅"
-					else
-						echo "⚠️ 本地目录不存在或已被删除"
-					fi
-
-					echo "Webtop 容器及数据已卸载完成 ✅"
-					;;
-				4)
-					echo "正在查找最新的备份文件..."
-					latest_backup=$(ls -t /home/docker/webtop_backup_*.tar.gz 2>/dev/null | head -n 1)
-
-					if [ -z "$latest_backup" ]; then
-						echo "⚠️ 未找到任何备份文件"
-					else
-						echo "找到备份文件: $latest_backup"
-						echo "正在恢复备份..."
-
-						# 停止容器
-						docker stop $docker_name >/dev/null 2>&1
-
-						# 删除原数据
-						rm -rf "$docker_dir"
-
-						# 解压备份
-						tar -xzvf "$latest_backup" -C /home/docker
-
-						# 重启容器
-						docker restart $docker_name >/dev/null 2>&1
-
-						if [ $? -eq 0 ]; then
-							echo "恢复并重启容器成功 ✅"
-						else
-							echo "⚠️ 恢复失败或容器启动失败"
-						fi
-					fi
-					;;
-				0)
-					echo "返回上一级菜单..."
-					;;
-				*)
-					echo "无效选项，请重新输入！"
-					;;
-			esac
-			;;
-
-
-		  25)
-			docker_name="nextcloud-aio"
-			docker_img="nextcloud/all-in-one:latest"
-			docker_port="80 8080 8443"
-			docker_rum="docker run \
+        sleep 2
+        ss -lntp | grep app
+
+        echo "✅ 恢复完成"
+        ;;
+
+      9)
+        clear
+        echo "▶️ 正在启动哪吒docker安装..."
+        bash <(curl -sS https://raw.githubusercontent.com/zaixiangjian/sh/main/ai/dockernezhav0.sh)
+        echo "✅ 哪吒docker安装完成。"
+        ;;
+
+      999)
+        # 备份（生产级安全版）
+
+        echo "🛑 正在优雅停止服务..."
+        systemctl stop nezha-dashboard 2>/dev/null
+        pkill app 2>/dev/null
+
+        echo "⏳ 等待数据落盘..."
+        sleep 3
+
+        if [ ! -f /opt/nezha/dashboard/data/sqlite.db ]; then
+          echo "❌ 数据库不存在，备份终止"
+          sleep 2
+          continue
+        fi
+
+        mkdir -p /home/nezha
+
+        echo "📦 开始备份..."
+
+        tar czvf /home/nezha/nezha_full_backup.tar.gz \
+          /opt/nezha/dashboard/data \
+          /opt/nezha/dashboard/app \
+          /opt/nezha/dashboard/resource
+
+        if [ $? -eq 0 ]; then
+          echo "✅ 备份成功: /home/nezha/nezha_full_backup.tar.gz"
+        else
+          echo "❌ 备份失败"
+        fi
+        ;;
+
+      0)
+        break
+        ;;
+
+      *)
+        echo "无效选项"
+        sleep 1
+        ;;
+    esac
+
+    read -n 1 -s -r -p "按任意键继续..."
+  done
+  ;;
+
+
+    6)
+      docker_name="webtop-ubuntu"
+      docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"
+      docker_port=3006
+      docker_dir="/home/docker/webtop"
+
+      clear
+      echo "------------------------"
+      echo "1. 安装"
+      echo "2. 备份"
+      echo "3. 卸载"
+      echo "4. 恢复最新备份"
+      echo "------------------------"
+      echo "0. 返回上一级"
+      echo "------------------------"
+      echo -n "请输入你的选择: "
+      read sub_choice
+
+      case "$sub_choice" in
+        1)
+          # 生成随机18位密码
+          random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+
+          docker_rum="docker run -d \
+              --name=webtop-ubuntu \
+              --security-opt seccomp=unconfined \
+              -e PUID=1000 \
+              -e PGID=1000 \
+              -e TZ=Asia/Shanghai \
+              -e LC_ALL=zh_CN.UTF-8 \
+              -e CUSTOM_USER=admin \
+              -e PASSWORD=$random_passwd \
+              -e SUBFOLDER=/ \
+              -e TITLE=我的网站目录 \
+              -p $docker_port:3000 \
+              -v $docker_dir/data:/config \
+              -v $docker_dir/Downloads:/home/abc/Downloads \
+              --shm-size=\"1gb\" \
+              --restart unless-stopped \
+              $docker_img"
+
+          # 启动容器
+          eval "$docker_rum"
+
+          echo ""
+          echo "$docker_name 已安装 ✅"
+          echo "webtop基于Ubuntu的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
+          echo "官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
+          echo ""
+          echo "访问地址:"
+          echo "http://$(curl -s ipv4.ip.sb):$docker_port"
+          echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
+          echo ""
+          echo "用户名: admin"
+          echo "密码: $random_passwd"
+          echo "⚠️ 此密码仅显示一次，请妥善保存！"
+          ;;
+        2)
+          echo "正在备份 Webtop 数据..."
+          backup_file="/home/docker/webtop_backup_$(date +%F_%H%M%S).tar.gz"
+          tar -czvf "$backup_file" -C /home/docker webtop
+          if [ $? -eq 0 ]; then
+            echo "备份完成 ✅"
+            echo "备份文件: $backup_file"
+          else
+            echo "⚠️ 备份失败"
+          fi
+          ;;
+        3)
+          echo "正在停止并删除容器 $docker_name ..."
+          docker stop $docker_name >/dev/null 2>&1
+          docker rm $docker_name >/dev/null 2>&1
+
+          if [ $? -eq 0 ]; then
+            echo "容器已成功删除 ✅"
+          else
+            echo "⚠️ 容器不存在或删除失败"
+          fi
+
+          echo "正在删除本地目录 $docker_dir ..."
+          if [ -d "$docker_dir" ]; then
+            rm -rf "$docker_dir"
+            echo "目录已删除 ✅"
+          else
+            echo "⚠️ 本地目录不存在或已被删除"
+          fi
+
+          echo "Webtop 容器及数据已卸载完成 ✅"
+          ;;
+        4)
+          echo "正在查找最新的备份文件..."
+          latest_backup=$(ls -t /home/docker/webtop_backup_*.tar.gz 2>/dev/null | head -n 1)
+
+          if [ -z "$latest_backup" ]; then
+            echo "⚠️ 未找到任何备份文件"
+          else
+            echo "找到备份文件: $latest_backup"
+            echo "正在恢复备份..."
+
+            # 停止容器
+            docker stop $docker_name >/dev/null 2>&1
+
+            # 删除原数据
+            rm -rf "$docker_dir"
+
+            # 解压备份
+            tar -xzvf "$latest_backup" -C /home/docker
+
+            # 重启容器
+            docker restart $docker_name >/dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+              echo "恢复并重启容器成功 ✅"
+            else
+              echo "⚠️ 恢复失败或容器启动失败"
+            fi
+          fi
+          ;;
+        0)
+          echo "返回上一级菜单..."
+          ;;
+        *)
+          echo "无效选项，请重新输入！"
+          ;;
+      esac
+      ;;
+
+
+
+
+      7)
+      clear
+      send_stats "搭建哪吒"
+      while true; do
+        clear
+        echo "哪吒监控管理"
+        echo "开源、轻量、易用的服务器监控与运维工具"
+        echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
+        echo "------------------------"
+        echo "1. 使用           0. 返回上一级"
+        echo "=============================="
+        echo "⚠️ 使用5号配置进行备份与恢复配置 ⚠️"
+        echo "=============================="
+        read -e -p "输入你的选择: " choice
+
+        case $choice in
+          1)
+            curl -L https://raw.githubusercontent.com/zaixiangjian/nezhav0/refs/heads/v0/install.sh -o nezha.sh && chmod +x nezha.sh && sudo ./nezha.sh
+            ;;
+          0)
+            break
+            ;;
+          *)
+            break
+            ;;
+
+        esac
+        break_end
+      done
+        ;;
+
+      8)
+
+      docker_name="qbittorrent"
+      docker_img="lscr.io/linuxserver/qbittorrent:latest"
+      docker_port=8081
+      docker_rum="docker run -d \
+                  --name=qbittorrent \
+                  -e PUID=1000 \
+                  -e PGID=1000 \
+                  -e TZ=Etc/UTC \
+                  -e WEBUI_PORT=8081 \
+                  -p 8081:8081 \
+                  -p 6881:6881 \
+                  -p 6881:6881/udp \
+                  -v /home/docker/qbittorrent/config:/config \
+                  -v /home/docker/qbittorrent/downloads:/downloads \
+                  --restart unless-stopped \
+                  lscr.io/linuxserver/qbittorrent:latest"
+      docker_describe="qbittorrent离线BT磁力下载服务"
+      docker_url="官网介绍: https://hub.docker.com/r/linuxserver/qbittorrent"
+      docker_use="sleep 3"
+      docker_passwd="docker logs qbittorrent"
+
+      docker_app
+
+        ;;
+
+      9)
+      send_stats "搭建邮局"
+      clear
+      install telnet
+      docker_name="mailserver"
+      while true; do
+        check_docker_app
+
+        clear
+        echo -e "邮局服务 $check_docker"
+        echo "poste.io 是一个开源的邮件服务器解决方案，"
+        echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
+
+        echo ""
+        echo "端口检测"
+        port=25
+        timeout=3
+        if echo "quit" | timeout $timeout telnet smtp.qq.com $port | grep 'Connected'; then
+          echo -e "${gl_lv}端口 $port 当前可用${gl_bai}"
+        else
+          echo -e "${gl_hong}端口 $port 当前不可用${gl_bai}"
+        fi
+        echo ""
+
+        if docker inspect "$docker_name" &>/dev/null; then
+          yuming=$(cat /home/docker/mail/mail.txt)
+          echo "访问地址: "
+          echo "https://$yuming"
+        fi
+
+        echo "------------------------"
+        echo "1. 安装           2. 更新           3. 卸载"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        echo "------------------------"
+        read -e -p "输入你的选择: " choice
+
+        case $choice in
+          1)
+            read -e -p "请设置邮箱域名 例如 mail.yuming.com : " yuming
+            mkdir -p /home/docker/mail
+            echo "$yuming" > /home/docker/mail/mail.txt
+            echo "------------------------"
+            ip_address
+            echo "先解析这些DNS记录"
+            echo "A           mail            $ipv4_address"
+            echo "CNAME       imap            $yuming"
+            echo "CNAME       pop             $yuming"
+            echo "CNAME       smtp            $yuming"
+            echo "MX          @               $yuming"
+            echo "TXT         @               v=spf1 mx ~all"
+            echo ""
+            echo "------------------------"
+            echo "按任意键继续..."
+            read -n 1 -s -r -p ""
+
+            install_docker
+
+            docker run -d \
+              --name mailserver \
+              --hostname "$yuming" \
+              -e TZ=Asia/Shanghai \
+              -v /home/docker/mail/data:/data \
+              -p 80:80 \
+              -p 443:443 \
+              -p 25:25 \
+              -p 587:587 \
+              -p 993:993 \
+              -p 110:110 \
+              -p 995:995 \
+              -p 143:143 \
+              -p 465:465 \
+              -p 4190:4190 \
+              --restart=always \
+              analogic/poste.io
+
+            clear
+            echo "poste.io已经安装完成"
+            echo "------------------------"
+            echo "您可以使用以下地址访问poste.io:"
+            echo "https://$yuming"
+            echo ""
+            ;;
+
+          2)
+            docker rm -f mailserver
+            docker rmi -f analogic/poste.io
+            yuming=$(cat /home/docker/mail/mail.txt)
+            docker run -d \
+              --name mailserver \
+              --hostname "$yuming" \
+              -e TZ=Asia/Shanghai \
+              -v /home/docker/mail/data:/data \
+              -p 80:80 \
+              -p 443:443 \
+              -p 25:25 \
+              -p 587:587 \
+              -p 993:993 \
+              -p 110:110 \
+              -p 995:995 \
+              -p 143:143 \
+              -p 465:465 \
+              -p 4190:4190 \
+              --restart=always \
+              analogic/poste.io
+            clear
+            echo "poste.io已经安装完成"
+            echo "------------------------"
+            echo "您可以使用以下地址访问poste.io:"
+            echo "https://$yuming"
+            echo ""
+            ;;
+
+          3)
+            docker rm -f mailserver
+            docker rmi -f analogic/poste.io
+            rm /home/docker/mail/mail.txt
+            rm -rf /home/docker/mail/data
+            echo "应用已卸载"
+            ;;
+
+          0)
+            break
+            ;;
+
+          *)
+            echo "无效选项"
+            ;;
+
+        esac
+        break_end
+      done
+      ;;
+
+
+
+      10)
+      send_stats "搭建聊天"
+      has_ipv4_has_ipv6
+      docker_name=rocketchat
+      docker_port=3897
+      while true; do
+        check_docker_app
+        clear
+        echo -e "聊天服务 $check_docker"
+        echo "Rocket.Chat 是一个开源的团队通讯平台，支持实时聊天、音视频通话、文件共享等多种功能，"
+        echo "官网介绍: https://www.rocket.chat"
+        if docker inspect "$docker_name" &>/dev/null; then
+          check_docker_app_ip
+        fi
+        echo ""
+
+        echo "------------------------"
+        echo "1. 安装           2. 更新           3. 卸载"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        echo "------------------------"
+        read -e -p "输入你的选择: " choice
+
+        case $choice in
+          1)
+            install_docker
+            docker run --name db -d --restart=always \
+              -v /home/docker/mongo/dump:/dump \
+              mongo:latest --replSet rs5 --oplogSize 256
+            sleep 1
+            docker exec -it db mongosh --eval "printjson(rs.initiate())"
+            sleep 5
+            docker run --name rocketchat --restart=always -p 3897:3000 --link db --env ROOT_URL=http://localhost --env MONGO_OPLOG_URL=mongodb://db:27017/rs5 -d rocket.chat
+
+            clear
+
+            ip_address
+            echo "rocket.chat已经安装完成"
+            check_docker_app_ip
+            echo ""
+
+            ;;
+
+          2)
+            docker rm -f rocketchat
+            docker rmi -f rocket.chat:6.3
+            docker run --name rocketchat --restart=always -p 3897:3000 --link db --env ROOT_URL=http://localhost --env MONGO_OPLOG_URL=mongodb://db:27017/rs5 -d rocket.chat
+            clear
+            ip_address
+            echo "rocket.chat已经安装完成"
+            check_docker_app_ip
+            echo ""
+            ;;
+          3)
+            docker rm -f rocketchat
+            docker rmi -f rocket.chat
+            docker rm -f db
+            docker rmi -f mongo:latest
+            rm -rf /home/docker/mongo
+            echo "应用已卸载"
+
+            ;;
+
+          0)
+            break
+            ;;
+          *)
+            break
+            ;;
+
+        esac
+        break_end
+      done
+        ;;
+
+
+
+      11)
+      echo "正在安装: 禅道项目管理软件"
+      docker_name="zentao-server"
+      docker_img="idoop/zentao:latest"
+      docker_port=82
+      docker_rum="docker run -d -p 82:80 -p 3308:3306 \
+                -e ADMINER_USER=\"root\" -e ADMINER_PASSWD=\"password\" \
+                -e BIND_ADDRESS=\"false\" \
+                -v /home/docker/zentao-server/:/opt/zbox/ \
+                --add-host smtp.exmail.qq.com:163.177.90.125 \
+                --name zentao-server \
+                --restart=always \
+                idoop/zentao:latest"
+      docker_describe="禅道是通用的项目管理软件"
+      docker_url="官网介绍: https://www.zentao.net/"
+      docker_use="echo \"初始用户名: admin\""
+      docker_passwd="echo \"初始密码: 123456\""
+      docker_app
+
+        ;;
+
+      12)
+      docker_name="qinglong"
+      docker_img="whyour/qinglong:latest"
+      docker_port=5700
+      docker_rum="docker run -d \
+            -v /home/docker/qinglong/data:/ql/data \
+            -p 5700:5700 \
+            --name qinglong \
+            --hostname qinglong \
+            --restart unless-stopped \
+            whyour/qinglong:latest"
+      docker_describe="青龙面板是一个定时任务管理平台"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/whyour/qinglong"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+
+        ;;
+      13)
+      send_stats "搭建网盘"
+      has_ipv4_has_ipv6
+
+      docker_name=cloudreve
+      docker_port=5212
+      while true; do
+        check_docker_app
+        clear
+        echo -e "网盘服务 $check_docker"
+        echo "cloudreve是一个支持多家云存储的网盘系统"
+        echo "视频介绍: https://www.bilibili.com/video/BV13F4m1c7h7?t=0.1"
+        if docker inspect "$docker_name" &>/dev/null; then
+          check_docker_app_ip
+        fi
+        echo ""
+
+        echo "------------------------"
+        echo "1. 安装           2. 更新           3. 卸载"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        echo "------------------------"
+        read -e -p "输入你的选择: " choice
+
+        case $choice in
+          1)
+            install_docker
+            cd /home/ && mkdir -p docker/cloud && cd docker/cloud && mkdir temp_data && mkdir -vp cloudreve/{uploads,avatar} && touch cloudreve/conf.ini && touch cloudreve/cloudreve.db && mkdir -p aria2/config && mkdir -p data/aria2 && chmod -R 777 data/aria2
+            curl -o /home/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
+            cd /home/docker/cloud/ && docker compose up -d
+
+            clear
+            echo "cloudreve已经安装完成"
+            check_docker_app_ip
+            sleep 3
+            docker logs cloudreve
+            echo ""
+
+
+            ;;
+
+          2)
+            docker rm -f cloudreve
+            docker rmi -f cloudreve/cloudreve:latest
+            docker rm -f aria2
+            docker rmi -f p3terx/aria2-pro
+            cd /home/ && mkdir -p docker/cloud && cd docker/cloud && mkdir temp_data && mkdir -vp cloudreve/{uploads,avatar} && touch cloudreve/conf.ini && touch cloudreve/cloudreve.db && mkdir -p aria2/config && mkdir -p data/aria2 && chmod -R 777 data/aria2
+            curl -o /home/docker/cloud/docker-compose.yml ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/cloudreve-docker-compose.yml
+            cd /home/docker/cloud/ && docker compose up -d
+            clear
+            echo "cloudreve已经安装完成"
+            check_docker_app_ip
+            sleep 3
+            docker logs cloudreve
+            echo ""
+            ;;
+          3)
+
+            docker rm -f cloudreve
+            docker rmi -f cloudreve/cloudreve:latest
+            docker rm -f aria2
+            docker rmi -f p3terx/aria2-pro
+            rm -rf /home/docker/cloud
+            echo "应用已卸载"
+
+            ;;
+
+          0)
+            break
+            ;;
+          *)
+            break
+            ;;
+
+        esac
+        break_end
+      done
+        ;;
+
+      14)
+      docker_name="easyimage"
+      docker_img="ddsderek/easyimage:latest"
+      docker_port=85
+      docker_rum="docker run -d \
+            --name easyimage \
+            -p 85:80 \
+            -e TZ=Asia/Shanghai \
+            -e PUID=1000 \
+            -e PGID=1000 \
+            -v /home/docker/easyimage/config:/app/web/config \
+            -v /home/docker/easyimage/i:/app/web/i \
+            --restart unless-stopped \
+            ddsderek/easyimage:latest"
+      docker_describe="简单图床是一个简单的图床程序"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/icret/EasyImages2.0"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+      15)
+      docker_name="emby"
+      docker_img="linuxserver/emby:latest"
+      docker_port=8096
+      docker_rum="docker run -d --name=emby --restart=always \
+            -v /homeo/docker/emby/config:/config \
+            -v /homeo/docker/emby/share1:/mnt/share1 \
+            -v /homeo/docker/emby/share2:/mnt/share2 \
+            -v /mnt/notify:/mnt/notify \
+            -p 8096:8096 -p 8920:8920 \
+            -e UID=1000 -e GID=100 -e GIDLIST=100 \
+            linuxserver/emby:latest"
+      docker_describe="emby是一个主从式架构的媒体服务器软件，可以用来整理服务器上的视频和音频，并将音频和视频流式传输到客户端设备"
+      docker_url="官网介绍: https://emby.media/"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+      16)
+      docker_name="looking-glass"
+      docker_img="wikihostinc/looking-glass-server"
+      docker_port=89
+      docker_rum="docker run -d --name looking-glass --restart always -p 89:80 wikihostinc/looking-glass-server"
+      docker_describe="Speedtest测速面板是一个VPS网速测试工具，多项测试功能，还可以实时监控VPS进出站流量"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/wikihost-opensource/als"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+
+        ;;
+      17)
+
+      docker_name="adguardhome"
+      docker_img="adguard/adguardhome"
+      docker_port=3000
+      docker_rum="docker run -d \
+              --name adguardhome \
+              -v /home/docker/adguardhome/work:/opt/adguardhome/work \
+              -v /home/docker/adguardhome/conf:/opt/adguardhome/conf \
+              -p 53:53/tcp \
+              -p 53:53/udp \
+              -p 3000:3000/tcp \
+              --restart always \
+              adguard/adguardhome"
+      docker_describe="AdGuardHome是一款全网广告拦截与反跟踪软件，未来将不止是一个DNS服务器。"
+      docker_url="官网介绍: https://hub.docker.com/r/adguard/adguardhome"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+
+        ;;
+
+
+      18)
+
+      docker_name="onlyoffice"
+      docker_img="onlyoffice/documentserver"
+      docker_port=8082
+      docker_rum="docker run -d -p 8082:80 \
+            --restart=always \
+            --name onlyoffice \
+            -v /home/docker/onlyoffice/DocumentServer/logs:/var/log/onlyoffice  \
+            -v /home/docker/onlyoffice/DocumentServer/data:/var/www/onlyoffice/Data  \
+             onlyoffice/documentserver"
+      docker_describe="onlyoffice是一款开源的在线office工具，太强大了！"
+      docker_url="官网介绍: https://www.onlyoffice.com/"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+
+        ;;
+
+      19)
+      send_stats "搭建雷池"
+
+      has_ipv4_has_ipv6
+      docker_name=safeline-mgt
+      docker_port=9443
+      while true; do
+        check_docker_app
+        clear
+        echo -e "雷池服务 $check_docker"
+        echo "雷池是长亭科技开发的WAF站点防火墙程序面板，可以反代站点进行自动化防御"
+        echo "视频介绍: https://www.bilibili.com/video/BV1mZ421T74c?t=0.1"
+        if docker inspect "$docker_name" &>/dev/null; then
+          check_docker_app_ip
+        fi
+        echo ""
+
+        echo "------------------------"
+        echo "1. 安装           2. 更新           3. 重置密码           4. 卸载"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        echo "------------------------"
+        read -e -p "输入你的选择: " choice
+
+        case $choice in
+          1)
+            install_docker
+            bash -c "$(curl -fsSLk https://waf-ce.chaitin.cn/release/latest/setup.sh)"
+            clear
+            echo "雷池WAF面板已经安装完成"
+            check_docker_app_ip
+            docker exec safeline-mgt resetadmin
+
+            ;;
+
+          2)
+            bash -c "$(curl -fsSLk https://waf-ce.chaitin.cn/release/latest/upgrade.sh)"
+            docker rmi $(docker images | grep "safeline" | grep "none" | awk '{print $3}')
+            echo ""
+            clear
+            echo "雷池WAF面板已经更新完成"
+            check_docker_app_ip
+            ;;
+          3)
+            docker exec safeline-mgt resetadmin
+            ;;
+          4)
+            cd /data/safeline
+            docker compose down
+            docker compose down --rmi all
+            echo "如果你是默认安装目录那现在项目已经卸载。如果你是自定义安装目录你需要到安装目录下自行执行:"
+            echo "docker compose down && docker compose down --rmi all"
+            ;;
+
+          0)
+            break
+            ;;
+          *)
+            break
+            ;;
+
+        esac
+        break_end
+      done
+
+        ;;
+
+      20)
+      docker_name="portainer"
+      docker_img="portainer/portainer"
+      docker_port=9050
+      docker_rum="docker run -d \
+          --name portainer \
+          -p 9050:9000 \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v /home/docker/portainer:/data \
+          --restart always \
+          portainer/portainer"
+      docker_describe="portainer是一个轻量级的docker容器管理面板"
+      docker_url="官网介绍: https://www.portainer.io/"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+
+        ;;
+
+      21)
+      docker_name="vscode-web"
+      docker_img="codercom/code-server"
+      docker_port=8180
+      docker_rum="docker run -d -p 8180:8080 -v /home/docker/vscode-web:/home/coder/.local/share/code-server --name vscode-web --restart always codercom/code-server"
+      docker_describe="VScode是一款强大的在线代码编写工具"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/coder/code-server"
+      docker_use="sleep 3"
+      docker_passwd="docker exec vscode-web cat /home/coder/.config/code-server/config.yaml"
+      docker_app
+        ;;
+      22)
+      docker_name="uptime-kuma"
+      docker_img="louislam/uptime-kuma:latest"
+      docker_port=3003
+      docker_rum="docker run -d \
+              --name=uptime-kuma \
+              -p 3003:3001 \
+              -v /home/docker/uptime-kuma/uptime-kuma-data:/app/data \
+              --restart=always \
+              louislam/uptime-kuma:latest"
+      docker_describe="Uptime Kuma 易于使用的自托管监控工具"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/louislam/uptime-kuma"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+      23)
+      docker_name="memos"
+      docker_img="ghcr.io/usememos/memos:latest"
+      docker_port=5230
+      docker_rum="docker run -d --name memos -p 5230:5230 -v /home/docker/memos:/var/opt/memos --restart always ghcr.io/usememos/memos:latest"
+      docker_describe="Memos是一款轻量级、自托管的备忘录中心"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/usememos/memos"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+    24)
+      docker_name="webtop"
+      docker_img="lscr.io/linuxserver/webtop:latest"
+      docker_port=3083
+      docker_dir="/home/docker/webtop"
+
+      clear
+      echo "------------------------"
+      echo "1. 安装"
+      echo "2. 备份"
+      echo "3. 卸载"
+      echo "4. 恢复最新备份"
+      echo "------------------------"
+      echo "0. 返回上一级"
+      echo "------------------------"
+      echo -n "请输入你的选择: "
+      read sub_choice
+
+      case "$sub_choice" in
+        1)
+          # 生成随机18位密码
+          random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+
+          docker_rum="docker run -d \
+            --name=webtop \
+            --security-opt seccomp=unconfined \
+            -e PUID=1000 \
+            -e PGID=1000 \
+            -e TZ=Asia/Shanghai \
+            -e LC_ALL=zh_CN.UTF-8 \
+            -e DOCKER_MODS=linuxserver/mods:universal-package-install \
+            -e INSTALL_PACKAGES=font-noto-cjk \
+            -e CUSTOM_USER=admin \
+            -e PASSWORD=$random_passwd \
+            -e SUBFOLDER=/ \
+            -e TITLE=我的网站目录 \
+            -p $docker_port:3000 \
+            -v $docker_dir/data:/config \
+            -v $docker_dir/Downloads:/home/abc/Downloads \
+            --shm-size=\"1gb\" \
+            --restart unless-stopped \
+            $docker_img"
+
+          # 启动容器
+          eval "$docker_rum"
+
+          echo ""
+          echo "安装完成"
+          echo ""
+          echo "$docker_name 已安装"
+          echo "webtop基于 Alpine、Ubuntu、Fedora 和 Arch 的容器，包含官方支持的完整桌面环境，可通过任何现代 Web 浏览器访问"
+          echo "官网介绍: https://docs.linuxserver.io/images/docker-webtop/"
+          echo "------------------------"
+          echo "Webtop 容器已安装完成 ✅"
+          echo ""
+          echo "访问地址:"
+          echo "http://$(curl -s ipv4.ip.sb):$docker_port"
+          echo "http://[$(curl -s ipv6.ip.sb)]:$docker_port"
+          echo ""
+          echo "用户名: admin"
+          echo "密码: $random_passwd"
+          echo "⚠️ 此密码仅显示一次，请妥善保存！"
+          ;;
+        2)
+          echo "正在备份 Webtop 数据..."
+          backup_file="/home/docker/webtop_backup_$(date +%F_%H%M%S).tar.gz"
+          tar -czvf "$backup_file" -C /home/docker webtop
+          if [ $? -eq 0 ]; then
+            echo "备份完成 ✅"
+            echo "备份文件: $backup_file"
+          else
+            echo "⚠️ 备份失败"
+          fi
+          ;;
+        3)
+          echo "正在停止并删除容器 $docker_name ..."
+          docker stop $docker_name >/dev/null 2>&1
+          docker rm $docker_name >/dev/null 2>&1
+
+          if [ $? -eq 0 ]; then
+            echo "容器已成功删除 ✅"
+          else
+            echo "⚠️ 容器不存在或删除失败"
+          fi
+
+          echo "正在删除本地目录 $docker_dir ..."
+          if [ -d "$docker_dir" ]; then
+            rm -rf "$docker_dir"
+            echo "目录已删除 ✅"
+          else
+            echo "⚠️ 本地目录不存在或已被删除"
+          fi
+
+          echo "Webtop 容器及数据已卸载完成 ✅"
+          ;;
+        4)
+          echo "正在查找最新的备份文件..."
+          latest_backup=$(ls -t /home/docker/webtop_backup_*.tar.gz 2>/dev/null | head -n 1)
+
+          if [ -z "$latest_backup" ]; then
+            echo "⚠️ 未找到任何备份文件"
+          else
+            echo "找到备份文件: $latest_backup"
+            echo "正在恢复备份..."
+
+            # 停止容器
+            docker stop $docker_name >/dev/null 2>&1
+
+            # 删除原数据
+            rm -rf "$docker_dir"
+
+            # 解压备份
+            tar -xzvf "$latest_backup" -C /home/docker
+
+            # 重启容器
+            docker restart $docker_name >/dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+              echo "恢复并重启容器成功 ✅"
+            else
+              echo "⚠️ 恢复失败或容器启动失败"
+            fi
+          fi
+          ;;
+        0)
+          echo "返回上一级菜单..."
+          ;;
+        *)
+          echo "无效选项，请重新输入！"
+          ;;
+      esac
+      ;;
+
+
+      25)
+      docker_name="nextcloud-aio"
+      docker_img="nextcloud/all-in-one:latest"
+      docker_port="80 8080 8443"
+      docker_rum="docker run \
 --init \
 --sig-proxy=false \
 --name nextcloud-aio-mastercontainer \
@@ -7875,294 +7875,294 @@ systemctl start nezha-dashboard 2>/dev/null || {
 --volume nextcloud_aio_mastercontainer:/mnt/docker-aio-config \
 --volume /var/run/docker.sock:/var/run/docker.sock:ro \
 nextcloud/all-in-one:latest"
-			docker_describe="Nextcloud AIO 是官方推荐的多合一部署方式，简化了 Nextcloud 的部署和维护"
-			docker_url="官网介绍: https://nextcloud.com/"
-			docker_use="echo '容器已部署，请访问 https://<你的服务器IP>:8443 进行安装配置'"
-			docker_passwd=""
-			docker_app
-			  ;;
+      docker_describe="Nextcloud AIO 是官方推荐的多合一部署方式，简化了 Nextcloud 的部署和维护"
+      docker_url="官网介绍: https://nextcloud.com/"
+      docker_use="echo '容器已部署，请访问 https://<你的服务器IP>:8443 进行安装配置'"
+      docker_passwd=""
+      docker_app
+        ;;
 
 
 
-		  26)
-			docker_name="qd"
-			docker_img="qdtoday/qd:latest"
-			docker_port=8923
-			docker_rum="docker run -d --name qd -p 8923:80 -v /home/docker/qd/config:/usr/src/app/config qdtoday/qd"
-			docker_describe="QD-Today是一个HTTP请求定时任务自动执行框架"
-			docker_url="官网介绍: https://qd-today.github.io/qd/zh_CN/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-		  27)
-			docker_name="dockge"
-			docker_img="louislam/dockge:latest"
-			docker_port=5003
-			docker_rum="docker run -d --name dockge --restart unless-stopped -p 5003:5001 -v /var/run/docker.sock:/var/run/docker.sock -v /home/docker/dockge/data:/app/data -v  /home/docker/dockge/stacks:/home/docker/dockge/stacks -e DOCKGE_STACKS_DIR=/home/docker/dockge/stacks louislam/dockge"
-			docker_describe="dockge是一个可视化的docker-compose容器管理面板"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/louislam/dockge"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      26)
+      docker_name="qd"
+      docker_img="qdtoday/qd:latest"
+      docker_port=8923
+      docker_rum="docker run -d --name qd -p 8923:80 -v /home/docker/qd/config:/usr/src/app/config qdtoday/qd"
+      docker_describe="QD-Today是一个HTTP请求定时任务自动执行框架"
+      docker_url="官网介绍: https://qd-today.github.io/qd/zh_CN/"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+      27)
+      docker_name="dockge"
+      docker_img="louislam/dockge:latest"
+      docker_port=5003
+      docker_rum="docker run -d --name dockge --restart unless-stopped -p 5003:5001 -v /var/run/docker.sock:/var/run/docker.sock -v /home/docker/dockge/data:/app/data -v  /home/docker/dockge/stacks:/home/docker/dockge/stacks -e DOCKGE_STACKS_DIR=/home/docker/dockge/stacks louislam/dockge"
+      docker_describe="dockge是一个可视化的docker-compose容器管理面板"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/louislam/dockge"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  28)
-			docker_name="speedtest"
-			docker_img="ghcr.io/librespeed/speedtest:latest"
-			docker_port=6681
-			docker_rum="docker run -d \
-							--name speedtest \
-							--restart always \
-							-e MODE=standalone \
-							-p 6681:80 \
-							ghcr.io/librespeed/speedtest:latest"
-			docker_describe="librespeed是用Javascript实现的轻量级速度测试工具，即开即用"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/librespeed/speedtest"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      28)
+      docker_name="speedtest"
+      docker_img="ghcr.io/librespeed/speedtest:latest"
+      docker_port=6681
+      docker_rum="docker run -d \
+              --name speedtest \
+              --restart always \
+              -e MODE=standalone \
+              -p 6681:80 \
+              ghcr.io/librespeed/speedtest:latest"
+      docker_describe="librespeed是用Javascript实现的轻量级速度测试工具，即开即用"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/librespeed/speedtest"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  29)
-			docker_name="searxng"
-			docker_img="alandoyle/searxng:latest"
-			docker_port=8700
-			docker_rum="docker run --name=searxng \
-							-d --init \
-							--restart=unless-stopped \
-							-v /home/docker/searxng/config:/etc/searxng \
-							-v /home/docker/searxng/templates:/usr/local/searxng/searx/templates/simple \
-							-v /home/docker/searxng/theme:/usr/local/searxng/searx/static/themes/simple \
-							-p 8700:8080/tcp \
-							alandoyle/searxng:latest"
-			docker_describe="searxng是一个私有且隐私的搜索引擎站点"
-			docker_url="官网介绍: https://hub.docker.com/r/alandoyle/searxng"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      29)
+      docker_name="searxng"
+      docker_img="alandoyle/searxng:latest"
+      docker_port=8700
+      docker_rum="docker run --name=searxng \
+              -d --init \
+              --restart=unless-stopped \
+              -v /home/docker/searxng/config:/etc/searxng \
+              -v /home/docker/searxng/templates:/usr/local/searxng/searx/templates/simple \
+              -v /home/docker/searxng/theme:/usr/local/searxng/searx/static/themes/simple \
+              -p 8700:8080/tcp \
+              alandoyle/searxng:latest"
+      docker_describe="searxng是一个私有且隐私的搜索引擎站点"
+      docker_url="官网介绍: https://hub.docker.com/r/alandoyle/searxng"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  30)
-			docker_name="photoprism"
-			docker_img="photoprism/photoprism:latest"
-			docker_port=2342
-			rootpasswd=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16)
-			docker_rum="docker run -d \
-							--name photoprism \
-							--restart always \
-							--security-opt seccomp=unconfined \
-							--security-opt apparmor=unconfined \
-							-p 2342:2342 \
-							-e PHOTOPRISM_UPLOAD_NSFW="true" \
-							-e PHOTOPRISM_ADMIN_PASSWORD="$rootpasswd" \
-							-v /home/docker/photoprism/storage:/photoprism/storage \
-							-v /home/docker/photoprism/Pictures:/photoprism/originals \
-							photoprism/photoprism"
-			docker_describe="photoprism非常强大的私有相册系统"
-			docker_url="官网介绍: https://www.photoprism.app/"
-			docker_use="echo \"账号: admin  密码: $rootpasswd\""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-
-		  31)
-			docker_name="s-pdf"
-			docker_img="frooodle/s-pdf:latest"
-			docker_port=8020
-			docker_rum="docker run -d \
-							--name s-pdf \
-							--restart=always \
-							 -p 8020:8080 \
-							 -v /home/docker/s-pdf/trainingData:/usr/share/tesseract-ocr/5/tessdata \
-							 -v /home/docker/s-pdf/extraConfigs:/configs \
-							 -v /home/docker/s-pdf/logs:/logs \
-							 -e DOCKER_ENABLE_SECURITY=false \
-							 frooodle/s-pdf:latest"
-			docker_describe="这是一个强大的本地托管基于 Web 的 PDF 操作工具，使用 docker，允许您对 PDF 文件执行各种操作，例如拆分合并、转换、重新组织、添加图像、旋转、压缩等。"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/Stirling-Tools/Stirling-PDF"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  32)
-			docker_name="drawio"
-			docker_img="jgraph/drawio"
-			docker_port=7080
-			docker_rum="docker run -d --restart=always --name drawio -p 7080:8080 -v /home/docker/drawio:/var/lib/drawio jgraph/drawio"
-			docker_describe="这是一个强大图表绘制软件。思维导图，拓扑图，流程图，都能画"
-			docker_url="官网介绍: https://www.drawio.com/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  33)
-			docker_name="sun-panel"
-			docker_img="hslr/sun-panel"
-			docker_port=3009
-			docker_rum="docker run -d --restart=always -p 3009:3002 \
-							-v /home/docker/sun-panel/conf:/app/conf \
-							-v /home/docker/sun-panel/uploads:/app/uploads \
-							-v /home/docker/sun-panel/database:/app/database \
-							--name sun-panel \
-							hslr/sun-panel"
-			docker_describe="Sun-Panel服务器、NAS导航面板、Homepage、浏览器首页"
-			docker_url="官网介绍: https://doc.sun-panel.top/zh_cn/"
-			docker_use="echo \"账号: admin@sun.cc  密码: 12345678\""
-			docker_passwd=""
-			docker_app
-			  ;;
-
-		  34)
-			docker_name="pingvin-share"
-			docker_img="stonith404/pingvin-share"
-			docker_port=3060
-			docker_rum="docker run -d \
-							--name pingvin-share \
-							--restart always \
-							-p 3060:3000 \
-							-v /home/docker/pingvin-share/data:/opt/app/backend/data \
-							stonith404/pingvin-share"
-			docker_describe="Pingvin Share 是一个可自建的文件分享平台，是 WeTransfer 的一个替代品"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/stonith404/pingvin-share"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      30)
+      docker_name="photoprism"
+      docker_img="photoprism/photoprism:latest"
+      docker_port=2342
+      rootpasswd=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16)
+      docker_rum="docker run -d \
+              --name photoprism \
+              --restart always \
+              --security-opt seccomp=unconfined \
+              --security-opt apparmor=unconfined \
+              -p 2342:2342 \
+              -e PHOTOPRISM_UPLOAD_NSFW="true" \
+              -e PHOTOPRISM_ADMIN_PASSWORD="$rootpasswd" \
+              -v /home/docker/photoprism/storage:/photoprism/storage \
+              -v /home/docker/photoprism/Pictures:/photoprism/originals \
+              photoprism/photoprism"
+      docker_describe="photoprism非常强大的私有相册系统"
+      docker_url="官网介绍: https://www.photoprism.app/"
+      docker_use="echo \"账号: admin  密码: $rootpasswd\""
+      docker_passwd=""
+      docker_app
+        ;;
 
 
-		  35)
-			docker_name="moments"
-			docker_img="kingwrcy/moments:latest"
-			docker_port=8035
-			docker_rum="docker run -d --restart unless-stopped \
-							-p 8035:3000 \
-							-v /home/docker/moments/data:/app/data \
-							-v /etc/localtime:/etc/localtime:ro \
-							-v /etc/timezone:/etc/timezone:ro \
-							--name moments \
-							kingwrcy/moments:latest"
-			docker_describe="极简朋友圈，高仿微信朋友圈，记录你的美好生活"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/kingwrcy/moments?tab=readme-ov-file"
-			docker_use="echo \"账号: admin  密码: a123456\""
-			docker_passwd=""
-			docker_app
-			  ;;
+      31)
+      docker_name="s-pdf"
+      docker_img="frooodle/s-pdf:latest"
+      docker_port=8020
+      docker_rum="docker run -d \
+              --name s-pdf \
+              --restart=always \
+               -p 8020:8080 \
+               -v /home/docker/s-pdf/trainingData:/usr/share/tesseract-ocr/5/tessdata \
+               -v /home/docker/s-pdf/extraConfigs:/configs \
+               -v /home/docker/s-pdf/logs:/logs \
+               -e DOCKER_ENABLE_SECURITY=false \
+               frooodle/s-pdf:latest"
+      docker_describe="这是一个强大的本地托管基于 Web 的 PDF 操作工具，使用 docker，允许您对 PDF 文件执行各种操作，例如拆分合并、转换、重新组织、添加图像、旋转、压缩等。"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/Stirling-Tools/Stirling-PDF"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+      32)
+      docker_name="drawio"
+      docker_img="jgraph/drawio"
+      docker_port=7080
+      docker_rum="docker run -d --restart=always --name drawio -p 7080:8080 -v /home/docker/drawio:/var/lib/drawio jgraph/drawio"
+      docker_describe="这是一个强大图表绘制软件。思维导图，拓扑图，流程图，都能画"
+      docker_url="官网介绍: https://www.drawio.com/"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+      33)
+      docker_name="sun-panel"
+      docker_img="hslr/sun-panel"
+      docker_port=3009
+      docker_rum="docker run -d --restart=always -p 3009:3002 \
+              -v /home/docker/sun-panel/conf:/app/conf \
+              -v /home/docker/sun-panel/uploads:/app/uploads \
+              -v /home/docker/sun-panel/database:/app/database \
+              --name sun-panel \
+              hslr/sun-panel"
+      docker_describe="Sun-Panel服务器、NAS导航面板、Homepage、浏览器首页"
+      docker_url="官网介绍: https://doc.sun-panel.top/zh_cn/"
+      docker_use="echo \"账号: admin@sun.cc  密码: 12345678\""
+      docker_passwd=""
+      docker_app
+        ;;
+
+      34)
+      docker_name="pingvin-share"
+      docker_img="stonith404/pingvin-share"
+      docker_port=3060
+      docker_rum="docker run -d \
+              --name pingvin-share \
+              --restart always \
+              -p 3060:3000 \
+              -v /home/docker/pingvin-share/data:/opt/app/backend/data \
+              stonith404/pingvin-share"
+      docker_describe="Pingvin Share 是一个可自建的文件分享平台，是 WeTransfer 的一个替代品"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/stonith404/pingvin-share"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
+
+
+      35)
+      docker_name="moments"
+      docker_img="kingwrcy/moments:latest"
+      docker_port=8035
+      docker_rum="docker run -d --restart unless-stopped \
+              -p 8035:3000 \
+              -v /home/docker/moments/data:/app/data \
+              -v /etc/localtime:/etc/localtime:ro \
+              -v /etc/timezone:/etc/timezone:ro \
+              --name moments \
+              kingwrcy/moments:latest"
+      docker_describe="极简朋友圈，高仿微信朋友圈，记录你的美好生活"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/kingwrcy/moments?tab=readme-ov-file"
+      docker_use="echo \"账号: admin  密码: a123456\""
+      docker_passwd=""
+      docker_app
+        ;;
 
 
 
-		  36)
-			docker_name="lobe-chat"
-			docker_img="lobehub/lobe-chat:latest"
-			docker_port=8036
-			docker_rum="docker run -d -p 8036:3210 \
-							--name lobe-chat \
-							--restart=always \
-							lobehub/lobe-chat"
-			docker_describe="LobeChat聚合市面上主流的AI大模型，ChatGPT/Claude/Gemini/Groq/Ollama"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/lobehub/lobe-chat"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      36)
+      docker_name="lobe-chat"
+      docker_img="lobehub/lobe-chat:latest"
+      docker_port=8036
+      docker_rum="docker run -d -p 8036:3210 \
+              --name lobe-chat \
+              --restart=always \
+              lobehub/lobe-chat"
+      docker_describe="LobeChat聚合市面上主流的AI大模型，ChatGPT/Claude/Gemini/Groq/Ollama"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/lobehub/lobe-chat"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  37)
-			docker_name="myip"
-			docker_img="ghcr.io/jason5ng32/myip:latest"
-			docker_port=8037
-			docker_rum="docker run -d -p 8037:18966 --name myip --restart always ghcr.io/jason5ng32/myip:latest"
-			docker_describe="是一个多功能IP工具箱，可以查看自己IP信息及连通性，用网页面板呈现"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/jason5ng32/MyIP/blob/main/README_ZH.md"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      37)
+      docker_name="myip"
+      docker_img="ghcr.io/jason5ng32/myip:latest"
+      docker_port=8037
+      docker_rum="docker run -d -p 8037:18966 --name myip --restart always ghcr.io/jason5ng32/myip:latest"
+      docker_describe="是一个多功能IP工具箱，可以查看自己IP信息及连通性，用网页面板呈现"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/jason5ng32/MyIP/blob/main/README_ZH.md"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  38)
-			send_stats "小雅全家桶"
-			clear
-			install_docker
-			bash -c "$(curl --insecure -fsSL https://ddsrem.com/xiaoya_install.sh)"
-			  ;;
+      38)
+      send_stats "小雅全家桶"
+      clear
+      install_docker
+      bash -c "$(curl --insecure -fsSL https://ddsrem.com/xiaoya_install.sh)"
+        ;;
 
-		  39)
+      39)
 
-			if [ ! -d /home/docker/bililive-go/ ]; then
-				mkdir -p /home/docker/bililive-go/ > /dev/null 2>&1
-				wget -O /home/docker/bililive-go/config.yml ${gh_proxy}https://raw.githubusercontent.com/hr3lxphr6j/bililive-go/master/config.yml > /dev/null 2>&1
-			fi
+      if [ ! -d /home/docker/bililive-go/ ]; then
+        mkdir -p /home/docker/bililive-go/ > /dev/null 2>&1
+        wget -O /home/docker/bililive-go/config.yml ${gh_proxy}https://raw.githubusercontent.com/hr3lxphr6j/bililive-go/master/config.yml > /dev/null 2>&1
+      fi
 
-			docker_name="bililive-go"
-			docker_img="chigusa/bililive-go"
-			docker_port=8039
-			docker_rum="docker run --restart=always --name bililive-go -v /home/docker/bililive-go/config.yml:/etc/bililive-go/config.yml -v /home/docker/bililive-go/Videos:/srv/bililive -p 8039:8080 -d chigusa/bililive-go"
-			docker_describe="Bililive-go是一个支持多种直播平台的直播录制工具"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/hr3lxphr6j/bililive-go"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      docker_name="bililive-go"
+      docker_img="chigusa/bililive-go"
+      docker_port=8039
+      docker_rum="docker run --restart=always --name bililive-go -v /home/docker/bililive-go/config.yml:/etc/bililive-go/config.yml -v /home/docker/bililive-go/Videos:/srv/bililive -p 8039:8080 -d chigusa/bililive-go"
+      docker_describe="Bililive-go是一个支持多种直播平台的直播录制工具"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/hr3lxphr6j/bililive-go"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  40)
+      40)
 
-			docker_name="windows"
-			docker_img="dockurr/windows"
-			docker_port=8040
-			docker_rum="docker run -d \
-							--name windows \
-							--cap-add=NET_ADMIN \
-							-e VERSION=win11 \
-							-e KVM=N \
-							-p 8040:8006 \
-							-p 3389:3389/tcp \
-							-p 3389:3389/udp \
-							--restart unless-stopped \
-							dockurr/windows"
-			docker_describe="一款虚拟化远程Windows11 要求2核心2G内存及以上"
-			docker_url="官网介绍: ${gh_proxy}https://github.com/dockur/windows"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+      docker_name="windows"
+      docker_img="dockurr/windows"
+      docker_port=8040
+      docker_rum="docker run -d \
+              --name windows \
+              --cap-add=NET_ADMIN \
+              -e VERSION=win11 \
+              -e KVM=N \
+              -p 8040:8006 \
+              -p 3389:3389/tcp \
+              -p 3389:3389/udp \
+              --restart unless-stopped \
+              dockurr/windows"
+      docker_describe="一款虚拟化远程Windows11 要求2核心2G内存及以上"
+      docker_url="官网介绍: ${gh_proxy}https://github.com/dockur/windows"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
-		  41)
-			send_stats "耗子面板"
-			while true; do
-				clear
-				echo "耗子管理面板"
-				echo "使用 Golang + Vue 开发的开源轻量 Linux 服务器运维管理面板。"
-				echo "官方地址: ${gh_proxy}https://github.com/TheTNB/panel"
-				echo "------------------------"
-				echo "1. 安装            2. 管理            3. 卸载"
-				echo "------------------------"
-				echo "0. 返回上一级"
-				echo "------------------------"
-				read -e -p "输入你的选择: " choice
+      41)
+      send_stats "耗子面板"
+      while true; do
+        clear
+        echo "耗子管理面板"
+        echo "使用 Golang + Vue 开发的开源轻量 Linux 服务器运维管理面板。"
+        echo "官方地址: ${gh_proxy}https://github.com/TheTNB/panel"
+        echo "------------------------"
+        echo "1. 安装            2. 管理            3. 卸载"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        echo "------------------------"
+        read -e -p "输入你的选择: " choice
 
-				case $choice in
-					1)
-						HAOZI_DL_URL="https://dl.cdn.haozi.net/panel"; curl -sSL -O ${HAOZI_DL_URL}/install_panel.sh && curl -sSL -O ${HAOZI_DL_URL}/install_panel.sh.checksum.txt && sha256sum -c install_panel.sh.checksum.txt && bash install_panel.sh || echo "Checksum 验证失败，文件可能被篡改，已终止操作"
-						;;
-					2)
-						panel
-						;;
-					3)
-						HAOZI_DL_URL="https://dl.cdn.haozi.net/panel"; curl -sSL -O ${HAOZI_DL_URL}/uninstall_panel.sh && curl -sSL -O ${HAOZI_DL_URL}/uninstall_panel.sh.checksum.txt && sha256sum -c uninstall_panel.sh.checksum.txt && bash uninstall_panel.sh || echo "Checksum 验证失败，文件可能被篡改，已终止操作"
-						;;
-					0)
-						break
-						;;
-					*)
-						break
-						;;
+        case $choice in
+          1)
+            HAOZI_DL_URL="https://dl.cdn.haozi.net/panel"; curl -sSL -O ${HAOZI_DL_URL}/install_panel.sh && curl -sSL -O ${HAOZI_DL_URL}/install_panel.sh.checksum.txt && sha256sum -c install_panel.sh.checksum.txt && bash install_panel.sh || echo "Checksum 验证失败，文件可能被篡改，已终止操作"
+            ;;
+          2)
+            panel
+            ;;
+          3)
+            HAOZI_DL_URL="https://dl.cdn.haozi.net/panel"; curl -sSL -O ${HAOZI_DL_URL}/uninstall_panel.sh && curl -sSL -O ${HAOZI_DL_URL}/uninstall_panel.sh.checksum.txt && sha256sum -c uninstall_panel.sh.checksum.txt && bash uninstall_panel.sh || echo "Checksum 验证失败，文件可能被篡改，已终止操作"
+            ;;
+          0)
+            break
+            ;;
+          *)
+            break
+            ;;
 
-				esac
-				break_end
-			done
-			  ;;
+        esac
+        break_end
+      done
+        ;;
 
 
 
@@ -8177,11 +8177,11 @@ install_dir="/home/web/vaultwarden"
 mkdir -p "$install_dir"
 
 docker_rum="docker run -d \
-				--name vaultwarden \
-				--restart always \
-				-p 3280:80 \
-				-v $install_dir/data:/data \
-				vaultwarden/server"
+        --name vaultwarden \
+        --restart always \
+        -p 3280:80 \
+        -v $install_dir/data:/data \
+        vaultwarden/server"
 
 docker_describe="一个开源的 Bitwarden 服务端实现，注册功能已开启"
 docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
@@ -8241,12 +8241,12 @@ install_dir="/home/web/vaultwarden"
 mkdir -p "$install_dir"
 
 docker_rum="docker run -d \
-				--name vaultwarden \
-				-e SIGNUPS_ALLOWED=false \
-				--restart always \
-				-p 3280:80 \
-				-v $install_dir/data:/data \
-				vaultwarden/server"
+        --name vaultwarden \
+        -e SIGNUPS_ALLOWED=false \
+        --restart always \
+        -p 3280:80 \
+        -v $install_dir/data:/data \
+        vaultwarden/server"
 
 docker_describe="一个开源的 Bitwarden 服务端实现（禁止注册，无 SMTP 设置）"
 docker_url="官网介绍: https://github.com/dani-garcia/vaultwarden"
@@ -8294,30 +8294,30 @@ docker_app
 ;;
 
 
-		  46)
+      46)
 
 
-			RPC_SECRET=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
+      RPC_SECRET=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)
 
-			docker_name="aria2-pro"
-			docker_img="p3terx/aria2-pro"
-			docker_port=6800
-			docker_rum="docker run -d --restart=always \
-							--name aria2-pro \
-							-p 6800:6800 \
-							-p 6888:6888 \
-							-p 6888:6888/udp \
-							-e RPC_SECRET=$RPC_SECRET \
-							-e UPDATE_TRACKERS=true \
-							-v /home/docker/aria2/config:/config \
-							-v /home/docker/aria2/downloads:/downloads \
-							p3terx/aria2-pro"
-			docker_describe="Aria2 下载神器，支持 BT、磁力、百度网盘，配套 AriaNg 使用，自动更新 Tracker"
-			docker_url="访问地址: http://ariang.js.org        项目地址: https://hub.docker.com/r/p3terx/aria2-pro"
-			docker_use="echo \"✅ 默认 RPC 密钥: $RPC_SECRET\" && echo \"🌐 AriaNg 访问地址：http://ariang.js.org/\""
-			docker_passwd=""
-			docker_app
-			  ;;
+      docker_name="aria2-pro"
+      docker_img="p3terx/aria2-pro"
+      docker_port=6800
+      docker_rum="docker run -d --restart=always \
+              --name aria2-pro \
+              -p 6800:6800 \
+              -p 6888:6888 \
+              -p 6888:6888/udp \
+              -e RPC_SECRET=$RPC_SECRET \
+              -e UPDATE_TRACKERS=true \
+              -v /home/docker/aria2/config:/config \
+              -v /home/docker/aria2/downloads:/downloads \
+              p3terx/aria2-pro"
+      docker_describe="Aria2 下载神器，支持 BT、磁力、百度网盘，配套 AriaNg 使用，自动更新 Tracker"
+      docker_url="访问地址: http://ariang.js.org        项目地址: https://hub.docker.com/r/p3terx/aria2-pro"
+      docker_use="echo \"✅ 默认 RPC 密钥: $RPC_SECRET\" && echo \"🌐 AriaNg 访问地址：http://ariang.js.org/\""
+      docker_passwd=""
+      docker_app
+        ;;
 
 
           47)
@@ -8348,9 +8348,9 @@ docker_app
                 1)
                   install_docker
 
-		  [ ! -d /home/docker ] && mkdir -p /home/docker
+      [ ! -d /home/docker ] && mkdir -p /home/docker
 
-		  cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
+      cd /home/docker && mkdir -p wangpan/cloudreve/{uploads,avatar} wangpan/aria2/config wangpan/data/aria2
                   touch /home/docker/wangpan/cloudreve/conf.ini
 
                   chmod -R 777 /home/docker/wangpan/data/aria2
@@ -8674,329 +8674,329 @@ EOF
 
 
 
-		  49)
-		    
-		    ADMINPASSWORD="admin123456789"
-		    PASSWORD="111111"
-		
-		    docker_name="libretv"
-		    docker_img="bestzwei/libretv:latest"
-		    docker_port=8899
-		    docker_rum="docker run -d \
-		      --name libretv \
-		      --restart unless-stopped \
-		      -p 8899:8080 \
-		      -e PASSWORD=$PASSWORD \
-		      -e ADMINPASSWORD=$ADMINPASSWORD \
-		      $docker_img"
-		    docker_describe="LibreTV 是一个 IPTV 媒体播放器，支持直播电视流媒体播放"
-		    docker_url="项目地址: https://hub.docker.com/r/bestzwei/libretv"
-		    docker_use="echo \"✅ 设置密码: $ADMINPASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
-		    docker_passwd=""
-		    docker_app
-		      ;;
+      49)
+        
+        ADMINPASSWORD="admin123456789"
+        PASSWORD="111111"
+    
+        docker_name="libretv"
+        docker_img="bestzwei/libretv:latest"
+        docker_port=8899
+        docker_rum="docker run -d \
+          --name libretv \
+          --restart unless-stopped \
+          -p 8899:8080 \
+          -e PASSWORD=$PASSWORD \
+          -e ADMINPASSWORD=$ADMINPASSWORD \
+          $docker_img"
+        docker_describe="LibreTV 是一个 IPTV 媒体播放器，支持直播电视流媒体播放"
+        docker_url="项目地址: https://hub.docker.com/r/bestzwei/libretv"
+        docker_use="echo \"✅ 设置密码: $ADMINPASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
+        docker_passwd=""
+        docker_app
+          ;;
 
-		  50)
+      50)
 
-		    PASSWORD="111111"
+        PASSWORD="111111"
 
-		    docker_name="moontv"
-		    docker_img="ghcr.io/senshinya/moontv:latest"
-		    docker_port=3000
-		    docker_rum="docker run -d \
-		      --name moontv \
-		      --restart unless-stopped \
-		      -p 3000:3000 \
-		      -e PASSWORD=$PASSWORD \
-		      $docker_img"
-		    docker_describe="MoonTV 是一个 IPTV 播放平台，支持多种源解析"
-		    docker_url="项目地址: https://github.com/Senshinya/MoonTV"
-		    docker_use="echo \"✅ 设置密码: $PASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
-		    docker_passwd=""
-		    docker_app
-		      ;;
+        docker_name="moontv"
+        docker_img="ghcr.io/senshinya/moontv:latest"
+        docker_port=3000
+        docker_rum="docker run -d \
+          --name moontv \
+          --restart unless-stopped \
+          -p 3000:3000 \
+          -e PASSWORD=$PASSWORD \
+          $docker_img"
+        docker_describe="MoonTV 是一个 IPTV 播放平台，支持多种源解析"
+        docker_url="项目地址: https://github.com/Senshinya/MoonTV"
+        docker_use="echo \"✅ 设置密码: $PASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
+        docker_passwd=""
+        docker_app
+          ;;
 
-		  51)
-		    clear
-		    echo "▶️ 正在运行极光面板一键脚本..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/deploy/main/install.sh)
-		    echo "✅ 极光面板脚本运行完成，若你选择了安装，请访问 http://服务器IP:8000"
-		    ;;
+      51)
+        clear
+        echo "▶️ 正在运行极光面板一键脚本..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/deploy/main/install.sh)
+        echo "✅ 极光面板脚本运行完成，若你选择了安装，请访问 http://服务器IP:8000"
+        ;;
 
-		  52)
-			docker_name="emby"
-			docker_img="emby/embyserver:latest"
-			docker_port=8096
-			docker_rum="docker run -d \
-							--name emby \
-							--restart=unless-stopped \
-							-v /home/docker/emby/config:/config \
-							-v /home/docker/emby/电影:/mnt/embydianying \
-							-v /home/docker/emby/电视剧:/mnt/embydianshiju \
+      52)
+      docker_name="emby"
+      docker_img="emby/embyserver:latest"
+      docker_port=8096
+      docker_rum="docker run -d \
+              --name emby \
+              --restart=unless-stopped \
+              -v /home/docker/emby/config:/config \
+              -v /home/docker/emby/电影:/mnt/embydianying \
+              -v /home/docker/emby/电视剧:/mnt/embydianshiju \
 
-							-v /home/挂载/电视剧:/mnt/dianshiju \
-							-v /home/挂载/电影:/mnt/dianying \
+              -v /home/挂载/电视剧:/mnt/dianshiju \
+              -v /home/挂载/电影:/mnt/dianying \
 
-							-p 8096:8096 \
-							-p 8920:8920 \
-							emby/embyserver:latest"
-			docker_describe="Emby 媒体服务器，支持电影和电视剧挂载"
-			docker_url="官网介绍: https://emby.media/"
-			docker_use=""
-			docker_passwd=""
-			docker_app
-			  ;;
+              -p 8096:8096 \
+              -p 8920:8920 \
+              emby/embyserver:latest"
+      docker_describe="Emby 媒体服务器，支持电影和电视剧挂载"
+      docker_url="官网介绍: https://emby.media/"
+      docker_use=""
+      docker_passwd=""
+      docker_app
+        ;;
 
 
-		  53)
+      53)
 
-			clear
-			echo "Nexterm - 基于 Web 的终端访问工具"
-			echo "GitHub 地址"
-			echo "https://github.com/gnmyt/Nexterm"
-			echo "功能介绍: 使用浏览器远程访问主机终端，支持加密会话与多用户协作"
-			echo
-			echo "1. 安装 Nexterm"
-			echo "2. 备份 Nexterm"
-			echo "3. 卸载 Nexterm"
-			echo "4. 恢复 Nexterm"
-			read -p "请输入操作编号: " sub_choice
+      clear
+      echo "Nexterm - 基于 Web 的终端访问工具"
+      echo "GitHub 地址"
+      echo "https://github.com/gnmyt/Nexterm"
+      echo "功能介绍: 使用浏览器远程访问主机终端，支持加密会话与多用户协作"
+      echo
+      echo "1. 安装 Nexterm"
+      echo "2. 备份 Nexterm"
+      echo "3. 卸载 Nexterm"
+      echo "4. 恢复 Nexterm"
+      read -p "请输入操作编号: " sub_choice
 
-			nexterm_dir="/home/docker/nexterm"
-			backup_dir="/home/docker"
-			backup_prefix="nexterm"
-			backup_limit=3
-			docker_name="nexterm"
-			docker_img="germannewsmaker/nexterm:1.0.5-OPEN-PREVIEW"
-			docker_port=6989
+      nexterm_dir="/home/docker/nexterm"
+      backup_dir="/home/docker"
+      backup_prefix="nexterm"
+      backup_limit=3
+      docker_name="nexterm"
+      docker_img="germannewsmaker/nexterm:1.0.5-OPEN-PREVIEW"
+      docker_port=6989
 
-			local_ip=$(hostname -I | awk '{print $1}')
-			ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+      local_ip=$(hostname -I | awk '{print $1}')
+      ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
 
-			case "$sub_choice" in
-				1)
-					if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
-						echo "$docker_name 已经安装完成"
-						echo "------------------------"
-						echo "访问地址:"
-						echo "http://${local_ip}:${docker_port}"
-						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
-					else
-						encryption_key=$(openssl rand -hex 32)
-						mkdir -p $nexterm_dir
+      case "$sub_choice" in
+        1)
+          if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
+            echo "$docker_name 已经安装完成"
+            echo "------------------------"
+            echo "访问地址:"
+            echo "http://${local_ip}:${docker_port}"
+            [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
+          else
+            encryption_key=$(openssl rand -hex 32)
+            mkdir -p $nexterm_dir
 
-						docker run -d \
-							--name $docker_name \
-							-e ENCRYPTION_KEY=$encryption_key \
-							--restart always \
-							-p ${docker_port}:6989 \
-							-v $nexterm_dir:/app/data \
-							$docker_img
+            docker run -d \
+              --name $docker_name \
+              -e ENCRYPTION_KEY=$encryption_key \
+              --restart always \
+              -p ${docker_port}:6989 \
+              -v $nexterm_dir:/app/data \
+              $docker_img
 
-						echo "$docker_name 已经安装完成"
-						echo "------------------------"
-						echo "https://github.com/gnmyt/Nexterm"
-						echo "通过 SSH、VNC 和 RDP 远程连接，通过 SFTP 管理文件"
-						echo "访问地址:"
-						echo "http://${local_ip}:${docker_port}"
-						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
-						echo "加密密钥为: $encryption_key"
-					fi
-					;;
-				2)
-					timestamp=$(date +%Y%m%d%H%M%S)
-					backup_file="${backup_prefix}-${timestamp}.tar.gz"
-					tar -czf "${backup_dir}/${backup_file}" -C "$nexterm_dir" .
-					echo "备份已保存为: ${backup_dir}/${backup_file}"
+            echo "$docker_name 已经安装完成"
+            echo "------------------------"
+            echo "https://github.com/gnmyt/Nexterm"
+            echo "通过 SSH、VNC 和 RDP 远程连接，通过 SFTP 管理文件"
+            echo "访问地址:"
+            echo "http://${local_ip}:${docker_port}"
+            [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
+            echo "加密密钥为: $encryption_key"
+          fi
+          ;;
+        2)
+          timestamp=$(date +%Y%m%d%H%M%S)
+          backup_file="${backup_prefix}-${timestamp}.tar.gz"
+          tar -czf "${backup_dir}/${backup_file}" -C "$nexterm_dir" .
+          echo "备份已保存为: ${backup_dir}/${backup_file}"
 
-					# 删除多余的旧备份，保留最新3个
-					find "$backup_dir" -name "${backup_prefix}-*.tar.gz" | sort -r | sed -n '4,$p' | xargs -r rm -f
-					;;
-				3)
-					read -p "确认卸载 Nexterm？将删除容器和 $nexterm_dir 目录 [y/N]: " confirm
-					if [[ "$confirm" =~ ^[Yy]$ ]]; then
-						docker rm -f $docker_name 2>/dev/null
-						rm -rf "$nexterm_dir"
-						echo "Nexterm 已卸载完成"
-					else
-						echo "操作已取消"
-					fi
-					;;
-				4)
-					echo "可用备份文件："
-					backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
-					if [ ${#backups[@]} -eq 0 ]; then
-						echo "无可用备份"
-						break
-					fi
+          # 删除多余的旧备份，保留最新3个
+          find "$backup_dir" -name "${backup_prefix}-*.tar.gz" | sort -r | sed -n '4,$p' | xargs -r rm -f
+          ;;
+        3)
+          read -p "确认卸载 Nexterm？将删除容器和 $nexterm_dir 目录 [y/N]: " confirm
+          if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            docker rm -f $docker_name 2>/dev/null
+            rm -rf "$nexterm_dir"
+            echo "Nexterm 已卸载完成"
+          else
+            echo "操作已取消"
+          fi
+          ;;
+        4)
+          echo "可用备份文件："
+          backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+          if [ ${#backups[@]} -eq 0 ]; then
+            echo "无可用备份"
+            break
+          fi
 
-					for i in "${!backups[@]}"; do
-						echo "$((i+1)). $(basename ${backups[$i]})"
-					done
-					read -p "请输入备份编号（留空则恢复最新）: " sel
+          for i in "${!backups[@]}"; do
+            echo "$((i+1)). $(basename ${backups[$i]})"
+          done
+          read -p "请输入备份编号（留空则恢复最新）: " sel
 
-					if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
-						restore_file="${backups[$((sel-1))]}"
-					else
-						restore_file="${backups[0]}"
-					fi
+          if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
+            restore_file="${backups[$((sel-1))]}"
+          else
+            restore_file="${backups[0]}"
+          fi
 
-					echo "恢复自: $(basename $restore_file)"
-					read -p "请输入原始加密密钥（必填，恢复后用于重新启动服务）: " encryption_key
-					if [ -z "$encryption_key" ]; then
-						echo "未输入密钥，操作取消。"
-						break
-					fi
+          echo "恢复自: $(basename $restore_file)"
+          read -p "请输入原始加密密钥（必填，恢复后用于重新启动服务）: " encryption_key
+          if [ -z "$encryption_key" ]; then
+            echo "未输入密钥，操作取消。"
+            break
+          fi
 
-					docker rm -f $docker_name 2>/dev/null
-					rm -rf "$nexterm_dir"
-					mkdir -p "$nexterm_dir"
-					tar -xzf "$restore_file" -C "$nexterm_dir"
+          docker rm -f $docker_name 2>/dev/null
+          rm -rf "$nexterm_dir"
+          mkdir -p "$nexterm_dir"
+          tar -xzf "$restore_file" -C "$nexterm_dir"
 
-					echo "恢复完成。正在重新运行安装启动服务。"
+          echo "恢复完成。正在重新运行安装启动服务。"
 
-					docker run -d \
-						--name $docker_name \
-						-e ENCRYPTION_KEY=$encryption_key \
-						--restart always \
-						-p ${docker_port}:6989 \
-						-v $nexterm_dir:/app/data \
-						$docker_img
+          docker run -d \
+            --name $docker_name \
+            -e ENCRYPTION_KEY=$encryption_key \
+            --restart always \
+            -p ${docker_port}:6989 \
+            -v $nexterm_dir:/app/data \
+            $docker_img
 
-					echo "------------------------"
-					echo "$docker_name 已重新启动"
-					echo "访问地址:"
-					echo "http://${local_ip}:${docker_port}"
-					[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
-					echo "加密密钥为: $encryption_key"
-					;;
-				*)
-					echo "无效选项"
-					;;
-			esac
+          echo "------------------------"
+          echo "$docker_name 已重新启动"
+          echo "访问地址:"
+          echo "http://${local_ip}:${docker_port}"
+          [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
+          echo "加密密钥为: $encryption_key"
+          ;;
+        *)
+          echo "无效选项"
+          ;;
+      esac
 
-			read -p "按任意键继续..." -n1
-			  ;;
+      read -p "按任意键继续..." -n1
+        ;;
 
-		  54)
-			while true; do
-				clear
-				echo "----------------------------"
-				echo " 1. 安装并启动 webssh"
-				echo " 2. 重设密码并重启服务"
-				echo " 3. 卸载 webssh"
-				echo " 0. 退出"
-				echo "----------------------------"
-				echo -n "请输入你的选择: "
-				read choice
+      54)
+      while true; do
+        clear
+        echo "----------------------------"
+        echo " 1. 安装并启动 webssh"
+        echo " 2. 重设密码并重启服务"
+        echo " 3. 卸载 webssh"
+        echo " 0. 退出"
+        echo "----------------------------"
+        echo -n "请输入你的选择: "
+        read choice
 
-				case $choice in
-					1)
-						# 安装
-						if [ ! -d /home/docker/webssh ]; then
-							mkdir -p /home/docker/webssh > /dev/null 2>&1
-						fi
+        case $choice in
+          1)
+            # 安装
+            if [ ! -d /home/docker/webssh ]; then
+              mkdir -p /home/docker/webssh > /dev/null 2>&1
+            fi
 
-						wget -O /home/docker/webssh/webssh_linux_amd64 https://github.com/zaixiangjian/ziyongcdn/releases/download/1.29/webssh_linux_amd64 > /dev/null 2>&1
-						chmod +x /home/docker/webssh/webssh_linux_amd64
+            wget -O /home/docker/webssh/webssh_linux_amd64 https://github.com/zaixiangjian/ziyongcdn/releases/download/1.29/webssh_linux_amd64 > /dev/null 2>&1
+            chmod +x /home/docker/webssh/webssh_linux_amd64
 
-						password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+            password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
 
-						pkill -f /home/docker/webssh/webssh_linux_amd64 > /dev/null 2>&1 || true
+            pkill -f /home/docker/webssh/webssh_linux_amd64 > /dev/null 2>&1 || true
 
-						nohup /home/docker/webssh/webssh_linux_amd64 -p 5032 -a admin:$password >/dev/null 2>&1 &
+            nohup /home/docker/webssh/webssh_linux_amd64 -p 5032 -a admin:$password >/dev/null 2>&1 &
 
-						crontab -l 2>/dev/null | grep -v '/home/docker/webssh/webssh_linux_amd64' > /tmp/crontab.$$
-						echo "@reboot sleep 10 && nohup /home/docker/webssh/webssh_linux_amd64 -p 5032 -a admin:$password >/dev/null 2>&1 &" >> /tmp/crontab.$$
-						crontab /tmp/crontab.$$
-						rm -f /tmp/crontab.$$
+            crontab -l 2>/dev/null | grep -v '/home/docker/webssh/webssh_linux_amd64' > /tmp/crontab.$$
+            echo "@reboot sleep 10 && nohup /home/docker/webssh/webssh_linux_amd64 -p 5032 -a admin:$password >/dev/null 2>&1 &" >> /tmp/crontab.$$
+            crontab /tmp/crontab.$$
+            rm -f /tmp/crontab.$$
 
-						echo
-						echo "安装完成"
-						echo "访问地址: http://$(hostname -I | awk '{print $1}'):5032"
-						echo "账号: admin"
-						echo "密码: $password"
-						echo "密码只显示一次，请妥善保存！"
-						read -p "按任意键返回菜单..."
+            echo
+            echo "安装完成"
+            echo "访问地址: http://$(hostname -I | awk '{print $1}'):5032"
+            echo "账号: admin"
+            echo "密码: $password"
+            echo "密码只显示一次，请妥善保存！"
+            read -p "按任意键返回菜单..."
 
-						;;
-					2)
-						# 重设密码
-						if [ ! -x /home/docker/webssh/webssh_linux_amd64 ]; then
-							echo "未检测到 webssh 服务，请先安装！"
-							read -p "按任意键返回菜单..."
-							continue
-						fi
+            ;;
+          2)
+            # 重设密码
+            if [ ! -x /home/docker/webssh/webssh_linux_amd64 ]; then
+              echo "未检测到 webssh 服务，请先安装！"
+              read -p "按任意键返回菜单..."
+              continue
+            fi
 
-						password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+            password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
 
-						pkill -f /home/docker/webssh/webssh_linux_amd64 > /dev/null 2>&1 || true
+            pkill -f /home/docker/webssh/webssh_linux_amd64 > /dev/null 2>&1 || true
 
-						nohup /home/docker/webssh/webssh_linux_amd64 -p 5032 -a admin:$password >/dev/null 2>&1 &
+            nohup /home/docker/webssh/webssh_linux_amd64 -p 5032 -a admin:$password >/dev/null 2>&1 &
 
-						echo
-						echo "密码已重置"
-						echo "访问地址: http://$(hostname -I | awk '{print $1}'):5032"
-						echo "账号: admin"
-						echo "新密码: $password"
-						echo "密码只显示一次，请妥善保存！"
-						read -p "按任意键返回菜单..."
+            echo
+            echo "密码已重置"
+            echo "访问地址: http://$(hostname -I | awk '{print $1}'):5032"
+            echo "账号: admin"
+            echo "新密码: $password"
+            echo "密码只显示一次，请妥善保存！"
+            read -p "按任意键返回菜单..."
 
-						;;
-					3)
-						# 卸载
-						echo "正在卸载 webssh..."
-						pkill -f /home/docker/webssh/webssh_linux_amd64 > /dev/null 2>&1 || true
-						crontab -l 2>/dev/null | grep -v '/home/docker/webssh/webssh_linux_amd64' | crontab -
-						rm -rf /home/docker/webssh
-						echo "卸载完成！"
-						read -p "按任意键返回菜单..."
-						;;
-					0)
-						exit 0
-						;;
-					*)
-						echo "无效输入，请重新选择"
-						read -p "按任意键继续..."
-						;;
-				esac
-			done
-			;;
+            ;;
+          3)
+            # 卸载
+            echo "正在卸载 webssh..."
+            pkill -f /home/docker/webssh/webssh_linux_amd64 > /dev/null 2>&1 || true
+            crontab -l 2>/dev/null | grep -v '/home/docker/webssh/webssh_linux_amd64' | crontab -
+            rm -rf /home/docker/webssh
+            echo "卸载完成！"
+            read -p "按任意键返回菜单..."
+            ;;
+          0)
+            exit 0
+            ;;
+          *)
+            echo "无效输入，请重新选择"
+            read -p "按任意键继续..."
+            ;;
+        esac
+      done
+      ;;
 
 55)
-			INSTALL_PATH="/home/docker/openlist"
-			SERVICE_FILE="/etc/systemd/system/openlist.service"
-			
-			echo "------------------------"
-			echo "  OpenList 系统服务管理"
-			echo "------------------------"
-			echo " 1. 安装 OpenList (Systemd 守护运行)"
-			echo " 2. 卸载 OpenList (完全清理)"
-			echo " 0. 返回上一级"
-			echo "------------------------"
-			read -p "请输入选择 [0-2]: " sub_opt
+      INSTALL_PATH="/home/docker/openlist"
+      SERVICE_FILE="/etc/systemd/system/openlist.service"
+      
+      echo "------------------------"
+      echo "  OpenList 系统服务管理"
+      echo "------------------------"
+      echo " 1. 安装 OpenList (Systemd 守护运行)"
+      echo " 2. 卸载 OpenList (完全清理)"
+      echo " 0. 返回上一级"
+      echo "------------------------"
+      read -p "请输入选择 [0-2]: " sub_opt
 
-			case $sub_opt in
-				1)
-					# --- 1. 下载与安装 ---
-					mkdir -p "$INSTALL_PATH" > /dev/null 2>&1
-					ARCH="amd64"
-					[[ "$(uname -m)" == "aarch64" ]] && ARCH="arm64"
-					
-					echo "正在下载 OpenList ($ARCH)..."
-					wget -O "$INSTALL_PATH/openlist.tar.gz" "https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-$ARCH.tar.gz" > /dev/null 2>&1
-					
-					if [ ! -s "$INSTALL_PATH/openlist.tar.gz" ]; then
-						echo "错误：下载失败！"
-						return 1
-					fi
+      case $sub_opt in
+        1)
+          # --- 1. 下载与安装 ---
+          mkdir -p "$INSTALL_PATH" > /dev/null 2>&1
+          ARCH="amd64"
+          [[ "$(uname -m)" == "aarch64" ]] && ARCH="arm64"
+          
+          echo "正在下载 OpenList ($ARCH)..."
+          wget -O "$INSTALL_PATH/openlist.tar.gz" "https://github.com/zaixiangjian/ziyongcdn/releases/download/4.0.8/openlist-linux-$ARCH.tar.gz" > /dev/null 2>&1
+          
+          if [ ! -s "$INSTALL_PATH/openlist.tar.gz" ]; then
+            echo "错误：下载失败！"
+            return 1
+          fi
 
-					tar -xzf "$INSTALL_PATH/openlist.tar.gz" -C "$INSTALL_PATH/" > /dev/null 2>&1
-					chmod +x "$INSTALL_PATH/openlist"
+          tar -xzf "$INSTALL_PATH/openlist.tar.gz" -C "$INSTALL_PATH/" > /dev/null 2>&1
+          chmod +x "$INSTALL_PATH/openlist"
 
-					# --- 2. 创建 Systemd 服务文件 ---
-					echo "正在配置 Systemd 服务..."
-					cat <<EOF > $SERVICE_FILE
+          # --- 2. 创建 Systemd 服务文件 ---
+          echo "正在配置 Systemd 服务..."
+          cat <<EOF > $SERVICE_FILE
 [Unit]
 Description=OpenList Service
 After=network.target
@@ -9014,71 +9014,71 @@ StandardError=append:$INSTALL_PATH/openlist.log
 WantedBy=multi-user.target
 EOF
 
-					# --- 3. 启动服务 ---
-					systemctl daemon-reload
-					systemctl enable openlist > /dev/null 2>&1
-					systemctl restart openlist
+          # --- 3. 启动服务 ---
+          systemctl daemon-reload
+          systemctl enable openlist > /dev/null 2>&1
+          systemctl restart openlist
 
-					echo "等待程序初始化并获取密码..."
-					password=""
-					for i in {1..15}; do
-						sleep 1
-						password=$(grep "initial password is:" "$INSTALL_PATH/openlist.log" | tail -n 1 | awk '{print $NF}')
-						[ -n "$password" ] && break
-					done
+          echo "等待程序初始化并获取密码..."
+          password=""
+          for i in {1..15}; do
+            sleep 1
+            password=$(grep "initial password is:" "$INSTALL_PATH/openlist.log" | tail -n 1 | awk '{print $NF}')
+            [ -n "$password" ] && break
+          done
 
-					ipv4=$(curl -s4 --max-time 3 ifconfig.me)
+          ipv4=$(curl -s4 --max-time 3 ifconfig.me)
 
-					clear
-					echo "✅ OpenList 已通过 Systemd 安装成功"
-					echo "------------------------------------------------"
-					echo "服务状态：$(systemctl is-active openlist)"
-					[ -n "$ipv4" ] && echo "访问地址：http://$ipv4:5244"
-					[ -n "$password" ] && echo "初始密码：$password"
-					echo "------------------------------------------------"
-					echo "常用命令："
-					echo "查看状态: systemctl status openlist"
-					echo "停止服务: systemctl stop openlist"
-					echo "查看日志: journalctl -u openlist -f"
-					echo "------------------------------------------------"
-					;;
+          clear
+          echo "✅ OpenList 已通过 Systemd 安装成功"
+          echo "------------------------------------------------"
+          echo "服务状态：$(systemctl is-active openlist)"
+          [ -n "$ipv4" ] && echo "访问地址：http://$ipv4:5244"
+          [ -n "$password" ] && echo "初始密码：$password"
+          echo "------------------------------------------------"
+          echo "常用命令："
+          echo "查看状态: systemctl status openlist"
+          echo "停止服务: systemctl stop openlist"
+          echo "查看日志: journalctl -u openlist -f"
+          echo "------------------------------------------------"
+          ;;
 
-				2)
-					# --- 卸载逻辑 ---
-					echo "正在停止服务并清理残留..."
-					systemctl stop openlist > /dev/null 2>&1
-					systemctl disable openlist > /dev/null 2>&1
-					rm -f $SERVICE_FILE
-					systemctl daemon-reload
-					rm -rf "$INSTALL_PATH"
-					
-					# 清理旧的 crontab 防止冲突
-					crontab -l 2>/dev/null | grep -v "$INSTALL_PATH/openlist" | crontab -
-					
-					echo "✅ 卸载完成！所有文件和服务已移除。"
-					;;
-				*)
-					return 0
-					;;
-			esac
-			
-			echo ""
-			read -p "按回车键继续..."
-			;;
+        2)
+          # --- 卸载逻辑 ---
+          echo "正在停止服务并清理残留..."
+          systemctl stop openlist > /dev/null 2>&1
+          systemctl disable openlist > /dev/null 2>&1
+          rm -f $SERVICE_FILE
+          systemctl daemon-reload
+          rm -rf "$INSTALL_PATH"
+          
+          # 清理旧的 crontab 防止冲突
+          crontab -l 2>/dev/null | grep -v "$INSTALL_PATH/openlist" | crontab -
+          
+          echo "✅ 卸载完成！所有文件和服务已移除。"
+          ;;
+        *)
+          return 0
+          ;;
+      esac
+      
+      echo ""
+      read -p "按回车键继续..."
+      ;;
 
 
 
-		  56)
-			docker_name="umami"
-			docker_img="docker.umami.is/umami-software/umami:postgresql-latest"
-			docker_port=3000
+      56)
+      docker_name="umami"
+      docker_img="docker.umami.is/umami-software/umami:postgresql-latest"
+      docker_port=3000
 
-			# 自动创建目录
-			[ ! -d /home/docker/umami ] && mkdir -p /home/docker/umami
-			cd /home/docker/umami || exit 1
+      # 自动创建目录
+      [ ! -d /home/docker/umami ] && mkdir -p /home/docker/umami
+      cd /home/docker/umami || exit 1
 
-			# 写入 docker-compose.yml
-			cat > docker-compose.yml <<EOF
+      # 写入 docker-compose.yml
+      cat > docker-compose.yml <<EOF
 version: '3.8'
 
 services:
@@ -9106,179 +9106,179 @@ services:
       - umami-db
 EOF
 
-			# 启动容器
-			docker compose up -d
+      # 启动容器
+      docker compose up -d
 
-			echo "------------------------"
-			echo "访问地址:"
-			echo "http://$(hostname -I | awk '{print $1}'):3000"
-			echo "http://$(curl -s ifconfig.me):${docker_port}"
-			echo "账号：admin 密码：umami"
-			echo "默认密码：umami123"
-			echo "------------------------"
+      echo "------------------------"
+      echo "访问地址:"
+      echo "http://$(hostname -I | awk '{print $1}'):3000"
+      echo "http://$(curl -s ifconfig.me):${docker_port}"
+      echo "账号：admin 密码：umami"
+      echo "默认密码：umami123"
+      echo "------------------------"
 
-			docker_describe="Umami 网站流量统计系统，轻量、隐私友好"
-			docker_url="GitHub: https://github.com/umami-software/umami"
-			docker_use="默认访问地址：http://服务器IP:3000，账号：admin 密码：umami"
-			docker_passwd="umami123"
-			docker_app
-			  ;;
-		57)
+      docker_describe="Umami 网站流量统计系统，轻量、隐私友好"
+      docker_url="GitHub: https://github.com/umami-software/umami"
+      docker_use="默认访问地址：http://服务器IP:3000，账号：admin 密码：umami"
+      docker_passwd="umami123"
+      docker_app
+        ;;
+    57)
 
-			clear
-			echo "Dify - 开源 AIGC 应用开发平台"
-			echo "GitHub 项目地址: https://github.com/langgenius/dify"
-			echo "功能介绍: 快速搭建属于自己的类 ChatGPT 平台，支持模型调用和 API 应用开发"
-			echo
-			echo "1. 安装 Dify"
-			echo "2. 备份 Dify 数据"
-			echo "3. 卸载 Dify"
-			echo "4. 恢复 Dify 数据"
-			read -p "请输入操作编号: " sub_choice
+      clear
+      echo "Dify - 开源 AIGC 应用开发平台"
+      echo "GitHub 项目地址: https://github.com/langgenius/dify"
+      echo "功能介绍: 快速搭建属于自己的类 ChatGPT 平台，支持模型调用和 API 应用开发"
+      echo
+      echo "1. 安装 Dify"
+      echo "2. 备份 Dify 数据"
+      echo "3. 卸载 Dify"
+      echo "4. 恢复 Dify 数据"
+      read -p "请输入操作编号: " sub_choice
 
-			dify_dir="/home/docker/dify"
-			backup_dir="/home/docker"
-			backup_prefix="dify"
-			docker_compose_dir="${dify_dir}/docker"
-			docker_compose_file="${docker_compose_dir}/docker-compose.yaml"  # 注意是 .yaml 不是 .yml
-			docker_compose_env="${docker_compose_dir}/.env"
-			local_ip=$(hostname -I | awk '{print $1}')
-			ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+      dify_dir="/home/docker/dify"
+      backup_dir="/home/docker"
+      backup_prefix="dify"
+      docker_compose_dir="${dify_dir}/docker"
+      docker_compose_file="${docker_compose_dir}/docker-compose.yaml"  # 注意是 .yaml 不是 .yml
+      docker_compose_env="${docker_compose_dir}/.env"
+      local_ip=$(hostname -I | awk '{print $1}')
+      ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
 
-			case "$sub_choice" in
-				1)
-					mkdir -p /home/docker
-					cd /home/docker || exit
+      case "$sub_choice" in
+        1)
+          mkdir -p /home/docker
+          cd /home/docker || exit
 
-					if [ -d "$dify_dir" ]; then
-						echo "检测到已有 Dify 目录，正在更新代码..."
-						cd "$dify_dir" || exit
-						git pull
-					else
-						echo "正在克隆 Dify 仓库..."
-						git clone https://github.com/langgenius/dify.git
-						cd "$dify_dir" || exit
-					fi
+          if [ -d "$dify_dir" ]; then
+            echo "检测到已有 Dify 目录，正在更新代码..."
+            cd "$dify_dir" || exit
+            git pull
+          else
+            echo "正在克隆 Dify 仓库..."
+            git clone https://github.com/langgenius/dify.git
+            cd "$dify_dir" || exit
+          fi
 
-					cd "$docker_compose_dir" || exit
+          cd "$docker_compose_dir" || exit
 
-					# 复制 .env 配置文件（如果不存在就复制示例）
-					if [ ! -f "$docker_compose_env" ]; then
-						cp -f .env.example "$docker_compose_env"
-					fi
+          # 复制 .env 配置文件（如果不存在就复制示例）
+          if [ ! -f "$docker_compose_env" ]; then
+            cp -f .env.example "$docker_compose_env"
+          fi
 
-					# 修改 .env 文件，设置端口变量为 8058 和 8443
-					sed -i "s/^NGINX_PORT=.*/NGINX_PORT=8058/" "$docker_compose_env"
-					sed -i "s/^NGINX_SSL_PORT=.*/NGINX_SSL_PORT=8443/" "$docker_compose_env"
-					sed -i "s/^EXPOSE_NGINX_PORT=.*/EXPOSE_NGINX_PORT=8058/" "$docker_compose_env"
-					sed -i "s/^EXPOSE_NGINX_SSL_PORT=.*/EXPOSE_NGINX_SSL_PORT=8443/" "$docker_compose_env"
+          # 修改 .env 文件，设置端口变量为 8058 和 8443
+          sed -i "s/^NGINX_PORT=.*/NGINX_PORT=8058/" "$docker_compose_env"
+          sed -i "s/^NGINX_SSL_PORT=.*/NGINX_SSL_PORT=8443/" "$docker_compose_env"
+          sed -i "s/^EXPOSE_NGINX_PORT=.*/EXPOSE_NGINX_PORT=8058/" "$docker_compose_env"
+          sed -i "s/^EXPOSE_NGINX_SSL_PORT=.*/EXPOSE_NGINX_SSL_PORT=8443/" "$docker_compose_env"
 
-					# 确认docker-compose.yaml中ports字段是使用变量映射端口
-					# 这里不修改docker-compose.yaml的端口映射，默认使用环境变量
+          # 确认docker-compose.yaml中ports字段是使用变量映射端口
+          # 这里不修改docker-compose.yaml的端口映射，默认使用环境变量
 
-					echo "启动 Dify 容器..."
-					if docker compose up -d; then
-						echo "------------------------"
-						echo "Dify 安装完成"
-						echo "访问地址: http://${local_ip}:8058"
-						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
-					else
-						echo "Dify 启动失败，请检查 Docker 和网络配置"
-					fi
-					;;
+          echo "启动 Dify 容器..."
+          if docker compose up -d; then
+            echo "------------------------"
+            echo "Dify 安装完成"
+            echo "访问地址: http://${local_ip}:8058"
+            [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
+          else
+            echo "Dify 启动失败，请检查 Docker 和网络配置"
+          fi
+          ;;
 
-				2)
-					if [ -d "$dify_dir" ]; then
-						timestamp=$(date +%Y%m%d%H%M%S)
-						backup_file="${backup_prefix}-${timestamp}.tar.gz"
-						tar -czf "${backup_dir}/${backup_file}" -C "$dify_dir" .
-						echo "备份完成: ${backup_dir}/${backup_file}"
-					else
-						echo "未检测到安装目录，无法备份"
-					fi
-					;;
+        2)
+          if [ -d "$dify_dir" ]; then
+            timestamp=$(date +%Y%m%d%H%M%S)
+            backup_file="${backup_prefix}-${timestamp}.tar.gz"
+            tar -czf "${backup_dir}/${backup_file}" -C "$dify_dir" .
+            echo "备份完成: ${backup_dir}/${backup_file}"
+          else
+            echo "未检测到安装目录，无法备份"
+          fi
+          ;;
 
-				3)
-					read -p "确认卸载 Dify？将删除 /home/docker/dify 目录及所有数据，且停止所有相关容器 [y/N]: " confirm
-					if [[ "$confirm" =~ ^[Yy]$ ]]; then
-						if [ -f "$docker_compose_file" ]; then
-							docker compose -f "$docker_compose_file" down
-						else
-							echo "docker-compose.yaml 文件不存在，跳过停止容器"
-						fi
-						rm -rf "$dify_dir"
-						echo "Dify 已卸载完成"
-					else
-						echo "操作已取消"
-					fi
-					;;
+        3)
+          read -p "确认卸载 Dify？将删除 /home/docker/dify 目录及所有数据，且停止所有相关容器 [y/N]: " confirm
+          if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            if [ -f "$docker_compose_file" ]; then
+              docker compose -f "$docker_compose_file" down
+            else
+              echo "docker-compose.yaml 文件不存在，跳过停止容器"
+            fi
+            rm -rf "$dify_dir"
+            echo "Dify 已卸载完成"
+          else
+            echo "操作已取消"
+          fi
+          ;;
 
-				4)
-					echo "可用备份文件："
-					backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
-					if [ ${#backups[@]} -eq 0 ]; then
-						echo "无可用备份"
-						break
-					fi
+        4)
+          echo "可用备份文件："
+          backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
+          if [ ${#backups[@]} -eq 0 ]; then
+            echo "无可用备份"
+            break
+          fi
 
-					for i in "${!backups[@]}"; do
-						echo "$((i+1)). $(basename ${backups[$i]})"
-					done
-					read -p "请输入备份编号（留空恢复最新）: " sel
+          for i in "${!backups[@]}"; do
+            echo "$((i+1)). $(basename ${backups[$i]})"
+          done
+          read -p "请输入备份编号（留空恢复最新）: " sel
 
-					if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
-						restore_file="${backups[$((sel-1))]}"
-					else
-						restore_file="${backups[0]}"
-					fi
+          if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
+            restore_file="${backups[$((sel-1))]}"
+          else
+            restore_file="${backups[0]}"
+          fi
 
-					echo "恢复自: $(basename $restore_file)"
+          echo "恢复自: $(basename $restore_file)"
 
-					if [ -f "$docker_compose_file" ]; then
-						docker compose -f "$docker_compose_file" down
-					else
-						echo "docker-compose.yaml 文件不存在，跳过停止容器"
-					fi
+          if [ -f "$docker_compose_file" ]; then
+            docker compose -f "$docker_compose_file" down
+          else
+            echo "docker-compose.yaml 文件不存在，跳过停止容器"
+          fi
 
-					rm -rf "$dify_dir"
-					mkdir -p "$dify_dir"
+          rm -rf "$dify_dir"
+          mkdir -p "$dify_dir"
 
-					tar -xzf "$restore_file" -C "$dify_dir"
+          tar -xzf "$restore_file" -C "$dify_dir"
 
-					cd "$docker_compose_dir" || exit
+          cd "$docker_compose_dir" || exit
 
-					echo "启动 Dify 容器..."
-					if docker compose up -d; then
-						echo "------------------------"
-						echo "Dify 已恢复"
-						echo "访问地址: http://${local_ip}:8058"
-						[ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
-					else
-						echo "Dify 启动失败，请检查 Docker 和网络配置"
-					fi
-					;;
+          echo "启动 Dify 容器..."
+          if docker compose up -d; then
+            echo "------------------------"
+            echo "Dify 已恢复"
+            echo "访问地址: http://${local_ip}:8058"
+            [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:8058"
+          else
+            echo "Dify 启动失败，请检查 Docker 和网络配置"
+          fi
+          ;;
 
-				*)
-					echo "无效选项"
-					;;
-			esac
+        *)
+          echo "无效选项"
+          ;;
+      esac
 
-			read -p "按任意键继续..." -n1
-			;;
-		  58)
-		    clear
-		    echo "▶️ 正在下载并启动 caddy 安装脚本..."
-		    caddy_script="/root/caddy.sh"
-		    caddy_script_url="https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh"
-		    if curl -fsSL "$caddy_script_url" -o "$caddy_script"; then
-		      chmod +x "$caddy_script"
-		      bash "$caddy_script"
-		      echo "✅ caddy安装完成，脚本已保存到：$caddy_script"
-		    else
-		      echo "❌ 下载失败：$caddy_script_url"
-		      return 1
-		    fi
-		    ;;
+      read -p "按任意键继续..." -n1
+      ;;
+      58)
+        clear
+        echo "▶️ 正在下载并启动 caddy 安装脚本..."
+        caddy_script="/root/caddy.sh"
+        caddy_script_url="https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddy.sh"
+        if curl -fsSL "$caddy_script_url" -o "$caddy_script"; then
+          chmod +x "$caddy_script"
+          bash "$caddy_script"
+          echo "✅ caddy安装完成，脚本已保存到：$caddy_script"
+        else
+          echo "❌ 下载失败：$caddy_script_url"
+          return 1
+        fi
+        ;;
 
 
   59)
@@ -9326,65 +9326,65 @@ EOF
 
 
 
-		  61) 
-			clear
-			echo "🔄 更新系统..."
-			apt update -y && apt upgrade -y
+      61) 
+      clear
+      echo "🔄 更新系统..."
+      apt update -y && apt upgrade -y
 
-			echo "📦 安装 unzip 和 npm..."
-			apt install -y unzip npm
+      echo "📦 安装 unzip 和 npm..."
+      apt install -y unzip npm
 
-			INSTALL_DIR="/root/rustdesk"
-			DOWNLOAD_URL="https://github.com/rustdesk/rustdesk-server/releases/download/1.1.14/rustdesk-server-linux-amd64.zip"
-			TMP_DIR="/root/rustdesk"
+      INSTALL_DIR="/root/rustdesk"
+      DOWNLOAD_URL="https://github.com/rustdesk/rustdesk-server/releases/download/1.1.14/rustdesk-server-linux-amd64.zip"
+      TMP_DIR="/root/rustdesk"
 
-			echo "🗑 删除旧版本目录..."
-			rm -rf $INSTALL_DIR
-			mkdir -p $INSTALL_DIR
+      echo "🗑 删除旧版本目录..."
+      rm -rf $INSTALL_DIR
+      mkdir -p $INSTALL_DIR
 
-			echo "🌐 下载 RustDesk Server..."
-			wget -O $TMP_DIR/rustdesk.zip "$DOWNLOAD_URL" || { echo "❌ 下载失败，检查链接或网络。"; exit 1; }
+      echo "🌐 下载 RustDesk Server..."
+      wget -O $TMP_DIR/rustdesk.zip "$DOWNLOAD_URL" || { echo "❌ 下载失败，检查链接或网络。"; exit 1; }
 
-			echo "📂 解压到 $INSTALL_DIR ..."
-			unzip -o $TMP_DIR/rustdesk.zip -d $INSTALL_DIR || { echo "❌ 解压失败。"; exit 1; }
+      echo "📂 解压到 $INSTALL_DIR ..."
+      unzip -o $TMP_DIR/rustdesk.zip -d $INSTALL_DIR || { echo "❌ 解压失败。"; exit 1; }
 
-			# 检查解压后的目录结构
-			if [ ! -d "$INSTALL_DIR/amd64" ]; then
-				echo "❌ 解压后的目录结构不正确，未找到 /root/rustdesk/amd64"
-				exit 1
-			fi
+      # 检查解压后的目录结构
+      if [ ! -d "$INSTALL_DIR/amd64" ]; then
+        echo "❌ 解压后的目录结构不正确，未找到 /root/rustdesk/amd64"
+        exit 1
+      fi
 
-			echo "📦 安装 PM2..."
-			npm install -g pm2 || { echo "❌ 安装 PM2 失败。"; exit 1; }
+      echo "📦 安装 PM2..."
+      npm install -g pm2 || { echo "❌ 安装 PM2 失败。"; exit 1; }
 
-			echo "🚀 启动 hbbs / hbbr ..."
-			cd $INSTALL_DIR/amd64 || { echo "❌ 进入 RustDesk 目录失败。"; exit 1; }
+      echo "🚀 启动 hbbs / hbbr ..."
+      cd $INSTALL_DIR/amd64 || { echo "❌ 进入 RustDesk 目录失败。"; exit 1; }
 
-			pm2 delete hbbs >/dev/null 2>&1 || true
-			pm2 delete hbbr >/dev/null 2>&1 || true
+      pm2 delete hbbs >/dev/null 2>&1 || true
+      pm2 delete hbbr >/dev/null 2>&1 || true
 
-			pm2 start hbbs || { echo "❌ 启动 hbbs 失败。"; exit 1; }
-			pm2 start hbbr || { echo "❌ 启动 hbbr 失败。"; exit 1; }
+      pm2 start hbbs || { echo "❌ 启动 hbbs 失败。"; exit 1; }
+      pm2 start hbbr || { echo "❌ 启动 hbbr 失败。"; exit 1; }
 
-			echo "🧷 设置 PM2 开机启动..."
-			pm2 startup || { echo "❌ 设置 PM2 开机启动失败。"; exit 1; }
-			pm2 save || { echo "❌ 保存 PM2 配置失败。"; exit 1; }
+      echo "🧷 设置 PM2 开机启动..."
+      pm2 startup || { echo "❌ 设置 PM2 开机启动失败。"; exit 1; }
+      pm2 save || { echo "❌ 保存 PM2 配置失败。"; exit 1; }
 
-			echo "====================================="
-			echo "🎉 RustDesk Server 安装成功！"
-			echo "📌 安装目录：$INSTALL_DIR"
-			echo "📌 程序目录：$INSTALL_DIR/amd64"
-			echo "🚀 hbbs / hbbr 已启动并开机自启"
-			echo "====================================="
+      echo "====================================="
+      echo "🎉 RustDesk Server 安装成功！"
+      echo "📌 安装目录：$INSTALL_DIR"
+      echo "📌 程序目录：$INSTALL_DIR/amd64"
+      echo "🚀 hbbs / hbbr 已启动并开机自启"
+      echo "====================================="
 
-			# 放行端口 21115-21119/tcp 和 21116/udp
-			echo "🔓 放行 RustDesk 所需的端口..."
-			sudo ufw allow 21115:21119/tcp
-			sudo ufw allow 21116/udp
-			sudo ufw reload
+      # 放行端口 21115-21119/tcp 和 21116/udp
+      echo "🔓 放行 RustDesk 所需的端口..."
+      sudo ufw allow 21115:21119/tcp
+      sudo ufw allow 21116/udp
+      sudo ufw reload
 
-			echo "⚡ 防火墙规则已更新，允许 RustDesk 所需的端口。"
-		  ;;
+      echo "⚡ 防火墙规则已更新，允许 RustDesk 所需的端口。"
+      ;;
 
 
 62)
@@ -9608,28 +9608,28 @@ endpoint =存储桶访问地址"
 
     docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载，自动跟随宿主机时区"
     docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest
-	添加仓库Repository URI具体如下
-	rclone:添加的名称:存储桶名称
-	rclone:r2:beifen"
+  添加仓库Repository URI具体如下
+  rclone:添加的名称:存储桶名称
+  rclone:r2:beifen"
 
     docker_use=""
     docker_passwd=""
     docker_app
 ;;
 
-		  65)
-		    clear
-		    echo "▶️ 正在启动caddy DNS版 安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhi.sh)
-		    echo "✅ caddy DNS版 安装完成。"
-		    ;;
+      65)
+        clear
+        echo "▶️ 正在启动caddy DNS版 安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhi.sh)
+        echo "✅ caddy DNS版 安装完成。"
+        ;;
 
-		  66)
-		    clear
-		    echo "▶️ 正在启动caddy DNS配置版..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhipeizhiwenjian.sh)
-		    echo "✅ caddy DNS配置版 。"
-		    ;;
+      66)
+        clear
+        echo "▶️ 正在启动caddy DNS配置版..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/anzhuangcaddydnspeizhipeizhiwenjian.sh)
+        echo "✅ caddy DNS配置版 。"
+        ;;
 
 
 
@@ -9673,79 +9673,79 @@ endpoint =存储桶访问地址"
 
 
 
-		  68)
-		    clear
-		    echo "▶️ 安装M38u8..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/m3u8xiazai.sh)
-		    echo "✅ 安装M38u8完成 。"
-		    ;;
+      68)
+        clear
+        echo "▶️ 安装M38u8..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/m3u8xiazai.sh)
+        echo "✅ 安装M38u8完成 。"
+        ;;
 
-	  69)
-	      docker_name="it-tools"
-	      docker_img="corentinth/it-tools:latest"
-	      docker_port=8064
-	      docker_rum="docker run -d \
-	                      --name it-tools \
-	                      --restart always \
-	                      -p ${docker_port}:80 \
-	                      -v /home/docker/it-tools/data:/data \
-	                      ${docker_img}"
-	      docker_describe="对开发人员和 IT 工作者来说非常有用的工具"
-	      docker_url="官网介绍: https://github.com/CorentinTh/it-tools"
-	      docker_use=""
-	      docker_passwd=""
-	      docker_app
-	  ;;
-
-
-
-	  70)
-	      docker_name="pansou"
-	      docker_img="ghcr.io/fish2018/pansou-web"
-	      docker_port=8107
-	      docker_rum="docker run -d \
-	                      --name pansou \
-	                      --restart always \
-	                      -p ${docker_port}:80 \
-	                      -v /home/docker/pansou/data:/app/data \
-	                      -v /home/docker/pansou/logs:/app/logs \
-	                      -e ENABLED_PLUGINS=hunhepan,jikepan,panwiki,pansearch,panta,qupansou,susu,thepiratebay,wanou,xuexizhinan,panyq,zhizhen,labi,muou,ouge,shandian,duoduo,huban,cyg,erxiao,miaoso,fox4k,pianku,clmao,wuji,cldi,xiaozhang,libvio,leijing,xb6v,xys,ddys,hdmoli,yuhuage,u3c3,javdb,clxiong,jutoushe,sdso,xiaoji,xdyh,haisou,bixin,djgou,nyaa,xinjuc,aikanzy,qupanshe,xdpan,discourse,yunsou,ahhhhfs,nsgame,gying \
-	                      ${docker_img}"
-	      docker_describe="PanSou 是一个高性能的网盘资源搜索 API 服务。"
-	      docker_url="官网介绍: https://github.com/fish2018/pansou"
-	      docker_use=""
-	      docker_passwd=""
-	      docker_app
-	  ;;
+    69)
+        docker_name="it-tools"
+        docker_img="corentinth/it-tools:latest"
+        docker_port=8064
+        docker_rum="docker run -d \
+                        --name it-tools \
+                        --restart always \
+                        -p ${docker_port}:80 \
+                        -v /home/docker/it-tools/data:/data \
+                        ${docker_img}"
+        docker_describe="对开发人员和 IT 工作者来说非常有用的工具"
+        docker_url="官网介绍: https://github.com/CorentinTh/it-tools"
+        docker_use=""
+        docker_passwd=""
+        docker_app
+    ;;
 
 
 
-	  71)
-	      docker_name="zfile"
-	      docker_img="zhaojun1998/zfile:latest"
-	      docker_port=8109
-	      docker_rum="docker run -d \
-	                      --name zfile \
-	                      --restart always \
-	                      -p ${docker_port}:8080 \
-	                      -v /home/docker/zfile/db:/root/.zfile-v4/db \
-	                      -v /home/docker/zfile/logs:/root/.zfile-v4/logs \
-	                      -v /home/docker/zfile/file:/data/file \
-	                      -v /home/docker/zfile/application.properties:/root/.zfile-v4/application.properties \
-	                      ${docker_img}"
-	      docker_describe="是一个适用于个人或小团队的在线网盘程序。"
-	      docker_url="官网介绍: https://github.com/zfile-dev/zfile"
-	      docker_use=""
-	      docker_passwd=""
-	      docker_app
-	  ;;
+    70)
+        docker_name="pansou"
+        docker_img="ghcr.io/fish2018/pansou-web"
+        docker_port=8107
+        docker_rum="docker run -d \
+                        --name pansou \
+                        --restart always \
+                        -p ${docker_port}:80 \
+                        -v /home/docker/pansou/data:/app/data \
+                        -v /home/docker/pansou/logs:/app/logs \
+                        -e ENABLED_PLUGINS=hunhepan,jikepan,panwiki,pansearch,panta,qupansou,susu,thepiratebay,wanou,xuexizhinan,panyq,zhizhen,labi,muou,ouge,shandian,duoduo,huban,cyg,erxiao,miaoso,fox4k,pianku,clmao,wuji,cldi,xiaozhang,libvio,leijing,xb6v,xys,ddys,hdmoli,yuhuage,u3c3,javdb,clxiong,jutoushe,sdso,xiaoji,xdyh,haisou,bixin,djgou,nyaa,xinjuc,aikanzy,qupanshe,xdpan,discourse,yunsou,ahhhhfs,nsgame,gying \
+                        ${docker_img}"
+        docker_describe="PanSou 是一个高性能的网盘资源搜索 API 服务。"
+        docker_url="官网介绍: https://github.com/fish2018/pansou"
+        docker_use=""
+        docker_passwd=""
+        docker_app
+    ;;
 
-		  72)
-		    clear
-		    echo "▶️ 安装discourse论坛..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/discourse.sh)
-		    echo "✅ 安装discourse论坛 。"
-		    ;;
+
+
+    71)
+        docker_name="zfile"
+        docker_img="zhaojun1998/zfile:latest"
+        docker_port=8109
+        docker_rum="docker run -d \
+                        --name zfile \
+                        --restart always \
+                        -p ${docker_port}:8080 \
+                        -v /home/docker/zfile/db:/root/.zfile-v4/db \
+                        -v /home/docker/zfile/logs:/root/.zfile-v4/logs \
+                        -v /home/docker/zfile/file:/data/file \
+                        -v /home/docker/zfile/application.properties:/root/.zfile-v4/application.properties \
+                        ${docker_img}"
+        docker_describe="是一个适用于个人或小团队的在线网盘程序。"
+        docker_url="官网介绍: https://github.com/zfile-dev/zfile"
+        docker_use=""
+        docker_passwd=""
+        docker_app
+    ;;
+
+      72)
+        clear
+        echo "▶️ 安装discourse论坛..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/discourse.sh)
+        echo "✅ 安装discourse论坛 。"
+        ;;
 
 
 73)
@@ -9775,12 +9775,12 @@ endpoint =存储桶访问地址"
 ;;
 
 
-		  74)
-		    clear
-		    echo "▶️ 安装minio..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/minlo.sh)
-		    echo "✅ 安装minio..."
-		    ;;
+      74)
+        clear
+        echo "▶️ 安装minio..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/minlo.sh)
+        echo "✅ 安装minio..."
+        ;;
 
 
 
@@ -9863,22 +9863,22 @@ docker_app
 
 
 
-		  77)
-		    clear
-		    echo "▶️ 全部caddy与nginx邮箱安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginxcaddy.sh)
-		    echo "✅ caddy与nginx邮箱安装完成..."
-		    ;;
+      77)
+        clear
+        echo "▶️ 全部caddy与nginx邮箱安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailnginxcaddy.sh)
+        echo "✅ caddy与nginx邮箱安装完成..."
+        ;;
 
 
 
 
-		  78)
-		    clear
-		    echo "▶️ mailcow-dockerized邮箱安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailcaddy.sh)
-		    echo "✅ mailcow-dockerized邮箱安装完成..."
-		    ;;
+      78)
+        clear
+        echo "▶️ mailcow-dockerized邮箱安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/mailcaddy.sh)
+        echo "✅ mailcow-dockerized邮箱安装完成..."
+        ;;
 
 
 
@@ -10660,7 +10660,7 @@ endpoint = $rc_endpoint
 EOF
                     echo "✅ 配置已写入 /root/.config/rclone/rclone.conf"
                     read -p "回车继续..." ;;
-				23) nano /root/.config/rclone/rclone.conf ;;
+        23) nano /root/.config/rclone/rclone.conf ;;
                 24) rclone listremotes; read -p "回车继续..." ;;
                 25) create_backup_job "s3beifen.sh" ;;
                 26) create_backup_job "s3beifen1.sh" ;;
@@ -12078,40 +12078,40 @@ while true; do
 done
 ;;
 
-		  90)
-		    clear
-		    echo "▶️ 正在启动btcpayserver-docker安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/btcpayserver-docker.sh)
-		    echo "✅ btcpayserver-docker安装完成。"
-		    ;;
+      90)
+        clear
+        echo "▶️ 正在启动btcpayserver-docker安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/btcpayserver-docker.sh)
+        echo "✅ btcpayserver-docker安装完成。"
+        ;;
 
-		  91)
-		    clear
-		    echo "▶️ 正在启动谷歌自动浏览..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongliulan.sh)
-		    echo "✅ 谷歌自动浏览安装完成。"
-		    ;;
+      91)
+        clear
+        echo "▶️ 正在启动谷歌自动浏览..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongliulan.sh)
+        echo "✅ 谷歌自动浏览安装完成。"
+        ;;
 
-		  92)
-		    clear
-		    echo "▶️ 正在启动CLIProxyAPI安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/CLIProxyAPI.sh)
-		    echo "✅ CLIProxyAPI安装完成。"
-		    ;;
+      92)
+        clear
+        echo "▶️ 正在启动CLIProxyAPI安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/CLIProxyAPI.sh)
+        echo "✅ CLIProxyAPI安装完成。"
+        ;;
 
-		  93)
-		    clear
-		    echo "▶️ 正在启动Sub2API安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Sub2API.sh)
-		    echo "✅ Sub2API安装完成。"
-		    ;;
+      93)
+        clear
+        echo "▶️ 正在启动Sub2API安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Sub2API.sh)
+        echo "✅ Sub2API安装完成。"
+        ;;
 
-		  94)
-		    clear
-		    echo "▶️ 正在启动Openclaw安装..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh)
-		    echo "✅ Openclaw安装完成。"
-		    ;;
+      94)
+        clear
+        echo "▶️ 正在启动Openclaw安装..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh)
+        echo "✅ Openclaw安装完成。"
+        ;;
 
 95)
     docker_name="open-webui"
@@ -12279,32 +12279,30 @@ EOF
 ;;
 
 
-		  97)
-		    clear
-		    echo "▶️ 安装IP白名单模式..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/k/myip.sh)
-		    echo "✅ 安装IP白名单模式..."
-		    ;;
+      97)
+        clear
+        echo "▶️ 安装IP白名单模式..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/k/myip.sh)
+        echo "✅ 安装IP白名单模式..."
+        ;;
 
-		  98)
-		    clear
-		    echo "▶️ 安装谷歌浏览器..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/chromium.sh)
-		    echo "✅ 谷歌浏览器安装成功..."
-		    ;;
+      98)
+        clear
+        echo "▶️ 安装谷歌浏览器..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/chromium.sh)
+        echo "✅ 谷歌浏览器安装成功..."
+        ;;
 
-		  99)
-		    clear
-		    echo "▶️ 安装hermes-agent..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh)
-		    echo "✅ hermes-agent安装成功..."
-		    ;;
+      99)
+        clear
+        echo "▶️ 安装hermes-agent..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh)
+        echo "✅ hermes-agent安装成功..."
+        ;;
 
-		  100)
-		    caddy_docker_manager
-		    ;;
-
-
+      100)
+        caddy_docker_manager
+        ;;
 
 
 
@@ -12327,566 +12325,568 @@ EOF
 
 
 
-		  990)
-			linux_app_ports
-			;;
 
-		  996)
 
-			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
-			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
-			grep -q '127.0.0.1 dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 dl.goedge.cloud" >> /etc/hosts
-			grep -q '127.0.0.1 dl.goedge.cn' /etc/hosts || echo "127.0.0.1 dl.goedge.cn" >> /etc/hosts
-			grep -q '127.0.0.1 global.dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cloud" >> /etc/hosts
-			grep -q '127.0.0.1 global.dl.goedge.cn' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cn" >> /etc/hosts
-			grep -q '::1 goedge.cloud' /etc/hosts || echo "::1 goedge.cloud" >> /etc/hosts
-			grep -q '::1 goedge.cn' /etc/hosts || echo "::1 goedge.cn" >> /etc/hosts
-			grep -q '::1 dl.goedge.cloud' /etc/hosts || echo "::1 dl.goedge.cloud" >> /etc/hosts
-			grep -q '::1 dl.goedge.cn' /etc/hosts || echo "::1 dl.goedge.cn" >> /etc/hosts
-			grep -q '::1 global.dl.goedge.cloud' /etc/hosts || echo "::1 global.dl.goedge.cloud" >> /etc/hosts
-			grep -q '::1 global.dl.goedge.cn' /etc/hosts || echo "::1 global.dl.goedge.cn" >> /etc/hosts
+      990)
+      linux_app_ports
+      ;;
 
-			# 创建安装目录
-			if [ ! -d /home/cdn ]; then
-				mkdir -p /home/cdn > /dev/null 2>&1
-			fi
+      996)
+
+      grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
+      grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
+      grep -q '127.0.0.1 dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 dl.goedge.cloud" >> /etc/hosts
+      grep -q '127.0.0.1 dl.goedge.cn' /etc/hosts || echo "127.0.0.1 dl.goedge.cn" >> /etc/hosts
+      grep -q '127.0.0.1 global.dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cloud" >> /etc/hosts
+      grep -q '127.0.0.1 global.dl.goedge.cn' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cn" >> /etc/hosts
+      grep -q '::1 goedge.cloud' /etc/hosts || echo "::1 goedge.cloud" >> /etc/hosts
+      grep -q '::1 goedge.cn' /etc/hosts || echo "::1 goedge.cn" >> /etc/hosts
+      grep -q '::1 dl.goedge.cloud' /etc/hosts || echo "::1 dl.goedge.cloud" >> /etc/hosts
+      grep -q '::1 dl.goedge.cn' /etc/hosts || echo "::1 dl.goedge.cn" >> /etc/hosts
+      grep -q '::1 global.dl.goedge.cloud' /etc/hosts || echo "::1 global.dl.goedge.cloud" >> /etc/hosts
+      grep -q '::1 global.dl.goedge.cn' /etc/hosts || echo "::1 global.dl.goedge.cn" >> /etc/hosts
+
+      # 创建安装目录
+      if [ ! -d /home/cdn ]; then
+        mkdir -p /home/cdn > /dev/null 2>&1
+      fi
    
-			if [ ! -d /home/cdn/备份 ]; then
-				mkdir -p /home/cdn/备份 > /dev/null 2>&1
-			fi
+      if [ ! -d /home/cdn/备份 ]; then
+        mkdir -p /home/cdn/备份 > /dev/null 2>&1
+      fi
 
-			# 下载并解压 edge-admin 到 /home/cdn
-			wget -O /home/cdn/edge-admin.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.3.9/edge-admin-linux-amd64-plus-v1.3.9.zip > /dev/null 2>&1
-			unzip -o /home/cdn/edge-admin.zip -d /home/cdn/ > /dev/null 2>&1
+      # 下载并解压 edge-admin 到 /home/cdn
+      wget -O /home/cdn/edge-admin.zip https://github.com/zaixiangjian/ziyongcdn/releases/download/1.3.9/edge-admin-linux-amd64-plus-v1.3.9.zip > /dev/null 2>&1
+      unzip -o /home/cdn/edge-admin.zip -d /home/cdn/ > /dev/null 2>&1
 
 
-			# 赋予执行权限
-			chmod +x /home/cdn/edge-admin/bin/edge-admin
+      # 赋予执行权限
+      chmod +x /home/cdn/edge-admin/bin/edge-admin
 
-			# 启动 edge-admin 后台服务（无日志输出）
-			nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
+      # 启动 edge-admin 后台服务（无日志输出）
+      nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &
 
-			# 添加开机自启
-			crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
-				(crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
-			)
+      # 添加开机自启
+      crontab -l 2>/dev/null | grep -q '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &' || (
+        (crontab -l 2>/dev/null; echo '@reboot sleep 10 && nohup /home/cdn/edge-admin/bin/edge-admin start > /dev/null 2>&1 &') | crontab -
+      )
 
-			# 安装 MariaDB
-			apt update > /dev/null 2>&1
-			DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
+      # 安装 MariaDB
+      apt update > /dev/null 2>&1
+      DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
 
-			# 修改 MariaDB 配置，监听 7789 端口
-			sed -i '/^\[mysqld\]/a port=7789' /etc/mysql/mariadb.conf.d/50-server.cnf
+      # 修改 MariaDB 配置，监听 7789 端口
+      sed -i '/^\[mysqld\]/a port=7789' /etc/mysql/mariadb.conf.d/50-server.cnf
 
-			# 重启并设置开机启动
-			systemctl restart mariadb
-			systemctl enable mariadb
+      # 重启并设置开机启动
+      systemctl restart mariadb
+      systemctl enable mariadb
 
-			# 生成随机 root 密码
-			root_pass="RootPass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
+      # 生成随机 root 密码
+      root_pass="RootPass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
 
-			# 设置 root 密码
-			mysql -uroot <<EOF
+      # 设置 root 密码
+      mysql -uroot <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_pass}';
 FLUSH PRIVILEGES;
 EOF
 
-			# 创建数据库名和用户及密码
-			db_name="edge_admin"
-			db_user="edge_admin"
-			db_pass="EdgePass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
+      # 创建数据库名和用户及密码
+      db_name="edge_admin"
+      db_user="edge_admin"
+      db_pass="EdgePass$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)"
 
-			# 创建数据库及用户
-			mysql -uroot -p"${root_pass}" <<EOF
+      # 创建数据库及用户
+      mysql -uroot -p"${root_pass}" <<EOF
 CREATE DATABASE IF NOT EXISTS \`${db_name}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';
 GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 
-			# 输出安装信息
-			clear
-			echo "edge-admin 已安装完成"
-			echo "-----------------------------------"
-			echo "MySQL root密码: $root_pass"
-			echo "数据库名称: $db_name"
-			echo "数据库用户名: $db_user"
-			echo "数据库密码: $db_pass"
-			echo "数据库端口: 7789"
+      # 输出安装信息
+      clear
+      echo "edge-admin 已安装完成"
+      echo "-----------------------------------"
+      echo "MySQL root密码: $root_pass"
+      echo "数据库名称: $db_name"
+      echo "数据库用户名: $db_user"
+      echo "数据库密码: $db_pass"
+      echo "数据库端口: 7789"
 
-			local_ip=$(hostname -I | awk '{print $1}')
-			echo "edge-admin 访问地址: http://$local_ip:7788"
-			echo "-----------------------------------"
-			echo "请使用以上数据库信息完成 edge-admin 安装配置页面填写"
-			echo "-----------------------------------"
-			echo "激活商业版"
-			echo "F4BuVYEKSDWV+I13ISd5NUyBcWOlH0af4/ow9obzYBS3XvYC9IsK86k5UDyyBv9vqJWN2/FQTDbPyuAO0zxYlkLDC0c8rrShs+7PAkqM0O8wBIGknzForgidDZahky5Lo/ZWaPZ1dVFUxmV29ykb0I0b4tv7Q3OtnTylOuzf//MYrlvyw6VJQMGnsttmeHzsNL/r0yDONOEXZoGoLZsuBKnkfXt+qt6bZF+kM1ncbh+sY42BrPTWQ12sXqJS3qHlzU0FFl9lTNzLGYYhq5vi/4sJuPVE50/uLCtslTJdb9zOGR915hnM+jHYsR+jUk0QxOqtreaHpsvNuLkexXbkmA=="
-			echo "------------------------"
-			echo "1. 安装            2. 更新            3. 卸载"
-			echo "------------------------"
-			echo "0. 返回上一级"
-			echo "------------------------"
-			echo -n "请输入你的选择: "
+      local_ip=$(hostname -I | awk '{print $1}')
+      echo "edge-admin 访问地址: http://$local_ip:7788"
+      echo "-----------------------------------"
+      echo "请使用以上数据库信息完成 edge-admin 安装配置页面填写"
+      echo "-----------------------------------"
+      echo "激活商业版"
+      echo "F4BuVYEKSDWV+I13ISd5NUyBcWOlH0af4/ow9obzYBS3XvYC9IsK86k5UDyyBv9vqJWN2/FQTDbPyuAO0zxYlkLDC0c8rrShs+7PAkqM0O8wBIGknzForgidDZahky5Lo/ZWaPZ1dVFUxmV29ykb0I0b4tv7Q3OtnTylOuzf//MYrlvyw6VJQMGnsttmeHzsNL/r0yDONOEXZoGoLZsuBKnkfXt+qt6bZF+kM1ncbh+sY42BrPTWQ12sXqJS3qHlzU0FFl9lTNzLGYYhq5vi/4sJuPVE50/uLCtslTJdb9zOGR915hnM+jHYsR+jUk0QxOqtreaHpsvNuLkexXbkmA=="
+      echo "------------------------"
+      echo "1. 安装            2. 更新            3. 卸载"
+      echo "------------------------"
+      echo "0. 返回上一级"
+      echo "------------------------"
+      echo -n "请输入你的选择: "
 
-			exit 0
-		  ;;
-
-
-		  997)
-			clear
-			send_stats "PVE开小鸡"
-			curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
-		  ;;
+      exit 0
+      ;;
 
 
-		  998)
-			echo "正在添加本地 hosts 解析..."
-			grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
-			grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
-			grep -q '127.0.0.1 dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 dl.goedge.cloud" >> /etc/hosts
-			grep -q '127.0.0.1 dl.goedge.cn' /etc/hosts || echo "127.0.0.1 dl.goedge.cn" >> /etc/hosts
-			grep -q '127.0.0.1 global.dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cloud" >> /etc/hosts
-			grep -q '127.0.0.1 global.dl.goedge.cn' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cn" >> /etc/hosts
-			grep -q '::1 goedge.cloud' /etc/hosts || echo "::1 goedge.cloud" >> /etc/hosts
-			grep -q '::1 goedge.cn' /etc/hosts || echo "::1 goedge.cn" >> /etc/hosts
-			grep -q '::1 dl.goedge.cloud' /etc/hosts || echo "::1 dl.goedge.cloud" >> /etc/hosts
-			grep -q '::1 dl.goedge.cn' /etc/hosts || echo "::1 dl.goedge.cn" >> /etc/hosts
-			grep -q '::1 global.dl.goedge.cloud' /etc/hosts || echo "::1 global.dl.goedge.cloud" >> /etc/hosts
-			grep -q '::1 global.dl.goedge.cn' /etc/hosts || echo "::1 global.dl.goedge.cn" >> /etc/hosts
-			echo "=== /etc/hosts 当前内容 ==="
-			cat /etc/hosts
-
-			echo ""
-			echo "请选择操作："
-			echo "1. 备份 edge-admin 和数据库"
-			echo "2. 恢复 edge-admin 和数据库（可选版本）"
-			echo "3. 卸载 edge-admin 和数据库"
-   			echo "-----------------------------------"
-			echo "激活商业版"
-			echo "F4BuVYEKSDWV+I13ISd5NUyBcWOlH0af4/ow9obzYBS3XvYC9IsK86k5UDyyBv9vqJWN2/FQTDbPyuAO0zxYlkLDC0c8rrShs+7PAkqM0O8wBIGknzForgidDZahky5Lo/ZWaPZ1dVFUxmV29ykb0I0b4tv7Q3OtnTylOuzf//MYrlvyw6VJQMGnsttmeHzsNL/r0yDONOEXZoGoLZsuBKnkfXt+qt6bZF+kM1ncbh+sY42BrPTWQ12sXqJS3qHlzU0FFl9lTNzLGYYhq5vi/4sJuPVE50/uLCtslTJdb9zOGR915hnM+jHYsR+jUk0QxOqtreaHpsvNuLkexXbkmA=="
-			echo "------------------------"
-			read -p "请输入选项 [1-3]: " action
-
-			base_dir="/home/cdn"
-			backup_dir="${base_dir}/备份"
-			mkdir -p "$backup_dir"
-
-			if [ "$action" = "1" ]; then
-				timestamp=$(date +"%Y%m%d%H%M%S")
-				program_tar="${backup_dir}/edge-${timestamp}.tar.gz"
-				db_tar="${backup_dir}/mariadb-${timestamp}.tar.gz"
-
-				echo "📦 开始备份 edge-admin 程序..."
-				tar czf "$program_tar" -C /home/cdn edge-admin
-
-				echo "📦 开始备份 MariaDB 数据库..."
-				systemctl stop mariadb
-				tar czf "$db_tar" -C /var/lib mysql
-				systemctl start mariadb
-
-				echo "🧹 保留最新的 3 个程序和数据库备份..."
-				ls -tp "$backup_dir"/edge-*.tar.gz 2>/dev/null | grep -v '/$' | tail -n +4 | xargs -r rm -f
-				ls -tp "$backup_dir"/mariadb-*.tar.gz 2>/dev/null | grep -v '/$' | tail -n +4 | xargs -r rm -f
-
-				echo "✅ 已完成备份："
-				echo "程序：$program_tar"
-				echo "数据库：$db_tar"
-				exit 0
-
-			elif [ "$action" = "2" ]; then
-				# edge-admin 备份选择
-				echo ""
-				echo "📂 当前可用 edge-admin 备份："
-				ls "$backup_dir"/edge-*.tar.gz 2>/dev/null | nl
-				echo ""
-				read -p "请输入要恢复的 edge-admin 版本编号（回车恢复最新）: " edge_index
-
-				edge_list=( $(ls -t "$backup_dir"/edge-*.tar.gz 2>/dev/null) )
-				if [ -z "${edge_list[0]}" ]; then
-					echo "❌ 找不到 edge-admin 备份文件"
-					exit 1
-				fi
-				if [[ -z "$edge_index" ]]; then
-					program_tar="${edge_list[0]}"
-				else
-					index=$((edge_index - 1))
-					program_tar="${edge_list[$index]}"
-				fi
-
-				# mariadb 备份选择
-				echo ""
-				echo "📂 当前可用 mysql 备份："
-				ls "$backup_dir"/mariadb-*.tar.gz 2>/dev/null | nl
-				echo ""
-				read -p "请输入要恢复的 mysql 版本编号（回车恢复最新）: " db_index
-
-				db_list=( $(ls -t "$backup_dir"/mariadb-*.tar.gz 2>/dev/null) )
-				if [ -z "${db_list[0]}" ]; then
-					echo "❌ 找不到 mysql 备份文件"
-					exit 1
-				fi
-				if [[ -z "$db_index" ]]; then
-					db_tar="${db_list[0]}"
-				else
-					index=$((db_index - 1))
-					db_tar="${db_list[$index]}"
-				fi
-
-				echo "🔄 正在恢复："
-				echo "程序备份：$program_tar"
-				echo "数据库备份：$db_tar"
-
-				apt update > /dev/null 2>&1
-				DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
-				sed -i '/^\[mysqld\]/a port=7789' /etc/mysql/mariadb.conf.d/50-server.cnf
-
-				systemctl stop mariadb
-				rm -rf /var/lib/mysql
-				tar xzf "$db_tar" -C /var/lib
-				chown -R mysql:mysql /var/lib/mysql
-
-				# 恢复完毕后重启数据库
-				systemctl restart mariadb
-				systemctl enable mariadb
-
-				rm -rf "$base_dir/edge-admin"
-				tar xzf "$program_tar" -C "$base_dir"
-
-				# 启动 edge-admin
-				nohup "$base_dir/edge-admin/bin/edge-admin" start > /dev/null 2>&1 &
-
-				# 设置开机自启
-				crontab -l 2>/dev/null | grep -q "edge-admin/bin/edge-admin start" || (
-					(crontab -l 2>/dev/null; echo "@reboot sleep 10 && nohup $base_dir/edge-admin/bin/edge-admin start > /dev/null 2>&1 &") | crontab -
-				)
-
-				clear
-				echo "✅ 恢复完成"
-				local_ip=$(hostname -I | awk '{print $1}')
-				echo "edge-admin 访问地址: http://$local_ip:7788"
-				exit 0
-
-			elif [ "$action" = "3" ]; then
-				systemctl stop mariadb
-				systemctl disable mariadb
-				apt purge -y mariadb-server mariadb-common > /dev/null 2>&1
-				apt autoremove -y > /dev/null 2>&1
-				rm -rf /var/lib/mysql /etc/mysql
-				rm -rf "$base_dir/edge-admin"
-				crontab -l | grep -v 'edge-admin' | crontab -
-				echo "✅ edge-admin 与数据库已卸载"
-				exit 0
-
-			else
-				echo "❌ 输入无效"
-				exit 1
-			fi
-		  ;;
+      997)
+      clear
+      send_stats "PVE开小鸡"
+      curl -L ${gh_proxy}https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/install_pve.sh -o install_pve.sh && chmod +x install_pve.sh && bash install_pve.sh
+      ;;
 
 
+      998)
+      echo "正在添加本地 hosts 解析..."
+      grep -q '127.0.0.1 goedge.cloud' /etc/hosts || echo "127.0.0.1 goedge.cloud" >> /etc/hosts
+      grep -q '127.0.0.1 goedge.cn' /etc/hosts || echo "127.0.0.1 goedge.cn" >> /etc/hosts
+      grep -q '127.0.0.1 dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 dl.goedge.cloud" >> /etc/hosts
+      grep -q '127.0.0.1 dl.goedge.cn' /etc/hosts || echo "127.0.0.1 dl.goedge.cn" >> /etc/hosts
+      grep -q '127.0.0.1 global.dl.goedge.cloud' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cloud" >> /etc/hosts
+      grep -q '127.0.0.1 global.dl.goedge.cn' /etc/hosts || echo "127.0.0.1 global.dl.goedge.cn" >> /etc/hosts
+      grep -q '::1 goedge.cloud' /etc/hosts || echo "::1 goedge.cloud" >> /etc/hosts
+      grep -q '::1 goedge.cn' /etc/hosts || echo "::1 goedge.cn" >> /etc/hosts
+      grep -q '::1 dl.goedge.cloud' /etc/hosts || echo "::1 dl.goedge.cloud" >> /etc/hosts
+      grep -q '::1 dl.goedge.cn' /etc/hosts || echo "::1 dl.goedge.cn" >> /etc/hosts
+      grep -q '::1 global.dl.goedge.cloud' /etc/hosts || echo "::1 global.dl.goedge.cloud" >> /etc/hosts
+      grep -q '::1 global.dl.goedge.cn' /etc/hosts || echo "::1 global.dl.goedge.cn" >> /etc/hosts
+      echo "=== /etc/hosts 当前内容 ==="
+      cat /etc/hosts
 
-		999)
-			show_installed_webtop(){
-			  local installed=0
-			  echo "---------------------------------------------"
-			  for i in {1..24}; do
-			    case $i in
-			      1) name="webtop-ubuntu-kde";  img="lscr.io/linuxserver/webtop:ubuntu-kde"; port=3001; intro="资源占用高，KDE桌面，完整桌面体验";;
-			      2) name="webtop-latest";      img="lscr.io/linuxserver/webtop:latest";     port=3002; intro="轻量 Alpine + XFCE，资源占用低，基础桌面";;
-			      3) name="webtop-arch-kde";    img="lscr.io/linuxserver/webtop:arch-kde";   port=3003; intro="Arch Linux，KDE桌面，前沿软件，资源占用高";;
-			      4) name="webtop-ubuntu-gnome";img="lscr.io/linuxserver/webtop:ubuntu-gnome"; port=3004; intro="Ubuntu，GNOME桌面，现代风格，资源中等";;
-			      5) name="webtop-fedora-xfce"; img="lscr.io/linuxserver/webtop:fedora-xfce";  port=3005; intro="Fedora，XFCE桌面，轻量且稳定";;
-			      6) name="webtop-ubuntu-xfce"; img="lscr.io/linuxserver/webtop:ubuntu-xfce";  port=3006; intro="Ubuntu，XFCE桌面，轻量，资源低";;
-			      7) name="webtop-ubuntu-mate"; img="lscr.io/linuxserver/webtop:ubuntu-mate";  port=3007; intro="Ubuntu，MATE桌面，传统界面，中等资源";;
-			      8) name="webtop-ubuntu-i3";   img="lscr.io/linuxserver/webtop:ubuntu-i3";    port=3008; intro="Ubuntu，i3窗口管理器，极简，高效";;
-			      9) name="webtop-arch-xfce";   img="lscr.io/linuxserver/webtop:arch-xfce";    port=3009; intro="Arch，XFCE，轻量，滚动更新";;
-			      10) name="webtop-arch-mate";  img="lscr.io/linuxserver/webtop:arch-mate";   port=3010; intro="Arch，MATE，传统桌面，较轻量";;
-			      11) name="webtop-arch-i3";    img="lscr.io/linuxserver/webtop:arch-i3";     port=3011; intro="Arch，i3，极简窗口管理";;
-			      12) name="webtop-debian-xfce";img="lscr.io/linuxserver/webtop:debian-xfce"; port=3012; intro="Debian，XFCE，稳定，轻量";;
-			      13) name="webtop-debian-mate";img="lscr.io/linuxserver/webtop:debian-mate"; port=3013; intro="Debian，MATE，传统桌面，稳定";;
-			      14) name="webtop-debian-i3";  img="lscr.io/linuxserver/webtop:debian-i3";   port=3014; intro="Debian，i3，极简，稳定";;
-			      15) name="webtop-debian-kde"; img="lscr.io/linuxserver/webtop:debian-kde";  port=3015; intro="Debian，KDE，稳定，资源较高";;
-			      16) name="webtop-fedora-mate";img="lscr.io/linuxserver/webtop:fedora-mate"; port=3016; intro="Fedora，MATE，轻量且现代";;
-			      17) name="webtop-fedora-kde"; img="lscr.io/linuxserver/webtop:fedora-kde";  port=3017; intro="Fedora，KDE，现代桌面，资源中高";;
-			      18) name="webtop-fedora-i3";  img="lscr.io/linuxserver/webtop:fedora-i3";   port=3018; intro="Fedora，i3，极简，高效";;
-			      19) name="webtop-el-xfce";    img="lscr.io/linuxserver/webtop:el-xfce";     port=3019; intro="Enterprise Linux，XFCE，稳定";;
-			      20) name="webtop-el-mate";    img="lscr.io/linuxserver/webtop:el-mate";     port=3020; intro="Enterprise Linux，MATE，稳定";;
-			      21) name="webtop-el-i3";      img="lscr.io/linuxserver/webtop:el-i3";       port=3021; intro="Enterprise Linux，i3，极简";;
-			      22) name="webtop-alpine-xfce";img="lscr.io/linuxserver/webtop:alpine-xfce"; port=3022; intro="Alpine，XFCE，极轻量，基础桌面";;
-			      23) name="webtop-alpine-mate";img="lscr.io/linuxserver/webtop:alpine-mate"; port=3023; intro="Alpine，MATE，轻量桌面";;
-			      24) name="webtop-alpine-i3";  img="lscr.io/linuxserver/webtop:alpine-i3";   port=3024; intro="Alpine，i3，极简窗口管理器";;
-			    esac
+      echo ""
+      echo "请选择操作："
+      echo "1. 备份 edge-admin 和数据库"
+      echo "2. 恢复 edge-admin 和数据库（可选版本）"
+      echo "3. 卸载 edge-admin 和数据库"
+         echo "-----------------------------------"
+      echo "激活商业版"
+      echo "F4BuVYEKSDWV+I13ISd5NUyBcWOlH0af4/ow9obzYBS3XvYC9IsK86k5UDyyBv9vqJWN2/FQTDbPyuAO0zxYlkLDC0c8rrShs+7PAkqM0O8wBIGknzForgidDZahky5Lo/ZWaPZ1dVFUxmV29ykb0I0b4tv7Q3OtnTylOuzf//MYrlvyw6VJQMGnsttmeHzsNL/r0yDONOEXZoGoLZsuBKnkfXt+qt6bZF+kM1ncbh+sY42BrPTWQ12sXqJS3qHlzU0FFl9lTNzLGYYhq5vi/4sJuPVE50/uLCtslTJdb9zOGR915hnM+jHYsR+jUk0QxOqtreaHpsvNuLkexXbkmA=="
+      echo "------------------------"
+      read -p "请输入选项 [1-3]: " action
 
-			    if docker ps -a --format '{{.Names}}' | grep -qw "$name"; then
-			      echo "已安装$i. $name"
-			      echo "访问地址: http://$(curl -s ipv4.ip.sb):$port"
-			      echo "访问地址: http://$(curl -s ipv6.ip.sb):$port"
-			      echo "介绍: $intro"
-			      echo "---------------------------------------------"
-			    fi
-			  done
-			}
+      base_dir="/home/cdn"
+      backup_dir="${base_dir}/备份"
+      mkdir -p "$backup_dir"
 
-			clear
-			show_installed_webtop
+      if [ "$action" = "1" ]; then
+        timestamp=$(date +"%Y%m%d%H%M%S")
+        program_tar="${backup_dir}/edge-${timestamp}.tar.gz"
+        db_tar="${backup_dir}/mariadb-${timestamp}.tar.gz"
 
-			echo "==== Webtop 镜像版本管理 ===="
-			echo "请选择镜像版本："
-			echo " 1. ubuntu-kde      【资源占用高，KDE桌面，完整桌面体验】"
-			echo " 2. latest          【轻量 Alpine + XFCE，资源占用低，基础桌面】"
-			echo " 3. arch-kde        【Arch Linux，KDE桌面，前沿软件，资源占用高】"
-			echo " 4. ubuntu-gnome    【Ubuntu，GNOME桌面，现代风格，资源中等】"
-			echo " 5. fedora-xfce     【Fedora，XFCE桌面，轻量且稳定】"
-			echo " 6. ubuntu-xfce     【Ubuntu，XFCE桌面，轻量，资源低】"
-			echo " 7. ubuntu-mate     【Ubuntu，MATE桌面，传统界面，中等资源】"
-			echo " 8. ubuntu-i3       【Ubuntu，i3窗口管理器，极简，高效】"
-			echo " 9. arch-xfce       【Arch，XFCE，轻量，滚动更新】"
-			echo "10. arch-mate       【Arch，MATE，传统桌面，较轻量】"
-			echo "11. arch-i3         【Arch，i3，极简窗口管理】"
-			echo "12. debian-xfce     【Debian，XFCE，稳定，轻量】"
-			echo "13. debian-mate     【Debian，MATE，传统桌面，稳定】"
-			echo "14. debian-i3       【Debian，i3，极简，稳定】"
-			echo "15. debian-kde      【Debian，KDE，稳定，资源较高】"
-			echo "16. fedora-mate     【Fedora，MATE，轻量且现代】"
-			echo "17. fedora-kde      【Fedora，KDE，现代桌面，资源中高】"
-			echo "18. fedora-i3       【Fedora，i3，极简，高效】"
-			echo "19. el-xfce         【Enterprise Linux，XFCE，稳定】"
-			echo "20. el-mate         【Enterprise Linux，MATE，稳定】"
-			echo "21. el-i3           【Enterprise Linux，i3，极简】"
-			echo "22. alpine-xfce     【Alpine，XFCE，极轻量，基础桌面】"
-			echo "23. alpine-mate     【Alpine，MATE，轻量桌面】"
-			echo "24. alpine-i3       【Alpine，i3，极简窗口管理器】"
-			echo "0. 返回上一级"
-			echo -n "请输入你的选择(数字): "
-			read img_choice
+        echo "📦 开始备份 edge-admin 程序..."
+        tar czf "$program_tar" -C /home/cdn edge-admin
 
-			case "$img_choice" in
-				1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3331;;
-				2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3332;;
-				3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3333;;
-				4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3334;;
-				5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3335;;
-				6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3336;;
-				7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3337;;
-				8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3338;;
-				9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3339;;
-				10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3340;;
-				11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=33341;;
-				12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3342;;
-				13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3343;;
-				14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3344;;
-				15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3345;;
-				16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3346;;
-				17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3347;;
-				18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3348;;
-				19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3349;;
-				20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3350;;
-				21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3351;;
-				22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3352;;
-				23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3353;;
-				24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3354;;
-				0)
-					echo "返回上一级"
-					;;
-				*)
-					echo "无效输入"
-					;;
-			esac
+        echo "📦 开始备份 MariaDB 数据库..."
+        systemctl stop mariadb
+        tar czf "$db_tar" -C /var/lib mysql
+        systemctl start mariadb
 
-			if [[ "$img_choice" =~ ^[1-9][0-9]*$ ]] && [ "$img_choice" -ge 1 ] && [ "$img_choice" -le 24 ]; then
-				clear
-				echo "选择镜像：$docker_img"
-				echo "容器名：$docker_name"
-				echo "端口号：$docker_port"
-				echo "操作："
-				echo " 1. 安装"
-				echo " 2. 备份"
-				echo " 3. 卸载"
-				echo " 4. 恢复最新备份"
-				echo " 0. 返回上一级"
-				echo -n "请输入操作编号: "
-				read op_choice
+        echo "🧹 保留最新的 3 个程序和数据库备份..."
+        ls -tp "$backup_dir"/edge-*.tar.gz 2>/dev/null | grep -v '/$' | tail -n +4 | xargs -r rm -f
+        ls -tp "$backup_dir"/mariadb-*.tar.gz 2>/dev/null | grep -v '/$' | tail -n +4 | xargs -r rm -f
 
-				case "$op_choice" in
-					1)
-						if docker ps -a --format '{{.Names}}' | grep -qw "$docker_name"; then
-							echo "---------------------------------------------"
-							echo "容器 $docker_name 已安装，跳过安装"
-							echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
-       							echo "访问地址: http://$(curl -s ipv6.ip.sb):$docker_port"
-							echo "---------------------------------------------"
-						else
-							random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
-							docker run -d \
-								--name=$docker_name \
-								--security-opt seccomp=unconfined \
-								-e PUID=1000 \
-								-e PGID=1000 \
-								-e TZ=Asia/Shanghai \
-								-e LC_ALL=zh_CN.UTF-8 \
-								-e CUSTOM_USER=admin \
-								-e PASSWORD=$random_passwd \
-								-e SUBFOLDER=/ \
-								-e TITLE=我的网站目录 \
-								-p $docker_port:3000 \
-								-v /home/docker/$docker_name/data:/config \
-								-v /home/docker/$docker_name/Downloads:/home/abc/Downloads \
-								--shm-size="1gb" \
-								--restart unless-stopped \
-								$docker_img
-							echo "安装完成"
-							echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
-							echo "访问地址: http://$(curl -s ipv6.ip.sb):$docker_port"
-							echo "用户名: admin"
-							echo "密码: $random_passwd"
-						fi
-						;;
-					2)
-						backup_file="/home/docker/${docker_name}_backup_$(date +%F_%H%M%S).tar.gz"
-						tar -czvf "$backup_file" -C /home/docker "$docker_name"
-						echo "备份完成，文件: $backup_file"
-						;;
-					3)
-						docker stop $docker_name >/dev/null 2>&1
-						docker rm $docker_name >/dev/null 2>&1
-						rm -rf /home/docker/$docker_name
-						echo "容器和数据已删除"
-						;;
-					4)
-						latest_backup=$(ls -t /home/docker/${docker_name}_backup_*.tar.gz 2>/dev/null | head -n 1)
-						if [ -z "$latest_backup" ]; then
-							echo "未找到备份文件"
-						else
-							echo "恢复备份文件: $latest_backup"
-							docker stop $docker_name >/dev/null 2>&1
-							rm -rf /home/docker/$docker_name
-							tar -xzvf "$latest_backup" -C /home/docker
-							docker restart $docker_name >/dev/null 2>&1
-							echo "恢复完成并重启容器"
-						fi
-						;;
-					0)
-						echo "返回上一级"
-						;;
-					*)
-						echo "无效操作"
-						;;
-				esac
-			fi
-			;;
+        echo "✅ 已完成备份："
+        echo "程序：$program_tar"
+        echo "数据库：$db_tar"
+        exit 0
 
-		  1000)
-		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongbeifen.sh)
-		    echo "✅ 远程备份与传送模块执行完成。"
-		    ;;
+      elif [ "$action" = "2" ]; then
+        # edge-admin 备份选择
+        echo ""
+        echo "📂 当前可用 edge-admin 备份："
+        ls "$backup_dir"/edge-*.tar.gz 2>/dev/null | nl
+        echo ""
+        read -p "请输入要恢复的 edge-admin 版本编号（回车恢复最新）: " edge_index
+
+        edge_list=( $(ls -t "$backup_dir"/edge-*.tar.gz 2>/dev/null) )
+        if [ -z "${edge_list[0]}" ]; then
+          echo "❌ 找不到 edge-admin 备份文件"
+          exit 1
+        fi
+        if [[ -z "$edge_index" ]]; then
+          program_tar="${edge_list[0]}"
+        else
+          index=$((edge_index - 1))
+          program_tar="${edge_list[$index]}"
+        fi
+
+        # mariadb 备份选择
+        echo ""
+        echo "📂 当前可用 mysql 备份："
+        ls "$backup_dir"/mariadb-*.tar.gz 2>/dev/null | nl
+        echo ""
+        read -p "请输入要恢复的 mysql 版本编号（回车恢复最新）: " db_index
+
+        db_list=( $(ls -t "$backup_dir"/mariadb-*.tar.gz 2>/dev/null) )
+        if [ -z "${db_list[0]}" ]; then
+          echo "❌ 找不到 mysql 备份文件"
+          exit 1
+        fi
+        if [[ -z "$db_index" ]]; then
+          db_tar="${db_list[0]}"
+        else
+          index=$((db_index - 1))
+          db_tar="${db_list[$index]}"
+        fi
+
+        echo "🔄 正在恢复："
+        echo "程序备份：$program_tar"
+        echo "数据库备份：$db_tar"
+
+        apt update > /dev/null 2>&1
+        DEBIAN_FRONTEND=noninteractive apt install -y mariadb-server > /dev/null 2>&1
+        sed -i '/^\[mysqld\]/a port=7789' /etc/mysql/mariadb.conf.d/50-server.cnf
+
+        systemctl stop mariadb
+        rm -rf /var/lib/mysql
+        tar xzf "$db_tar" -C /var/lib
+        chown -R mysql:mysql /var/lib/mysql
+
+        # 恢复完毕后重启数据库
+        systemctl restart mariadb
+        systemctl enable mariadb
+
+        rm -rf "$base_dir/edge-admin"
+        tar xzf "$program_tar" -C "$base_dir"
+
+        # 启动 edge-admin
+        nohup "$base_dir/edge-admin/bin/edge-admin" start > /dev/null 2>&1 &
+
+        # 设置开机自启
+        crontab -l 2>/dev/null | grep -q "edge-admin/bin/edge-admin start" || (
+          (crontab -l 2>/dev/null; echo "@reboot sleep 10 && nohup $base_dir/edge-admin/bin/edge-admin start > /dev/null 2>&1 &") | crontab -
+        )
+
+        clear
+        echo "✅ 恢复完成"
+        local_ip=$(hostname -I | awk '{print $1}')
+        echo "edge-admin 访问地址: http://$local_ip:7788"
+        exit 0
+
+      elif [ "$action" = "3" ]; then
+        systemctl stop mariadb
+        systemctl disable mariadb
+        apt purge -y mariadb-server mariadb-common > /dev/null 2>&1
+        apt autoremove -y > /dev/null 2>&1
+        rm -rf /var/lib/mysql /etc/mysql
+        rm -rf "$base_dir/edge-admin"
+        crontab -l | grep -v 'edge-admin' | crontab -
+        echo "✅ edge-admin 与数据库已卸载"
+        exit 0
+
+      else
+        echo "❌ 输入无效"
+        exit 1
+      fi
+      ;;
 
 
 
-		  1001)
-		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongmima.sh)
-		    echo "✅ 远程备份与传送模块执行完成。"
-		    ;;
+    999)
+      show_installed_webtop(){
+        local installed=0
+        echo "---------------------------------------------"
+        for i in {1..24}; do
+          case $i in
+            1) name="webtop-ubuntu-kde";  img="lscr.io/linuxserver/webtop:ubuntu-kde"; port=3001; intro="资源占用高，KDE桌面，完整桌面体验";;
+            2) name="webtop-latest";      img="lscr.io/linuxserver/webtop:latest";     port=3002; intro="轻量 Alpine + XFCE，资源占用低，基础桌面";;
+            3) name="webtop-arch-kde";    img="lscr.io/linuxserver/webtop:arch-kde";   port=3003; intro="Arch Linux，KDE桌面，前沿软件，资源占用高";;
+            4) name="webtop-ubuntu-gnome";img="lscr.io/linuxserver/webtop:ubuntu-gnome"; port=3004; intro="Ubuntu，GNOME桌面，现代风格，资源中等";;
+            5) name="webtop-fedora-xfce"; img="lscr.io/linuxserver/webtop:fedora-xfce";  port=3005; intro="Fedora，XFCE桌面，轻量且稳定";;
+            6) name="webtop-ubuntu-xfce"; img="lscr.io/linuxserver/webtop:ubuntu-xfce";  port=3006; intro="Ubuntu，XFCE桌面，轻量，资源低";;
+            7) name="webtop-ubuntu-mate"; img="lscr.io/linuxserver/webtop:ubuntu-mate";  port=3007; intro="Ubuntu，MATE桌面，传统界面，中等资源";;
+            8) name="webtop-ubuntu-i3";   img="lscr.io/linuxserver/webtop:ubuntu-i3";    port=3008; intro="Ubuntu，i3窗口管理器，极简，高效";;
+            9) name="webtop-arch-xfce";   img="lscr.io/linuxserver/webtop:arch-xfce";    port=3009; intro="Arch，XFCE，轻量，滚动更新";;
+            10) name="webtop-arch-mate";  img="lscr.io/linuxserver/webtop:arch-mate";   port=3010; intro="Arch，MATE，传统桌面，较轻量";;
+            11) name="webtop-arch-i3";    img="lscr.io/linuxserver/webtop:arch-i3";     port=3011; intro="Arch，i3，极简窗口管理";;
+            12) name="webtop-debian-xfce";img="lscr.io/linuxserver/webtop:debian-xfce"; port=3012; intro="Debian，XFCE，稳定，轻量";;
+            13) name="webtop-debian-mate";img="lscr.io/linuxserver/webtop:debian-mate"; port=3013; intro="Debian，MATE，传统桌面，稳定";;
+            14) name="webtop-debian-i3";  img="lscr.io/linuxserver/webtop:debian-i3";   port=3014; intro="Debian，i3，极简，稳定";;
+            15) name="webtop-debian-kde"; img="lscr.io/linuxserver/webtop:debian-kde";  port=3015; intro="Debian，KDE，稳定，资源较高";;
+            16) name="webtop-fedora-mate";img="lscr.io/linuxserver/webtop:fedora-mate"; port=3016; intro="Fedora，MATE，轻量且现代";;
+            17) name="webtop-fedora-kde"; img="lscr.io/linuxserver/webtop:fedora-kde";  port=3017; intro="Fedora，KDE，现代桌面，资源中高";;
+            18) name="webtop-fedora-i3";  img="lscr.io/linuxserver/webtop:fedora-i3";   port=3018; intro="Fedora，i3，极简，高效";;
+            19) name="webtop-el-xfce";    img="lscr.io/linuxserver/webtop:el-xfce";     port=3019; intro="Enterprise Linux，XFCE，稳定";;
+            20) name="webtop-el-mate";    img="lscr.io/linuxserver/webtop:el-mate";     port=3020; intro="Enterprise Linux，MATE，稳定";;
+            21) name="webtop-el-i3";      img="lscr.io/linuxserver/webtop:el-i3";       port=3021; intro="Enterprise Linux，i3，极简";;
+            22) name="webtop-alpine-xfce";img="lscr.io/linuxserver/webtop:alpine-xfce"; port=3022; intro="Alpine，XFCE，极轻量，基础桌面";;
+            23) name="webtop-alpine-mate";img="lscr.io/linuxserver/webtop:alpine-mate"; port=3023; intro="Alpine，MATE，轻量桌面";;
+            24) name="webtop-alpine-i3";  img="lscr.io/linuxserver/webtop:alpine-i3";   port=3024; intro="Alpine，i3，极简窗口管理器";;
+          esac
 
-		  1002)
-		    clear
-		    echo "▶️ 正在启动win10ltls模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
-		    echo "✅ 远程备份与传送模块执行完成。"
-		    ;;
+          if docker ps -a --format '{{.Names}}' | grep -qw "$name"; then
+            echo "已安装$i. $name"
+            echo "访问地址: http://$(curl -s ipv4.ip.sb):$port"
+            echo "访问地址: http://$(curl -s ipv6.ip.sb):$port"
+            echo "介绍: $intro"
+            echo "---------------------------------------------"
+          fi
+        done
+      }
 
-		  1003)
-		    clear
-		    echo "▶️ 正在准备使用 rsync 手动传送文件夹..."
+      clear
+      show_installed_webtop
 
-		    # 检查并安装 rsync
-		    if ! command -v rsync > /dev/null 2>&1; then
-		        echo "⏳ 未检测到 rsync，正在安装中..."
-		        apt update > /dev/null 2>&1
-		        apt install -y rsync > /dev/null 2>&1
-		        echo "✅ rsync 安装完成。"
-		    else
-		        echo "✅ rsync 已安装，跳过安装步骤。"
+      echo "==== Webtop 镜像版本管理 ===="
+      echo "请选择镜像版本："
+      echo " 1. ubuntu-kde      【资源占用高，KDE桌面，完整桌面体验】"
+      echo " 2. latest          【轻量 Alpine + XFCE，资源占用低，基础桌面】"
+      echo " 3. arch-kde        【Arch Linux，KDE桌面，前沿软件，资源占用高】"
+      echo " 4. ubuntu-gnome    【Ubuntu，GNOME桌面，现代风格，资源中等】"
+      echo " 5. fedora-xfce     【Fedora，XFCE桌面，轻量且稳定】"
+      echo " 6. ubuntu-xfce     【Ubuntu，XFCE桌面，轻量，资源低】"
+      echo " 7. ubuntu-mate     【Ubuntu，MATE桌面，传统界面，中等资源】"
+      echo " 8. ubuntu-i3       【Ubuntu，i3窗口管理器，极简，高效】"
+      echo " 9. arch-xfce       【Arch，XFCE，轻量，滚动更新】"
+      echo "10. arch-mate       【Arch，MATE，传统桌面，较轻量】"
+      echo "11. arch-i3         【Arch，i3，极简窗口管理】"
+      echo "12. debian-xfce     【Debian，XFCE，稳定，轻量】"
+      echo "13. debian-mate     【Debian，MATE，传统桌面，稳定】"
+      echo "14. debian-i3       【Debian，i3，极简，稳定】"
+      echo "15. debian-kde      【Debian，KDE，稳定，资源较高】"
+      echo "16. fedora-mate     【Fedora，MATE，轻量且现代】"
+      echo "17. fedora-kde      【Fedora，KDE，现代桌面，资源中高】"
+      echo "18. fedora-i3       【Fedora，i3，极简，高效】"
+      echo "19. el-xfce         【Enterprise Linux，XFCE，稳定】"
+      echo "20. el-mate         【Enterprise Linux，MATE，稳定】"
+      echo "21. el-i3           【Enterprise Linux，i3，极简】"
+      echo "22. alpine-xfce     【Alpine，XFCE，极轻量，基础桌面】"
+      echo "23. alpine-mate     【Alpine，MATE，轻量桌面】"
+      echo "24. alpine-i3       【Alpine，i3，极简窗口管理器】"
+      echo "0. 返回上一级"
+      echo -n "请输入你的选择(数字): "
+      read img_choice
 
-		    fi
-		    echo "------------------------"
+      case "$img_choice" in
+        1) docker_img="lscr.io/linuxserver/webtop:ubuntu-kde"; docker_name="webtop-ubuntu-kde"; docker_port=3331;;
+        2) docker_img="lscr.io/linuxserver/webtop:latest"; docker_name="webtop-latest"; docker_port=3332;;
+        3) docker_img="lscr.io/linuxserver/webtop:arch-kde"; docker_name="webtop-arch-kde"; docker_port=3333;;
+        4) docker_img="lscr.io/linuxserver/webtop:ubuntu-gnome"; docker_name="webtop-ubuntu-gnome"; docker_port=3334;;
+        5) docker_img="lscr.io/linuxserver/webtop:fedora-xfce"; docker_name="webtop-fedora-xfce"; docker_port=3335;;
+        6) docker_img="lscr.io/linuxserver/webtop:ubuntu-xfce"; docker_name="webtop-ubuntu-xfce"; docker_port=3336;;
+        7) docker_img="lscr.io/linuxserver/webtop:ubuntu-mate"; docker_name="webtop-ubuntu-mate"; docker_port=3337;;
+        8) docker_img="lscr.io/linuxserver/webtop:ubuntu-i3"; docker_name="webtop-ubuntu-i3"; docker_port=3338;;
+        9) docker_img="lscr.io/linuxserver/webtop:arch-xfce"; docker_name="webtop-arch-xfce"; docker_port=3339;;
+        10) docker_img="lscr.io/linuxserver/webtop:arch-mate"; docker_name="webtop-arch-mate"; docker_port=3340;;
+        11) docker_img="lscr.io/linuxserver/webtop:arch-i3"; docker_name="webtop-arch-i3"; docker_port=33341;;
+        12) docker_img="lscr.io/linuxserver/webtop:debian-xfce"; docker_name="webtop-debian-xfce"; docker_port=3342;;
+        13) docker_img="lscr.io/linuxserver/webtop:debian-mate"; docker_name="webtop-debian-mate"; docker_port=3343;;
+        14) docker_img="lscr.io/linuxserver/webtop:debian-i3"; docker_name="webtop-debian-i3"; docker_port=3344;;
+        15) docker_img="lscr.io/linuxserver/webtop:debian-kde"; docker_name="webtop-debian-kde"; docker_port=3345;;
+        16) docker_img="lscr.io/linuxserver/webtop:fedora-mate"; docker_name="webtop-fedora-mate"; docker_port=3346;;
+        17) docker_img="lscr.io/linuxserver/webtop:fedora-kde"; docker_name="webtop-fedora-kde"; docker_port=3347;;
+        18) docker_img="lscr.io/linuxserver/webtop:fedora-i3"; docker_name="webtop-fedora-i3"; docker_port=3348;;
+        19) docker_img="lscr.io/linuxserver/webtop:el-xfce"; docker_name="webtop-el-xfce"; docker_port=3349;;
+        20) docker_img="lscr.io/linuxserver/webtop:el-mate"; docker_name="webtop-el-mate"; docker_port=3350;;
+        21) docker_img="lscr.io/linuxserver/webtop:el-i3"; docker_name="webtop-el-i3"; docker_port=3351;;
+        22) docker_img="lscr.io/linuxserver/webtop:alpine-xfce"; docker_name="webtop-alpine-xfce"; docker_port=3352;;
+        23) docker_img="lscr.io/linuxserver/webtop:alpine-mate"; docker_name="webtop-alpine-mate"; docker_port=3353;;
+        24) docker_img="lscr.io/linuxserver/webtop:alpine-i3"; docker_name="webtop-alpine-i3"; docker_port=3354;;
+        0)
+          echo "返回上一级"
+          ;;
+        *)
+          echo "无效输入"
+          ;;
+      esac
 
-		    echo -e "\033[1;33m📌 说明：\033[0m"
-		    echo -e "\033[1;32m✔ 不带斜杠（如 /home/web/wangpan）表示复制整个文件夹\033[0m"
-		    echo -e "\033[1;32m✔ 带斜杠（如 /home/web/wangpan/）表示只复制该文件夹的内容\033[0m"
+      if [[ "$img_choice" =~ ^[1-9][0-9]*$ ]] && [ "$img_choice" -ge 1 ] && [ "$img_choice" -le 24 ]; then
+        clear
+        echo "选择镜像：$docker_img"
+        echo "容器名：$docker_name"
+        echo "端口号：$docker_port"
+        echo "操作："
+        echo " 1. 安装"
+        echo " 2. 备份"
+        echo " 3. 卸载"
+        echo " 4. 恢复最新备份"
+        echo " 0. 返回上一级"
+        echo -n "请输入操作编号: "
+        read op_choice
 
-		    echo "------------------------"
-		    # 读取用户输入
-		    read -e -p "请输入本地目录路径（如 /home/web/wangpan/）: " local_path
-		    # 如果本地路径末尾没有 /，则自动添加
-		    [[ "$local_path" != */ ]] && local_path="${local_path}/"
+        case "$op_choice" in
+          1)
+            if docker ps -a --format '{{.Names}}' | grep -qw "$docker_name"; then
+              echo "---------------------------------------------"
+              echo "容器 $docker_name 已安装，跳过安装"
+              echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
+                     echo "访问地址: http://$(curl -s ipv6.ip.sb):$docker_port"
+              echo "---------------------------------------------"
+            else
+              random_passwd=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+              docker run -d \
+                --name=$docker_name \
+                --security-opt seccomp=unconfined \
+                -e PUID=1000 \
+                -e PGID=1000 \
+                -e TZ=Asia/Shanghai \
+                -e LC_ALL=zh_CN.UTF-8 \
+                -e CUSTOM_USER=admin \
+                -e PASSWORD=$random_passwd \
+                -e SUBFOLDER=/ \
+                -e TITLE=我的网站目录 \
+                -p $docker_port:3000 \
+                -v /home/docker/$docker_name/data:/config \
+                -v /home/docker/$docker_name/Downloads:/home/abc/Downloads \
+                --shm-size="1gb" \
+                --restart unless-stopped \
+                $docker_img
+              echo "安装完成"
+              echo "访问地址: http://$(curl -s ipv4.ip.sb):$docker_port"
+              echo "访问地址: http://$(curl -s ipv6.ip.sb):$docker_port"
+              echo "用户名: admin"
+              echo "密码: $random_passwd"
+            fi
+            ;;
+          2)
+            backup_file="/home/docker/${docker_name}_backup_$(date +%F_%H%M%S).tar.gz"
+            tar -czvf "$backup_file" -C /home/docker "$docker_name"
+            echo "备份完成，文件: $backup_file"
+            ;;
+          3)
+            docker stop $docker_name >/dev/null 2>&1
+            docker rm $docker_name >/dev/null 2>&1
+            rm -rf /home/docker/$docker_name
+            echo "容器和数据已删除"
+            ;;
+          4)
+            latest_backup=$(ls -t /home/docker/${docker_name}_backup_*.tar.gz 2>/dev/null | head -n 1)
+            if [ -z "$latest_backup" ]; then
+              echo "未找到备份文件"
+            else
+              echo "恢复备份文件: $latest_backup"
+              docker stop $docker_name >/dev/null 2>&1
+              rm -rf /home/docker/$docker_name
+              tar -xzvf "$latest_backup" -C /home/docker
+              docker restart $docker_name >/dev/null 2>&1
+              echo "恢复完成并重启容器"
+            fi
+            ;;
+          0)
+            echo "返回上一级"
+            ;;
+          *)
+            echo "无效操作"
+            ;;
+        esac
+      fi
+      ;;
 
-		    read -e -p "请输入远程 VPS 的 IP 地址（例如 1.1.1.1）: " remote_ip
-
-		    read -e -p "请输入远程目录路径（默认与本地一致，直接回车即可）: " remote_path
-		    if [ -z "$remote_path" ]; then
-		        remote_path="$local_path"
-		        echo "📂 未输入远程路径，已自动设置为与本地路径一致：$remote_path"
-		    fi
-
-
-		    # 检查远程 VPS 是否安装 rsync
-		    echo "🕵️ 正在检查远程 VPS 是否已安装 rsync..."
-		    ssh root@"$remote_ip" "command -v rsync > /dev/null 2>&1"
-		    if [ $? -ne 0 ]; then
-		        echo "⚙️ 远程 VPS 未安装 rsync，正在安装..."
-		        ssh root@"$remote_ip" "apt update > /dev/null 2>&1 && apt install -y rsync > /dev/null 2>&1"
-		        echo "✅ 远程 VPS 的 rsync 安装完成。"
-		    else
-		        echo "✅ 远程 VPS 已安装 rsync，跳过安装。"
-		    fi
-
-
-		    echo ""
-		    echo "🚀 开始传送："
-		    echo "从：$local_path"
-		    echo "到：root@$remote_ip:$remote_path"
-		    echo ""
-
-
-		    rsync -avz "$local_path" root@"$remote_ip":"$remote_path"
-
-		    echo ""
-		    echo "✅ 文件传送完成。"
-		    echo "------------------------"
-		    echo ""
-		    ;;
-
-
-		  1004)
-		    clear
-		    echo "▶️ 正在启动105脚本必装模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
-		    echo "✅ 动105脚本必装模块执行完成。"
-		    ;;
-		  1005)
-		    clear
-		    echo "▶️ 正在启动定时远程备份与传送模块..."
-		    bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
-		    echo "✅ 远程备份与传送模块执行完成。"
-		    ;;
+      1000)
+        clear
+        echo "▶️ 正在启动定时远程备份与传送模块..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongbeifen.sh)
+        echo "✅ 远程备份与传送模块执行完成。"
+        ;;
 
 
 
+      1001)
+        clear
+        echo "▶️ 正在启动定时远程备份与传送模块..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongmima.sh)
+        echo "✅ 远程备份与传送模块执行完成。"
+        ;;
 
-		  0)
-			  kejilion
-			  ;;
-		  *)
-			  echo "无效的输入!"
-			  ;;
-	  esac
-	  break_end
+      1002)
+        clear
+        echo "▶️ 正在启动win10ltls模块..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/win10ltls.sh)
+        echo "✅ 远程备份与传送模块执行完成。"
+        ;;
 
-	done
+      1003)
+        clear
+        echo "▶️ 正在准备使用 rsync 手动传送文件夹..."
+
+        # 检查并安装 rsync
+        if ! command -v rsync > /dev/null 2>&1; then
+            echo "⏳ 未检测到 rsync，正在安装中..."
+            apt update > /dev/null 2>&1
+            apt install -y rsync > /dev/null 2>&1
+            echo "✅ rsync 安装完成。"
+        else
+            echo "✅ rsync 已安装，跳过安装步骤。"
+
+        fi
+        echo "------------------------"
+
+        echo -e "\033[1;33m📌 说明：\033[0m"
+        echo -e "\033[1;32m✔ 不带斜杠（如 /home/web/wangpan）表示复制整个文件夹\033[0m"
+        echo -e "\033[1;32m✔ 带斜杠（如 /home/web/wangpan/）表示只复制该文件夹的内容\033[0m"
+
+        echo "------------------------"
+        # 读取用户输入
+        read -e -p "请输入本地目录路径（如 /home/web/wangpan/）: " local_path
+        # 如果本地路径末尾没有 /，则自动添加
+        [[ "$local_path" != */ ]] && local_path="${local_path}/"
+
+        read -e -p "请输入远程 VPS 的 IP 地址（例如 1.1.1.1）: " remote_ip
+
+        read -e -p "请输入远程目录路径（默认与本地一致，直接回车即可）: " remote_path
+        if [ -z "$remote_path" ]; then
+            remote_path="$local_path"
+            echo "📂 未输入远程路径，已自动设置为与本地路径一致：$remote_path"
+        fi
+
+
+        # 检查远程 VPS 是否安装 rsync
+        echo "🕵️ 正在检查远程 VPS 是否已安装 rsync..."
+        ssh root@"$remote_ip" "command -v rsync > /dev/null 2>&1"
+        if [ $? -ne 0 ]; then
+            echo "⚙️ 远程 VPS 未安装 rsync，正在安装..."
+            ssh root@"$remote_ip" "apt update > /dev/null 2>&1 && apt install -y rsync > /dev/null 2>&1"
+            echo "✅ 远程 VPS 的 rsync 安装完成。"
+        else
+            echo "✅ 远程 VPS 已安装 rsync，跳过安装。"
+        fi
+
+
+        echo ""
+        echo "🚀 开始传送："
+        echo "从：$local_path"
+        echo "到：root@$remote_ip:$remote_path"
+        echo ""
+
+
+        rsync -avz "$local_path" root@"$remote_ip":"$remote_path"
+
+        echo ""
+        echo "✅ 文件传送完成。"
+        echo "------------------------"
+        echo ""
+        ;;
+
+
+      1004)
+        clear
+        echo "▶️ 正在启动105脚本必装模块..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
+        echo "✅ 动105脚本必装模块执行完成。"
+        ;;
+      1005)
+        clear
+        echo "▶️ 正在启动定时远程备份与传送模块..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
+        echo "✅ 远程备份与传送模块执行完成。"
+        ;;
+
+
+
+
+      0)
+        kejilion
+        ;;
+      *)
+        echo "无效的输入!"
+        ;;
+    esac
+    break_end
+
+  done
 }
 
 
