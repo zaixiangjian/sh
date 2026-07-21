@@ -5632,18 +5632,35 @@ kj_app_domains_for_ports() {
 	[ -n "$domains" ] && echo "$domains" || echo "-"
 }
 
+kj_app_install_method_label() {
+	local app_type="$1"
+	case "$app_type" in
+		docker) echo -e "${gl_lv}容器${gl_bai}" ;;
+		*) echo -e "${gl_hong}本地${gl_bai}" ;;
+	esac
+}
+
+kj_app_docker_container_ports() {
+	local cname="$1"
+	docker port "$cname" 2>/dev/null | awk '{split($1,a,"/"); if (a[1] ~ /^[0-9]+$/) print a[1]}' | sort -n -u | tr '
+' ',' | sed 's/,$//'
+}
+
 kj_app_add_row() {
 	local app_id="$1"
 	local app_name="$2"
 	local app_ports="$3"
 	local app_target="$4"
 	local app_type="$5"
+	local app_container_ports="$6"
 	local app_domains
 	[ -z "$app_ports" ] && return
+	[ -z "$app_container_ports" ] && app_container_ports="-"
 	app_domains=$(kj_app_domains_for_ports "$app_ports" "$app_target" "$app_type")
 	KJ_APP_IDS+=("$app_id")
 	KJ_APP_NAMES+=("$app_name")
 	KJ_APP_PORTS+=("$app_ports")
+	KJ_APP_CONTAINER_PORTS+=("$app_container_ports")
 	KJ_APP_DOMAINS+=("$app_domains")
 	KJ_APP_TARGETS+=("$app_target")
 	KJ_APP_TYPES+=("$app_type")
@@ -5653,6 +5670,7 @@ kj_app_collect_ports() {
 	KJ_APP_IDS=()
 	KJ_APP_NAMES=()
 	KJ_APP_PORTS=()
+	KJ_APP_CONTAINER_PORTS=()
 	KJ_APP_DOMAINS=()
 	KJ_APP_TARGETS=()
 	KJ_APP_TYPES=()
@@ -5667,11 +5685,13 @@ kj_app_collect_ports() {
 				ports=$(docker port "$cname" 2>/dev/null | awk -F: '/->/ {print $NF}' | sort -n -u | tr '\n' ',' | sed 's/,$//')
 			fi
 			[ -z "$ports" ] && continue
-			local label app_id app_name
+			local label app_id app_name container_ports
 			label=$(kj_app_label "$cname")
 			app_id=${label%%|*}
 			app_name=${label#*|}
-			kj_app_add_row "$app_id" "$app_name" "$ports" "$cname" "docker"
+			container_ports=$(kj_app_docker_container_ports "$cname")
+			[ -z "$container_ports" ] && container_ports="-"
+			kj_app_add_row "$app_id" "$app_name" "$ports" "$cname" "docker" "$container_ports"
 			local p
 			for p in ${ports//,/ }; do used_ports="$used_ports$p "; done
 		done < <(docker ps --format '{{.Names}}|{{.Ports}}' 2>/dev/null)
@@ -5687,7 +5707,7 @@ kj_app_collect_ports() {
 			label=$(kj_app_label "$proc")
 			app_id=${label%%|*}
 			app_name=${label#*|}
-			kj_app_add_row "$app_id" "$app_name" "$port" "$proc" "binary"
+			kj_app_add_row "$app_id" "$app_name" "$port" "$proc" "binary" "-"
 			used_ports="$used_ports$port "
 		done < <(ss -H -tulnp 2>/dev/null | awk '
 			{
@@ -6185,13 +6205,24 @@ kj_app_port_detail_menu() {
 	local app_id="${KJ_APP_IDS[$idx]}"
 	local app_name="${KJ_APP_NAMES[$idx]}"
 	local app_ports="${KJ_APP_PORTS[$idx]}"
+	local app_container_ports="${KJ_APP_CONTAINER_PORTS[$idx]}"
 	local app_domains="${KJ_APP_DOMAINS[$idx]}"
 	local app_target="${KJ_APP_TARGETS[$idx]}"
 	local app_type="${KJ_APP_TYPES[$idx]}"
+	local local_ports_display container_ports_display
+	if [ "$app_type" = "docker" ]; then
+		local_ports_display="$app_ports"
+		container_ports_display="${app_container_ports:-}"; [ -z "$container_ports_display" ] && container_ports_display="-"
+	else
+		local_ports_display="$app_ports"
+		container_ports_display="-"
+	fi
 	while true; do
 		clear
 		echo "应用: $app_id  $app_name"
-		echo "端口: $app_ports"
+		echo "本地端口: $local_ports_display"
+		echo "容器端口: $container_ports_display"
+		echo -e "安装方法：$(kj_app_install_method_label "$app_type")"
 		echo "域名: $app_domains"
 		local status_plain
 		status_plain=$(kj_app_access_status "$app_ports" "$app_target" "$app_type")
@@ -6243,14 +6274,23 @@ linux_app_ports() {
 		send_stats "安装的应用以及应用端口"
 		kj_app_collect_ports
 		echo -e "${gl_kjlan}安装的应用以及应用端口${gl_bai}"
-		printf "%-6s %-6s %-10s %-10s\n" "序号" "编号" "端口" "是否允许"
+		printf "%-6s %-6s %-12s %-12s %-10s\n" "序号" "编号" "本地端口" "容器端口" "是否允许"
 		echo "------------------------"
 		local i
 		for i in "${!KJ_APP_NAMES[@]}"; do
-			local status status_color
+			local status status_color local_ports_display container_ports_display method_color
 			status=$(kj_app_access_status "${KJ_APP_PORTS[$i]}" "${KJ_APP_TARGETS[$i]}" "${KJ_APP_TYPES[$i]}")
 			status_color=$(kj_app_access_status_color "$status")
-			printf "%-6s %-6s %-10s %-10b\n" "$((i+1))." "${KJ_APP_IDS[$i]}" "${KJ_APP_PORTS[$i]}" "$status_color"
+			if [ "${KJ_APP_TYPES[$i]}" = "docker" ]; then
+				local_ports_display="${KJ_APP_PORTS[$i]}"
+				container_ports_display="${KJ_APP_CONTAINER_PORTS[$i]}"; [ -z "$container_ports_display" ] && container_ports_display="-"
+			else
+				local_ports_display="${KJ_APP_PORTS[$i]}"
+				container_ports_display="-"
+			fi
+			method_color=$(kj_app_install_method_label "${KJ_APP_TYPES[$i]}")
+			printf "%-6s %-6s %-12s %-12s %-10b\n" "$((i+1))." "${KJ_APP_IDS[$i]}" "$local_ports_display" "$container_ports_display" "$status_color"
+			echo -e "安装方法：$method_color"
 			echo -e "名称：${gl_bai}${KJ_APP_NAMES[$i]}"
 			echo -e "域名：${gl_huang}${KJ_APP_DOMAINS[$i]}${gl_bai}"
 			echo "------------------------"
