@@ -5773,8 +5773,16 @@ kj_app_block_host_port() {
 	install iptables
 	iptables -N KJ_APP_PORT_BLOCK 2>/dev/null || true
 	iptables -C INPUT -j KJ_APP_PORT_BLOCK 2>/dev/null || iptables -I INPUT -j KJ_APP_PORT_BLOCK
+
+	# 本机服务的“阻止 IP+端口访问”只阻止公网/外部来源。
+	# Docker 容器访问宿主机 host.docker.internal:端口 时，来源会是 docker0/br-* 网桥上的 172.* 容器 IP，
+	# 这里必须放行，否则 nginx/caddy 等容器反代宿主机端口会被误判为外部访问并 DROP。
 	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT
 	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT
+	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT
+	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT
+	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT
+	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT
 	iptables -C KJ_APP_PORT_BLOCK -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -m state --state ESTABLISHED,RELATED -j ACCEPT
 	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || iptables -A KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP
 	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP 2>/dev/null || iptables -A KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP
@@ -5788,6 +5796,10 @@ kj_app_allow_host_port() {
 	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP; done
 	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT; done
 	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT; done
+	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT; done
+	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT; done
+	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT; done
+	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT; done
 }
 
 kj_app_block_docker() {
