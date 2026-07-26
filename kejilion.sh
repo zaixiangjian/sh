@@ -5917,8 +5917,9 @@ kj_app_nginx_running() {
 }
 
 kj_app_caddy_running() {
-	# 本地安装的 Caddy 只按用户指定方式检测：systemctl is-active caddy
-	[ "$(systemctl is-active caddy 2>/dev/null)" = "active" ]
+	# 本地安装的 Caddy 按 58 号配置检测；Docker Caddy 按容器运行状态检测。
+	[ "$(systemctl is-active caddy 2>/dev/null)" = "active" ] && return 0
+	docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true
 }
 
 kj_app_running_proxy_name() {
@@ -5929,7 +5930,7 @@ kj_app_running_proxy_name() {
 }
 
 kj_app_default_proxy() {
-	# 如果只有一个服务运行，用正在运行的；两个都运行时优先 caddy，避免 docker nginx 未启动/网络不通导致 502。
+	# 如果只有一个服务运行，用正在运行的；两个都运行时优先 caddy。
 	if kj_app_caddy_running; then
 		echo "caddy"
 	elif kj_app_nginx_running; then
@@ -5959,88 +5960,19 @@ kj_app_select_proxy() {
 	esac
 }
 
-kj_app_docker_internal_port() {
-	local cname="$1"
-	local host_port="$2"
-	docker port "$cname" 2>/dev/null | awk -v hp="$host_port" '$0 ~ ":"hp"$" {split($1,a,"/"); print a[1]; exit}'
-}
-
-kj_app_proxy_container_name() {
-	local proxy_type="$1"
-	case "$proxy_type" in
-		nginx)
-			if docker inspect -f '{{.State.Running}}' nginx 2>/dev/null | grep -q true; then echo "nginx"; return; fi
-			;;
-		caddy)
-			if docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true; then echo "caddy"; return; fi
-			;;
-	esac
-}
-
-kj_app_first_network() {
-	local cname="$1"
-	docker inspect -f '{{range $n,$v := .NetworkSettings.Networks}}{{$n}} {{end}}' "$cname" 2>/dev/null | awk '{print $1}'
-}
-
-kj_app_has_shared_network() {
-	local a="$1"
-	local b="$2"
-	local a_networks b_networks n
-	a_networks=" $(docker inspect -f '{{range $n,$v := .NetworkSettings.Networks}}{{$n}} {{end}}' "$a" 2>/dev/null) "
-	b_networks=" $(docker inspect -f '{{range $n,$v := .NetworkSettings.Networks}}{{$n}} {{end}}' "$b" 2>/dev/null) "
-	for n in $a_networks; do
-		if echo "$b_networks" | grep -q " $n "; then
-			return 0
-		fi
-	done
-	return 1
-}
-
-kj_app_ensure_proxy_same_network() {
-	local proxy_type="$1"
-	local target="$2"
-	local type="$3"
-	local proxy_container target_network
-	[ "$type" = "docker" ] || { echo "本地/二进制应用使用 127.0.0.1:端口，无需加入 Docker 网络。"; return 0; }
-	command -v docker >/dev/null 2>&1 || { echo "未检测到 docker。"; return 1; }
-	if ! docker inspect "$target" >/dev/null 2>&1; then
-		echo "未找到目标容器: $target"
-		return 1
-	fi
-	proxy_container=$(kj_app_proxy_container_name "$proxy_type")
-	if [ -z "$proxy_container" ]; then
-		echo "$proxy_type 不是正在运行的 Docker 容器，使用 127.0.0.1:宿主机端口即可。"
-		return 0
-	fi
-	if kj_app_has_shared_network "$proxy_container" "$target"; then
-		echo "$proxy_container 与 $target 已在同一 Docker 网络。"
-		return 0
-	fi
-	target_network=$(kj_app_first_network "$target")
-	if [ -z "$target_network" ]; then
-		echo "未找到 $target 的 Docker 网络。"
-		return 1
-	fi
-	echo "正在把 $proxy_container 加入 $target 的网络: $target_network"
-	if docker network connect "$target_network" "$proxy_container" 2>/tmp/kj_app_network_connect.err; then
-		echo "已加入同一网络：$proxy_container -> $target_network"
-	else
-		if grep -qi 'already exists\|already connected' /tmp/kj_app_network_connect.err 2>/dev/null; then
-			echo "$proxy_container 已经在网络 $target_network 中。"
-		else
-			echo "加入网络失败：$(cat /tmp/kj_app_network_connect.err 2>/dev/null)"
-			return 1
-		fi
-	fi
-}
-
 kj_app_reload_proxy_after_network_fix() {
 	local proxy_type="$1"
 	case "$proxy_type" in
 		nginx)
-			if docker inspect nginx >/dev/null 2>&1; then
-				echo "正在重启 Docker nginx..."
-				docker restart nginx
+			if docker inspect -f '{{.State.Running}}' nginx 2>/dev/null | grep -q true; then
+				echo "正在检测 Docker nginx 配置..."
+				if docker exec nginx nginx -t >/dev/null 2>&1; then
+					docker exec nginx nginx -s reload >/dev/null 2>&1 || docker restart nginx
+					echo "Docker nginx 检查通过，已重载/重启。"
+				else
+					echo "nginx 配置检测失败，已跳过重启，避免 nginx 启动不了。"
+					docker exec nginx nginx -t 2>&1 || true
+				fi
 			elif systemctl is-active --quiet nginx 2>/dev/null; then
 				echo "正在重载本地 nginx..."
 				systemctl reload nginx || systemctl restart nginx
@@ -6052,7 +5984,7 @@ kj_app_reload_proxy_after_network_fix() {
 			if [ "$(systemctl is-active caddy 2>/dev/null)" = "active" ]; then
 				echo "正在重载本地 Caddy..."
 				systemctl reload caddy || systemctl restart caddy
-			elif docker inspect caddy >/dev/null 2>&1; then
+			elif docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true; then
 				echo "正在重启 Docker caddy..."
 				docker restart caddy
 			else
@@ -6062,43 +5994,18 @@ kj_app_reload_proxy_after_network_fix() {
 	esac
 }
 
-kj_app_fix_proxy_network_menu() {
-	local target="$1"
-	local type="$2"
+kj_app_check_reload_proxy_menu() {
 	local proxy_type
 	proxy_type=$(kj_app_select_proxy)
 	[ -z "$proxy_type" ] && return 0
-	if kj_app_ensure_proxy_same_network "$proxy_type" "$target" "$type"; then
-		kj_app_reload_proxy_after_network_fix "$proxy_type"
-	fi
-}
-
-kj_app_nginx_backend_host() {
-	local cname="$1"
-	local nginx_networks target_networks pair net ip
-	nginx_networks=" $(docker inspect -f '{{range $n,$v := .NetworkSettings.Networks}}{{$n}} {{end}}' nginx 2>/dev/null) "
-	target_networks=$(docker inspect -f '{{range $n,$v := .NetworkSettings.Networks}}{{$n}}={{$v.IPAddress}} {{end}}' "$cname" 2>/dev/null)
-	for pair in $target_networks; do
-		net=${pair%%=*}
-		ip=${pair#*=}
-		if echo "$nginx_networks" | grep -q " $net "; then
-			# 同网络时优先容器名，Docker DNS 更稳定；失败时 nginx 仍可用同网络 IP。
-			echo "$cname"
-			return
-		fi
-	done
-	for pair in $target_networks; do
-		ip=${pair#*=}
-		[ -n "$ip" ] && echo "$ip" && return
-	done
-	echo "127.0.0.1"
+	kj_app_reload_proxy_after_network_fix "$proxy_type"
 }
 
 kj_app_add_domain_nginx() {
 	local port="$1"
 	local target="$2"
 	local type="$3"
-	# 非 Docker/未识别为容器的应用，默认反代到宿主机；nginx 容器需已配置 host.docker.internal:host-gateway。
+	# Docker nginx 统一反代到宿主机映射端口；nginx 容器需已配置 host.docker.internal:host-gateway。
 	local backend_host="host.docker.internal"
 	local backend_port="$port"
 	nginx_install_status
@@ -6106,18 +6013,17 @@ kj_app_add_domain_nginx() {
 	install_ssltls
 	certs_status
 	mkdir -p /home/web/conf.d
-	if [ "$type" = "docker" ] && command -v docker >/dev/null 2>&1; then
-		kj_app_ensure_proxy_same_network "nginx" "$target" "$type"
-		backend_host=$(kj_app_nginx_backend_host "$target")
-		backend_port=$(kj_app_docker_internal_port "$target" "$port")
-		backend_port=${backend_port:-$port}
-	fi
 	wget -O /home/web/conf.d/$yuming.conf ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/nginx/main/reverse-proxy.conf
 	sed -i "s/yuming.com/$yuming/g" /home/web/conf.d/$yuming.conf
 	sed -i "s/0.0.0.0/$backend_host/g" /home/web/conf.d/$yuming.conf
 	sed -i "s/0000/$backend_port/g" /home/web/conf.d/$yuming.conf
-	docker exec nginx nginx -t >/dev/null 2>&1 && docker exec nginx nginx -s reload >/dev/null 2>&1 || docker restart nginx >/dev/null 2>&1
-	echo "已使用 nginx 添加域名访问: https://$yuming -> $backend_host:$backend_port"
+	if docker exec nginx nginx -t >/dev/null 2>&1; then
+		docker exec nginx nginx -s reload >/dev/null 2>&1 || docker restart nginx >/dev/null 2>&1
+		echo "已使用 nginx 添加域名访问: https://$yuming -> $backend_host:$backend_port"
+	else
+		echo "nginx 配置检测失败，请检查: /home/web/conf.d/$yuming.conf"
+		docker exec nginx nginx -t 2>&1 || true
+	fi
 }
 
 kj_app_add_domain_caddy() {
@@ -6127,18 +6033,22 @@ kj_app_add_domain_caddy() {
 	local backend_host="127.0.0.1"
 	local backend_port="$port"
 	local caddyfile="/etc/caddy/Caddyfile"
-	if ! command -v caddy >/dev/null 2>&1; then
-		echo "未检测到 caddy 命令，请先安装 Caddy。"
+	local caddy_mode="local"
+	# 本地 Caddy 参考 58 号配置，使用 127.0.0.1:本地端口；Docker Caddy 使用 host.docker.internal:本地端口。
+	if [ "$(systemctl is-active caddy 2>/dev/null)" = "active" ]; then
+		caddy_mode="local"
+		backend_host="127.0.0.1"
+		caddyfile="/etc/caddy/Caddyfile"
+	elif docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true; then
+		caddy_mode="docker"
+		backend_host="host.docker.internal"
+		caddyfile="$caddy_docker_caddyfile"
+	else
+		echo "未检测到正在运行的本地 Caddy 或 Docker Caddy。"
 		return 1
 	fi
-	if [ "$type" = "docker" ] && docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true; then
-		kj_app_ensure_proxy_same_network "caddy" "$target" "$type"
-		backend_host="$target"
-		backend_port=$(kj_app_docker_internal_port "$target" "$port")
-		backend_port=${backend_port:-$port}
-	fi
 	add_yuming
-	mkdir -p /etc/caddy
+	mkdir -p "$(dirname "$caddyfile")"
 	[ -f "$caddyfile" ] || touch "$caddyfile"
 	if grep -qE "^[[:space:]]*$yuming[[:space:]]*\{" "$caddyfile" 2>/dev/null; then
 		echo "域名 $yuming 已存在于 Caddyfile，请勿重复添加。"
@@ -6154,13 +6064,23 @@ $yuming {
     }
 }
 EOF
-	caddy fmt --overwrite "$caddyfile" >/dev/null 2>&1 || true
-	if caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null 2>&1; then
-		systemctl reload caddy >/dev/null 2>&1 || systemctl restart caddy >/dev/null 2>&1
-		echo "已使用 caddy 添加域名访问: https://$yuming -> $backend_host:$backend_port"
+	if [ "$caddy_mode" = "docker" ]; then
+		docker run --rm -v "$caddyfile:/etc/caddy/Caddyfile" caddy:latest caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null 2>&1 || true
+		caddy_docker_reload
+		echo "已使用 Docker caddy 添加域名访问: https://$yuming -> $backend_host:$backend_port"
 	else
-		echo "Caddyfile 配置有误，请手动检查: $caddyfile"
-		caddy validate --config "$caddyfile" --adapter caddyfile
+		if ! command -v caddy >/dev/null 2>&1; then
+			echo "未检测到 caddy 命令，请检查本地 Caddy 安装。"
+			return 1
+		fi
+		caddy fmt --overwrite "$caddyfile" >/dev/null 2>&1 || true
+		if caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null 2>&1; then
+			systemctl reload caddy >/dev/null 2>&1 || systemctl restart caddy >/dev/null 2>&1
+			echo "已使用本地 caddy 添加域名访问: https://$yuming -> $backend_host:$backend_port"
+		else
+			echo "Caddyfile 配置有误，请手动检查: $caddyfile"
+			caddy validate --config "$caddyfile" --adapter caddyfile
+		fi
 	fi
 }
 
@@ -6230,7 +6150,7 @@ kj_app_port_detail_menu() {
 		echo "------------------------"
 		echo "1. 添加域名访问     2. 删除域名访问"
 		echo "3. 允许IP+端口访问  4. 阻止IP+端口访问"
-		echo "5. 添加nginx或caddy同一网络"
+		echo "5. nginx或caddy检查重启"
 		echo "------------------------"
 		echo "0. 返回上一级"
 		echo "------------------------"
@@ -6255,7 +6175,7 @@ kj_app_port_detail_menu() {
 				kj_app_block_port "$port" "$app_target" "$app_type"
 				;;
 			5)
-				kj_app_fix_proxy_network_menu "$app_target" "$app_type"
+				kj_app_check_reload_proxy_menu
 				;;
 			0)
 				break
