@@ -41,7 +41,7 @@ curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && ch
 -
 -
 -
-快捷启动指令k
+### 快捷启动指令k
 ```bash
 curl -sS -O https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x /root/kejilion.sh && ln -sf /root/kejilion.sh /usr/local/bin/k && k
 ```
