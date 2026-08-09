@@ -4587,8 +4587,9 @@ linux_ldnmp() {
 	  nginx_install_status
 	  ip_address
 	  add_yuming
-	  read -e -p "请输入你的反代IP: " reverseproxy
-	  read -e -p "请输入你的反代端口: " port
+	  read -e -p "请输入你的反代IP（回车默认host.docker.internal）: " reverseproxy
+	  reverseproxy=${reverseproxy:-host.docker.internal}
+	  read -e -p "请输入你的反代端口（本地端口）: " port
 
 	  install_ssltls
 	  certs_status
