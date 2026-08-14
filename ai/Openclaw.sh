@@ -172,9 +172,42 @@ check_openclaw_update() {
 
 
 	start_gateway() {
-		openclaw gateway stop
-		openclaw gateway start
-		sleep 3
+		if ! command -v openclaw >/dev/null 2>&1; then
+			echo "❌ 未检测到 openclaw，请先安装。"
+			return 1
+		fi
+
+		# 恢复后服务可能不存在/disabled。这里不要先 stop，
+		# 因为 openclaw gateway stop 可能会让刚装好的服务再次变成 disabled。
+		echo "正在安装/修复并启动 OpenClaw Gateway systemd 服务..."
+		local install_log install_rc
+		install_log=$(mktemp)
+		timeout 90 openclaw gateway install >"$install_log" 2>&1
+		install_rc=$?
+		cat "$install_log"
+
+		# 如果服务不存在或 install 返回失败，尝试 --force 重装一次。
+		if [ "$install_rc" -ne 0 ] || ! systemctl --user status openclaw-gateway.service >/dev/null 2>&1; then
+			echo "正在强制重装 OpenClaw Gateway 服务..."
+			timeout 90 openclaw gateway install --force || {
+				rm -f "$install_log"
+				echo "❌ Gateway 服务安装/启动失败。"
+				return 1
+			}
+		fi
+		rm -f "$install_log"
+
+		# install 通常会直接启动；这里再用 systemctl 兜底启动。
+		systemctl --user start openclaw-gateway.service >/dev/null 2>&1 || true
+		sleep 10
+		if timeout 25 openclaw gateway status 2>/dev/null | grep -q "Connectivity probe: ok"; then
+			echo "✅ OpenClaw Gateway 已启动并连通。"
+			return 0
+		fi
+
+		echo "⚠️ Gateway 服务已安装，但暂未探测到连通，当前状态如下："
+		openclaw gateway status 2>&1 | sed -n '1,100p'
+		return 1
 	}
 
 
@@ -5439,11 +5472,20 @@ openclaw_backup_restore_menu() {
 
 	openclaw_custom_start_after_restore() {
 		if command -v openclaw >/dev/null 2>&1; then
-			echo "正在安装/刷新 daemon 并启动 Gateway..."
-			openclaw onboard --install-daemon >/dev/null 2>&1 || true
-			start_gateway
-			add_app_id
+			echo "正在启动 OpenClaw Gateway..."
+			# 不再执行 openclaw onboard --install-daemon，避免恢复后卡在交互式 onboard。
+			# 这里只做非交互启动，并加 timeout 防止长时间无输出卡住菜单。
+			timeout 30 openclaw gateway stop >/dev/null 2>&1 || true
+			if timeout 90 openclaw gateway start; then
+				add_app_id
+				return 0
+			else
+				echo "⚠️ OpenClaw Gateway 启动命令超时或失败，请回主菜单用 2 号手动启动/查看日志。"
+				return 1
+			fi
 		fi
+		echo "❌ 未检测到 openclaw 命令，无法启动 Gateway。"
+		return 1
 	}
 
 	openclaw_custom_backup_full() {
@@ -5560,7 +5602,7 @@ openclaw_backup_restore_menu() {
 
 		echo "将从以下备份还原：$archive"
 		echo "警告：当前 $data_dir 会被移动为 .before_restore 备份，然后替换为所选备份。"
-		echo "还原前会停止 OpenClaw；如果新机器没安装 OpenClaw，会自动安装最新版再启动。"
+		echo "还原前会停止 OpenClaw；如果新机器没安装 OpenClaw，会自动安装/更新最新版，启动请回主菜单手动执行 2 号。"
 		read -e -p "确认还原？(y/N): " confirm
 		if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 			echo "已取消。"
@@ -5599,8 +5641,11 @@ openclaw_backup_restore_menu() {
 			echo "❌ OpenClaw 安装/更新失败。数据已还原，但程序可能未安装成功。"
 			return 1
 		}
-		openclaw_custom_start_after_restore
-		echo "✅ 还原完成，并已尝试启动 OpenClaw Gateway。"
+		if command -v openclaw >/dev/null 2>&1; then
+			echo "正在安装/修复 OpenClaw Gateway systemd 服务..."
+			timeout 60 openclaw gateway install || echo "⚠️ Gateway 服务安装失败，请回主菜单手动执行 2 号启动。"
+		fi
+		echo "✅ 还原完成。OpenClaw Gateway 服务已尝试安装/修复；如未运行，请回主菜单手动执行 2 号启动。"
 	}
 
 	openclaw_custom_backup_restore_menu() {
@@ -5614,7 +5659,7 @@ openclaw_backup_restore_menu() {
 			echo "数据目录：$(openclaw_custom_data_dir)"
 			echo "---------------------------------------"
 			echo "1. 备份 OpenClaw 自制全量"
-			echo "2. 还原 OpenClaw 自制全量（自动安装/更新并启动）"
+			echo "2. 还原 OpenClaw 自制全量（自动安装/更新，手动启动）"
 			echo "0. 返回上一级"
 			echo "---------------------------------------"
 			read -e -p "请输入你的选择: " custom_choice
