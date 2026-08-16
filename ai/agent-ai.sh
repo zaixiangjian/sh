@@ -371,7 +371,8 @@ install_sshpass_if_needed() {
 }
 
 ssh_base_array() {
-    SSH_CMD=(ssh -p "$REMOTE_PORT" -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new)
+    # -n 防止 ssh 读取 while 循环的标准输入，否则多配置循环会被 ssh 吃掉后续配置，只上传/测试第一台。
+    SSH_CMD=(ssh -n -p "$REMOTE_PORT" -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new)
     if [ "${AUTH_METHOD:-key}" = "password" ]; then
         install_sshpass_if_needed || return 1
         [ -n "${SSH_PASSWORD:-}" ] || { echo -e "${RED}❌ [$PROFILE_NAME] 密码模式下 SSH_PASSWORD 不能为空，请重新配置。${NC}"; return 1; }
@@ -512,7 +513,10 @@ upload_backup_loaded() {
     local file="$1"
     local subdir="$2"
     [ -f "$file" ] || { echo -e "${RED}❌ 备份文件不存在：$file${NC}"; return 1; }
-    remote_mkdir "$subdir"
+    if ! remote_mkdir "$subdir"; then
+        echo -e "${RED}❌ [$PROFILE_NAME] 创建远程目录失败，跳过此配置，继续上传下一个配置。${NC}"
+        return 1
+    fi
     scp_base_array || return 1
     local target
     target="$(remote_target)"
