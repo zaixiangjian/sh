@@ -6516,9 +6516,381 @@ caddy_docker_manager() {
 }
 # ===== Hermes: Caddy 官方 Docker 管理（100）结束 =====
 
+# ===== 哪吒远程定时备份配置（11 -> 5 -> 1000） =====
+nezha_remote_backup_base_dir="/home/nezha/remote_backup"
+nezha_remote_backup_job_dir="$nezha_remote_backup_base_dir/jobs"
+nezha_remote_backup_state_dir="$nezha_remote_backup_base_dir/state"
+
+nezha_remote_backup_safe_name() {
+    local name="$1"
+    [[ "$name" =~ ^[A-Za-z0-9_.-]+$ ]]
+}
+
+nezha_remote_backup_config_path() {
+    echo "$nezha_remote_backup_job_dir/$1.conf"
+}
+
+nezha_remote_backup_script_path() {
+    echo "$nezha_remote_backup_job_dir/$1.sh"
+}
+
+nezha_remote_backup_ensure_dirs() {
+    mkdir -p "$nezha_remote_backup_job_dir" "$nezha_remote_backup_state_dir"
+    if [ -d /root/.config/nezha_remote_backup/jobs ]; then
+        cp -an /root/.config/nezha_remote_backup/jobs/. "$nezha_remote_backup_job_dir"/ 2>/dev/null || true
+    fi
+    if [ -d /root/.config/nezha_remote_backup/state ]; then
+        cp -an /root/.config/nezha_remote_backup/state/. "$nezha_remote_backup_state_dir"/ 2>/dev/null || true
+    fi
+    chmod 700 "$nezha_remote_backup_base_dir" "$nezha_remote_backup_job_dir" "$nezha_remote_backup_state_dir" 2>/dev/null || true
+}
+
+nezha_remote_backup_write_runner() {
+    local name="$1"
+    local script_file
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    cat > "$script_file" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+CONFIG_FILE="__CONFIG_FILE__"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ 配置文件不存在: $CONFIG_FILE"
+    exit 1
+fi
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+
+BACKUP_DIR="/home/nezha"
+STATE_DIR="/home/nezha/remote_backup/state"
+LOG_PREFIX="[$(date '+%F %T')] [$JOB_NAME]"
+mkdir -p "$BACKUP_DIR" "$STATE_DIR"
+STATE_FILE="$STATE_DIR/${JOB_NAME}.last_success"
+
+interval_seconds=$((INTERVAL_DAYS * 86400))
+now_ts=$(date +%s)
+if [ "${FORCE_RUN:-0}" != "1" ] && [ -f "$STATE_FILE" ]; then
+    last_ts=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+    if [ "$last_ts" -gt 0 ] && [ $((now_ts - last_ts)) -lt "$interval_seconds" ]; then
+        next_ts=$((last_ts + interval_seconds))
+        echo "$LOG_PREFIX 距离上次成功备份不足 ${INTERVAL_DAYS} 天，跳过。本次应在 $(date -d "@$next_ts" '+%F %T' 2>/dev/null || date -r "$next_ts" '+%F %T' 2>/dev/null || echo "$next_ts") 后运行。"
+        exit 0
+    fi
+fi
+
+start_nezha() {
+    echo "[$(date '+%F %T')] [$JOB_NAME] 🚀 正在启动哪吒服务..."
+    systemctl start nezha-dashboard 2>/dev/null || {
+        if [ -x /opt/nezha/dashboard/app ]; then
+            cd /opt/nezha/dashboard
+            nohup ./app > /dev/null 2>&1 &
+        fi
+    }
+}
+
+stopped=0
+cleanup() {
+    if [ "$stopped" = "1" ]; then
+        start_nezha || true
+    fi
+}
+trap cleanup EXIT
+
+echo "$LOG_PREFIX 🛑 正在停止哪吒服务..."
+systemctl stop nezha-dashboard 2>/dev/null || true
+pkill app 2>/dev/null || true
+stopped=1
+
+echo "[$(date '+%F %T')] [$JOB_NAME] ⏳ 等待数据落盘..."
+sleep 3
+
+if [ ! -f /opt/nezha/dashboard/data/sqlite.db ]; then
+    echo "[$(date '+%F %T')] [$JOB_NAME] ❌ 数据库不存在，备份终止"
+    exit 1
+fi
+
+DATE_STR=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/nezha_full_backup_${JOB_NAME}_${DATE_STR}.tar.gz"
+LATEST_FILE="$BACKUP_DIR/nezha_full_backup_${JOB_NAME}_latest.tar.gz"
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 📦 开始打包备份..."
+tar czf "$BACKUP_FILE" \
+    /opt/nezha/dashboard/data \
+    /opt/nezha/dashboard/app \
+    /opt/nezha/dashboard/resource
+cp -f "$BACKUP_FILE" "$LATEST_FILE"
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 📤 正在上传到远程服务器 ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR} ..."
+SSH_OPTS=(-p "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/root/.ssh/known_hosts)
+if [ "$AUTH_TYPE" = "key" ]; then
+    if [ ! -f "$SSH_KEY" ]; then
+        echo "[$(date '+%F %T')] [$JOB_NAME] ❌ 密钥文件不存在: $SSH_KEY"
+        exit 1
+    fi
+    SSH_CMD=(ssh -i "$SSH_KEY" "${SSH_OPTS[@]}")
+    SCP_CMD=(scp -i "$SSH_KEY" -P "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/root/.ssh/known_hosts)
+else
+    if ! command -v sshpass >/dev/null 2>&1; then
+        echo "[$(date '+%F %T')] [$JOB_NAME] ❌ sshpass 未安装，密码登录无法上传"
+        exit 1
+    fi
+    export SSHPASS="$REMOTE_PASSWORD"
+    SSH_CMD=(sshpass -e ssh "${SSH_OPTS[@]}")
+    SCP_CMD=(sshpass -e scp -P "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/root/.ssh/known_hosts)
+fi
+
+"${SSH_CMD[@]}" "$REMOTE_USER@$REMOTE_HOST" "mkdir -p '$REMOTE_DIR'"
+"${SCP_CMD[@]}" "$BACKUP_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
+"${SCP_CMD[@]}" "$LATEST_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 🧹 清理本地旧备份，只保留最近 ${LOCAL_KEEP} 份..."
+ls -t "$BACKUP_DIR"/nezha_full_backup_${JOB_NAME}_*.tar.gz 2>/dev/null | grep -v '_latest.tar.gz$' | tail -n +$((LOCAL_KEEP + 1)) | xargs -r rm -f
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 🧹 清理远程旧备份，只保留最近 ${REMOTE_KEEP} 份..."
+"${SSH_CMD[@]}" "$REMOTE_USER@$REMOTE_HOST" "ls -t '$REMOTE_DIR'/nezha_full_backup_${JOB_NAME}_*.tar.gz 2>/dev/null | grep -v '_latest.tar.gz$' | tail -n +$((REMOTE_KEEP + 1)) | xargs -r rm -f" || true
+
+date +%s > "$STATE_FILE"
+echo "[$(date '+%F %T')] [$JOB_NAME] ✅ 哪吒远程备份完成: $BACKUP_FILE"
+EOF
+    sed -i "s#__CONFIG_FILE__#$(nezha_remote_backup_config_path "$name")#g" "$script_file"
+    chmod 700 "$script_file"
+}
+
+nezha_remote_backup_add_cron() {
+    local name="$1" hour="$2" minute="$3" script_file
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    check_crontab_installed
+    (crontab -l 2>/dev/null | grep -Fv "$script_file"; echo "$minute $hour * * * /bin/bash $script_file") | crontab -
+}
+
+nezha_remote_backup_delete_cron() {
+    local name="$1" script_file
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    if command -v crontab >/dev/null 2>&1; then
+        crontab -l 2>/dev/null | grep -Fv "$script_file" | crontab - 2>/dev/null || true
+    fi
+}
+
+nezha_remote_backup_list() {
+    nezha_remote_backup_ensure_dirs
+    echo "已配置的哪吒远程备份："
+    echo "------------------------"
+    local found=0 conf name cron_line
+    for conf in "$nezha_remote_backup_job_dir"/*.conf; do
+        [ -f "$conf" ] || continue
+        found=1
+        # shellcheck disable=SC1090
+        source "$conf"
+        name="$JOB_NAME"
+        cron_line=$(crontab -l 2>/dev/null | grep -F "$(nezha_remote_backup_script_path "$name")" || true)
+        echo "名称：$JOB_NAME"
+        echo "远程：$REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT 目录：$REMOTE_DIR"
+        echo "登录：$AUTH_TYPE"
+        echo "周期：每 $INTERVAL_DAYS 天，$HOUR 点 $MINUTE 分检查运行"
+        if [ -n "$cron_line" ]; then
+            echo "定时：$cron_line"
+        else
+            echo "定时：未添加"
+        fi
+        echo "------------------------"
+    done
+    if [ "$found" = "0" ]; then
+        echo "暂无配置"
+        echo "------------------------"
+    fi
+}
+
+nezha_remote_backup_add_config() {
+    nezha_remote_backup_ensure_dirs
+    local name remote_host remote_user remote_port remote_dir auth_type ssh_key remote_password interval_days hour minute local_keep remote_keep conf_file
+    read -e -p "配置名称（英文/数字/点/横线/下划线，例如 hk1）: " name
+    if ! nezha_remote_backup_safe_name "$name"; then
+        echo "❌ 名称不合法，只能使用英文、数字、点、横线、下划线"
+        return 1
+    fi
+    read -e -p "远程服务器IP/域名: " remote_host
+    [ -n "$remote_host" ] || { echo "❌ 远程服务器不能为空"; return 1; }
+    read -e -p "远程用户名 [root]: " remote_user
+    remote_user=${remote_user:-root}
+    read -e -p "SSH端口 [22]: " remote_port
+    remote_port=${remote_port:-22}
+    read -e -p "远程保存目录 [/home/nezha-backup/$name]: " remote_dir
+    remote_dir=${remote_dir:-/home/nezha-backup/$name}
+    echo "登录方式：1. 密钥登录  2. 密码登录"
+    read -e -p "请选择 [1]: " auth_choice
+    auth_choice=${auth_choice:-1}
+    ssh_key=""
+    remote_password=""
+    case "$auth_choice" in
+        1)
+            auth_type="key"
+            read -e -p "本机SSH私钥路径 [/root/.ssh/id_rsa]: " ssh_key
+            ssh_key=${ssh_key:-/root/.ssh/id_rsa}
+            if [ ! -f "$ssh_key" ]; then
+                echo "⚠️ 密钥文件当前不存在：$ssh_key"
+                echo "   请先配置免密，或改用密码登录。"
+            fi
+            ;;
+        2)
+            auth_type="password"
+            read -s -p "远程服务器密码: " remote_password
+            echo ""
+            [ -n "$remote_password" ] || { echo "❌ 密码不能为空"; return 1; }
+            install sshpass
+            ;;
+        *)
+            echo "❌ 无效登录方式"
+            return 1
+            ;;
+    esac
+    read -e -p "每几天运行一次 [1]: " interval_days
+    interval_days=${interval_days:-1}
+    [[ "$interval_days" =~ ^[0-9]+$ ]] && [ "$interval_days" -ge 1 ] || { echo "❌ 天数必须是大于0的数字"; return 1; }
+    read -e -p "几点运行，小时 0-23 [3]: " hour
+    hour=${hour:-3}
+    [[ "$hour" =~ ^[0-9]+$ ]] && [ "$hour" -ge 0 ] && [ "$hour" -le 23 ] || { echo "❌ 小时必须是0-23"; return 1; }
+    read -e -p "几分运行，分钟 0-59 [0]: " minute
+    minute=${minute:-0}
+    [[ "$minute" =~ ^[0-9]+$ ]] && [ "$minute" -ge 0 ] && [ "$minute" -le 59 ] || { echo "❌ 分钟必须是0-59"; return 1; }
+    read -e -p "本地保留几份备份 [7]: " local_keep
+    local_keep=${local_keep:-7}
+    read -e -p "远程保留几份备份 [14]: " remote_keep
+    remote_keep=${remote_keep:-14}
+    [[ "$local_keep" =~ ^[0-9]+$ ]] && [ "$local_keep" -ge 1 ] || local_keep=7
+    [[ "$remote_keep" =~ ^[0-9]+$ ]] && [ "$remote_keep" -ge 1 ] || remote_keep=14
+
+    conf_file="$(nezha_remote_backup_config_path "$name")"
+    {
+        printf 'JOB_NAME=%q\n' "$name"
+        printf 'REMOTE_HOST=%q\n' "$remote_host"
+        printf 'REMOTE_USER=%q\n' "$remote_user"
+        printf 'REMOTE_PORT=%q\n' "$remote_port"
+        printf 'REMOTE_DIR=%q\n' "$remote_dir"
+        printf 'AUTH_TYPE=%q\n' "$auth_type"
+        printf 'SSH_KEY=%q\n' "$ssh_key"
+        printf 'REMOTE_PASSWORD=%q\n' "$remote_password"
+        printf 'INTERVAL_DAYS=%q\n' "$interval_days"
+        printf 'HOUR=%q\n' "$hour"
+        printf 'MINUTE=%q\n' "$minute"
+        printf 'LOCAL_KEEP=%q\n' "$local_keep"
+        printf 'REMOTE_KEEP=%q\n' "$remote_keep"
+    } > "$conf_file"
+    chmod 600 "$conf_file"
+
+    nezha_remote_backup_write_runner "$name"
+    nezha_remote_backup_add_cron "$name" "$hour" "$minute"
+
+    echo "✅ 配置已保存：$conf_file"
+    echo "✅ 定时任务已添加：每 $interval_days 天，$hour 点 $minute 分运行检查"
+    echo "✅ 执行脚本：$(nezha_remote_backup_script_path "$name")"
+    echo "⚠️ 如果使用密码登录，密码会明文保存到本机配置文件（chmod 600），请保护 root 权限。"
+    echo "📁 配置/脚本/日志目录：$nezha_remote_backup_base_dir"
+}
+
+nezha_remote_backup_delete_config() {
+    nezha_remote_backup_ensure_dirs
+    nezha_remote_backup_list
+    local name conf_file script_file
+    read -e -p "请输入要删除的配置名称，输入0返回: " name
+    [ "$name" = "0" ] && return 0
+    if ! nezha_remote_backup_safe_name "$name"; then
+        echo "❌ 名称不合法"
+        return 1
+    fi
+    conf_file="$(nezha_remote_backup_config_path "$name")"
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    if [ ! -f "$conf_file" ]; then
+        echo "❌ 未找到配置：$name"
+        return 1
+    fi
+    read -e -p "确认删除配置 $name 并删除对应定时任务？(y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "已取消"
+        return 0
+    fi
+    nezha_remote_backup_delete_cron "$name"
+    rm -f "$conf_file" "$script_file"
+    echo "✅ 已删除配置和定时任务：$name"
+}
+
+nezha_remote_backup_run_now() {
+    nezha_remote_backup_ensure_dirs
+    nezha_remote_backup_list
+    local name script_file
+    read -e -p "请输入要立即执行的配置名称，输入0返回: " name
+    [ "$name" = "0" ] && return 0
+    if ! nezha_remote_backup_safe_name "$name"; then
+        echo "❌ 名称不合法"
+        return 1
+    fi
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    if [ ! -f "$script_file" ]; then
+        echo "❌ 未找到执行脚本：$script_file"
+        return 1
+    fi
+    echo "▶️ 开始执行"
+    FORCE_RUN=1 /bin/bash "$script_file"
+}
+
+
+nezha_remote_backup_print_menu_summary() {
+    nezha_remote_backup_ensure_dirs
+    local found=0 conf name cron_line show_minute
+    for conf in "$nezha_remote_backup_job_dir"/*.conf; do
+        [ -f "$conf" ] || continue
+        # shellcheck disable=SC1090
+        source "$conf"
+        name="$JOB_NAME"
+        cron_line=$(crontab -l 2>/dev/null | grep -F "$(nezha_remote_backup_script_path "$name")" || true)
+        [ -n "$cron_line" ] || continue
+        if [ "$found" = "0" ]; then
+            echo "如果有定时任务在这里显示"
+            found=1
+        fi
+        show_minute="$MINUTE"
+        if [[ "$show_minute" =~ ^[0-9]$ ]]; then
+            show_minute="0$show_minute"
+        fi
+        echo "名称：$JOB_NAME  远程：$REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT"
+        echo "每 $INTERVAL_DAYS 天，$HOUR 点 $show_minute 分运行"
+        echo "crontab -e：$cron_line"
+        echo "配置目录：$nezha_remote_backup_base_dir"
+        echo "------------------------"
+    done
+}
+
+nezha_remote_backup_menu() {
+    while true; do
+        clear
+        echo "哪吒远程定时备份配置"
+        echo "------------------------"
+        echo "1. 添加/修改远程备份配置"
+        echo "2. 查看配置和定时任务"
+        echo "3. 删除远程配置并删除定时任务"
+        echo "4. 立即执行某个远程备份配置"
+        echo "------------------------"
+        echo "0. 返回"
+        echo "------------------------"
+        read -e -p "请输入你的选择: " rb_choice
+        case "$rb_choice" in
+            1) nezha_remote_backup_add_config ;;
+            2) nezha_remote_backup_list ;;
+            3) nezha_remote_backup_delete_config ;;
+            4) nezha_remote_backup_run_now ;;
+            0) break ;;
+            *) echo "无效选项" ;;
+        esac
+        read -n 1 -s -r -p "按任意键继续..."
+    done
+}
+
+
+
+
+
+
 
 linux_panel() {
-
   while true; do
     clear
     # send_stats "面板工具"
@@ -6843,6 +7215,7 @@ linux_panel() {
     echo "开源、轻量、易用的服务器监控与运维工具"
     echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
     echo "------------------------"
+    nezha_remote_backup_print_menu_summary
     echo "1. 安装 / 更新哪吒"
     echo "恢复前先使用1号配置的4停止在使用3号启动"
     echo "------------------------"
@@ -6855,6 +7228,7 @@ linux_panel() {
     echo "------------------------"
     echo "999. 备份哪吒面板"
     echo "备份前先使用1号配置的4停止"
+    echo "1000. 远程定时备份配置"
     echo "------------------------"
     echo "0. 退出"
     echo "------------------------"
@@ -6945,6 +7319,23 @@ systemctl start nezha-dashboard 2>/dev/null || {
         else
           echo "❌ 备份失败"
         fi
+
+        echo "🚀 正在重新启动哪吒服务..."
+        systemctl start nezha-dashboard 2>/dev/null || {
+          cd /opt/nezha/dashboard
+          nohup ./app > /dev/null 2>&1 &
+        }
+
+        sleep 2
+        if pgrep -f "/opt/nezha/dashboard/app" >/dev/null 2>&1 || systemctl is-active --quiet nezha-dashboard 2>/dev/null; then
+          echo "✅ 哪吒服务已重新启动"
+        else
+          echo "⚠️ 哪吒服务可能未启动，请手动检查：systemctl status nezha-dashboard"
+        fi
+        ;;
+
+      1000)
+        nezha_remote_backup_menu
         ;;
 
       0)
