@@ -6708,6 +6708,7 @@ linux_panel() {
     check_docker "98" "chromium"
     check_path "99" "/root/.hermes"
     check_docker "100" "caddy"
+	check_path "101" "/root/agent-ai.sh"
     check_docker "102" "windows"
 
     # 打印已安装的项目列表并自动折行输出
