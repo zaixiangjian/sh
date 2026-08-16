@@ -6585,6 +6585,7 @@ linux_panel() {
     echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                 ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
+    echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
     echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
@@ -12277,7 +12278,12 @@ EOF
         caddy_docker_manager
         ;;
 
-
+      101)
+        clear
+        echo "▶️ 安装agent-ai备份..."
+        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh -o /root/agent-ai.sh && chmod +x /root/agent-ai.sh
+        echo "✅ agent-ai备份安装成功..."
+        ;;
 
 
 
