@@ -12082,7 +12082,7 @@ done
       94)
         clear
         echo "▶️ 正在启动Openclaw安装..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh)
+        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh -o /root/Openclaw.sh && chmod +x /root/Openclaw.sh
         echo "✅ Openclaw安装完成。"
         ;;
 
@@ -12269,7 +12269,7 @@ EOF
       99)
         clear
         echo "▶️ 安装hermes-agent..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh)
+        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh -o /root/hermes_manager.sh && chmod +x /root/hermes_manager.sh
         echo "✅ hermes-agent安装成功..."
         ;;
 
