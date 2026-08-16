@@ -12083,7 +12083,7 @@ done
       94)
         clear
         echo "▶️ 正在启动Openclaw安装..."
-        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh -o /root/Openclaw.sh && chmod +x /root/Openclaw.sh
+        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh -o /root/Openclaw.sh && chmod +x /root/Openclaw.sh && /root/Openclaw.sh
         echo "✅ Openclaw安装完成。"
         ;;
 
@@ -12270,7 +12270,7 @@ EOF
       99)
         clear
         echo "▶️ 安装hermes-agent..."
-        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh -o /root/hermes_manager.sh && chmod +x /root/hermes_manager.sh
+        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh -o /root/hermes_manager.sh && chmod +x /root/hermes_manager.sh && /root/hermes_manager.sh
         echo "✅ hermes-agent安装成功..."
         ;;
 
@@ -12281,7 +12281,7 @@ EOF
       101)
         clear
         echo "▶️ 安装agent-ai备份..."
-        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh -o /root/agent-ai.sh && chmod +x /root/agent-ai.sh
+		curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh -o /root/agent-ai.sh && chmod +x /root/agent-ai.sh && /root/agent-ai.sh
         echo "✅ agent-ai备份安装成功..."
         ;;
 
