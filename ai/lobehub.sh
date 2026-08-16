@@ -152,7 +152,7 @@ write_config_json() {
         envFile: $env_file,
         port: $port,
         appUrl: $app_url,
-        models: { providers: { openai: { proxyUrl: $openai_proxy_url, apiKey: $openai_api_key } } },
+        models: { providers: { openai: { proxyUrl: $openai_proxy_url, apiKey: "***" } } },
         auth: { registrationDisabled: ($registration_disabled == "1"), allowedEmails: $allowed_emails },
         updatedAt: (now | todate)
       }' > "$CONFIG_FILE"
@@ -161,6 +161,12 @@ write_config_json() {
 {"app":"lobehub","appDir":"$APP_DIR","composeFile":"$COMPOSE_FILE","envFile":"$ENV_FILE"}
 EOF
   fi
+}
+
+prepare_data_dirs() {
+  mkdir -p "$APP_DIR/postgres-data" "$APP_DIR/redis-data" "$APP_DIR/rustfs-data"
+  # rustfs/rustfs:latest 默认以 uid/gid 10001 运行；root:root 755 会导致 /data 写入失败。
+  chown -R 10001:10001 "$APP_DIR/rustfs-data" 2>/dev/null || true
 }
 
 write_bucket_config() {
@@ -272,6 +278,7 @@ services:
   rustfs:
     image: rustfs/rustfs:latest
     container_name: lobe-rustfs
+    user: "0:0"
     ports:
       - "${RUSTFS_PORT}:9000"
       - "${RUSTFS_ADMIN_PORT}:9001"
@@ -372,7 +379,7 @@ init_env_interactive() {
   set_env_value INTERNAL_APP_URL "http://localhost:3210"
   set_env_value LOBE_DB_NAME "$(load_env_value LOBE_DB_NAME || true)"
   [ -n "$(load_env_value LOBE_DB_NAME)" ] || set_env_value LOBE_DB_NAME "lobechat"
-  [ -n "$(load_env_value POSTGRES_PASSWORD)" ] || set_env_value POSTGRES_PASSWORD "$(random_b64 24)"
+  [ -n "$(load_env_value POSTGRES_PASSWORD)" ] || set_env_value POSTGRES_PASSWORD "$(random_hex 24)"
   [ -n "$(load_env_value KEY_VAULTS_SECRET)" ] || set_env_value KEY_VAULTS_SECRET "$(random_b64 32)"
   [ -n "$(load_env_value AUTH_SECRET)" ] || set_env_value AUTH_SECRET "$(random_b64 32)"
   if [ -z "$(load_env_value JWKS_KEY)" ]; then
@@ -406,6 +413,7 @@ install_lobehub() {
   ensure_tools || return 1
   mkdir -p "$APP_DIR" "$CONFIG_DIR" "$BACKUP_DIR"
   init_env_interactive
+  prepare_data_dirs
   write_compose_file
   write_bucket_config
   write_searxng_config
@@ -419,6 +427,7 @@ install_lobehub() {
 
 start_lobehub() {
   [ -f "$COMPOSE_FILE" ] || { err "未找到 $COMPOSE_FILE，请先安装。"; return 1; }
+  prepare_data_dirs
   compose up -d
 }
 
@@ -450,10 +459,11 @@ status_lobehub() {
 update_lobehub() {
   [ -f "$COMPOSE_FILE" ] || { err "未找到 $COMPOSE_FILE，请先安装。"; return 1; }
   ensure_tools || return 1
-  backup_lobehub quiet
+  backup_lobehub quiet || { err "更新前备份失败，已取消更新。"; return 1; }
   msg "正在更新镜像并重启..."
-  compose pull
-  compose up -d
+  compose pull || return 1
+  prepare_data_dirs
+  compose up -d || return 1
   msg "更新完成。"
 }
 
@@ -461,7 +471,7 @@ uninstall_lobehub() {
   [ -f "$COMPOSE_FILE" ] || { warn "未检测到安装文件。"; return 0; }
   warn "卸载会停止并删除 LobeHub 容器。"
   read -r -p "是否先创建备份？[Y/n]: " bk
-  case "$bk" in n|N) ;; *) backup_lobehub quiet ;; esac
+  case "$bk" in n|N) ;; *) backup_lobehub quiet || { err "备份失败，已取消卸载。"; return 1; } ;; esac
   read -r -p "是否删除数据目录 $APP_DIR ？[y/N]: " deldata
   compose down --remove-orphans
   if [[ "$deldata" =~ ^[Yy]$ ]]; then
@@ -474,12 +484,16 @@ uninstall_lobehub() {
 
 backup_lobehub() {
   local mode="$1"
-  mkdir -p "$BACKUP_DIR"
-  local ts archive
+  [ -d "$APP_DIR" ] || { err "未找到应用目录 $APP_DIR，请先安装。"; return 1; }
+  mkdir -p "$BACKUP_DIR" "$CONFIG_DIR"
+  local ts archive was_running=0
   ts=$(date +%Y%m%d-%H%M%S)
   archive="$BACKUP_DIR/lobehub-backup-${ts}.tar.gz"
   [ "$mode" = "quiet" ] || warn "备份会包含数据库、对象存储、API Key、登录密钥等敏感信息，请妥善保存。"
   if [ -f "$COMPOSE_FILE" ]; then
+    if compose ps --services --filter status=running 2>/dev/null | grep -q .; then
+      was_running=1
+    fi
     msg "正在暂停容器以确保数据库一致性..."
     compose stop >/dev/null 2>&1 || true
   fi
@@ -489,12 +503,14 @@ backup_lobehub() {
     "${APP_DIR#/}" \
     "${CONFIG_DIR#/}" 2>/tmp/lobehub-backup.err
   local rc=$?
-  if [ -f "$COMPOSE_FILE" ]; then
-    compose up -d >/dev/null 2>&1 || true
+  if [ "$was_running" -eq 1 ] && [ -f "$COMPOSE_FILE" ]; then
+    prepare_data_dirs
+    compose up -d >/dev/null 2>&1 || warn "备份已完成，但容器自动重启失败，请手动检查。"
   fi
   if [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; then
     msg "备份完成: $archive"
   else
+    rm -f "$archive"
     err "备份失败: $(cat /tmp/lobehub-backup.err 2>/dev/null)"
     return 1
   fi
@@ -508,10 +524,17 @@ list_backups() {
 
 restore_lobehub() {
   mkdir -p "$BACKUP_DIR"
-  list_backups
-  echo
-  read -r -p "请输入要恢复的备份文件完整路径: " archive
+  local archive="$1"
+  if [ -z "$archive" ]; then
+    list_backups
+    echo
+    read -r -p "请输入要恢复的备份文件完整路径: " archive
+  fi
   [ -f "$archive" ] || { err "备份文件不存在。"; return 1; }
+  if ! tar -tzf "$archive" "${APP_DIR#/}/docker-compose.yml" >/dev/null 2>&1; then
+    err "备份结构不正确：未找到 ${APP_DIR#/}/docker-compose.yml，已取消恢复。"
+    return 1
+  fi
   warn "恢复会停止当前 LobeHub，并把现有目录移动为 .before_restore 备份。"
   read -r -p "确认恢复？[y/N]: " yn
   [[ "$yn" =~ ^[Yy]$ ]] || return 0
@@ -525,22 +548,33 @@ restore_lobehub() {
   [ -d "$CONFIG_DIR" ] && mv "$CONFIG_DIR" "$old_cfg"
   if tar -xzf "$archive" -C /; then
     msg "恢复完成，正在启动..."
-    compose up -d
-    msg "已恢复。旧目录: $old_app $old_cfg"
+    prepare_data_dirs
+    if compose up -d; then
+      msg "已恢复。旧目录: $old_app $old_cfg"
+    else
+      err "恢复后的容器启动失败，正在回滚..."
+      compose down --remove-orphans >/dev/null 2>&1 || true
+      rm -rf "$APP_DIR" "$CONFIG_DIR"
+      [ -d "$old_app" ] && mv "$old_app" "$APP_DIR"
+      [ -d "$old_cfg" ] && mv "$old_cfg" "$CONFIG_DIR"
+      [ -f "$COMPOSE_FILE" ] && prepare_data_dirs && compose up -d >/dev/null 2>&1 || true
+      return 1
+    fi
   else
     err "恢复失败，正在回滚..."
     rm -rf "$APP_DIR" "$CONFIG_DIR"
     [ -d "$old_app" ] && mv "$old_app" "$APP_DIR"
     [ -d "$old_cfg" ] && mv "$old_cfg" "$CONFIG_DIR"
-    [ -f "$COMPOSE_FILE" ] && compose up -d >/dev/null 2>&1 || true
+    [ -f "$COMPOSE_FILE" ] && prepare_data_dirs && compose up -d >/dev/null 2>&1 || true
     return 1
   fi
 }
 
 migration_package() {
-  backup_lobehub quiet
+  backup_lobehub quiet || return 1
   local latest
   latest=$(ls -1t "$BACKUP_DIR"/lobehub-backup-*.tar.gz 2>/dev/null | head -n1)
+  [ -n "$latest" ] || { err "没有找到刚生成的备份。"; return 1; }
   echo
   msg "迁移包已生成: $latest"
   echo "新服务器恢复步骤："
@@ -572,10 +606,11 @@ sync_pull() {
   remote_file=$(cat /tmp/lobehub-latest-remote.txt)
   [ -z "$remote_file" ] && { err "远端没有备份。"; return 1; }
   scp "$source:$remote_file" "$BACKUP_DIR/" || return 1
-  msg "已拉取: $BACKUP_DIR/$(basename "$remote_file")"
+  local local_archive="$BACKUP_DIR/$(basename "$remote_file")"
+  msg "已拉取: $local_archive"
   read -r -p "是否立即恢复这个备份？[y/N]: " yn
   if [[ "$yn" =~ ^[Yy]$ ]]; then
-    restore_lobehub
+    restore_lobehub "$local_archive"
   fi
 }
 
