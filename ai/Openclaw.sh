@@ -186,19 +186,27 @@ check_openclaw_update() {
 		install_rc=$?
 		cat "$install_log"
 
-		# 如果服务不存在或 install 返回失败，尝试 --force 重装一次。
-		if [ "$install_rc" -ne 0 ] || ! systemctl --user status openclaw-gateway.service >/dev/null 2>&1; then
-			echo "正在强制重装 OpenClaw Gateway 服务..."
+		# openclaw gateway install 在服务已存在时可能输出 “already enabled” 并返回非 0。
+		# 这种情况不是故障，直接 systemctl start 即可；只有服务文件确实不存在时才 --force 重装。
+		if ! systemctl --user cat openclaw-gateway.service >/dev/null 2>&1; then
+			echo "未找到 OpenClaw Gateway 服务文件，正在强制重装..."
 			timeout 90 openclaw gateway install --force || {
 				rm -f "$install_log"
-				echo "❌ Gateway 服务安装/启动失败。"
+				echo "❌ Gateway 服务安装失败。"
 				return 1
 			}
+		elif [ "$install_rc" -ne 0 ]; then
+			echo "检测到 Gateway 服务已存在，跳过强制重装，直接启动服务..."
 		fi
 		rm -f "$install_log"
 
 		# install 通常会直接启动；这里再用 systemctl 兜底启动。
-		systemctl --user start openclaw-gateway.service >/dev/null 2>&1 || true
+		systemctl --user daemon-reload >/dev/null 2>&1 || true
+		if ! systemctl --user start openclaw-gateway.service; then
+			echo "❌ systemctl 启动 OpenClaw Gateway 失败，当前状态如下："
+			systemctl --user status openclaw-gateway.service --no-pager 2>&1 | sed -n '1,80p'
+			return 1
+		fi
 		sleep 10
 		if timeout 25 openclaw gateway status 2>/dev/null | grep -q "Connectivity probe: ok"; then
 			echo "✅ OpenClaw Gateway 已启动并连通。"
@@ -5512,7 +5520,7 @@ openclaw_backup_restore_menu() {
 		fi
 
 		echo "即将备份 OpenClaw 自制全量数据：$data_dir"
-		echo "备份前会先停止 Gateway，等待缓存/数据库落库，备份完成后不会自动启动，请手动启动。"
+		echo "备份前会先停止 Gateway，等待缓存/数据库落库，备份完成后会自动重新启动 Gateway。"
 		echo "注意：备份可能包含 API Key、机器人 Token、会话、记忆等敏感信息，请妥善保管。"
 		read -e -p "确认开始备份？(y/N): " confirm
 		if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
@@ -5532,10 +5540,15 @@ openclaw_backup_restore_menu() {
 			-C "$parent" "$base"
 		tar_status=$?
 
-		echo "备份流程已结束，OpenClaw Gateway 保持停止状态；如需运行请回主菜单手动启动。"
-
 		if [ "$tar_status" -eq 0 ]; then
 			echo "✅ 备份完成：$archive"
+			echo "正在重新启动 OpenClaw Gateway..."
+			if start_gateway; then
+				echo "✅ OpenClaw Gateway 已自动重启。"
+			else
+				echo "⚠️ 备份已完成，但 OpenClaw Gateway 自动重启失败，请回主菜单执行 2 号启动并查看日志。"
+				return 1
+			fi
 		else
 			echo "❌ 备份失败。"
 			rm -f "$archive"
