@@ -653,6 +653,147 @@ backup_all() {
     return "$failed"
 }
 
+
+ensure_cron_available() {
+    if command -v crontab >/dev/null 2>&1; then
+        return 0
+    fi
+    echo -e "${YELLOW}未检测到 crontab，正在安装 cron...${NC}"
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update && apt-get install -y cron
+        systemctl enable --now cron >/dev/null 2>&1 || true
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y cronie
+        systemctl enable --now crond >/dev/null 2>&1 || true
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y cronie
+        systemctl enable --now crond >/dev/null 2>&1 || true
+    else
+        echo -e "${RED}❌ 无法自动安装 cron，请手动安装 crontab/cron 后再配置定时任务。${NC}"
+        return 1
+    fi
+}
+
+cron_tag_for_type() {
+    case "$1" in
+        hermes) echo "agent-ai-hermes" ;;
+        openclaw) echo "agent-ai-openclaw" ;;
+        all) echo "agent-ai-all" ;;
+        *) echo "agent-ai-$1" ;;
+    esac
+}
+
+cron_cmd_for_type() {
+    case "$1" in
+        hermes) echo "/bin/bash /root/agent-ai.sh --backup-hermes" ;;
+        openclaw) echo "/bin/bash /root/agent-ai.sh --backup-openclaw" ;;
+        all) echo "/bin/bash /root/agent-ai.sh --backup-all" ;;
+        *) return 1 ;;
+    esac
+}
+
+show_cron_jobs() {
+    ensure_cron_available || return 1
+    echo -e "${CYAN}Agent AI 当前定时任务：${NC}"
+    local jobs
+    jobs="$(crontab -l 2>/dev/null | grep '# agent-ai-' || true)"
+    if [ -z "$jobs" ]; then
+        echo "暂无 Agent AI 定时任务。"
+    else
+        echo "$jobs"
+    fi
+}
+
+remove_cron_job() {
+    ensure_cron_available || return 1
+    local type="$1" tag tmp
+    tmp=$(mktemp)
+    crontab -l 2>/dev/null > "$tmp" || true
+    case "$type" in
+        hermes|openclaw|all)
+            tag="$(cron_tag_for_type "$type")"
+            grep -v "# $tag" "$tmp" > "${tmp}.new" || true
+            ;;
+        every)
+            grep -v '# agent-ai-' "$tmp" > "${tmp}.new" || true
+            ;;
+        *)
+            rm -f "$tmp" "${tmp}.new"
+            return 1
+            ;;
+    esac
+    crontab "${tmp}.new"
+    rm -f "$tmp" "${tmp}.new"
+    echo -e "${GREEN}✅ 已删除定时任务：$type${NC}"
+}
+
+add_or_update_cron_job() {
+    ensure_cron_available || return 1
+    local type="$1" label="$2" days hour minute tag cmd tmp cron_line
+    read -r -p "$label 每几天运行一次？[默认 1]: " days
+    days="${days:-1}"
+    if ! [[ "$days" =~ ^[0-9]+$ ]] || [ "$days" -lt 1 ] || [ "$days" -gt 31 ]; then
+        echo -e "${RED}❌ 天数请输入 1-31 的整数。${NC}"
+        return 1
+    fi
+    read -r -p "$label 几点运行？小时 0-23 [默认 3]: " hour
+    hour="${hour:-3}"
+    if ! [[ "$hour" =~ ^[0-9]+$ ]] || [ "$hour" -lt 0 ] || [ "$hour" -gt 23 ]; then
+        echo -e "${RED}❌ 小时请输入 0-23 的整数。${NC}"
+        return 1
+    fi
+    read -r -p "$label 第几分钟运行？0-59 [默认 0]: " minute
+    minute="${minute:-0}"
+    if ! [[ "$minute" =~ ^[0-9]+$ ]] || [ "$minute" -lt 0 ] || [ "$minute" -gt 59 ]; then
+        echo -e "${RED}❌ 分钟请输入 0-59 的整数。${NC}"
+        return 1
+    fi
+
+    tag="$(cron_tag_for_type "$type")"
+    cmd="$(cron_cmd_for_type "$type")" || return 1
+    mkdir -p "$CONFIG_DIR"
+    # cron 的 */N 是按每月日期步进；适合“每 N 天某个时间”这类轻量定时备份。
+    cron_line="$minute $hour */$days * * $cmd # $tag every-${days}-days-at-${hour}:${minute}"
+
+    tmp=$(mktemp)
+    crontab -l 2>/dev/null | grep -v "# $tag" > "$tmp" || true
+    echo "$cron_line" >> "$tmp"
+    crontab "$tmp"
+    rm -f "$tmp"
+    echo -e "${GREEN}✅ 已设置 $label 定时任务：每 $days 天 ${hour}:$(printf '%02d' "$minute") 运行一次。${NC}"
+    echo "$cron_line"
+}
+
+cron_menu() {
+    while true; do
+        echo -e "${CYAN}=======================================${NC}"
+        echo -e "${YELLOW}        Agent AI 定时任务管理${NC}"
+        echo -e "${CYAN}=======================================${NC}"
+        echo "1. 设置 Hermes 定时备份"
+        echo "2. 设置 OpenClaw 定时备份"
+        echo "3. 设置全部定时备份（Hermes + OpenClaw）"
+        echo "4. 查看当前定时任务"
+        echo "5. 删除 Hermes 定时任务"
+        echo "6. 删除 OpenClaw 定时任务"
+        echo "7. 删除全部 Agent AI 定时任务"
+        echo "0. 返回主菜单"
+        echo -e "${CYAN}=======================================${NC}"
+        read -r -p "请输入选项并回车: " c || return 0
+        echo ""
+        case "$c" in
+            1) add_or_update_cron_job hermes "Hermes"; pause ;;
+            2) add_or_update_cron_job openclaw "OpenClaw"; pause ;;
+            3) add_or_update_cron_job all "全部备份"; pause ;;
+            4) show_cron_jobs; pause ;;
+            5) remove_cron_job hermes; pause ;;
+            6) remove_cron_job openclaw; pause ;;
+            7) remove_cron_job every; pause ;;
+            0) return 0 ;;
+            *) echo -e "${RED}输入错误，请重新选择。${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
 show_status() {
     ensure_config_dir
     echo -e "${CYAN}当前状态${NC}"
@@ -664,6 +805,60 @@ show_status() {
     list_configs
 }
 
+
+cron_human_desc() {
+    local minute="$1" hour="$2" dom="$3"
+    local day_text
+    case "$dom" in
+        "*/1"|"*") day_text="每天" ;;
+        "*/"*) day_text="每${dom#*/}天" ;;
+        *) day_text="每月${dom}号" ;;
+    esac
+    printf '%s，%s点' "$day_text" "$hour"
+    if [ "$minute" != "0" ]; then
+        printf '%s分' "$minute"
+    fi
+    printf '运行'
+}
+
+show_cron_summary_on_main() {
+    command -v crontab >/dev/null 2>&1 || return 0
+    local jobs line minute hour dom type label desc shown=0
+    jobs="$(crontab -l 2>/dev/null | grep '# agent-ai-' || true)"
+    [ -z "$jobs" ] && return 0
+
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        case "$line" in
+            *"# agent-ai-hermes"*) type="hermes"; label="Hermes定时任务" ;;
+            *"# agent-ai-openclaw"*) type="openclaw"; label="OpenClaw定时任务" ;;
+            *"# agent-ai-all"*) type="all"; label="全部备份定时任务" ;;
+            *) continue ;;
+        esac
+        minute="$(printf '%s\n' "$line" | awk '{print $1}')"
+        hour="$(printf '%s\n' "$line" | awk '{print $2}')"
+        dom="$(printf '%s\n' "$line" | awk '{print $3}')"
+        desc="$(cron_human_desc "$minute" "$hour" "$dom")"
+        echo -e "${gl_kjlan:-$CYAN}${label}${NC}"
+        echo -e "${gl_lv:-$GREEN}${desc}${NC}"
+        echo "$line"
+        echo -e "${CYAN}=======================================${NC}"
+        shown=1
+    done <<< "$jobs"
+    [ "$shown" -eq 1 ] && return 0
+}
+
+migrate_agent_ai_cron_no_logs() {
+    command -v crontab >/dev/null 2>&1 || return 0
+    local current migrated
+    current="$(crontab -l 2>/dev/null || true)"
+    [ -z "$current" ] && return 0
+    migrated="$(printf '%s\n' "$current" | sed 's# >> /root/agent-ai\.d/cron\.log 2>&1 # #')"
+    if [ "$current" != "$migrated" ]; then
+        printf '%s\n' "$migrated" | crontab -
+    fi
+}
+
 show_menu() {
     if [ -t 1 ] && [ -n "${TERM:-}" ]; then
         clear || true
@@ -671,18 +866,21 @@ show_menu() {
     echo -e "${CYAN}=======================================${NC}"
     echo -e "${YELLOW}        Agent AI 远程备份上传工具${NC}"
     echo -e "${CYAN}=======================================${NC}"
+    show_cron_summary_on_main
     echo "1. 备份 Hermes 并上传到所有启用配置"
     echo "2. 备份 OpenClaw 并上传到所有启用配置"
     echo "3. 全部备份并上传到所有启用配置"
     echo "4. 远程配置管理（新增/编辑/删除/启用/禁用）"
     echo "5. 测试所有启用远程配置"
     echo "6. 查看当前配置与状态"
+    echo "7. 定时任务管理（Hermes/OpenClaw 每几天几点备份）"
     echo "0. 退出"
     echo -e "${CYAN}=======================================${NC}"
 }
 
 main() {
     ensure_config_dir
+    migrate_agent_ai_cron_no_logs
     while true; do
         show_menu
         read -r -p "请输入选项并回车: " choice || exit 0
@@ -694,10 +892,39 @@ main() {
             4) config_menu ;;
             5) test_all_enabled_remotes; pause ;;
             6) show_status; pause ;;
+            7) cron_menu ;;
             0) echo -e "${GREEN}已退出。${NC}"; exit 0 ;;
             *) echo -e "${RED}输入错误，请重新选择。${NC}"; sleep 1 ;;
         esac
     done
 }
 
+case "${1:-}" in
+    --backup-hermes)
+        ensure_config_dir
+        backup_hermes
+        exit $?
+        ;;
+    --backup-openclaw)
+        ensure_config_dir
+        backup_openclaw
+        exit $?
+        ;;
+    --backup-all)
+        ensure_config_dir
+        backup_all
+        exit $?
+        ;;
+    --cron-list)
+        show_cron_jobs
+        exit $?
+        ;;
+    --help|-h)
+        echo "用法: /root/agent-ai.sh [--backup-hermes|--backup-openclaw|--backup-all|--cron-list]"
+        exit 0
+        ;;
+esac
+
 main "$@"
+
+
