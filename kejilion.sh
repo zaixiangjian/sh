@@ -6958,6 +6958,7 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                     ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
     echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份                        ${gl_kjlan}102. ${gl_bai}lobehub安装webai"
+    echo -e "${gl_kjlan}103. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
     echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
@@ -7083,6 +7084,7 @@ linux_panel() {
 	check_path "101" "/root/agent-ai.sh"
 	check_path "102" "lobehub.sh"
     check_docker "102" "windows"
+    check_docker "103" "fail2ban"
 
     # 打印已安装的项目列表并自动折行输出
     if [ ${#installed_items[@]} -eq 0 ]; then
@@ -12686,6 +12688,302 @@ EOF
         ;;
 
 
+      103)
+while true; do
+    clear
+    echo -e "▶️ Fail2Ban SSH防暴力破解"
+    echo -e "${gl_kjlan}------------------------"
+    fail2ban_conf="/home/docker/fail2ban/config/fail2ban/jail.d/sshd.local"
+    if [ -f "$fail2ban_conf" ]; then
+        echo -e "${gl_lv}已配置${gl_bai}"
+        echo -e "${gl_lv}Fail2Ban SSH防暴力破解已配置完成${gl_bai}"
+        conf_ssh_port=$(grep -E '^[[:space:]]*port[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | awk -F= '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+        conf_maxretry=$(grep -E '^[[:space:]]*maxretry[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | awk -F= '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+        conf_findtime=$(grep -E '^[[:space:]]*findtime[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | awk -F= '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+        conf_bantime=$(grep -E '^[[:space:]]*bantime[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | awk -F= '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+        echo "SSH端口: ${conf_ssh_port:-未知}"
+        echo "失败次数: ${conf_maxretry:-未知}"
+        echo "统计窗口: ${conf_findtime:-未知}"
+        echo "封禁时长: ${conf_bantime:-未知}"
+        echo "配置文件: $fail2ban_conf"
+        echo "查看状态: docker exec -it fail2ban fail2ban-client status sshd"
+        echo -e "${gl_kjlan}------------------------${gl_bai}"
+    fi
+    echo -e "${gl_kjlan}1.   ${gl_bai}使用 Docker 安装到 /home/docker/fail2ban"
+    echo -e "${gl_kjlan}2.   ${gl_bai}更新"
+    echo -e "${gl_kjlan}3.   ${gl_bai}配置 SSH 防暴力破解"
+    echo -e "${gl_kjlan}4.   ${gl_bai}查看统计 TOP10"
+    echo -e "${gl_kjlan}5.   ${gl_bai}卸载"
+    echo -e "${gl_kjlan}0.   ${gl_bai}返回上一级"
+    echo -e "${gl_kjlan}------------------------${gl_bai}"
+    read -e -p "请输入你的选择: " fail2ban_choice
+    case $fail2ban_choice in
+        1)
+            clear
+            if [ "$EUID" -ne 0 ]; then
+                echo -e "${gl_hong}请使用 root 用户运行安装。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+            echo "▶️ 使用 Docker 安装 Fail2Ban 到 /home/docker/fail2ban ..."
+            install_docker
+
+            mkdir -p /home/docker/fail2ban/config /home/docker/fail2ban/log
+            install logrotate
+            cat > /etc/logrotate.d/fail2ban-docker <<EOF
+/home/docker/fail2ban/log/*.log /home/docker/fail2ban/log/*/*.log {
+    daily
+    rotate 7
+    size 10M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}
+EOF
+
+            if docker inspect fail2ban &>/dev/null; then
+                echo -e "${gl_huang}检测到 fail2ban 容器已存在，正在启动/重启...${gl_bai}"
+                docker start fail2ban >/dev/null 2>&1 || docker restart fail2ban
+            else
+                docker run -d \
+                    --name=fail2ban \
+                    --net=host \
+                    --cap-add=NET_ADMIN \
+                    --cap-add=NET_RAW \
+                    -e PUID=0 \
+                    -e PGID=0 \
+                    -e TZ=Etc/UTC \
+                    -e VERBOSITY=-v \
+                    -v /home/docker/fail2ban/config:/config \
+                    -v /home/docker/fail2ban/log:/config/log/fail2ban \
+                    -v /var/log:/var/log:ro \
+                    --restart unless-stopped \
+                    --log-opt max-size=10m \
+                    --log-opt max-file=3 \
+                    lscr.io/linuxserver/fail2ban:latest
+            fi
+
+            echo "------------------------"
+            echo -e "${gl_lv}Docker Fail2Ban 安装完成${gl_bai}"
+            echo "本地目录: /home/docker/fail2ban"
+            echo "容器映射: /home/docker/fail2ban/config -> /config"
+            echo "容器映射: /home/docker/fail2ban/log -> /config/log/fail2ban"
+            echo "日志限制: Docker日志 10M×3，本地Fail2Ban日志 10M×7并压缩"
+            echo "下一步: 进入 3 配置 SSH 防暴力破解参数"
+            read -n1 -r -p "按任意键继续..."
+            ;;
+        2)
+            clear
+            if [ "$EUID" -ne 0 ]; then
+                echo -e "${gl_hong}请使用 root 用户运行更新。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+            echo "▶️ 更新 Fail2Ban Docker 镜像..."
+            install_docker
+            mkdir -p /home/docker/fail2ban/config /home/docker/fail2ban/log
+            install logrotate
+            cat > /etc/logrotate.d/fail2ban-docker <<EOF
+/home/docker/fail2ban/log/*.log /home/docker/fail2ban/log/*/*.log {
+    daily
+    rotate 7
+    size 10M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}
+EOF
+            docker pull lscr.io/linuxserver/fail2ban:latest
+            docker rm -f fail2ban >/dev/null 2>&1 || true
+            docker run -d \
+                --name=fail2ban \
+                --net=host \
+                --cap-add=NET_ADMIN \
+                --cap-add=NET_RAW \
+                -e PUID=0 \
+                -e PGID=0 \
+                -e TZ=Etc/UTC \
+                -e VERBOSITY=-v \
+                -v /home/docker/fail2ban/config:/config \
+                -v /home/docker/fail2ban/log:/config/log/fail2ban \
+                -v /var/log:/var/log:ro \
+                --restart unless-stopped \
+                --log-opt max-size=10m \
+                --log-opt max-file=3 \
+                lscr.io/linuxserver/fail2ban:latest
+            echo "------------------------"
+            echo -e "${gl_lv}Fail2Ban 更新完成，原配置目录已保留: /home/docker/fail2ban${gl_bai}"
+            read -n1 -r -p "按任意键继续..."
+            ;;
+        3)
+            clear
+            if [ "$EUID" -ne 0 ]; then
+                echo -e "${gl_hong}请使用 root 用户运行配置。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+            if ! docker inspect fail2ban &>/dev/null; then
+                echo -e "${gl_hong}未检测到 fail2ban 容器，请先选择 1 安装。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+
+            echo "▶️ 配置 Fail2Ban SSH防暴力破解..."
+            echo "说明: SSH 登录失败次数过多会自动封禁来源IP。"
+            echo "------------------------"
+
+            detected_port=$(awk '
+                BEGIN { port="" }
+                /^[[:space:]]*Include[[:space:]]+/ { next }
+                /^[[:space:]]*Port[[:space:]]+[0-9]+/ { port=$2 }
+                END { print port }
+            ' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | tail -n 1)
+            if [ -z "$detected_port" ]; then
+                detected_port=$(ss -ltnp 2>/dev/null | awk '/sshd/ { split($4,a,":"); print a[length(a)]; exit }')
+            fi
+            detected_port=${detected_port:-22}
+
+            read -e -p "请输入SSH端口 [默认: ${detected_port}]: " ssh_port
+            ssh_port=${ssh_port:-$detected_port}
+            if ! echo "$ssh_port" | grep -Eq '^[0-9]+$' || [ "$ssh_port" -lt 1 ] || [ "$ssh_port" -gt 65535 ]; then
+                echo -e "${gl_hong}端口无效，请输入 1-65535。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+
+            read -e -p "失败多少次后封禁 [默认: 5]: " maxretry
+            maxretry=${maxretry:-5}
+            if ! echo "$maxretry" | grep -Eq '^[0-9]+$' || [ "$maxretry" -lt 1 ]; then
+                echo -e "${gl_hong}次数无效，已使用默认 5。${gl_bai}"
+                maxretry=5
+            fi
+
+            read -e -p "统计时间窗口，例如 10m/1h [默认: 1h]: " findtime
+            findtime=${findtime:-1h}
+            read -e -p "封禁时长，例如 1d/12h/-1永久 [默认: 7d]: " bantime
+            bantime=${bantime:-7d}
+
+            mkdir -p /home/docker/fail2ban/config/fail2ban/jail.d
+
+            logpath_line="logpath = /var/log/auth.log"
+            if [ -f /var/log/secure ]; then
+                logpath_line="logpath = /var/log/secure"
+            elif [ -f /var/log/auth.log ]; then
+                logpath_line="logpath = /var/log/auth.log"
+            fi
+
+            cat > /home/docker/fail2ban/config/fail2ban/jail.d/sshd.local <<EOF
+[sshd]
+enabled = true
+port = ${ssh_port}
+filter = sshd
+backend = auto
+${logpath_line}
+maxretry = ${maxretry}
+findtime = ${findtime}
+bantime = ${bantime}
+ignoreip = 127.0.0.1/8 ::1
+EOF
+
+            docker restart fail2ban
+            sleep 3
+            echo "------------------------"
+            echo -e "${gl_lv}Fail2Ban SSH防暴力破解已配置完成${gl_bai}"
+            echo "SSH端口: ${ssh_port}"
+            echo "失败次数: ${maxretry}"
+            echo "统计窗口: ${findtime}"
+            echo "封禁时长: ${bantime}"
+            echo "配置文件: /home/docker/fail2ban/config/fail2ban/jail.d/sshd.local"
+            echo "查看状态: docker exec -it fail2ban fail2ban-client status sshd"
+            docker exec fail2ban fail2ban-client status sshd 2>/dev/null || true
+            read -n1 -r -p "按任意键继续..."
+            ;;
+        4)
+            clear
+            echo "▶️ SSH 登录来源统计 TOP 10"
+            echo "说明: 直接读取当前系统 SSH 日志，统计尝试连接最多的IP。"
+            echo "------------------------"
+
+            log_files=""
+            for f in /var/log/auth.log /var/log/auth.log.* /var/log/secure /var/log/secure.*; do
+                [ -f "$f" ] && log_files="$log_files $f"
+            done
+
+            if [ -z "$log_files" ]; then
+                echo -e "${gl_hong}未找到 /var/log/auth.log 或 /var/log/secure，无法统计。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+
+            printf "%-18s %-8s %-8s\n" "IP" "成功" "失败"
+            echo "------------------------------------"
+            zgrep -hE 'sshd.*(Accepted|Failed|Invalid user|authentication failure)' $log_files 2>/dev/null | awk '
+                function add(ip, type) {
+                    if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}$/ || ip ~ /:/) {
+                        ips[ip]=1;
+                        if (type=="ok") ok[ip]++;
+                        else fail[ip]++;
+                    }
+                }
+                /Accepted/ {
+                    for (i=1;i<=NF;i++) if ($i=="from") add($(i+1), "ok")
+                }
+                /Failed/ {
+                    for (i=1;i<=NF;i++) if ($i=="from") add($(i+1), "fail")
+                }
+                /Invalid user/ {
+                    for (i=1;i<=NF;i++) if ($i=="from") add($(i+1), "fail")
+                }
+                /authentication failure/ {
+                    for (i=1;i<=NF;i++) if ($i ~ /^rhost=/) { sub(/^rhost=/,"",$i); add($i, "fail") }
+                }
+                END {
+                    for (ip in ips) printf "%s %d %d %d\n", ip, ok[ip]+0, fail[ip]+0, ok[ip]+fail[ip]
+                }
+            ' | sort -k4,4nr | head -n 10 | awk '{ printf "%-18s %-8s %-8s\n", $1, $2"次", $3"次" }'
+
+            echo "------------------------"
+            echo "说明: 这是日志统计，不会修改或清除日志。日志保留多久取决于系统 logrotate/journald 策略。"
+            if docker inspect fail2ban &>/dev/null; then
+                echo "Fail2Ban容器状态:"
+                docker exec fail2ban fail2ban-client status sshd 2>/dev/null || docker exec fail2ban fail2ban-client status 2>/dev/null || true
+            fi
+            read -n1 -r -p "按任意键继续..."
+            ;;
+        5)
+            clear
+            if [ "$EUID" -ne 0 ]; then
+                echo -e "${gl_hong}请使用 root 用户运行卸载。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+            read -e -p "确定卸载 Fail2Ban 并删除 /home/docker/fail2ban 吗？(Y/N): " confirm
+            case "$confirm" in
+                [Yy])
+                    docker rm -f fail2ban >/dev/null 2>&1 || true
+                    rm -rf /home/docker/fail2ban
+                    echo -e "${gl_lv}Fail2Ban 已卸载，配置目录已删除。${gl_bai}"
+                    ;;
+                *)
+                    echo "已取消卸载"
+                    ;;
+            esac
+            read -n1 -r -p "按任意键继续..."
+            ;;
+        0)
+            break
+            ;;
+        *)
+            echo "无效选择，请重新输入。"
+            read -n1 -r -p "按任意键继续..."
+            ;;
+    esac
+done
+        ;;
 
 
 
