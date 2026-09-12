@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.4"
+sh_v="0.0.5"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -5966,21 +5966,86 @@ kj_app_allow_docker() {
 	fi
 }
 
+kj_app_ssh_risky_ports() {
+	{
+		echo "22"
+		if [ -f /etc/ssh/sshd_config ]; then
+			awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null
+		fi
+		if command -v ss >/dev/null 2>&1; then
+			ss -ltnp 2>/dev/null | awk '/sshd/ {split($4,a,":"); p=a[length(a)]; if (p ~ /^[0-9]+$/) print p}'
+		fi
+	} | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u
+}
+
+kj_app_port_is_ssh_risky() {
+	local check_port="$1"
+	local risky_port
+	for risky_port in $(kj_app_ssh_risky_ports); do
+		[ "$check_port" = "$risky_port" ] && return 0
+	done
+	return 1
+}
+
+kj_app_confirm_block_ssh_risky_port() {
+	local risky_port="$1"
+	local confirm
+	if [ "$risky_port" = "22" ]; then
+		echo -e "${gl_hong}注意22为默认SSH端口${gl_bai}"
+	else
+		echo -e "${gl_hong}注意${risky_port}为当前SSH监听端口${gl_bai}"
+	fi
+	echo -e "${gl_hong}阻止可能会导致SSH无法登录${gl_bai}"
+	echo -e "${gl_lv}请确保更改了默认端口或添加了其他端口${gl_bai}"
+	read -e -p "高危操作需要慎重选择（确认请输入yes）[默认: N]: " confirm
+	[ "$confirm" = "yes" ]
+}
+
 kj_app_block_port() {
 	local port="$1"
 	local target="$2"
 	local type="$3"
 	local p
+	local total_count=0
+	local block_ports=""
+	local skipped_ports=""
 	if [ "$type" = "docker" ]; then
 		kj_app_cleanup_docker_container_wide_block "$target"
 	fi
 	for p in ${port//,/ }; do
 		[ -z "$p" ] && continue
-		kj_app_block_host_port "$p"
+		total_count=$((total_count + 1))
 	done
-	kj_app_save_iptables_rules
-	kj_app_refresh_blocked_ports_cache
-	echo "已阻止公网 IP+端口 直接访问: $port"
+	for p in ${port//,/ }; do
+		[ -z "$p" ] && continue
+		if kj_app_port_is_ssh_risky "$p"; then
+			if [ "$total_count" -gt 1 ]; then
+				skipped_ports="${skipped_ports:+$skipped_ports,}$p"
+				continue
+			fi
+			if ! kj_app_confirm_block_ssh_risky_port "$p"; then
+				echo -e "${gl_hong}${p}端口操作已取消${gl_bai}"
+				return 1
+			fi
+		fi
+		block_ports="${block_ports:+$block_ports,}$p"
+	done
+	if [ -n "$block_ports" ]; then
+		for p in ${block_ports//,/ }; do
+			[ -z "$p" ] && continue
+			kj_app_block_host_port "$p"
+		done
+		kj_app_save_iptables_rules
+		kj_app_refresh_blocked_ports_cache
+		echo "已阻止公网 IP+端口 直接访问: $block_ports"
+	fi
+	if [ -n "$skipped_ports" ]; then
+		local skipped_port
+		for skipped_port in ${skipped_ports//,/ }; do
+			echo -e "${gl_hong}${skipped_port}端口操作失败，需单独操作${gl_bai}"
+		done
+		[ -n "$block_ports" ] && echo "其他端口操作完成"
+	fi
 }
 
 kj_app_allow_port() {
@@ -6416,18 +6481,14 @@ kj_app_manual_port_manage() {
 					break_end
 					continue
 				fi
-				for p in ${manage_ports//,/ }; do
-					if [ "$manage_choice" = "1" ]; then
-						kj_app_block_host_port "$p"
-					else
-						kj_app_allow_host_port "$p"
-					fi
-				done
-				kj_app_save_iptables_rules
-				kj_app_refresh_blocked_ports_cache
 				if [ "$manage_choice" = "1" ]; then
-					echo "已阻止公网 IP+端口 直接访问: $manage_ports"
+					kj_app_block_port "$manage_ports" "" "manual"
 				else
+					for p in ${manage_ports//,/ }; do
+						kj_app_allow_host_port "$p"
+					done
+					kj_app_save_iptables_rules
+					kj_app_refresh_blocked_ports_cache
 					echo "已放行公网 IP+端口 直接访问: $manage_ports"
 				fi
 				break_end
@@ -12873,6 +12934,7 @@ done
         echo "1. Telegram 通知（1小时一次）"
         echo "2. 邮件通知（2小时一次）"
         echo "3. 卸载"
+        echo "4.发送测试消息"
         echo "0) 返回"
         echo "=================================="
         read -p "请输入选项: " opt
@@ -12899,7 +12961,13 @@ done
 URL="https://www.youtube.com/red"
 HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ \$? -eq 0 ]; then
+if [ "\${1:-}" = "--test" ] || [ \$? -eq 0 ]; then
+if [ "\${1:-}" = "--test" ]; then
+TEXT="🏷️ 节点：${REMARK}
+
+这是一个区域监控告警测试消息
+https://www.youtube.com/red"
+else
 TEXT="🏷️ 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
@@ -12907,6 +12975,7 @@ https://www.youtube.com/red
 
 ❗可能送中了❌更多详情查看❌
 https://www.google.com/search?q=家具"
+fi
 curl -s -m 10 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d chat_id="${CHAT_ID}" --data-urlencode text="\$TEXT" >/dev/null 2>&1
 fi
 exit 0
@@ -12915,6 +12984,7 @@ EOF
                             ( crontab -l 2>/dev/null | grep -v "jiancegoogle-telegram.sh" | grep -v "^# Google监控 Telegram通知$"; echo "# Google监控 Telegram通知"; echo "0 * * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-telegram.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ Telegram通知安装完成"
                             read -n1 -r -p "按任意键继续..."
+                            break
                             ;;
                         2)
                             read -e -p "确定删除 Google监控 Telegram 通知吗？(Y/N): " confirm_del_tg
@@ -12927,6 +12997,7 @@ EOF
                                 *) echo "已取消删除" ;;
                             esac
                             read -n1 -r -p "按任意键继续..."
+                            break
                             ;;
                         0) break ;;
                         *) echo "无效选择"; read -n1 -r -p "按任意键继续..." ;;
@@ -12957,7 +13028,14 @@ EOF
 URL="https://www.youtube.com/red"
 HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ \$? -eq 0 ]; then
+if [ "\${1:-}" = "--test" ] || [ \$? -eq 0 ]; then
+if [ "\${1:-}" = "--test" ]; then
+BODY="🏷️ 节点：${REMARK}
+
+这是一个区域监控告警测试邮件
+https://www.youtube.com/red"
+SUBJECT="[${REMARK}] [Resend API]区域监控告警测试邮件 \$(date '+%Y/%m/%d %H:%M:%S')"
+else
 BODY="🏷️ 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
@@ -12965,7 +13043,9 @@ https://www.youtube.com/red
 
 ❗可能送中了❌更多详情查看❌
 https://www.google.com/search?q=家具"
-curl -s -m 15 https://api.resend.com/emails -H "Authorization: Bearer ${RESEND_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=[${REMARK}] YouTube 区域监控告警" --data-urlencode "text=\$BODY" >/dev/null 2>&1
+SUBJECT="[${REMARK}] [SMTP]YouTube 区域监控告警 \$(date '+%Y/%m/%d %H:%M:%S')"
+fi
+curl -s -m 15 https://api.resend.com/emails -H "Authorization: Bearer ${RESEND_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=\$SUBJECT" --data-urlencode "text=\$BODY" >/dev/null 2>&1
 fi
 exit 0
 EOF
@@ -12973,12 +13053,13 @@ EOF
                             ( crontab -l 2>/dev/null | grep -v "jiancegoogle-Resend-email.sh" | grep -v "^# Google监控 Resend邮件通知$"; echo "# Google监控 Resend邮件通知"; echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-Resend-email.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ Resend邮件通知安装完成"
                             read -n1 -r -p "按任意键继续..."
+                            break
                             ;;
                         2)
                             google_confirm_overwrite "SMTP邮件通知" "/home/jiancegoogle-smtp-email.sh" "jiancegoogle-smtp-email.sh" || continue
                             read -p "请输入备注名称: " REMARK
                             read -p "请输入 SMTP服务器: " SMTP_HOST
-                            read -p "请输入 SMTP端口 [默认: 587]: " SMTP_PORT
+                            read -p "请输入 SMTP端口465或者587 [默认: 587]: " SMTP_PORT
                             SMTP_PORT=${SMTP_PORT:-587}
                             read -p "是否启用SSL? 465端口通常选Y，587通常选N (Y/N) [默认: N]: " SMTP_SSL
                             SMTP_SSL=${SMTP_SSL:-N}
@@ -12991,8 +13072,19 @@ EOF
 URL="https://www.youtube.com/red"
 HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ \$? -eq 0 ]; then
-export SMTP_HOST="${SMTP_HOST}" SMTP_PORT="${SMTP_PORT}" SMTP_SSL="${SMTP_SSL}" SMTP_USER="${SMTP_USER}" SMTP_PASS="${SMTP_PASS}" FROM_EMAIL="${FROM_EMAIL}" TO_EMAIL="${TO_EMAIL}" SMTP_SUBJECT="[${REMARK}] YouTube 区域监控告警"
+if [ "\${1:-}" = "--test" ] || [ \$? -eq 0 ]; then
+export SMTP_HOST="${SMTP_HOST}" SMTP_PORT="${SMTP_PORT}" SMTP_SSL="${SMTP_SSL}" SMTP_USER="${SMTP_USER}" SMTP_PASS="${SMTP_PASS}" FROM_EMAIL="${FROM_EMAIL}" TO_EMAIL="${TO_EMAIL}"
+if [ "\${1:-}" = "--test" ]; then
+TEST_TIME=$(date '+%Y%m%d-%H%M%S')
+export SMTP_SUBJECT="[${REMARK}] [SMTP]96 SMTP测试消息 \$(date '+%Y/%m/%d %H:%M:%S')"
+export SMTP_BODY="🏷️ 节点：${REMARK}
+
+这是一个96 SMTP测试消息
+
+测试时间: ${TEST_TIME}
+说明: 这封邮件用于验证 Google监控 SMTP 发信配置。"
+else
+export SMTP_SUBJECT="[${REMARK}] [SMTP]YouTube 区域监控告警 \$(date '+%Y/%m/%d %H:%M:%S')"
 export SMTP_BODY="🏷️ 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
@@ -13000,6 +13092,7 @@ https://www.youtube.com/red
 
 ❗可能送中了❌更多详情查看❌
 https://www.google.com/search?q=家具"
+fi
 python3 - <<'PYEOF' >/dev/null 2>&1 || true
 import os, smtplib, ssl
 from email.message import EmailMessage
@@ -13019,12 +13112,15 @@ EOF
                             ( crontab -l 2>/dev/null | grep -v "jiancegoogle-smtp-email.sh" | grep -v "^# Google监控 SMTP邮件通知$"; echo "# Google监控 SMTP邮件通知"; echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-smtp-email.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ SMTP邮件通知安装完成"
                             read -n1 -r -p "按任意键继续..."
+                            break
                             ;;
                         3)
                             google_confirm_overwrite "其他API邮件通知" "/home/jiancegoogle-qita-email.sh" "jiancegoogle-qita-email.sh" || continue
                             read -p "请输入备注名称: " REMARK
                             read -p "请输入 API地址: " API_URL
                             read -p "请输入 API Key: " API_KEY
+                            read -p "请输入请求头（回车默认Authorization: Bearer）: " API_HEADER
+                            API_HEADER=${API_HEADER:-Authorization: Bearer}
                             read -p "请输入发件邮箱(From): " FROM_EMAIL
                             read -p "请输入收件邮箱(To): " TO_EMAIL
                             cat > /home/jiancegoogle-qita-email.sh <<EOF
@@ -13040,14 +13136,16 @@ https://www.youtube.com/red
 
 ❗可能送中了❌更多详情查看❌
 https://www.google.com/search?q=家具"
-curl -s -m 15 "${API_URL}" -H "Authorization: Bearer ${API_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=[${REMARK}] YouTube 区域监控告警" --data-urlencode "text=\$BODY" >/dev/null 2>&1
+curl -s -m 15 "${API_URL}" -H "${API_HEADER} ${API_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=[${REMARK}] [其他 API]YouTube 区域监控告警 \$(date '+%Y/%m/%d %H:%M:%S')" --data-urlencode "text=\$BODY" >/dev/null 2>&1
 fi
 exit 0
 EOF
                             chmod +x /home/jiancegoogle-qita-email.sh
                             ( crontab -l 2>/dev/null | grep -v "jiancegoogle-qita-email.sh" | grep -v "^# Google监控 其他API邮件通知$"; echo "# Google监控 其他API邮件通知"; echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-qita-email.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ 其他API邮件通知安装完成"
+                            echo -e "${gl_hong}请测试发信，不是所有邮件 API 都兼容Authorization: Bearer${gl_bai}"
                             read -n1 -r -p "按任意键继续..."
+                            break
                             ;;
                         4)
                             clear
@@ -13093,6 +13191,7 @@ EOF
                                 *) echo "无效选择" ;;
                             esac
                             read -n1 -r -p "按任意键继续..."
+                            break
                             ;;
                         0) break ;;
                         *) echo "无效选择"; read -n1 -r -p "按任意键继续..." ;;
@@ -13112,6 +13211,38 @@ EOF
                         ;;
                     *) echo "已取消卸载" ;;
                 esac
+                read -n1 -r -p "按任意键继续..."
+                ;;
+            4)
+                clear
+                echo "▶️ 发送 Google监控测试消息"
+                echo "------------------------"
+                sent_any=0
+                if [ -x /home/jiancegoogle-telegram.sh ]; then
+                    echo "发送 Telegram 测试消息..."
+                    /bin/bash /home/jiancegoogle-telegram.sh --test >/dev/null 2>&1 || true
+                    sent_any=1
+                fi
+                if [ -x /home/jiancegoogle-Resend-email.sh ]; then
+                    echo "发送 Resend 邮件测试消息..."
+                    /bin/bash /home/jiancegoogle-Resend-email.sh --test >/dev/null 2>&1 || true
+                    sent_any=1
+                fi
+                if [ -x /home/jiancegoogle-smtp-email.sh ]; then
+                    echo "发送 SMTP 邮件测试消息..."
+                    /bin/bash /home/jiancegoogle-smtp-email.sh --test >/dev/null 2>&1 || true
+                    sent_any=1
+                fi
+                if [ -x /home/jiancegoogle-qita-email.sh ]; then
+                    echo "发送 其他API 邮件测试消息..."
+                    /bin/bash /home/jiancegoogle-qita-email.sh --test >/dev/null 2>&1 || true
+                    sent_any=1
+                fi
+                if [ "$sent_any" = "0" ]; then
+                    echo "暂无已添加的通知配置，已跳过。"
+                else
+                    echo "测试消息已触发，请检查对应 Telegram/邮箱。"
+                fi
                 read -n1 -r -p "按任意键继续..."
                 ;;
             0) break ;;
@@ -13222,11 +13353,11 @@ while true; do
     mail_qita_cron=$(crontab -l 2>/dev/null | grep 'ssh-qita-email-smtp.sh' | grep -v '^#' | head -n1)
     [ -n "$mail_qita_cron" ] && echo -e "${gl_lv}${mail_qita_cron}${gl_bai}" || echo -e "${gl_lv}暂无${gl_bai}"
     echo -e "${gl_kjlan}------------------------${gl_bai}"
-    echo "即时通知保护"
+    echo -e "${gl_huang}即时通知保护${gl_bai}"
     if grep -q '/home/docker/fail2ban/notify/ssh-login-pam-alert.sh' /etc/pam.d/sshd 2>/dev/null; then
         echo -e "${gl_lv}已开启${gl_bai}"
     else
-        echo -e "${gl_lv}暂无${gl_bai}"
+        echo -e "${gl_hong}未启用${gl_bai}"
     fi
     echo -e "${gl_kjlan}------------------------${gl_bai}"
     echo -e "${gl_huang}白名单是否通知${gl_bai}"
@@ -13240,12 +13371,12 @@ while true; do
     echo -e "${gl_kjlan}1.   ${gl_bai}使用 Docker 安装到 /home/docker/fail2ban"
     echo -e "${gl_kjlan}2.   ${gl_bai}更新"
     echo -e "${gl_kjlan}3.   ${gl_bai}配置 SSH 防暴力破解"
-    echo -e "${gl_kjlan}4.   ${gl_bai}查看成功统计 TOP50"
-    echo -e "${gl_kjlan}5.   ${gl_bai}查看失败统计 TOP50"
-    echo -e "${gl_kjlan}6.   ${gl_bai}卸载"
-    echo -e "${gl_kjlan}7.   ${gl_bai}查看封禁的IP"
-    echo -e "${gl_kjlan}8.   ${gl_bai}查看/管理白名单"
-    echo -e "${gl_kjlan}9.   ${gl_bai}查看日志占用/手动清理"
+    echo -e "${gl_lv}4.   查看成功统计 TOP50${gl_bai}"
+    echo -e "${gl_hong}5.   查看失败统计 TOP50${gl_bai}"
+    echo -e "${gl_lv}6.   查看/管理白名单${gl_bai}"
+    echo -e "${gl_hong}7.   查看封禁的IP${gl_bai}"
+    echo -e "${gl_kjlan}8.   ${gl_bai}查看日志占用/手动清理"
+    echo -e "${gl_kjlan}9.   ${gl_bai}卸载"
     echo -e "${gl_lv}999. 登录成功通知设置${gl_bai}"
     echo -e "${gl_kjlan}0.   ${gl_bai}返回上一级"
     echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -13259,6 +13390,61 @@ while true; do
 
             if [ "$EUID" -ne 0 ]; then
                 echo -e "${gl_hong}请使用 root 用户运行安装。${gl_bai}"
+                read -n1 -r -p "按任意键继续..."
+                continue
+            fi
+
+            if docker inspect fail2ban &>/dev/null; then
+                echo -e "${gl_huang}检测到 Fail2Ban 已安装，改为执行更新并保留现有 SSH 防护配置...${gl_bai}"
+                install_docker
+
+                echo "拉取最新 Fail2Ban 镜像..."
+                docker pull lscr.io/linuxserver/fail2ban:latest
+
+                echo "停止旧容器..."
+                docker rm -f fail2ban >/dev/null 2>&1 || true
+
+                echo "保留现有 SSH 防护配置，避免需要重新配置..."
+                mkdir -p /home/docker/fail2ban/config/fail2ban/jail.d
+                mkdir -p /home/docker/fail2ban/config/fail2ban/filter.d
+                mkdir -p /home/docker/fail2ban/config/fail2ban/action.d
+                mkdir -p /home/docker/fail2ban/log
+
+                echo "重新创建 Fail2Ban..."
+                docker run -d \
+                    --name=fail2ban \
+                    --net=host \
+                    --cap-add=NET_ADMIN \
+                    --cap-add=NET_RAW \
+                    -e PUID=0 \
+                    -e PGID=0 \
+                    -e TZ=Etc/UTC \
+                    -e VERBOSITY=-v \
+                    -v /home/docker/fail2ban/config:/config \
+                    -v /home/docker/fail2ban/log:/config/log/fail2ban \
+                    -v /var/log:/var/log:ro \
+                    -v /run/log/journal:/run/log/journal:ro \
+                    -v /var/log/journal:/var/log/journal:ro \
+                    -v /etc/machine-id:/etc/machine-id:ro \
+                    --restart unless-stopped \
+                    --log-opt max-size=10m \
+                    --log-opt max-file=3 \
+                    lscr.io/linuxserver/fail2ban:latest
+
+                sleep 5
+
+                echo "------------------------"
+                echo -e "${gl_lv}Fail2Ban 更新完成${gl_bai}"
+                echo "原配置目录保留: /home/docker/fail2ban"
+
+                if docker exec fail2ban fail2ban-client ping &>/dev/null; then
+                    echo -e "Fail2Ban服务: ${gl_lv}正常${gl_bai}"
+                else
+                    echo -e "Fail2Ban服务: ${gl_hong}异常${gl_bai}"
+                    echo "查看日志:"
+                    echo "docker logs --tail 100 fail2ban"
+                fi
+
                 read -n1 -r -p "按任意键继续..."
                 continue
             fi
@@ -13541,11 +13727,11 @@ EOF
                 maxretry=5
             fi
 
-            read -e -p "统计时间窗口，例如 10m/1h [默认: 1h]: " findtime
-            findtime=${findtime:-1h}
+            read -e -p "统计时间窗口，例如 10m/1h/1d [默认: 1d]: " findtime
+            findtime=${findtime:-1d}
 
-            read -e -p "封禁时长，例如 1d/12h/-1永久 [默认: 7d]: " bantime
-            bantime=${bantime:-7d}
+            read -e -p "封禁时长，例如 1d/12h/-1永久 [默认: 15d]: " bantime
+            bantime=${bantime:-15d}
 
             # 获取当前服务器 IPv4
             current_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -13676,206 +13862,244 @@ EOF
             ;;
 
         4)
-            clear
+            while true; do
+                clear
+                echo "统计范围:"
+                echo "1. 最近7天"
+                echo "2. 最近15天"
+                echo "3. 最近30天"
+                echo "0. 返回上一级"
+                read -e -p "请输入你的选择（回车默认1）: " stat_days_choice
+                stat_days_choice=${stat_days_choice:-1}
+                case "$stat_days_choice" in
+                    1) stat_days="7" ;;
+                    2) stat_days="15" ;;
+                    3) stat_days="30" ;;
+                    0) break ;;
+                    *) echo "无效选择"; read -n1 -r -p "按任意键继续..."; continue ;;
+                esac
 
-            echo "▶️ SSH 登录成功来源统计 TOP 50"
-            echo "说明: 只统计最近7天 SSH 登录成功来源 IP，成功次数多的优先显示。"
-            echo "------------------------"
+                clear
 
-            tmp_ssh_stats=$(mktemp)
-            tmp_ssh_table=$(mktemp)
+                echo "▶️ SSH 登录成功来源统计 TOP 50"
+                echo "说明: 只统计最近${stat_days}天 SSH 登录成功来源 IP，成功次数多的优先显示。"
+                echo "------------------------"
 
-            if command -v journalctl &>/dev/null; then
-                journalctl -u ssh --since "7 days ago" --no-pager 2>/dev/null \
-                    | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
-                    > "$tmp_ssh_stats"
-            fi
+                tmp_ssh_stats=$(mktemp)
+                tmp_ssh_table=$(mktemp)
 
-            if [ ! -s "$tmp_ssh_stats" ] && command -v journalctl &>/dev/null; then
-                journalctl -u sshd --since "7 days ago" --no-pager 2>/dev/null \
-                    | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
-                    > "$tmp_ssh_stats"
-            fi
-
-            fail2ban_conf="/home/docker/fail2ban/config/fail2ban/jail.d/sshd.local"
-            whitelist=""
-            if [ -f "$fail2ban_conf" ]; then
-                whitelist=$(grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | cut -d= -f2- | xargs)
-            fi
-
-            banned_ips=""
-            if docker inspect fail2ban &>/dev/null && \
-               docker exec fail2ban fail2ban-client ping &>/dev/null && \
-               docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
-                banned_ips=$(docker exec fail2ban fail2ban-client get sshd banip 2>/dev/null || true)
-                if [ -z "$banned_ips" ]; then
-                    banned_ips=$(docker exec fail2ban fail2ban-client status sshd 2>/dev/null | sed -n 's/^.*Banned IP list:[[:space:]]*//p')
+                if command -v journalctl &>/dev/null; then
+                    journalctl -u ssh --since "${stat_days} days ago" --no-pager 2>/dev/null \
+                        | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
+                        > "$tmp_ssh_stats"
                 fi
-            fi
 
-            awk '
-            {
-                ip=""; type=""
-                if ($0 ~ /Accepted/) {
-                    for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="ok"; break }
-                } else if ($0 ~ /Failed password/ || $0 ~ /Invalid user/) {
-                    for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="fail"; break }
-                } else if ($0 ~ /authentication failure/) {
-                    for (i=1; i<=NF; i++) if ($i ~ /^rhost=/) { ip=$i; sub(/^rhost=/, "", ip); type="fail"; break }
-                }
-                if (ip != "") {
-                    gsub(/[^0-9A-Fa-f:.]/, "", ip)
-                    if (type == "ok") success[ip]++
-                    else if (type == "fail") failed[ip]++
-                }
-            }
-            END {
-                for (ip in success) {
-                    if (success[ip] > 0) printf "%s %d %d %d\n", ip, success[ip]+0, failed[ip]+0, success[ip]+failed[ip]
-                }
-            }' "$tmp_ssh_stats" | sort -k2,2nr -k4,4nr | head -50 > "$tmp_ssh_table"
+                if [ ! -s "$tmp_ssh_stats" ] && command -v journalctl &>/dev/null; then
+                    journalctl -u sshd --since "${stat_days} days ago" --no-pager 2>/dev/null \
+                        | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
+                        > "$tmp_ssh_stats"
+                fi
 
-            printf "%-20s %-8s %-8s %-8s %s\n" "IP" "成功" "失败" "总计" "状态"
-            echo "------------------------------------------------"
+                fail2ban_conf="/home/docker/fail2ban/config/fail2ban/jail.d/sshd.local"
+                whitelist=""
+                if [ -f "$fail2ban_conf" ]; then
+                    whitelist=$(grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | cut -d= -f2- | xargs)
+                fi
 
-            if [ ! -s "$tmp_ssh_table" ]; then
-                echo -e "${gl_huang}最近7天没有统计到 SSH 成功登录记录。${gl_bai}"
-            else
-                while read -r stat_ip stat_ok stat_fail stat_total; do
-                    if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
-                        stat_status="${gl_lv}白名单${gl_bai}"
-                    elif echo " $banned_ips " | grep -Fqw -- "$stat_ip"; then
-                        stat_status="${gl_hong}已封禁${gl_bai}"
-                    else
-                        stat_status="${gl_huang}未封禁${gl_bai}"
+                banned_ips=""
+                if docker inspect fail2ban &>/dev/null && \
+                   docker exec fail2ban fail2ban-client ping &>/dev/null && \
+                   docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
+                    banned_ips=$(docker exec fail2ban fail2ban-client get sshd banip 2>/dev/null || true)
+                    if [ -z "$banned_ips" ]; then
+                        banned_ips=$(docker exec fail2ban fail2ban-client status sshd 2>/dev/null | sed -n 's/^.*Banned IP list:[[:space:]]*//p')
                     fi
-                    printf "%-20s %-8s %-8s %-8s %b\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status"
-                done < "$tmp_ssh_table"
-            fi
+                fi
 
-            rm -f "$tmp_ssh_stats" "$tmp_ssh_table"
+                awk '
+                {
+                    ip=""; type=""
+                    if ($0 ~ /Accepted/) {
+                        for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="ok"; break }
+                    } else if ($0 ~ /Failed password/ || $0 ~ /Invalid user/) {
+                        for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="fail"; break }
+                    } else if ($0 ~ /authentication failure/) {
+                        for (i=1; i<=NF; i++) if ($i ~ /^rhost=/) { ip=$i; sub(/^rhost=/, "", ip); type="fail"; break }
+                    }
+                    if (ip != "") {
+                        gsub(/[^0-9A-Fa-f:.]/, "", ip)
+                        if (type == "ok") success[ip]++
+                        else if (type == "fail") failed[ip]++
+                    }
+                }
+                END {
+                    for (ip in success) {
+                        if (success[ip] > 0) printf "%s %d %d %d\n", ip, success[ip]+0, failed[ip]+0, success[ip]+failed[ip]
+                    }
+                }' "$tmp_ssh_stats" | sort -k2,2nr -k4,4nr | head -50 > "$tmp_ssh_table"
 
-            echo "------------------------------------------------"
-            echo "说明: 这是日志统计，不会修改或清除日志。"
-            echo "日志保留时间取决于 systemd-journald 策略。"
+                printf "%-20s %-8s %-8s %-8s %s\n" "IP" "成功" "失败" "总计" "状态"
+                echo "------------------------------------------------"
 
-            if docker inspect fail2ban &>/dev/null; then
-                if docker exec fail2ban fail2ban-client ping &>/dev/null; then
-                    if docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
-                        echo "Fail2Ban容器状态:"
-                        docker exec fail2ban fail2ban-client status sshd
-                    else
-                        echo -e "${gl_hong}Fail2Ban运行，但 sshd jail 未启动。${gl_bai}"
-                    fi
+                if [ ! -s "$tmp_ssh_table" ]; then
+                    echo -e "${gl_huang}最近${stat_days}天没有统计到 SSH 成功登录记录。${gl_bai}"
                 else
-                    echo -e "${gl_hong}Fail2Ban服务未正常运行。${gl_bai}"
+                    while read -r stat_ip stat_ok stat_fail stat_total; do
+                        if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
+                            stat_status="${gl_lv}白名单${gl_bai}"
+                        elif echo " $banned_ips " | grep -Fqw -- "$stat_ip"; then
+                            stat_status="${gl_hong}已封禁${gl_bai}"
+                        else
+                            stat_status="${gl_huang}未封禁${gl_bai}"
+                        fi
+                        printf "%-20s %-8s %-8s %-8s %b\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status"
+                    done < "$tmp_ssh_table"
                 fi
-            fi
 
-            read -n1 -r -p "按任意键继续..."
+                rm -f "$tmp_ssh_stats" "$tmp_ssh_table"
+
+                echo "------------------------------------------------"
+                echo "说明: 这是日志统计，不会修改或清除日志。"
+                echo "日志保留时间取决于 systemd-journald 策略。"
+
+                if docker inspect fail2ban &>/dev/null; then
+                    if docker exec fail2ban fail2ban-client ping &>/dev/null; then
+                        if docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
+                            echo "Fail2Ban容器状态:"
+                            docker exec fail2ban fail2ban-client status sshd
+                        else
+                            echo -e "${gl_hong}Fail2Ban运行，但 sshd jail 未启动。${gl_bai}"
+                        fi
+                    else
+                        echo -e "${gl_hong}Fail2Ban服务未正常运行。${gl_bai}"
+                    fi
+                fi
+
+                read -n1 -r -p "按任意键继续..."
+                break
+            done
             ;;
 
         5)
-            clear
+            while true; do
+                clear
+                echo "统计范围:"
+                echo "1. 最近7天"
+                echo "2. 最近15天"
+                echo "3. 最近30天"
+                echo "0. 返回上一级"
+                read -e -p "请输入你的选择（回车默认1）: " stat_days_choice
+                stat_days_choice=${stat_days_choice:-1}
+                case "$stat_days_choice" in
+                    1) stat_days="7" ;;
+                    2) stat_days="15" ;;
+                    3) stat_days="30" ;;
+                    0) break ;;
+                    *) echo "无效选择"; read -n1 -r -p "按任意键继续..."; continue ;;
+                esac
 
-            echo "▶️ SSH 登录来源统计 TOP 50"
-            echo "说明: 统计最近7天 SSH 登录成功/失败来源 IP。"
-            echo "------------------------"
+                clear
 
-            tmp_ssh_stats=$(mktemp)
-            tmp_ssh_table=$(mktemp)
+                echo "▶️ SSH 登录来源统计 TOP 50"
+                echo "说明: 统计最近${stat_days}天 SSH 登录成功/失败来源 IP。"
+                echo "------------------------"
 
-            if command -v journalctl &>/dev/null; then
-                journalctl -u ssh --since "7 days ago" --no-pager 2>/dev/null \
-                    | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
-                    > "$tmp_ssh_stats"
-            fi
+                tmp_ssh_stats=$(mktemp)
+                tmp_ssh_table=$(mktemp)
 
-            if [ ! -s "$tmp_ssh_stats" ] && command -v journalctl &>/dev/null; then
-                journalctl -u sshd --since "7 days ago" --no-pager 2>/dev/null \
-                    | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
-                    > "$tmp_ssh_stats"
-            fi
-
-            fail2ban_conf="/home/docker/fail2ban/config/fail2ban/jail.d/sshd.local"
-            whitelist=""
-            if [ -f "$fail2ban_conf" ]; then
-                whitelist=$(grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | cut -d= -f2- | xargs)
-            fi
-
-            banned_ips=""
-            if docker inspect fail2ban &>/dev/null && \
-               docker exec fail2ban fail2ban-client ping &>/dev/null && \
-               docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
-                banned_ips=$(docker exec fail2ban fail2ban-client get sshd banip 2>/dev/null || true)
-                if [ -z "$banned_ips" ]; then
-                    banned_ips=$(docker exec fail2ban fail2ban-client status sshd 2>/dev/null | sed -n 's/^.*Banned IP list:[[:space:]]*//p')
+                if command -v journalctl &>/dev/null; then
+                    journalctl -u ssh --since "${stat_days} days ago" --no-pager 2>/dev/null \
+                        | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
+                        > "$tmp_ssh_stats"
                 fi
-            fi
 
-            awk '
-            {
-                ip=""; type=""
-                if ($0 ~ /Accepted/) {
-                    for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="ok"; break }
-                } else if ($0 ~ /Failed password/ || $0 ~ /Invalid user/) {
-                    for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="fail"; break }
-                } else if ($0 ~ /authentication failure/) {
-                    for (i=1; i<=NF; i++) if ($i ~ /^rhost=/) { ip=$i; sub(/^rhost=/, "", ip); type="fail"; break }
-                }
-                if (ip != "") {
-                    gsub(/[^0-9A-Fa-f:.]/, "", ip)
-                    if (type == "ok") success[ip]++
-                    else if (type == "fail") failed[ip]++
-                }
-            }
-            END {
-                for (ip in failed) {
-                    if (failed[ip] > 0) printf "%s %d %d %d\n", ip, success[ip]+0, failed[ip]+0, success[ip]+failed[ip]
-                }
-            }' "$tmp_ssh_stats" | sort -k3,3nr -k4,4nr | head -50 > "$tmp_ssh_table"
+                if [ ! -s "$tmp_ssh_stats" ] && command -v journalctl &>/dev/null; then
+                    journalctl -u sshd --since "${stat_days} days ago" --no-pager 2>/dev/null \
+                        | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
+                        > "$tmp_ssh_stats"
+                fi
 
-            printf "%-20s %-8s %-8s %-8s %s\n" "IP" "成功" "失败" "总计" "状态"
-            echo "------------------------------------------------"
+                fail2ban_conf="/home/docker/fail2ban/config/fail2ban/jail.d/sshd.local"
+                whitelist=""
+                if [ -f "$fail2ban_conf" ]; then
+                    whitelist=$(grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "$fail2ban_conf" 2>/dev/null | tail -n1 | cut -d= -f2- | xargs)
+                fi
 
-            if [ ! -s "$tmp_ssh_table" ]; then
-                echo -e "${gl_huang}最近7天没有统计到 SSH 失败登录记录。${gl_bai}"
-            else
-                while read -r stat_ip stat_ok stat_fail stat_total; do
-                    if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
-                        stat_status="${gl_lv}白名单${gl_bai}"
-                    elif echo " $banned_ips " | grep -Fqw -- "$stat_ip"; then
-                        stat_status="${gl_hong}已封禁${gl_bai}"
-                    else
-                        stat_status="${gl_huang}未封禁${gl_bai}"
+                banned_ips=""
+                if docker inspect fail2ban &>/dev/null && \
+                   docker exec fail2ban fail2ban-client ping &>/dev/null && \
+                   docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
+                    banned_ips=$(docker exec fail2ban fail2ban-client get sshd banip 2>/dev/null || true)
+                    if [ -z "$banned_ips" ]; then
+                        banned_ips=$(docker exec fail2ban fail2ban-client status sshd 2>/dev/null | sed -n 's/^.*Banned IP list:[[:space:]]*//p')
                     fi
-                    printf "%-20s %-8s %-8s %-8s %b\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status"
-                done < "$tmp_ssh_table"
-            fi
+                fi
 
-            rm -f "$tmp_ssh_stats" "$tmp_ssh_table"
+                awk '
+                {
+                    ip=""; type=""
+                    if ($0 ~ /Accepted/) {
+                        for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="ok"; break }
+                    } else if ($0 ~ /Failed password/ || $0 ~ /Invalid user/) {
+                        for (i=1; i<=NF; i++) if ($i == "from") { ip=$(i+1); type="fail"; break }
+                    } else if ($0 ~ /authentication failure/) {
+                        for (i=1; i<=NF; i++) if ($i ~ /^rhost=/) { ip=$i; sub(/^rhost=/, "", ip); type="fail"; break }
+                    }
+                    if (ip != "") {
+                        gsub(/[^0-9A-Fa-f:.]/, "", ip)
+                        if (type == "ok") success[ip]++
+                        else if (type == "fail") failed[ip]++
+                    }
+                }
+                END {
+                    for (ip in failed) {
+                        if (failed[ip] > 0) printf "%s %d %d %d\n", ip, success[ip]+0, failed[ip]+0, success[ip]+failed[ip]
+                    }
+                }' "$tmp_ssh_stats" | sort -k3,3nr -k4,4nr | head -50 > "$tmp_ssh_table"
 
-            echo "------------------------------------------------"
-            echo "说明: 这是日志统计，不会修改或清除日志。"
-            echo "日志保留时间取决于 systemd-journald 策略。"
+                printf "%-20s %-8s %-8s %-8s %s\n" "IP" "成功" "失败" "总计" "状态"
+                echo "------------------------------------------------"
 
-            if docker inspect fail2ban &>/dev/null; then
-                if docker exec fail2ban fail2ban-client ping &>/dev/null; then
-                    if docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
-                        echo "Fail2Ban容器状态:"
-                        docker exec fail2ban fail2ban-client status sshd
-                    else
-                        echo -e "${gl_hong}Fail2Ban运行，但 sshd jail 未启动。${gl_bai}"
-                    fi
+                if [ ! -s "$tmp_ssh_table" ]; then
+                    echo -e "${gl_huang}最近${stat_days}天没有统计到 SSH 失败登录记录。${gl_bai}"
                 else
-                    echo -e "${gl_hong}Fail2Ban服务未正常运行。${gl_bai}"
+                    while read -r stat_ip stat_ok stat_fail stat_total; do
+                        if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
+                            stat_status="${gl_lv}白名单${gl_bai}"
+                        elif echo " $banned_ips " | grep -Fqw -- "$stat_ip"; then
+                            stat_status="${gl_hong}已封禁${gl_bai}"
+                        else
+                            stat_status="${gl_huang}未封禁${gl_bai}"
+                        fi
+                        printf "%-20s %-8s %-8s %-8s %b\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status"
+                    done < "$tmp_ssh_table"
                 fi
-            fi
 
-            read -n1 -r -p "按任意键继续..."
+                rm -f "$tmp_ssh_stats" "$tmp_ssh_table"
+
+                echo "------------------------------------------------"
+                echo "说明: 这是日志统计，不会修改或清除日志。"
+                echo "日志保留时间取决于 systemd-journald 策略。"
+
+                if docker inspect fail2ban &>/dev/null; then
+                    if docker exec fail2ban fail2ban-client ping &>/dev/null; then
+                        if docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
+                            echo "Fail2Ban容器状态:"
+                            docker exec fail2ban fail2ban-client status sshd
+                        else
+                            echo -e "${gl_hong}Fail2Ban运行，但 sshd jail 未启动。${gl_bai}"
+                        fi
+                    else
+                        echo -e "${gl_hong}Fail2Ban服务未正常运行。${gl_bai}"
+                    fi
+                fi
+
+                read -n1 -r -p "按任意键继续..."
+                break
+            done
             ;;
 
-        6)
+        9)
             clear
 
             if [ "$EUID" -ne 0 ]; then
@@ -13903,7 +14127,7 @@ EOF
                     echo "正在清理 SSH 登录成功通知定时任务..."
                     if command -v crontab >/dev/null 2>&1; then
                         tmp_cron=$(mktemp)
-                        crontab -l 2>/dev/null                             | grep -v "ssh-Resend-email-smtp.sh"                             | grep -v "ssh-smtp-email-smtp.sh"                             | grep -v "ssh-login-telegram.sh"                             | grep -v "ssh-login-pam-alert.sh"                             | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"                             > "$tmp_cron"
+                        crontab -l 2>/dev/null                             | grep -v "ssh-Resend-email-smtp.sh"                             | grep -v "ssh-smtp-email-smtp.sh"                             | grep -v "ssh-login-telegram.sh"                             | grep -v "ssh-login-pam-alert.sh"                             | grep -v "^# ssh登录成功 Telegram 通知$"                             | grep -v "^# ssh登录成功 Resend 通知$"                             | grep -v "^# ssh登录成功 SMTP 通知$"                             | grep -v "^# ssh登录成功 其他API 通知$"                             | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"                             > "$tmp_cron"
                         crontab "$tmp_cron" 2>/dev/null || true
                         rm -f "$tmp_cron"
                     fi
@@ -13937,6 +14161,8 @@ EOF
                 clear
                 echo "▶️ 当前封禁的 IP"
                 echo "------------------------"
+                echo "有成功次数多优先显示"
+                echo "其次"
                 echo "失败多优先显示"
                 echo "------------------------"
 
@@ -14010,10 +14236,14 @@ EOF
                                 END { if (!found) print qip " 0 0 0" }
                             ' "$tmp_ip_stats" >> "$tmp_banned_table"
                         done
-                        sort -k3,3nr -k4,4nr "$tmp_banned_table" > "$tmp_banned_sorted"
+                        sort -k2,2nr -k3,3nr -k4,4nr "$tmp_banned_table" > "$tmp_banned_sorted"
                         i=1
                         while read -r stat_ip stat_ok stat_fail stat_total; do
-                            printf "%s. %-17s %-8s %-8s %-8s\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次"
+                            if [ "${stat_ok:-0}" -gt 0 ]; then
+                                printf "${gl_hong}%s. %-17s %-8s %-8s %-8s${gl_bai}\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次"
+                            else
+                                printf "%s. %-17s %-8s %-8s %-8s\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次"
+                            fi
                             banned_display_ips="$banned_display_ips $stat_ip"
                             i=$((i + 1))
                         done < "$tmp_banned_sorted"
@@ -14092,7 +14322,7 @@ EOF
             done
             ;;
 
-        8)
+        6)
             while true; do
                 clear
                 echo "▶️ Fail2Ban SSH 白名单"
@@ -14230,7 +14460,7 @@ EOF
             done
             ;;
 
-        9)
+        8)
             while true; do
                 clear
                 echo "▶️ 日志占用/手动清理"
@@ -14367,13 +14597,13 @@ EOF
                 [ -n "$mail_qita_cron" ] && echo -e "${gl_lv}${mail_qita_cron}${gl_bai}" || echo -e "${gl_lv}暂无${gl_bai}"
                 if [ -n "$mail_resend_cron$mail_smtp_cron$mail_qita_cron" ]; then mail_status="已添加"; else mail_status="暂无"; fi
                 echo -e "${gl_kjlan}------------------------${gl_bai}"
-                echo "即时通知保护"
+                echo -e "${gl_huang}即时通知保护${gl_bai}"
                 if grep -q '/home/docker/fail2ban/notify/ssh-login-pam-alert.sh' /etc/pam.d/sshd 2>/dev/null; then
                     echo -e "${gl_lv}已开启${gl_bai}"
                     pam_status="已开启"
                 else
-                    echo -e "${gl_lv}暂无${gl_bai}"
-                    pam_status="暂无"
+                    echo -e "${gl_hong}未启用${gl_bai}"
+                    pam_status="未启用"
                 fi
                 echo -e "${gl_kjlan}------------------------${gl_bai}"
                 echo -e "${gl_huang}白名单是否通知${gl_bai}"
@@ -14389,10 +14619,11 @@ EOF
                 echo -e "${gl_lv}================================${gl_bai}"
                 echo "1. 登录成功Telegram通知（${tg_status}）"
                 echo "2. 登录成功邮件通知（${mail_status}）"
-                echo "3. 开启 SSH 登录即时通知保护（${pam_status}）"
-                echo "4. 关闭 SSH 登录即时通知保护"
+                echo -e "${gl_huang}3. 开启 SSH 登录即时通知保护（${pam_status}）${gl_bai}"
+                echo -e "${gl_lv}4. 关闭 SSH 登录即时通知保护${gl_bai}"
                 echo -e "${whitelist_skip_color}5. 白名单不通知（${whitelist_skip_status}）${gl_bai}"
                 echo -e "${gl_lv}6. 关闭白名单不通知${gl_bai}"
+                echo "7.发送测试消息"
                 echo -e "${gl_hong}9. 删除全部通知任务${gl_bai}"
                 echo "0. 返回"
                 echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -14432,6 +14663,23 @@ SERVER_IP=\$(curl -s -m 3 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | a
 [ -f "\$STATE_FILE" ] || date +%s > "\$STATE_FILE"
 LAST_TS=\$(cat "\$STATE_FILE" 2>/dev/null || date +%s)
 NOW_TS=\$(date +%s)
+if [ "\${1:-}" = "--test" ]; then
+    USER="\${USER:-root}"
+    IP="\${SSH_CLIENT:-}"; IP="\${IP%% *}"; [ -z "\$IP" ] && IP="127.0.0.1"
+    IP_STATUS="测试"
+    TIME_TEXT=\$(date '+%Y/%m/%d %H:%M:%S')
+    TEXT="🔐 SSH登录成功提醒
+
+这是一个SSH登录成功提醒测试消息
+
+备注: \$REMARK
+👤 用户: \${USER:-root}
+🛡️ IP状态: \$IP_STATUS
+🌐 IP: \$IP
+⏰ 时间: \$TIME_TEXT"
+    curl -s -m 15 "https://api.telegram.org/bot\$BOT_TOKEN/sendMessage" -d chat_id="\$CHAT_ID" --data-urlencode text="\$TEXT" >/dev/null 2>&1 || true
+    exit 0
+fi
 (
 flock -n 9 || exit 0
 TMP_LOG=\$(mktemp)
@@ -14490,7 +14738,7 @@ rm -f "\$TMP_LOG"
 EOF
             chmod 700 /home/docker/fail2ban/notify/ssh-login-telegram.sh
             date +%s > /home/docker/fail2ban/notify/ssh-login-telegram.state
-            ( crontab -l 2>/dev/null | grep -v "ssh-login-telegram.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功通知（邮件Telegram通知一起不要分开）"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-login-telegram.sh >/dev/null 2>&1" ) | crontab -
+            ( crontab -l 2>/dev/null | grep -v "ssh-login-telegram.sh" | grep -v "^# ssh登录成功 Telegram 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功 Telegram 通知"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-login-telegram.sh >/dev/null 2>&1" ) | crontab -
             echo -e "${gl_lv}SSH 登录成功 Telegram 通知已添加。${gl_bai}"
             echo "脚本: /home/docker/fail2ban/notify/ssh-login-telegram.sh"
             echo "频率: 每分钟检查一次，只通知安装后新登录记录。"
@@ -14500,10 +14748,7 @@ EOF
                     read -e -p "确定删除 SSH 登录成功 Telegram 通知吗？(Y/N): " confirm_del_tg
                     case "$confirm_del_tg" in
                         [Yy])
-                            crontab -l 2>/dev/null | grep -v "ssh-login-telegram.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -
-                            if crontab -l 2>/dev/null | grep -Eq 'ssh-login-telegram|ssh-Resend-email-smtp|ssh-smtp-email-smtp|ssh-qita-email-smtp' ; then
-                                ( crontab -l 2>/dev/null | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功通知（邮件Telegram通知一起不要分开）" ) | crontab -
-                            fi
+                            crontab -l 2>/dev/null | grep -v "ssh-login-telegram.sh" | grep -v "^# ssh登录成功 Telegram 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -
                             rm -f /home/docker/fail2ban/notify/ssh-login-telegram.sh
                             rm -f /home/docker/fail2ban/notify/ssh-login-telegram.state
                             echo -e "${gl_lv}SSH 登录成功 Telegram 通知已删除，相关定时任务已清理。${gl_bai}"
@@ -14550,6 +14795,28 @@ STATE_FILE="/home/docker/fail2ban/notify/ssh-Resend-email-smtp.state"
 LOCK_FILE="/tmp/ssh-Resend-email-smtp.lock"
 HOSTNAME=\$(hostname 2>/dev/null || echo unknown)
 SERVER_IP=\$(curl -s -m 3 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print \$1}')
+if [ "\${1:-}" = "--test" ]; then
+    USER="\${USER:-root}"
+    IP="\${SSH_CLIENT:-}"; IP="\${IP%% *}"; [ -z "\$IP" ] && IP="127.0.0.1"
+    TIME_TEXT=\$(date '+%Y/%m/%d %H:%M:%S')
+    BODY="🔐 SSH登录成功提醒
+
+这是一个SSH登录成功提醒测试邮件
+
+备注: \$REMARK
+👤 用户: \${USER:-root}
+🛡️ IP状态: 测试
+🌐 IP: \$IP
+⏰ 时间: \$TIME_TEXT"
+    curl -s -m 15 https://api.resend.com/emails \
+      -H "Authorization: Bearer \$RESEND_KEY" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      --data-urlencode "from=\$FROM_EMAIL" \
+      --data-urlencode "to=\$TO_EMAIL" \
+      --data-urlencode "subject=[\$REMARK] [Resend API]SSH登录成功提醒测试邮件 \$IP \$(date '+%Y/%m/%d %H:%M:%S')" \
+      --data-urlencode "text=\$BODY" >/dev/null 2>&1 || true
+    exit 0
+fi
 [ -f "\$STATE_FILE" ] || date +%s > "\$STATE_FILE"
 LAST_TS=\$(cat "\$STATE_FILE" 2>/dev/null || date +%s)
 NOW_TS=\$(date +%s)
@@ -14605,7 +14872,7 @@ while IFS= read -r line; do
       -H "Content-Type: application/x-www-form-urlencoded" \
       --data-urlencode "from=\$FROM_EMAIL" \
       --data-urlencode "to=\$TO_EMAIL" \
-      --data-urlencode "subject=[\$REMARK] SSH登录成功提醒 \${IP:-未知}" \
+      --data-urlencode "subject=[\$REMARK] [Resend API]SSH登录成功提醒 \${IP:-未知} \$(date '+%Y/%m/%d %H:%M:%S')" \
       --data-urlencode "text=\$BODY" >/dev/null 2>&1 || true
     sleep 1
 done < "\$TMP_LOG"
@@ -14615,7 +14882,7 @@ rm -f "\$TMP_LOG"
 EOF
                     chmod 700 /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh
                     date +%s > /home/docker/fail2ban/notify/ssh-Resend-email-smtp.state
-                    ( crontab -l 2>/dev/null | grep -v "ssh-Resend-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功通知（邮件Telegram通知一起不要分开）"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh >/dev/null 2>&1" ) | crontab -
+                    ( crontab -l 2>/dev/null | grep -v "ssh-Resend-email-smtp.sh" | grep -v "^# ssh登录成功 Resend 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功 Resend 通知"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh >/dev/null 2>&1" ) | crontab -
                     echo -e "${gl_lv}SSH 登录成功 Resend 邮件通知已添加。${gl_bai}"
                     echo "脚本: /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh"
                     echo "频率: 每分钟检查一次，只通知安装后新登录记录。"
@@ -14629,7 +14896,7 @@ EOF
                     fi
                     read -e -p "请输入备注名称: " SSH_NOTIFY_REMARK
                     read -e -p "请输入 SMTP服务器: " SSH_SMTP_HOST
-                    read -e -p "请输入 SMTP端口 [默认: 587]: " SSH_SMTP_PORT
+                    read -e -p "请输入 SMTP端口465或者587 [默认: 587]: " SSH_SMTP_PORT
                     SSH_SMTP_PORT=${SSH_SMTP_PORT:-587}
                     read -e -p "是否启用SSL? 465端口通常选Y，587通常选N (Y/N) [默认: N]: " SSH_SMTP_SSL
                     SSH_SMTP_SSL=${SSH_SMTP_SSL:-N}
@@ -14654,6 +14921,46 @@ STATE_FILE="/home/docker/fail2ban/notify/ssh-smtp-email-smtp.state"
 LOCK_FILE="/tmp/ssh-smtp-email-smtp.lock"
 HOSTNAME=\$(hostname 2>/dev/null || echo unknown)
 SERVER_IP=\$(curl -s -m 3 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print \$1}')
+if [ "\${1:-}" = "--test" ]; then
+    USER="\${USER:-root}"
+    IP="\${SSH_CLIENT:-}"; IP="\${IP%% *}"; [ -z "\$IP" ] && IP="127.0.0.1"
+    TIME_TEXT=\$(date '+%Y/%m/%d %H:%M:%S')
+    BODY="🔐 SSH登录成功提醒
+
+这是一个SSH登录成功提醒测试邮件
+
+备注: \$REMARK
+👤 用户: \${USER:-root}
+🛡️ IP状态: 测试
+🌐 IP: \$IP
+⏰ 时间: \$TIME_TEXT"
+    export SMTP_HOST SMTP_PORT SMTP_SSL SMTP_USER SMTP_PASS FROM_EMAIL TO_EMAIL
+    SMTP_SUBJECT="[\$REMARK] [SMTP]SSH登录成功提醒测试邮件 \$IP \$(date '+%Y/%m/%d %H:%M:%S')" SMTP_BODY="\$BODY" python3 - <<'PYEOF' >/dev/null 2>&1 || true
+import os, smtplib, ssl
+from email.message import EmailMessage
+msg = EmailMessage()
+msg['From'] = os.environ['FROM_EMAIL']
+msg['To'] = os.environ['TO_EMAIL']
+msg['Subject'] = os.environ.get('SMTP_SUBJECT', 'SSH 登录成功测试消息')
+msg.set_content(os.environ.get('SMTP_BODY', ''))
+host=os.environ['SMTP_HOST']; port=int(os.environ.get('SMTP_PORT','587'))
+use_ssl=os.environ.get('SMTP_SSL','N').lower().startswith('y')
+user=os.environ.get('SMTP_USER',''); password=os.environ.get('SMTP_PASS','')
+if use_ssl:
+    server=smtplib.SMTP_SSL(host, port, timeout=20, context=ssl.create_default_context())
+else:
+    server=smtplib.SMTP(host, port, timeout=20)
+    server.ehlo()
+    if port != 25:
+        server.starttls(context=ssl.create_default_context())
+        server.ehlo()
+if user:
+    server.login(user, password)
+server.send_message(msg)
+server.quit()
+PYEOF
+    exit 0
+fi
 [ -f "\$STATE_FILE" ] || date +%s > "\$STATE_FILE"
 LAST_TS=\$(cat "\$STATE_FILE" 2>/dev/null || date +%s)
 NOW_TS=\$(date +%s)
@@ -14697,8 +15004,15 @@ while IFS= read -r line; do
         continue
     fi
     TIME_TEXT=\$(date '+%Y/%m/%d %H:%M:%S')
-    BODY="🔐 SSH登录成功提醒\n\n备注: \$REMARK\n👤 用户: \${USER:-未知}\n🛡️ IP状态: \$IP_STATUS\n🌐 IP: \${IP:-未知}\n⏰ 时间: \$TIME_TEXT"
-    SMTP_SUBJECT="[\$REMARK] SSH登录成功提醒 \${IP:-未知}" SMTP_BODY="\$BODY" python3 - <<'PYEOF' || true
+    BODY="🔐 SSH登录成功提醒
+
+备注: \$REMARK
+👤 用户: \${USER:-未知}
+🛡️ IP状态: \$IP_STATUS
+🌐 IP: \${IP:-未知}
+⏰ 时间: \$TIME_TEXT"
+    export SMTP_HOST SMTP_PORT SMTP_SSL SMTP_USER SMTP_PASS FROM_EMAIL TO_EMAIL
+    SMTP_SUBJECT="[\$REMARK] [SMTP]SSH登录成功提醒 \${IP:-未知} \$(date '+%Y/%m/%d %H:%M:%S')" SMTP_BODY="\$BODY" python3 - <<'PYEOF' || true
 import os, smtplib, ssl
 from email.message import EmailMessage
 msg = EmailMessage()
@@ -14730,7 +15044,7 @@ rm -f "\$TMP_LOG"
 EOF
                     chmod 700 /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh
                     date +%s > /home/docker/fail2ban/notify/ssh-smtp-email-smtp.state
-                    ( crontab -l 2>/dev/null | grep -v "ssh-smtp-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功通知（邮件Telegram通知一起不要分开）"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh >/dev/null 2>&1" ) | crontab -
+                    ( crontab -l 2>/dev/null | grep -v "ssh-smtp-email-smtp.sh" | grep -v "^# ssh登录成功 SMTP 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功 SMTP 通知"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh >/dev/null 2>&1" ) | crontab -
                     echo -e "${gl_lv}SSH 登录成功 SMTP 邮件通知已添加。${gl_bai}"
                     echo "脚本: /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh"
                     echo "频率: 每分钟检查一次，只通知安装后新登录记录。"
@@ -14745,6 +15059,8 @@ EOF
                     read -e -p "请输入备注名称: " SSH_NOTIFY_REMARK
                     read -e -p "请输入 API地址: " SSH_API_URL
                     read -e -p "请输入 API Key: " SSH_API_KEY
+                    read -e -p "请输入请求头（回车默认Authorization: Bearer）: " SSH_API_HEADER
+                    SSH_API_HEADER=${SSH_API_HEADER:-Authorization: Bearer}
                     read -e -p "请输入发件邮箱(From): " SSH_FROM_EMAIL
                     read -e -p "请输入收件邮箱(To): " SSH_TO_EMAIL
                     mkdir -p /home/docker/fail2ban/notify
@@ -14754,10 +15070,28 @@ set -u
 REMARK="${SSH_NOTIFY_REMARK}"
 API_URL="${SSH_API_URL}"
 API_KEY="${SSH_API_KEY}"
+API_HEADER="${SSH_API_HEADER}"
+API_HEADER="${API_HEADER}"
 FROM_EMAIL="${SSH_FROM_EMAIL}"
 TO_EMAIL="${SSH_TO_EMAIL}"
 STATE_FILE="/home/docker/fail2ban/notify/ssh-qita-email-smtp.state"
 LOCK_FILE="/tmp/ssh-qita-email-smtp.lock"
+if [ "\${1:-}" = "--test" ]; then
+    USER="\${USER:-root}"
+    IP="\${SSH_CLIENT:-}"; IP="\${IP%% *}"; [ -z "\$IP" ] && IP="127.0.0.1"
+    TIME_TEXT=\$(date '+%Y/%m/%d %H:%M:%S')
+    BODY="🔐 SSH登录成功提醒
+
+这是一个SSH登录成功提醒测试邮件
+
+备注: \$REMARK
+👤 用户: \${USER:-root}
+🛡️ IP状态: 测试
+🌐 IP: \$IP
+⏰ 时间: \$TIME_TEXT"
+    curl -s -m 15 "\$API_URL" -H "Authorization: Bearer \$API_KEY" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=\$FROM_EMAIL" --data-urlencode "to=\$TO_EMAIL" --data-urlencode "subject=[\$REMARK] [Resend API]SSH登录成功提醒测试邮件 \$IP \$(date '+%Y/%m/%d %H:%M:%S')" --data-urlencode "text=\$BODY" >/dev/null 2>&1 || true
+    exit 0
+fi
 [ -f "\$STATE_FILE" ] || date +%s > "\$STATE_FILE"
 LAST_TS=\$(cat "\$STATE_FILE" 2>/dev/null || date +%s)
 NOW_TS=\$(date +%s)
@@ -14778,8 +15112,14 @@ while IFS= read -r line; do
     if [ -n "\${IP:-}" ] && [ -f "\$FAIL2BAN_CONF" ]; then IGNORE_IPS=\$(grep -E '^[[:space:]]*ignoreip[[:space:]]*=' "\$FAIL2BAN_CONF" 2>/dev/null | tail -n1 | cut -d= -f2- | xargs); echo " \$IGNORE_IPS " | grep -Fqw -- "\$IP" && IP_STATUS="白名单"; fi
     [ "\$IP_STATUS" = "白名单" ] && [ -f "/home/docker/fail2ban/notify/skip-whitelist-login.enabled" ] && continue
     TIME_TEXT=\$(date '+%Y/%m/%d %H:%M:%S')
-    BODY="🔐 SSH登录成功提醒\n\n备注: \$REMARK\n👤 用户: \${USER:-未知}\n🛡️ IP状态: \$IP_STATUS\n🌐 IP: \${IP:-未知}\n⏰ 时间: \$TIME_TEXT"
-    curl -s -m 15 "\$API_URL" -H "Authorization: Bearer \$API_KEY" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=\$FROM_EMAIL" --data-urlencode "to=\$TO_EMAIL" --data-urlencode "subject=[\$REMARK] SSH登录成功提醒 \${IP:-未知}" --data-urlencode "text=\$BODY" >/dev/null 2>&1 || true
+    BODY="🔐 SSH登录成功提醒
+
+备注: \$REMARK
+👤 用户: \${USER:-未知}
+🛡️ IP状态: \$IP_STATUS
+🌐 IP: \${IP:-未知}
+⏰ 时间: \$TIME_TEXT"
+    curl -s -m 15 "\$API_URL" -H "Authorization: Bearer \$API_KEY" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=\$FROM_EMAIL" --data-urlencode "to=\$TO_EMAIL" --data-urlencode "subject=[\$REMARK] [Resend API]SSH登录成功提醒 \${IP:-未知} \$(date '+%Y/%m/%d %H:%M:%S')" --data-urlencode "text=\$BODY" >/dev/null 2>&1 || true
 done < "\$TMP_LOG"
 echo "\$NOW_TS" > "\$STATE_FILE"
 rm -f "\$TMP_LOG"
@@ -14787,8 +15127,9 @@ rm -f "\$TMP_LOG"
 EOF
                     chmod 700 /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh
                     date +%s > /home/docker/fail2ban/notify/ssh-qita-email-smtp.state
-                    ( crontab -l 2>/dev/null | grep -v "ssh-qita-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功通知（邮件Telegram通知一起不要分开）"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh >/dev/null 2>&1" ) | crontab -
+                    ( crontab -l 2>/dev/null | grep -v "ssh-qita-email-smtp.sh" | grep -v "^# ssh登录成功 其他API 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功 其他API 通知"; echo "* * * * * /bin/bash /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh >/dev/null 2>&1" ) | crontab -
                     echo -e "${gl_lv}SSH 登录成功 其他API邮件通知已添加。${gl_bai}"
+                    echo -e "${gl_hong}请测试发信，不是所有邮件 API 都兼容Authorization: Bearer${gl_bai}"
                     read -n1 -r -p "按任意键继续..."
                                 ;;
                             4)
@@ -14806,37 +15147,34 @@ EOF
                         1)
                             read -e -p "确定删除 Resend API 邮件通知吗？(Y/N): " confirm_del_mail
                             case "$confirm_del_mail" in
-                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-Resend-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh /home/docker/fail2ban/notify/ssh-Resend-email-smtp.state; echo -e "${gl_lv}Resend邮件通知已删除${gl_bai}" ;;
+                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-Resend-email-smtp.sh" | grep -v "^# ssh登录成功 Resend 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh /home/docker/fail2ban/notify/ssh-Resend-email-smtp.state; echo -e "${gl_lv}Resend邮件通知已删除${gl_bai}" ;;
                                 *) echo "已取消删除" ;;
                             esac
                             ;;
                         2)
                             read -e -p "确定删除 SMTP 邮件通知吗？(Y/N): " confirm_del_mail
                             case "$confirm_del_mail" in
-                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-smtp-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh /home/docker/fail2ban/notify/ssh-smtp-email-smtp.state; echo -e "${gl_lv}SMTP邮件通知已删除${gl_bai}" ;;
+                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-smtp-email-smtp.sh" | grep -v "^# ssh登录成功 SMTP 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh /home/docker/fail2ban/notify/ssh-smtp-email-smtp.state; echo -e "${gl_lv}SMTP邮件通知已删除${gl_bai}" ;;
                                 *) echo "已取消删除" ;;
                             esac
                             ;;
                         3)
                             read -e -p "确定删除 其他API 邮件通知吗？(Y/N): " confirm_del_mail
                             case "$confirm_del_mail" in
-                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-qita-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh /home/docker/fail2ban/notify/ssh-qita-email-smtp.state; echo -e "${gl_lv}其他API邮件通知已删除${gl_bai}" ;;
+                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-qita-email-smtp.sh" | grep -v "^# ssh登录成功 其他API 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh /home/docker/fail2ban/notify/ssh-qita-email-smtp.state; echo -e "${gl_lv}其他API邮件通知已删除${gl_bai}" ;;
                                 *) echo "已取消删除" ;;
                             esac
                             ;;
                         4)
                             read -e -p "确定删除全部 SSH 登录成功邮件通知吗？(Y/N): " confirm_del_mail
                             case "$confirm_del_mail" in
-                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-Resend-email-smtp.sh" | grep -v "ssh-smtp-email-smtp.sh" | grep -v "ssh-qita-email-smtp.sh" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh /home/docker/fail2ban/notify/ssh-Resend-email-smtp.state /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh /home/docker/fail2ban/notify/ssh-smtp-email-smtp.state /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh /home/docker/fail2ban/notify/ssh-qita-email-smtp.state; echo -e "${gl_lv}全部邮件通知已删除${gl_bai}" ;;
+                                [Yy]) crontab -l 2>/dev/null | grep -v "ssh-Resend-email-smtp.sh" | grep -v "ssh-smtp-email-smtp.sh" | grep -v "ssh-qita-email-smtp.sh" | grep -v "^# ssh登录成功 其他API 通知$" | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$" | crontab -; rm -f /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh /home/docker/fail2ban/notify/ssh-Resend-email-smtp.state /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh /home/docker/fail2ban/notify/ssh-smtp-email-smtp.state /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh /home/docker/fail2ban/notify/ssh-qita-email-smtp.state; echo -e "${gl_lv}全部邮件通知已删除${gl_bai}" ;;
                                 *) echo "已取消删除" ;;
                             esac
                             ;;
                         0) ;;
                         *) echo "无效选择" ;;
                     esac
-                    if crontab -l 2>/dev/null | grep -Eq 'ssh-login-telegram|ssh-Resend-email-smtp|ssh-smtp-email-smtp|ssh-qita-email-smtp' ; then
-                        ( crontab -l 2>/dev/null | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"; echo "# ssh登录成功通知（邮件Telegram通知一起不要分开）" ) | crontab -
-                    fi
                     read -n1 -r -p "按任意键继续..."
                                 ;;
                             0) ;;
@@ -14938,7 +15276,7 @@ EOF
               -H "Content-Type: application/x-www-form-urlencoded" \
               --data-urlencode "from=${FROM_EMAIL}" \
               --data-urlencode "to=${TO_EMAIL}" \
-              --data-urlencode "subject=[${REMARK:-SSH}] SSH登录成功提醒 ${LOGIN_IP}" \
+              --data-urlencode "subject=[${REMARK:-SSH}] [Resend API]SSH登录成功提醒 ${LOGIN_IP} ${TIME_TEXT}" \
               --data-urlencode "text=${BODY}" >/dev/null 2>&1 || true
         fi
     fi
@@ -14952,7 +15290,7 @@ EOF
         export SMTP_PASS=$(get_var "$SMTP_SCRIPT" "SMTP_PASS")
         export FROM_EMAIL=$(get_var "$SMTP_SCRIPT" "FROM_EMAIL")
         export TO_EMAIL=$(get_var "$SMTP_SCRIPT" "TO_EMAIL")
-        export SMTP_SUBJECT="[${REMARK:-SSH}] SSH登录成功提醒 ${LOGIN_IP}"
+        export SMTP_SUBJECT="[${REMARK:-SSH}] [SMTP]SSH登录成功提醒 ${LOGIN_IP} ${TIME_TEXT}"
         export SMTP_BODY="🔐 SSH登录成功提醒
 
 备注: ${REMARK:-未设置}
@@ -15034,6 +15372,38 @@ EOF
                         echo -e "${gl_lv}已关闭：白名单IP登录也会发送通知。${gl_bai}"
                         read -n1 -r -p "按任意键继续..."
                         ;;
+                    7)
+                        clear
+                        echo "▶️ 发送 SSH 登录成功通知测试消息"
+                        echo "------------------------"
+                        sent_any=0
+                        if [ -x /home/docker/fail2ban/notify/ssh-login-telegram.sh ]; then
+                            echo "发送 Telegram 测试消息..."
+                            /bin/bash /home/docker/fail2ban/notify/ssh-login-telegram.sh --test >/dev/null 2>&1 || true
+                            sent_any=1
+                        fi
+                        if [ -x /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh ]; then
+                            echo "发送 Resend 邮件测试消息..."
+                            /bin/bash /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh --test >/dev/null 2>&1 || true
+                            sent_any=1
+                        fi
+                        if [ -x /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh ]; then
+                            echo "发送 SMTP 邮件测试消息..."
+                            /bin/bash /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh --test >/dev/null 2>&1 || true
+                            sent_any=1
+                        fi
+                        if [ -x /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh ]; then
+                            echo "发送 其他API 邮件测试消息..."
+                            /bin/bash /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh --test >/dev/null 2>&1 || true
+                            sent_any=1
+                        fi
+                        if [ "$sent_any" = "0" ]; then
+                            echo "暂无已添加的通知配置，已跳过。"
+                        else
+                            echo "测试消息已触发，请检查对应 Telegram/邮箱。"
+                        fi
+                        read -n1 -r -p "按任意键继续..."
+                        ;;
                     9)
                         clear
                         echo "▶️ 删除全部 SSH 登录成功通知任务"
@@ -15042,7 +15412,7 @@ EOF
                         case "$confirm_del_all_notify" in
                             [Yy])
                                 if command -v crontab >/dev/null 2>&1; then
-                                    crontab -l 2>/dev/null                                         | grep -v "ssh-login-telegram.sh"                                         | grep -v "ssh-Resend-email-smtp.sh"                                         | grep -v "ssh-smtp-email-smtp.sh"                                         | grep -v "ssh-qita-email-smtp.sh"                                         | grep -v "ssh-login-pam-alert.sh"                                         | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"                                         | crontab -
+                                    crontab -l 2>/dev/null                                         | grep -v "ssh-login-telegram.sh"                                         | grep -v "ssh-Resend-email-smtp.sh"                                         | grep -v "ssh-smtp-email-smtp.sh"                                         | grep -v "ssh-qita-email-smtp.sh"                                         | grep -v "ssh-login-pam-alert.sh"                                         | grep -v "^# ssh登录成功 Telegram 通知$"                                         | grep -v "^# ssh登录成功 Resend 通知$"                                         | grep -v "^# ssh登录成功 SMTP 通知$"                                         | grep -v "^# ssh登录成功 其他API 通知$"                                         | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"                                         | crontab -
                                 fi
                                 if [ -f /etc/pam.d/sshd ]; then
                                     if grep -q '/home/docker/fail2ban/notify/ssh-login-pam-alert.sh' /etc/pam.d/sshd; then
