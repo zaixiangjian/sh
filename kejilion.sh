@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.2"
+sh_v="0.0.4"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -13246,7 +13246,7 @@ while true; do
     echo -e "${gl_kjlan}7.   ${gl_bai}查看封禁的IP"
     echo -e "${gl_kjlan}8.   ${gl_bai}查看/管理白名单"
     echo -e "${gl_kjlan}9.   ${gl_bai}查看日志占用/手动清理"
-    echo -e "${gl_kjlan}999. ${gl_bai}登录成功通知"
+    echo -e "${gl_lv}999. 登录成功通知设置${gl_bai}"
     echo -e "${gl_kjlan}0.   ${gl_bai}返回上一级"
     echo -e "${gl_kjlan}------------------------${gl_bai}"
 
@@ -14393,6 +14393,7 @@ EOF
                 echo "4. 关闭 SSH 登录即时通知保护"
                 echo -e "${whitelist_skip_color}5. 白名单不通知（${whitelist_skip_status}）${gl_bai}"
                 echo -e "${gl_lv}6. 关闭白名单不通知${gl_bai}"
+                echo -e "${gl_hong}9. 删除全部通知任务${gl_bai}"
                 echo "0. 返回"
                 echo -e "${gl_kjlan}------------------------${gl_bai}"
                 read -e -p "请输入你的选择: " ssh_notify_choice
@@ -15031,6 +15032,46 @@ EOF
                     6)
                         rm -f /home/docker/fail2ban/notify/skip-whitelist-login.enabled
                         echo -e "${gl_lv}已关闭：白名单IP登录也会发送通知。${gl_bai}"
+                        read -n1 -r -p "按任意键继续..."
+                        ;;
+                    9)
+                        clear
+                        echo "▶️ 删除全部 SSH 登录成功通知任务"
+                        echo "------------------------"
+                        read -e -p "确定删除 Telegram/邮件/即时通知/PAM配置/白名单不通知开关吗？(Y/N): " confirm_del_all_notify
+                        case "$confirm_del_all_notify" in
+                            [Yy])
+                                if command -v crontab >/dev/null 2>&1; then
+                                    crontab -l 2>/dev/null                                         | grep -v "ssh-login-telegram.sh"                                         | grep -v "ssh-Resend-email-smtp.sh"                                         | grep -v "ssh-smtp-email-smtp.sh"                                         | grep -v "ssh-qita-email-smtp.sh"                                         | grep -v "ssh-login-pam-alert.sh"                                         | grep -v "^# ssh登录成功通知（邮件Telegram通知一起不要分开）$"                                         | crontab -
+                                fi
+                                if [ -f /etc/pam.d/sshd ]; then
+                                    if grep -q '/home/docker/fail2ban/notify/ssh-login-pam-alert.sh' /etc/pam.d/sshd; then
+                                        cp -a /etc/pam.d/sshd "/etc/pam.d/sshd.bak.remove-ssh-login-notify.$(date +%Y%m%d%H%M%S)"
+                                        sed -i '\|/home/docker/fail2ban/notify/ssh-login-pam-alert.sh|d' /etc/pam.d/sshd
+                                    fi
+                                fi
+                                rm -f /home/docker/fail2ban/notify/ssh-login-telegram.sh
+                                rm -f /home/docker/fail2ban/notify/ssh-login-telegram.state
+                                rm -f /home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh
+                                rm -f /home/docker/fail2ban/notify/ssh-Resend-email-smtp.state
+                                rm -f /home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh
+                                rm -f /home/docker/fail2ban/notify/ssh-smtp-email-smtp.state
+                                rm -f /home/docker/fail2ban/notify/ssh-qita-email-smtp.sh
+                                rm -f /home/docker/fail2ban/notify/ssh-qita-email-smtp.state
+                                rm -f /home/docker/fail2ban/notify/ssh-login-pam-alert.sh
+                                rm -f /home/docker/fail2ban/notify/ssh-login-pam-alert.state
+                                rm -f /home/docker/fail2ban/notify/skip-whitelist-login.enabled
+                                rm -f /tmp/ssh-login-telegram.lock
+                                rm -f /tmp/ssh-Resend-email-smtp.lock
+                                rm -f /tmp/ssh-smtp-email-smtp.lock
+                                rm -f /tmp/ssh-qita-email-smtp.lock
+                                rm -f /tmp/ssh-login-pam-alert.lock
+                                echo -e "${gl_lv}全部 SSH 登录成功通知任务已删除。${gl_bai}"
+                                ;;
+                            *)
+                                echo "已取消删除"
+                                ;;
+                        esac
                         read -n1 -r -p "按任意键继续..."
                         ;;
                     0) break ;;
