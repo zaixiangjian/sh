@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="1.1.1"
+sh_v="0.0.7"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -13,76 +13,12 @@ gl_zi='\033[35m'
 gl_kjlan='\033[96m'
 
 
-
-
-
-
-
 # 修复缺失的初始化/统计函数；本地版本默认关闭统计，避免调用不存在时报错或向外发送统计。
-permission_granted="true"
 ENABLE_STATS="false"
 
 send_stats() {
     return 0
 }
-
-CheckFirstRun_true() {
-    return 0
-}
-
-CheckFirstRun_false() {
-    return 0
-}
-
-install_add_docker_cn() {
-    country=$(curl -s --max-time 3 ipinfo.io/country 2>/dev/null)
-    if [ "$country" = "CN" ]; then
-        mkdir -p /etc/docker
-        cat > /etc/docker/daemon.json << EOF
-{
-    "registry-mirrors": ["https://docker.kejilion.pro"]
-}
-EOF
-    fi
-}
-
-k() {
-    "$0" "$@"
-}
-
-
-# 提示用户同意条款
-UserLicenseAgreement() {
-	clear
-	echo -e "${gl_kjlan}欢迎使用科技lion脚本工具箱${gl_bai}"
-	echo "首次使用脚本，请先阅读并同意用户许可协议。"
-	echo "用户许可协议: https://www.bing.com/"
-	echo -e "----------------------"
-	read -r -p "是否同意以上条款？(y/n): " user_input
-
-
-	if [ "$user_input" = "y" ] || [ "$user_input" = "Y" ]; then
-		send_stats "许可同意"
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' ./kejilion.sh
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' /usr/local/bin/k
-	else
-		send_stats "许可拒绝"
-		clear
-		exit
-	fi
-}
-
-
-
-
-
-
-
-
-
-CheckFirstRun_false
-
-
 
 
 
@@ -285,19 +221,9 @@ check_port() {
 
 
 install_add_docker_guanfang() {
-country=$(curl -s ipinfo.io/country)
-if [ "$country" = "CN" ]; then
-	cd ~
-	curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/install && chmod +x install
-	sh install --mirror Aliyun
-	rm -f install
-
-else
 	curl -fsSL https://get.docker.com | sh
-fi
-install_add_docker_cn
-k enable docker
-k start docker
+	enable docker
+	start docker
 
 }
 
@@ -311,71 +237,44 @@ install_add_docker() {
 		dnf update -y
 		dnf install -y yum-utils device-mapper-persistent-data lvm2
 		rm -f /etc/yum.repos.d/docker*.repo > /dev/null
-		country=$(curl -s ipinfo.io/country)
 		arch=$(uname -m)
-		if [ "$country" = "CN" ]; then
-			if [ "$arch" = "x86_64" ]; then
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo | tee /etc/yum.repos.d/docker-ce.repo > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/centos/arm64/docker-ce.repo | tee /etc/yum.repos.d/docker-ce.repo > /dev/null
-			fi
-		else
-			if [ "$arch" = "x86_64" ]; then
-				yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				yum-config-manager --add-repo https://download.docker.com/linux/centos/arm64/docker-ce.repo > /dev/null
-			fi
+		if [ "$arch" = "x86_64" ]; then
+			yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo > /dev/null
+		elif [ "$arch" = "aarch64" ]; then
+			yum-config-manager --add-repo https://download.docker.com/linux/centos/arm64/docker-ce.repo > /dev/null
 		fi
 		dnf install -y docker-ce docker-ce-cli containerd.io
-		install_add_docker_cn
-		k enable docker
-		k start docker
+		enable docker
+		start docker
 
 	elif [ -f /etc/os-release ] && grep -q "Kali" /etc/os-release; then
 		apt update
 		apt upgrade -y
 		apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
 		rm -f /usr/share/keyrings/docker-archive-keyring.gpg
-		country=$(curl -s ipinfo.io/country)
 		arch=$(uname -m)
-		if [ "$country" = "CN" ]; then
-			if [ "$arch" = "x86_64" ]; then
-				sed -i '/^deb \[arch=amd64 signed-by=\/etc\/apt\/keyrings\/docker-archive-keyring.gpg\] https:\/\/mirrors.aliyun.com\/docker-ce\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				sed -i '/^deb \[arch=arm64 signed-by=\/etc\/apt\/keyrings\/docker-archive-keyring.gpg\] https:\/\/mirrors.aliyun.com\/docker-ce\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			fi
-		else
-			if [ "$arch" = "x86_64" ]; then
-				sed -i '/^deb \[arch=amd64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				sed -i '/^deb \[arch=arm64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			fi
+		if [ "$arch" = "x86_64" ]; then
+			sed -i '/^deb \[arch=amd64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
+			mkdir -p /etc/apt/keyrings
+			curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
+			echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+		elif [ "$arch" = "aarch64" ]; then
+			sed -i '/^deb \[arch=arm64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
+			mkdir -p /etc/apt/keyrings
+			curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
+			echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 		fi
 		apt update
 		apt install -y docker-ce docker-ce-cli containerd.io
-		install_add_docker_cn
-		k enable docker
-		k start docker
+		enable docker
+		start docker
 
 	elif command -v apt &>/dev/null || command -v yum &>/dev/null; then
 		install_add_docker_guanfang
 	else
-		k install docker docker-compose
-		install_add_docker_cn
-		k enable docker
-		k start docker
+		install docker docker-compose
+		enable docker
+		start docker
 	fi
 	sleep 2
 }
@@ -5724,7 +5623,11 @@ kj_app_save_iptables_rules() {
 	mkdir -p /etc/iptables
 	iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 	if command -v crontab >/dev/null 2>&1; then
-		(crontab -l 2>/dev/null | grep -v 'iptables-restore < /etc/iptables/rules.v4'; echo '@reboot iptables-restore < /etc/iptables/rules.v4') | crontab - 2>/dev/null || true
+		(
+			crontab -l 2>/dev/null 				| grep -v 'iptables-restore < /etc/iptables/rules.v4' 				| grep -v '^# 990应用 安装的应用以及应用端口封禁（勿删）$'
+			echo '# 990应用 安装的应用以及应用端口封禁（勿删）'
+			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
+		) | crontab - 2>/dev/null || true
 	fi
 }
 
@@ -5733,18 +5636,89 @@ kj_app_docker_ip() {
 	docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$cname" 2>/dev/null | awk '{print $1}'
 }
 
+kj_app_docker_container_port_for_host() {
+	local cname="$1"
+	local host_port="$2"
+	docker port "$cname" 2>/dev/null | awk -v hp="$host_port" '
+		/->/ {
+			left=$1
+			split(left,a,"/")
+			container_port=a[1]
+			n=split($0,b,":")
+			published=b[n]
+			gsub(/[^0-9]/,"",published)
+			if (published == hp) { print container_port; exit }
+		}'
+}
+
+kj_app_cleanup_docker_container_wide_block() {
+	local cname="$1"
+	local container_ip
+	container_ip=$(kj_app_docker_ip "$cname")
+	[ -z "$container_ip" ] && return 0
+	while iptables -C DOCKER-USER -d "$container_ip" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -j DROP; done
+}
+
+kj_app_block_docker_port() {
+	local cname="$1"
+	local host_port="$2"
+	local container_ip container_port
+	[ -z "$host_port" ] && return 1
+	install iptables
+	kj_app_cleanup_docker_container_wide_block "$cname"
+	container_ip=$(kj_app_docker_ip "$cname")
+	container_port=$(kj_app_docker_container_port_for_host "$cname" "$host_port")
+	# 同时阻止宿主机监听路径；部分 Docker 发布端口走 docker-proxy/INPUT。
+	kj_app_block_host_port "$host_port"
+	if [ -n "$container_ip" ] && [ -n "$container_port" ]; then
+		iptables -N DOCKER-USER 2>/dev/null || true
+		iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
+		iptables -C DOCKER-USER -i br+ -d "$container_ip" -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i br+ -d "$container_ip" -j ACCEPT
+		iptables -C DOCKER-USER -i docker0 -d "$container_ip" -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i docker0 -d "$container_ip" -j ACCEPT
+		iptables -C DOCKER-USER -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT
+		iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP
+		iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP
+	fi
+}
+
+kj_app_allow_docker_port() {
+	local cname="$1"
+	local host_port="$2"
+	local container_ip container_port
+	[ -z "$host_port" ] && return 1
+	kj_app_cleanup_docker_container_wide_block "$cname"
+	container_ip=$(kj_app_docker_ip "$cname")
+	container_port=$(kj_app_docker_container_port_for_host "$cname" "$host_port")
+	kj_app_allow_host_port "$host_port"
+	if [ -n "$container_ip" ] && [ -n "$container_port" ]; then
+		while iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP; done
+		while iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP; done
+	fi
+}
+
+kj_app_refresh_blocked_ports_cache() {
+	KJ_APP_BLOCKED_PORTS=","
+	local ports
+	ports=$(iptables-save 2>/dev/null | awk '
+		/^-A (KJ_APP_PORT_BLOCK|INPUT) / && /--dport [0-9]+/ && / -j DROP/ {
+			for (i=1; i<=NF; i++) {
+				if ($i == "--dport" && $(i+1) ~ /^[0-9]+$/) print $(i+1)
+			}
+		}' | sort -n -u)
+	local p
+	for p in $ports; do
+		KJ_APP_BLOCKED_PORTS="${KJ_APP_BLOCKED_PORTS}${p},"
+	done
+}
+
 kj_app_port_is_blocked() {
 	local port="$1"
-	local target="$2"
-	local type="$3"
-	if [ "$type" = "docker" ]; then
-		# Docker 发布端口走 PREROUTING/FORWARD/DOCKER-USER，不走 INPUT。
-		# 必须同时满足：FORWARD 已跳转 DOCKER-USER，并且 DOCKER-USER 有该容器IP的 DROP。
-		local container_ip
-		container_ip=$(kj_app_docker_ip "$target")
-		if [ -n "$container_ip" ] 			&& iptables -C FORWARD -j DOCKER-USER 2>/dev/null 			&& iptables -C DOCKER-USER -d "$container_ip" -j DROP 2>/dev/null; then
-			return 0
-		fi
+	# 990 只判断“公网IP+宿主机端口”是否被阻止，不再按 Docker 容器 IP 判断。
+	# 优先使用本轮页面刷新时生成的缓存，避免每个端口都调用 iptables 导致 990 打开很慢。
+	if [ -n "${KJ_APP_BLOCKED_PORTS:-}" ]; then
+		case "$KJ_APP_BLOCKED_PORTS" in
+			*,"$port",*) return 0 ;;
+		esac
 		return 1
 	fi
 	if iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || iptables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; then
@@ -5786,6 +5760,13 @@ kj_app_access_status_color() {
 		部分阻止) echo -e "${gl_huang}部分阻止${gl_bai}" ;;
 		*) echo "$status" ;;
 	esac
+}
+
+kj_app_blocked_ports_summary() {
+	if [ -z "${KJ_APP_BLOCKED_PORTS:-}" ]; then
+		kj_app_refresh_blocked_ports_cache
+	fi
+	echo "${KJ_APP_BLOCKED_PORTS#,}" | sed 's/,$//'
 }
 
 kj_app_block_host_port() {
@@ -5884,29 +5865,102 @@ kj_app_allow_docker() {
 	fi
 }
 
+kj_app_ssh_risky_ports() {
+	{
+		echo "22"
+		if [ -f /etc/ssh/sshd_config ]; then
+			awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null
+		fi
+		if command -v ss >/dev/null 2>&1; then
+			ss -ltnp 2>/dev/null | awk '/sshd/ {split($4,a,":"); p=a[length(a)]; if (p ~ /^[0-9]+$/) print p}'
+		fi
+	} | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u
+}
+
+kj_app_port_is_ssh_risky() {
+	local check_port="$1"
+	local risky_port
+	for risky_port in $(kj_app_ssh_risky_ports); do
+		[ "$check_port" = "$risky_port" ] && return 0
+	done
+	return 1
+}
+
+kj_app_confirm_block_ssh_risky_port() {
+	local risky_port="$1"
+	local confirm
+	if [ "$risky_port" = "22" ]; then
+		echo -e "${gl_hong}注意22为默认SSH端口${gl_bai}"
+	else
+		echo -e "${gl_hong}注意${risky_port}为当前SSH监听端口${gl_bai}"
+	fi
+	echo -e "${gl_hong}阻止可能会导致SSH无法登录${gl_bai}"
+	echo -e "${gl_lv}请确保更改了默认端口或添加了其他端口${gl_bai}"
+	read -e -p "高危操作需要慎重选择（确认请输入yes）[默认: N]: " confirm
+	[ "$confirm" = "yes" ]
+}
+
 kj_app_block_port() {
 	local port="$1"
 	local target="$2"
 	local type="$3"
+	local p
+	local total_count=0
+	local block_ports=""
+	local skipped_ports=""
 	if [ "$type" = "docker" ]; then
-		kj_app_block_docker "$target"
-	else
-		kj_app_block_host_port "$port"
+		kj_app_cleanup_docker_container_wide_block "$target"
 	fi
-	kj_app_save_iptables_rules
-	echo "已阻止 IP+端口 直接访问: $port"
+	for p in ${port//,/ }; do
+		[ -z "$p" ] && continue
+		total_count=$((total_count + 1))
+	done
+	for p in ${port//,/ }; do
+		[ -z "$p" ] && continue
+		if kj_app_port_is_ssh_risky "$p"; then
+			if [ "$total_count" -gt 1 ]; then
+				skipped_ports="${skipped_ports:+$skipped_ports,}$p"
+				continue
+			fi
+			if ! kj_app_confirm_block_ssh_risky_port "$p"; then
+				echo -e "${gl_hong}${p}端口操作已取消${gl_bai}"
+				return 1
+			fi
+		fi
+		block_ports="${block_ports:+$block_ports,}$p"
+	done
+	if [ -n "$block_ports" ]; then
+		for p in ${block_ports//,/ }; do
+			[ -z "$p" ] && continue
+			kj_app_block_host_port "$p"
+		done
+		kj_app_save_iptables_rules
+		kj_app_refresh_blocked_ports_cache
+		echo "已阻止公网 IP+端口 直接访问: $block_ports"
+	fi
+	if [ -n "$skipped_ports" ]; then
+		local skipped_port
+		for skipped_port in ${skipped_ports//,/ }; do
+			echo -e "${gl_hong}${skipped_port}端口操作失败，需单独操作${gl_bai}"
+		done
+		[ -n "$block_ports" ] && echo "其他端口操作完成"
+	fi
 }
 
 kj_app_allow_port() {
 	local port="$1"
 	local target="$2"
 	local type="$3"
+	local p
 	if [ "$type" = "docker" ]; then
-		kj_app_allow_docker "$target"
-	else
-		kj_app_allow_host_port "$port"
+		kj_app_cleanup_docker_container_wide_block "$target"
 	fi
+	for p in ${port//,/ }; do
+		[ -z "$p" ] && continue
+		kj_app_allow_host_port "$p"
+	done
 	kj_app_save_iptables_rules
+	kj_app_refresh_blocked_ports_cache
 	echo "已允许 IP+端口 直接访问: $port"
 }
 
@@ -6110,15 +6164,106 @@ kj_app_del_domain() {
 
 kj_app_select_port() {
 	local ports="$1"
-	local port_count
+	local mode="${2:-select}"
+	local port_count prompt
 	port_count=$(echo "$ports" | tr ',' '\n' | sed '/^$/d' | wc -l)
 	if [ "$port_count" -le 1 ]; then
 		echo "$ports" | cut -d',' -f1
 		return
 	fi
-	echo "该应用有多个端口: $ports" >&2
-	read -e -p "请输入要操作的端口: " chosen_port
-	echo "$chosen_port"
+	while true; do
+		echo "该应用有多个端口: $ports" >&2
+		echo "说明: 可输入一个端口，也可复制多个端口用英文逗号分隔。" >&2
+		case "$mode" in
+			allow) prompt="请输入要操作的端口（回车全部允许，输入0退出）: " ;;
+			block) prompt="请输入要操作的端口（回车全部封禁，输入0退出）: " ;;
+			*) prompt="请输入要操作的端口: " ;;
+		esac
+		read -e -p "$prompt" chosen_port
+		chosen_port=$(echo "$chosen_port" | tr -d ' ')
+		if [ "$chosen_port" = "0" ]; then
+			echo ""
+			return
+		fi
+		if [ -z "$chosen_port" ] && { [ "$mode" = "allow" ] || [ "$mode" = "block" ]; }; then
+			echo "$ports"
+			return
+		fi
+		if echo "$chosen_port" | grep -Eq '^[0-9]+(,[0-9]+)*$'; then
+			local valid="true"
+			local p
+			for p in ${chosen_port//,/ }; do
+				if ! echo ",$ports," | grep -Fq ",$p,"; then
+					valid="false"
+					break
+				fi
+			done
+			if [ "$valid" = "true" ]; then
+				echo "$chosen_port"
+				return
+			fi
+		fi
+		echo "端口无效，请输入列表中的端口；多个端口用英文逗号分隔。" >&2
+	done
+}
+
+kj_app_wrap_csv_lines() {
+	local value="$1"
+	local width="${2:-42}"
+	if [ -z "$value" ] || [ "$value" = "-" ]; then
+		echo "-"
+		return
+	fi
+	awk -v s="$value" -v w="$width" '
+	BEGIN {
+		n = split(s, a, ",")
+		line = ""
+		for (i = 1; i <= n; i++) {
+			item = a[i]
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", item)
+			candidate = (line == "" ? item : line "," item)
+			if (length(candidate) > w && line != "") {
+				print line
+				line = item
+			} else {
+				line = candidate
+			}
+		}
+		if (line != "") print line
+	}'
+}
+
+kj_app_wrap_ports_colored() {
+	local ports="$1"
+	local target="$2"
+	local type="$3"
+	local width="${4:-34}"
+	if [ -z "$ports" ] || [ "$ports" = "-" ]; then
+		echo "-"
+		return
+	fi
+	local p token raw_line color_line raw_candidate color_candidate
+	raw_line=""
+	color_line=""
+	for p in ${ports//,/ }; do
+		[ -z "$p" ] && continue
+		if kj_app_port_is_blocked "$p" "$target" "$type"; then
+			token="${gl_hong}${p}${gl_bai}"
+		else
+			token="$p"
+		fi
+		raw_candidate="${raw_line:+$raw_line,}$p"
+		color_candidate="${color_line:+$color_line,}$token"
+		if [ ${#raw_candidate} -gt "$width" ] && [ -n "$raw_line" ]; then
+			echo -e "$color_line"
+			raw_line="$p"
+			color_line="$token"
+		else
+			raw_line="$raw_candidate"
+			color_line="$color_candidate"
+		fi
+	done
+	[ -n "$color_line" ] && echo -e "$color_line"
 }
 
 kj_app_port_detail_menu() {
@@ -6141,8 +6286,10 @@ kj_app_port_detail_menu() {
 	while true; do
 		clear
 		echo "应用: $app_id  $app_name"
-		echo "本地端口: $local_ports_display"
-		echo "容器端口: $container_ports_display"
+		echo "本地端口:"
+		kj_app_wrap_csv_lines "$local_ports_display" 60
+		echo "容器端口:"
+		kj_app_wrap_csv_lines "$container_ports_display" 60
 		echo -e "安装方法：$(kj_app_install_method_label "$app_type")"
 		echo "域名: $app_domains"
 		local status_plain
@@ -6150,7 +6297,7 @@ kj_app_port_detail_menu() {
 		echo -e "是否允许: $(kj_app_access_status_color "$status_plain")"
 		echo "------------------------"
 		echo "1. 添加域名访问     2. 删除域名访问"
-		echo "3. 允许IP+端口访问  4. 阻止IP+端口访问"
+		echo "3. 允许IP+端口访问  4. 阻止公网IP+端口访问"
 		echo "5. nginx或caddy检查重启"
 		echo "------------------------"
 		echo "0. 返回上一级"
@@ -6167,12 +6314,14 @@ kj_app_port_detail_menu() {
 				;;
 			3)
 				local port
-				port=$(kj_app_select_port "$app_ports")
+				port=$(kj_app_select_port "$app_ports" "allow")
+				[ -z "$port" ] && break_end && continue
 				kj_app_allow_port "$port" "$app_target" "$app_type"
 				;;
 			4)
 				local port
-				port=$(kj_app_select_port "$app_ports")
+				port=$(kj_app_select_port "$app_ports" "block")
+				[ -z "$port" ] && break_end && continue
 				kj_app_block_port "$port" "$app_target" "$app_type"
 				;;
 			5)
@@ -6189,17 +6338,84 @@ kj_app_port_detail_menu() {
 	done
 }
 
+kj_app_manual_port_manage() {
+	while true; do
+		clear
+		kj_app_refresh_blocked_ports_cache
+		local blocked_ports_summary
+		blocked_ports_summary=$(kj_app_blocked_ports_summary)
+		echo -e "${gl_hong}=============================================${gl_bai}"
+		echo -e "${gl_hong}现有阻止的端口${gl_bai}"
+		if [ -n "$blocked_ports_summary" ]; then
+			kj_app_wrap_csv_lines "$blocked_ports_summary" 60 | while IFS= read -r blocked_line; do
+				echo -e "${gl_lv}${blocked_line}${gl_bai}"
+			done
+		else
+			echo -e "${gl_lv}暂无${gl_bai}"
+		fi
+		echo -e "${gl_hong}=============================================${gl_bai}"
+		echo "1. 阻止端口"
+		echo "2. 放行端口"
+		echo "0. 返回上一级"
+		echo "------------------------"
+		read -e -p "请输入序号进入管理: " manage_choice
+		case "$manage_choice" in
+			1|2)
+				read -e -p "请输入端口，多个端口用英文逗号分隔: " manage_ports
+				manage_ports=$(echo "$manage_ports" | tr -d ' ')
+				if ! echo "$manage_ports" | grep -Eq '^[0-9]+(,[0-9]+)*$'; then
+					echo "端口格式无效"
+					break_end
+					continue
+				fi
+				local p invalid="false"
+				for p in ${manage_ports//,/ }; do
+					if [ "$p" -lt 1 ] || [ "$p" -gt 65535 ]; then
+						invalid="true"
+						break
+					fi
+				done
+				if [ "$invalid" = "true" ]; then
+					echo "端口范围无效，请输入 1-65535"
+					break_end
+					continue
+				fi
+				if [ "$manage_choice" = "1" ]; then
+					kj_app_block_port "$manage_ports" "" "manual"
+				else
+					for p in ${manage_ports//,/ }; do
+						kj_app_allow_host_port "$p"
+					done
+					kj_app_save_iptables_rules
+					kj_app_refresh_blocked_ports_cache
+					echo "已放行公网 IP+端口 直接访问: $manage_ports"
+				fi
+				break_end
+				;;
+			0)
+				break
+				;;
+			*)
+				echo "无效选择"
+				break_end
+				;;
+		esac
+	done
+}
+
 linux_app_ports() {
 	while true; do
 		clear
 		send_stats "安装的应用以及应用端口"
 		kj_app_collect_ports
+		kj_app_refresh_blocked_ports_cache
 		echo -e "${gl_kjlan}安装的应用以及应用端口${gl_bai}"
-		printf "%-6s %-6s %-12s %-12s %-10s\n" "序号" "编号" "本地端口" "容器端口" "是否允许"
+		printf "%-6s %-6s %-34s %-34s %-10s\n" "序号" "编号" "本地端口" "容器端口" "是否允许"
 		echo "------------------------"
 		local i
 		for i in "${!KJ_APP_NAMES[@]}"; do
 			local status status_color local_ports_display container_ports_display method_color
+			local local_lines container_lines max_lines line_idx
 			status=$(kj_app_access_status "${KJ_APP_PORTS[$i]}" "${KJ_APP_TARGETS[$i]}" "${KJ_APP_TYPES[$i]}")
 			status_color=$(kj_app_access_status_color "$status")
 			if [ "${KJ_APP_TYPES[$i]}" = "docker" ]; then
@@ -6210,17 +6426,47 @@ linux_app_ports() {
 				container_ports_display="-"
 			fi
 			method_color=$(kj_app_install_method_label "${KJ_APP_TYPES[$i]}")
-			printf "%-6s %-6s %-12s %-12s %-10b\n" "$((i+1))." "${KJ_APP_IDS[$i]}" "$local_ports_display" "$container_ports_display" "$status_color"
+			mapfile -t local_lines < <(kj_app_wrap_ports_colored "$local_ports_display" "${KJ_APP_TARGETS[$i]}" "${KJ_APP_TYPES[$i]}" 34)
+			mapfile -t container_lines < <(kj_app_wrap_csv_lines "$container_ports_display" 34)
+			max_lines=${#local_lines[@]}
+			[ ${#container_lines[@]} -gt "$max_lines" ] && max_lines=${#container_lines[@]}
+			for ((line_idx=0; line_idx<max_lines; line_idx++)); do
+				if [ "$line_idx" -eq 0 ]; then
+					printf "%-6s %-6s %-34s %-34s %-10b\n" "$((i+1))." "${KJ_APP_IDS[$i]}" "${local_lines[$line_idx]:-}" "${container_lines[$line_idx]:-}" "$status_color"
+				else
+					printf "%-6s %-6s %-34s %-34s %-10s\n" "" "" "${local_lines[$line_idx]:-}" "${container_lines[$line_idx]:-}" ""
+				fi
+			done
 			echo -e "安装方法：$method_color"
 			echo -e "名称：${gl_bai}${KJ_APP_NAMES[$i]}"
 			echo -e "域名：${gl_huang}${KJ_APP_DOMAINS[$i]}${gl_bai}"
 			echo "------------------------"
 		done
+		local blocked_ports_summary
+		blocked_ports_summary=$(kj_app_blocked_ports_summary)
+		echo -e "${gl_hong}=============================================${gl_bai}"
+		echo -e "${gl_hong}阻止公网IP+端口访问${gl_bai}"
+		echo -e "${gl_hong}现有阻止的端口${gl_bai}"
+		if [ -n "$blocked_ports_summary" ]; then
+			kj_app_wrap_csv_lines "$blocked_ports_summary" 60 | while IFS= read -r blocked_line; do
+				echo -e "${gl_lv}${blocked_line}${gl_bai}"
+			done
+		else
+			echo -e "${gl_lv}暂无${gl_bai}"
+		fi
+		echo ""
+		echo -e "${gl_hong}=============================================${gl_bai}"
+		echo "------------------------"
+		echo "999. 手动管理"
 		echo "0. 返回上一级"
 		echo "------------------------"
 		read -e -p "请输入序号进入应用管理: " app_choice
 		if [ "$app_choice" = "0" ]; then
 			break
+		fi
+		if [ "$app_choice" = "999" ]; then
+			kj_app_manual_port_manage
+			continue
 		fi
 		if [[ "$app_choice" =~ ^[0-9]+$ ]] && [ "$app_choice" -ge 1 ] && [ "$app_choice" -le "${#KJ_APP_NAMES[@]}" ]; then
 			kj_app_port_detail_menu "$((app_choice-1))"
@@ -6516,9 +6762,381 @@ caddy_docker_manager() {
 }
 # ===== Hermes: Caddy 官方 Docker 管理（100）结束 =====
 
+# ===== 哪吒远程定时备份配置（11 -> 5 -> 1000） =====
+nezha_remote_backup_base_dir="/home/nezha/remote_backup"
+nezha_remote_backup_job_dir="$nezha_remote_backup_base_dir/jobs"
+nezha_remote_backup_state_dir="$nezha_remote_backup_base_dir/state"
+
+nezha_remote_backup_safe_name() {
+    local name="$1"
+    [[ "$name" =~ ^[A-Za-z0-9_.-]+$ ]]
+}
+
+nezha_remote_backup_config_path() {
+    echo "$nezha_remote_backup_job_dir/$1.conf"
+}
+
+nezha_remote_backup_script_path() {
+    echo "$nezha_remote_backup_job_dir/$1.sh"
+}
+
+nezha_remote_backup_ensure_dirs() {
+    mkdir -p "$nezha_remote_backup_job_dir" "$nezha_remote_backup_state_dir"
+    if [ -d /root/.config/nezha_remote_backup/jobs ]; then
+        cp -an /root/.config/nezha_remote_backup/jobs/. "$nezha_remote_backup_job_dir"/ 2>/dev/null || true
+    fi
+    if [ -d /root/.config/nezha_remote_backup/state ]; then
+        cp -an /root/.config/nezha_remote_backup/state/. "$nezha_remote_backup_state_dir"/ 2>/dev/null || true
+    fi
+    chmod 700 "$nezha_remote_backup_base_dir" "$nezha_remote_backup_job_dir" "$nezha_remote_backup_state_dir" 2>/dev/null || true
+}
+
+nezha_remote_backup_write_runner() {
+    local name="$1"
+    local script_file
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    cat > "$script_file" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+CONFIG_FILE="__CONFIG_FILE__"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ 配置文件不存在: $CONFIG_FILE"
+    exit 1
+fi
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+
+BACKUP_DIR="/home/nezha"
+STATE_DIR="/home/nezha/remote_backup/state"
+LOG_PREFIX="[$(date '+%F %T')] [$JOB_NAME]"
+mkdir -p "$BACKUP_DIR" "$STATE_DIR"
+STATE_FILE="$STATE_DIR/${JOB_NAME}.last_success"
+
+interval_seconds=$((INTERVAL_DAYS * 86400))
+now_ts=$(date +%s)
+if [ "${FORCE_RUN:-0}" != "1" ] && [ -f "$STATE_FILE" ]; then
+    last_ts=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+    if [ "$last_ts" -gt 0 ] && [ $((now_ts - last_ts)) -lt "$interval_seconds" ]; then
+        next_ts=$((last_ts + interval_seconds))
+        echo "$LOG_PREFIX 距离上次成功备份不足 ${INTERVAL_DAYS} 天，跳过。本次应在 $(date -d "@$next_ts" '+%F %T' 2>/dev/null || date -r "$next_ts" '+%F %T' 2>/dev/null || echo "$next_ts") 后运行。"
+        exit 0
+    fi
+fi
+
+start_nezha() {
+    echo "[$(date '+%F %T')] [$JOB_NAME] 🚀 正在启动哪吒服务..."
+    systemctl start nezha-dashboard 2>/dev/null || {
+        if [ -x /opt/nezha/dashboard/app ]; then
+            cd /opt/nezha/dashboard
+            nohup ./app > /dev/null 2>&1 &
+        fi
+    }
+}
+
+stopped=0
+cleanup() {
+    if [ "$stopped" = "1" ]; then
+        start_nezha || true
+    fi
+}
+trap cleanup EXIT
+
+echo "$LOG_PREFIX 🛑 正在停止哪吒服务..."
+systemctl stop nezha-dashboard 2>/dev/null || true
+pkill app 2>/dev/null || true
+stopped=1
+
+echo "[$(date '+%F %T')] [$JOB_NAME] ⏳ 等待数据落盘..."
+sleep 3
+
+if [ ! -f /opt/nezha/dashboard/data/sqlite.db ]; then
+    echo "[$(date '+%F %T')] [$JOB_NAME] ❌ 数据库不存在，备份终止"
+    exit 1
+fi
+
+DATE_STR=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/nezha_full_backup_${JOB_NAME}_${DATE_STR}.tar.gz"
+LATEST_FILE="$BACKUP_DIR/nezha_full_backup_${JOB_NAME}_latest.tar.gz"
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 📦 开始打包备份..."
+tar czf "$BACKUP_FILE" \
+    /opt/nezha/dashboard/data \
+    /opt/nezha/dashboard/app \
+    /opt/nezha/dashboard/resource
+cp -f "$BACKUP_FILE" "$LATEST_FILE"
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 📤 正在上传到远程服务器 ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR} ..."
+SSH_OPTS=(-p "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/root/.ssh/known_hosts)
+if [ "$AUTH_TYPE" = "key" ]; then
+    if [ ! -f "$SSH_KEY" ]; then
+        echo "[$(date '+%F %T')] [$JOB_NAME] ❌ 密钥文件不存在: $SSH_KEY"
+        exit 1
+    fi
+    SSH_CMD=(ssh -i "$SSH_KEY" "${SSH_OPTS[@]}")
+    SCP_CMD=(scp -i "$SSH_KEY" -P "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/root/.ssh/known_hosts)
+else
+    if ! command -v sshpass >/dev/null 2>&1; then
+        echo "[$(date '+%F %T')] [$JOB_NAME] ❌ sshpass 未安装，密码登录无法上传"
+        exit 1
+    fi
+    export SSHPASS="$REMOTE_PASSWORD"
+    SSH_CMD=(sshpass -e ssh "${SSH_OPTS[@]}")
+    SCP_CMD=(sshpass -e scp -P "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/root/.ssh/known_hosts)
+fi
+
+"${SSH_CMD[@]}" "$REMOTE_USER@$REMOTE_HOST" "mkdir -p '$REMOTE_DIR'"
+"${SCP_CMD[@]}" "$BACKUP_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
+"${SCP_CMD[@]}" "$LATEST_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 🧹 清理本地旧备份，只保留最近 ${LOCAL_KEEP} 份..."
+ls -t "$BACKUP_DIR"/nezha_full_backup_${JOB_NAME}_*.tar.gz 2>/dev/null | grep -v '_latest.tar.gz$' | tail -n +$((LOCAL_KEEP + 1)) | xargs -r rm -f
+
+echo "[$(date '+%F %T')] [$JOB_NAME] 🧹 清理远程旧备份，只保留最近 ${REMOTE_KEEP} 份..."
+"${SSH_CMD[@]}" "$REMOTE_USER@$REMOTE_HOST" "ls -t '$REMOTE_DIR'/nezha_full_backup_${JOB_NAME}_*.tar.gz 2>/dev/null | grep -v '_latest.tar.gz$' | tail -n +$((REMOTE_KEEP + 1)) | xargs -r rm -f" || true
+
+date +%s > "$STATE_FILE"
+echo "[$(date '+%F %T')] [$JOB_NAME] ✅ 哪吒远程备份完成: $BACKUP_FILE"
+EOF
+    sed -i "s#__CONFIG_FILE__#$(nezha_remote_backup_config_path "$name")#g" "$script_file"
+    chmod 700 "$script_file"
+}
+
+nezha_remote_backup_add_cron() {
+    local name="$1" hour="$2" minute="$3" script_file
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    check_crontab_installed
+    (crontab -l 2>/dev/null | grep -Fv "$script_file"; echo "$minute $hour * * * /bin/bash $script_file") | crontab -
+}
+
+nezha_remote_backup_delete_cron() {
+    local name="$1" script_file
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    if command -v crontab >/dev/null 2>&1; then
+        crontab -l 2>/dev/null | grep -Fv "$script_file" | crontab - 2>/dev/null || true
+    fi
+}
+
+nezha_remote_backup_list() {
+    nezha_remote_backup_ensure_dirs
+    echo "已配置的哪吒远程备份："
+    echo "------------------------"
+    local found=0 conf name cron_line
+    for conf in "$nezha_remote_backup_job_dir"/*.conf; do
+        [ -f "$conf" ] || continue
+        found=1
+        # shellcheck disable=SC1090
+        source "$conf"
+        name="$JOB_NAME"
+        cron_line=$(crontab -l 2>/dev/null | grep -F "$(nezha_remote_backup_script_path "$name")" || true)
+        echo "名称：$JOB_NAME"
+        echo "远程：$REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT 目录：$REMOTE_DIR"
+        echo "登录：$AUTH_TYPE"
+        echo "周期：每 $INTERVAL_DAYS 天，$HOUR 点 $MINUTE 分检查运行"
+        if [ -n "$cron_line" ]; then
+            echo "定时：$cron_line"
+        else
+            echo "定时：未添加"
+        fi
+        echo "------------------------"
+    done
+    if [ "$found" = "0" ]; then
+        echo "暂无配置"
+        echo "------------------------"
+    fi
+}
+
+nezha_remote_backup_add_config() {
+    nezha_remote_backup_ensure_dirs
+    local name remote_host remote_user remote_port remote_dir auth_type ssh_key remote_password interval_days hour minute local_keep remote_keep conf_file
+    read -e -p "配置名称（英文/数字/点/横线/下划线，例如 hk1）: " name
+    if ! nezha_remote_backup_safe_name "$name"; then
+        echo "❌ 名称不合法，只能使用英文、数字、点、横线、下划线"
+        return 1
+    fi
+    read -e -p "远程服务器IP/域名: " remote_host
+    [ -n "$remote_host" ] || { echo "❌ 远程服务器不能为空"; return 1; }
+    read -e -p "远程用户名 [root]: " remote_user
+    remote_user=${remote_user:-root}
+    read -e -p "SSH端口 [22]: " remote_port
+    remote_port=${remote_port:-22}
+    read -e -p "远程保存目录 [/home/nezha-backup/$name]: " remote_dir
+    remote_dir=${remote_dir:-/home/nezha-backup/$name}
+    echo "登录方式：1. 密钥登录  2. 密码登录"
+    read -e -p "请选择 [1]: " auth_choice
+    auth_choice=${auth_choice:-1}
+    ssh_key=""
+    remote_password=""
+    case "$auth_choice" in
+        1)
+            auth_type="key"
+            read -e -p "本机SSH私钥路径 [/root/.ssh/id_rsa]: " ssh_key
+            ssh_key=${ssh_key:-/root/.ssh/id_rsa}
+            if [ ! -f "$ssh_key" ]; then
+                echo "⚠️ 密钥文件当前不存在：$ssh_key"
+                echo "   请先配置免密，或改用密码登录。"
+            fi
+            ;;
+        2)
+            auth_type="password"
+            read -s -p "远程服务器密码: " remote_password
+            echo ""
+            [ -n "$remote_password" ] || { echo "❌ 密码不能为空"; return 1; }
+            install sshpass
+            ;;
+        *)
+            echo "❌ 无效登录方式"
+            return 1
+            ;;
+    esac
+    read -e -p "每几天运行一次 [1]: " interval_days
+    interval_days=${interval_days:-1}
+    [[ "$interval_days" =~ ^[0-9]+$ ]] && [ "$interval_days" -ge 1 ] || { echo "❌ 天数必须是大于0的数字"; return 1; }
+    read -e -p "几点运行，小时 0-23 [3]: " hour
+    hour=${hour:-3}
+    [[ "$hour" =~ ^[0-9]+$ ]] && [ "$hour" -ge 0 ] && [ "$hour" -le 23 ] || { echo "❌ 小时必须是0-23"; return 1; }
+    read -e -p "几分运行，分钟 0-59 [0]: " minute
+    minute=${minute:-0}
+    [[ "$minute" =~ ^[0-9]+$ ]] && [ "$minute" -ge 0 ] && [ "$minute" -le 59 ] || { echo "❌ 分钟必须是0-59"; return 1; }
+    read -e -p "本地保留几份备份 [7]: " local_keep
+    local_keep=${local_keep:-7}
+    read -e -p "远程保留几份备份 [14]: " remote_keep
+    remote_keep=${remote_keep:-14}
+    [[ "$local_keep" =~ ^[0-9]+$ ]] && [ "$local_keep" -ge 1 ] || local_keep=7
+    [[ "$remote_keep" =~ ^[0-9]+$ ]] && [ "$remote_keep" -ge 1 ] || remote_keep=14
+
+    conf_file="$(nezha_remote_backup_config_path "$name")"
+    {
+        printf 'JOB_NAME=%q\n' "$name"
+        printf 'REMOTE_HOST=%q\n' "$remote_host"
+        printf 'REMOTE_USER=%q\n' "$remote_user"
+        printf 'REMOTE_PORT=%q\n' "$remote_port"
+        printf 'REMOTE_DIR=%q\n' "$remote_dir"
+        printf 'AUTH_TYPE=%q\n' "$auth_type"
+        printf 'SSH_KEY=%q\n' "$ssh_key"
+        printf 'REMOTE_PASSWORD=%q\n' "$remote_password"
+        printf 'INTERVAL_DAYS=%q\n' "$interval_days"
+        printf 'HOUR=%q\n' "$hour"
+        printf 'MINUTE=%q\n' "$minute"
+        printf 'LOCAL_KEEP=%q\n' "$local_keep"
+        printf 'REMOTE_KEEP=%q\n' "$remote_keep"
+    } > "$conf_file"
+    chmod 600 "$conf_file"
+
+    nezha_remote_backup_write_runner "$name"
+    nezha_remote_backup_add_cron "$name" "$hour" "$minute"
+
+    echo "✅ 配置已保存：$conf_file"
+    echo "✅ 定时任务已添加：每 $interval_days 天，$hour 点 $minute 分运行检查"
+    echo "✅ 执行脚本：$(nezha_remote_backup_script_path "$name")"
+    echo "⚠️ 如果使用密码登录，密码会明文保存到本机配置文件（chmod 600），请保护 root 权限。"
+    echo "📁 配置/脚本/日志目录：$nezha_remote_backup_base_dir"
+}
+
+nezha_remote_backup_delete_config() {
+    nezha_remote_backup_ensure_dirs
+    nezha_remote_backup_list
+    local name conf_file script_file
+    read -e -p "请输入要删除的配置名称，输入0返回: " name
+    [ "$name" = "0" ] && return 0
+    if ! nezha_remote_backup_safe_name "$name"; then
+        echo "❌ 名称不合法"
+        return 1
+    fi
+    conf_file="$(nezha_remote_backup_config_path "$name")"
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    if [ ! -f "$conf_file" ]; then
+        echo "❌ 未找到配置：$name"
+        return 1
+    fi
+    read -e -p "确认删除配置 $name 并删除对应定时任务？(y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "已取消"
+        return 0
+    fi
+    nezha_remote_backup_delete_cron "$name"
+    rm -f "$conf_file" "$script_file"
+    echo "✅ 已删除配置和定时任务：$name"
+}
+
+nezha_remote_backup_run_now() {
+    nezha_remote_backup_ensure_dirs
+    nezha_remote_backup_list
+    local name script_file
+    read -e -p "请输入要立即执行的配置名称，输入0返回: " name
+    [ "$name" = "0" ] && return 0
+    if ! nezha_remote_backup_safe_name "$name"; then
+        echo "❌ 名称不合法"
+        return 1
+    fi
+    script_file="$(nezha_remote_backup_script_path "$name")"
+    if [ ! -f "$script_file" ]; then
+        echo "❌ 未找到执行脚本：$script_file"
+        return 1
+    fi
+    echo "▶️ 开始执行"
+    FORCE_RUN=1 /bin/bash "$script_file"
+}
+
+
+nezha_remote_backup_print_menu_summary() {
+    nezha_remote_backup_ensure_dirs
+    local found=0 conf name cron_line show_minute
+    for conf in "$nezha_remote_backup_job_dir"/*.conf; do
+        [ -f "$conf" ] || continue
+        # shellcheck disable=SC1090
+        source "$conf"
+        name="$JOB_NAME"
+        cron_line=$(crontab -l 2>/dev/null | grep -F "$(nezha_remote_backup_script_path "$name")" || true)
+        [ -n "$cron_line" ] || continue
+        if [ "$found" = "0" ]; then
+            echo "如果有定时任务在这里显示"
+            found=1
+        fi
+        show_minute="$MINUTE"
+        if [[ "$show_minute" =~ ^[0-9]$ ]]; then
+            show_minute="0$show_minute"
+        fi
+        echo "名称：$JOB_NAME  远程：$REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT"
+        echo "每 $INTERVAL_DAYS 天，$HOUR 点 $show_minute 分运行"
+        echo "crontab -e：$cron_line"
+        echo "配置目录：$nezha_remote_backup_base_dir"
+        echo "------------------------"
+    done
+}
+
+nezha_remote_backup_menu() {
+    while true; do
+        clear
+        echo "哪吒远程定时备份配置"
+        echo "------------------------"
+        echo "1. 添加/修改远程备份配置"
+        echo "2. 查看配置和定时任务"
+        echo "3. 删除远程配置并删除定时任务"
+        echo "4. 立即执行某个远程备份配置"
+        echo "------------------------"
+        echo "0. 返回"
+        echo "------------------------"
+        read -e -p "请输入你的选择: " rb_choice
+        case "$rb_choice" in
+            1) nezha_remote_backup_add_config ;;
+            2) nezha_remote_backup_list ;;
+            3) nezha_remote_backup_delete_config ;;
+            4) nezha_remote_backup_run_now ;;
+            0) break ;;
+            *) echo "无效选项" ;;
+        esac
+        read -n 1 -s -r -p "按任意键继续..."
+    done
+}
+
+
+
+
+
+
 
 linux_panel() {
-
   while true; do
     clear
     # send_stats "面板工具"
@@ -6584,8 +7202,9 @@ linux_panel() {
     echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
     echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
     echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                 ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
-    echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份"
+    echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                     ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
+    echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份                        ${gl_kjlan}102. ${gl_bai}lobehub安装webai"
+    echo -e "${gl_kjlan}103. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
     echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
@@ -6705,10 +7324,45 @@ linux_panel() {
     check_docker "93" "sub2api"
     check_path "94" "/root/.openclaw"
     check_docker "95" "open-webui"
+    if [ -f "/home/jiancegoogle-telegram.sh" ] ||        [ -f "/home/jiancegoogle-Resend-email.sh" ] ||        [ -f "/home/jiancegoogle-smtp-email.sh" ] ||        [ -f "/home/jiancegoogle-qita-email.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-telegram.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-Resend-email.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-smtp-email.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-qita-email.sh" ] ||        crontab -l 2>/dev/null | grep -Eq 'jiancegoogle-(telegram|Resend-email|smtp-email|qita-email|jingweidu-telegram|jingweidu-Resend-email|jingweidu-smtp-email|jingweidu-qita-email)\.sh'; then
+        installed_items+=("96")
+    fi
     check_docker "98" "chromium"
     check_path "99" "/root/.hermes"
     check_docker "100" "caddy"
+	check_path "101" "/root/agent-ai.sh"
+	check_path "102" "lobehub.sh"
     check_docker "102" "windows"
+    check_docker "103" "fail2ban"
+    if crontab -l 2>/dev/null | grep -q "990应用 安装的应用以及应用端口封禁" ||        grep -q "KJ_APP_PORT_BLOCK" /etc/iptables/rules.v4 2>/dev/null ||        iptables -S KJ_APP_PORT_BLOCK >/dev/null 2>&1; then
+        installed_items+=("990")
+    fi
+    if ! printf '%s
+' "${installed_items[@]}" | grep -qx "103"; then
+        if [ -f "/home/docker/fail2ban/notify/ssh-login-telegram.sh" ] ||            [ -f "/home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh" ] ||            [ -f "/home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh" ] ||            [ -f "/home/docker/fail2ban/notify/ssh-login-pam-alert.sh" ] ||            crontab -l 2>/dev/null | grep -Eq 'ssh-login-telegram|ssh-Resend-email-smtp|ssh-smtp-email-smtp|ssh-qita-email-smtp|ssh-login-pam-alert'; then
+            installed_items+=("103")
+        fi
+    fi
+
+    # 打印重要项目固定提醒：已安装黄色，未安装红色
+    local important_line=""
+    local important_item=""
+    local important_colored=""
+    for important_item in 96 103 990; do
+        if printf '%s
+' "${installed_items[@]}" | grep -qx "$important_item"; then
+            important_colored="${gl_huang}${important_item}${gl_bai}"
+        else
+            important_colored="${gl_hong}${important_item}${gl_bai}"
+        fi
+        if [ -z "$important_line" ]; then
+            important_line="$important_colored"
+        else
+            important_line="$important_line $important_colored"
+        fi
+    done
+    echo -e "${gl_kjlan}重要项目长显示（已安装显示为黄色）：${gl_bai}${important_line}"
+    echo -e "${gl_kjlan}------------------------${gl_bai}"
 
     # 打印已安装的项目列表并自动折行输出
     if [ ${#installed_items[@]} -eq 0 ]; then
@@ -6717,21 +7371,30 @@ linux_panel() {
         echo -e -n "${gl_kjlan}已安装：${gl_bai}"
         local line=""
         local count=0
+        local colored_item=""
         for item in "${installed_items[@]}"; do
+            case "$item" in
+                5|96|103|990)
+                    colored_item="${gl_huang}${item}${gl_bai}"
+                    ;;
+                *)
+                    colored_item="${gl_lv}${item}${gl_bai}"
+                    ;;
+            esac
             if [ $count -eq 0 ]; then
-                line="$item"
+                line="$colored_item"
             else
-                line="$line $item"
+                line="$line $colored_item"
             fi
             count=$((count + 1))
             if [ $((count % 12)) -eq 0 ]; then
-                echo -e "${gl_lv}$line${gl_bai}"
+                echo -e "$line"
                 line=""
                 count=0
             fi
         done
         if [ -n "$line" ]; then
-            echo -e "${gl_lv}$line${gl_bai}"
+            echo -e "$line"
         fi
     fi
     echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -6842,6 +7505,7 @@ linux_panel() {
     echo "开源、轻量、易用的服务器监控与运维工具"
     echo "视频介绍: https://www.bilibili.com/video/BV1wv421C71t?t=0.1"
     echo "------------------------"
+    nezha_remote_backup_print_menu_summary
     echo "1. 安装 / 更新哪吒"
     echo "恢复前先使用1号配置的4停止在使用3号启动"
     echo "------------------------"
@@ -6854,6 +7518,7 @@ linux_panel() {
     echo "------------------------"
     echo "999. 备份哪吒面板"
     echo "备份前先使用1号配置的4停止"
+    echo "1000. 远程定时备份配置"
     echo "------------------------"
     echo "0. 退出"
     echo "------------------------"
@@ -6944,6 +7609,23 @@ systemctl start nezha-dashboard 2>/dev/null || {
         else
           echo "❌ 备份失败"
         fi
+
+        echo "🚀 正在重新启动哪吒服务..."
+        systemctl start nezha-dashboard 2>/dev/null || {
+          cd /opt/nezha/dashboard
+          nohup ./app > /dev/null 2>&1 &
+        }
+
+        sleep 2
+        if pgrep -f "/opt/nezha/dashboard/app" >/dev/null 2>&1 || systemctl is-active --quiet nezha-dashboard 2>/dev/null; then
+          echo "✅ 哪吒服务已重新启动"
+        else
+          echo "⚠️ 哪吒服务可能未启动，请手动检查：systemctl status nezha-dashboard"
+        fi
+        ;;
+
+      1000)
+        nezha_remote_backup_menu
         ;;
 
       0)
@@ -12112,146 +12794,12 @@ done
 ;;
 
 
-96)
-    clear
-    echo "=================================="
-    echo "▶️ Google监控系统安装"
-    echo "=================================="
-    echo "888) Resend 邮件通知（2小时一次）"
-    echo "999) Telegram 通知（1小时一次）"
-    echo "0) 返回"
-    echo "=================================="
-
-    read -p "请输入选项: " opt
-
-    # ==========================================
-    # 888 Resend邮件通知
-    # ==========================================
-    if [ "$opt" = "888" ]; then
-
+      96)
         clear
-        echo "=================================="
-        echo "▶️ Resend 邮件通知安装"
-        echo "=================================="
-
-        read -p "请输入备注名称: " REMARK
-        read -p "请输入 Resend API Key: " RESEND_KEY
-        read -p "请输入发件邮箱(From): " FROM_EMAIL
-        read -p "请输入收件邮箱(To): " TO_EMAIL
-
-        cat > /home/jiancegoogleemail.sh <<EOF
-#!/bin/bash
-
-URL="https://www.youtube.com/red"
-HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
-
-echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-
-if [ \$? -eq 0 ]; then
-
-
-BODY="🏷️ 节点：美国
-
-⚠️ YouTube Premium 区域限制触发
-https://www.youtube.com/red
-
-❗可能送中了❌更多详情查看❌
-https://www.google.com/search?q=家具"
-
-
-
-
-curl -s https://api.resend.com/emails \
-  -H "Authorization: Bearer ${RESEND_KEY}" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "from=${FROM_EMAIL}" \
-  --data-urlencode "to=${TO_EMAIL}" \
-  --data-urlencode "subject=[${REMARK}] YouTube 区域监控告警" \
-  --data-urlencode "text=\$BODY" >/dev/null 2>&1
-
-fi
-
-exit 0
-EOF
-
-        chmod +x /home/jiancegoogleemail.sh
-
-        (
-            crontab -l 2>/dev/null | grep -v "jiancegoogleemail.sh"
-            echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogleemail.sh' >/dev/null 2>&1"
-        ) | crontab -
-
-        echo ""
-        echo "✅ 邮件通知安装完成"
-        echo "📄 脚本路径: /home/jiancegoogleemail.sh"
-        echo "🏷️ 备注: ${REMARK}"
-        echo "⏰ 每2小时执行一次（随机延迟0-300秒）"
-    fi
-
-
-    # ==========================================
-    # 999 Telegram通知
-    # ==========================================
-    if [ "$opt" = "999" ]; then
-
-        clear
-        echo "=================================="
-        echo "▶️ Telegram 通知安装"
-        echo "=================================="
-
-        read -p "请输入备注名称: " REMARK
-        read -p "请输入 Bot Token: " BOT_TOKEN
-        # 自动清理错误输入
-        BOT_TOKEN=$(echo "$BOT_TOKEN" | sed 's#https://api.telegram.org/bot##g')
-        BOT_TOKEN=$(echo "$BOT_TOKEN" | sed 's#/sendMessage##g')
-        read -p "请输入 Chat ID: " CHAT_ID
-
-        cat > /home/jiancegoogle.sh <<EOF
-#!/bin/bash
-
-URL="https://www.youtube.com/red"
-HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
-
-echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-
-if [ \$? -eq 0 ]; then
-
-TEXT="🏷️ 节点：${REMARK}
-
-⚠️ YouTube Premium 区域限制触发
-https://www.youtube.com/red
-
-❗可能送中了❌更多详情查看❌
-https://www.google.com/search?q=家具"
-
-curl -s -m 10 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-  -d chat_id="${CHAT_ID}" \
-  --data-urlencode text="\$TEXT" >/dev/null 2>&1
-
-fi
-
-exit 0
-EOF
-
-        chmod +x /home/jiancegoogle.sh
-
-        (
-            crontab -l 2>/dev/null | grep -v "jiancegoogle.sh"
-            echo "0 * * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle.sh' >/dev/null 2>&1"
-        ) | crontab -
-
-        echo ""
-        echo "✅ Telegram通知安装完成"
-        echo "📄 脚本路径: /home/jiancegoogle.sh"
-        echo "🏷️ 备注: ${REMARK}"
-        echo "⏰ 每1小时执行一次（随机延迟0-300秒）"
-    fi
-
-    if [ "$opt" = "0" ]; then
-        break
-    fi
-;;
-
+        echo "▶️ 安装谷歌地区检测..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/jiecegoogle.sh)
+        echo "✅ 谷歌地区检测安装成功..."
+        ;;
 
       97)
         clear
@@ -12285,8 +12833,19 @@ EOF
         echo "✅ agent-ai备份安装成功..."
         ;;
 
+      102)
+        clear
+        echo "▶️ 安装lobehub网页版本..."
+		curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/lobehub.sh -o /root/lobehub.sh && chmod +x /root/lobehub.sh && /root/lobehub.sh
+        echo "✅ lobehub安装成功..."
+        ;;
 
-
+      103)
+        clear
+        echo "▶️ 安装Fail2Ban SSH防暴力破解..."
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/docker-Fail2Ban.sh)
+        echo "✅ Fail2Ban SSH防暴力破解安装成功..."
+        ;;
 
 
 
@@ -14392,7 +14951,7 @@ EOF
 			root_use
 			while true; do
 			  clear
-			  yinsiyuanquan1
+			  status_message="${gl_lv}采集已关闭（本地版本不采集）${gl_bai}"
 			  echo "隐私与安全"
 			  echo "脚本将收集用户使用功能的数据，优化脚本体验，制作更多好玩好用的功能"
 			  echo "将收集脚本版本号，使用的时间，系统版本，CPU架构，机器所属国家和使用的功能的名称，"
@@ -14906,8 +15465,9 @@ kejilion_update() {
 				else
 					curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh
 				fi
-				CheckFirstRun_true
-				yinsiyuanquan2
+				if declare -F yinsiyuanquan2 >/dev/null 2>&1; then
+					yinsiyuanquan2
+				fi
 				cp -f ./kejilion.sh /usr/local/bin/k > /dev/null 2>&1
 				echo -e "${gl_lv}脚本已更新到最新版本！${gl_huang}v$sh_v_new${gl_bai}"
 				send_stats "脚本已经最新$sh_v_new"
