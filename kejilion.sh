@@ -12994,8 +12994,17 @@ done
                             cat > /home/jiancegoogle-telegram.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
-echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" -H "Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8" "\$URL")
+check_youtube_premium_region() {
+    echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出|YouTube Premium is not available in your country|This service isn't available in your country" && return 0
+    REGION=\$(printf '%s' "\$HTML" | grep -oE '"INNERTUBE_CONTEXT_GL":"[A-Z]{2}"|"GL":"[A-Z]{2}"' | head -n1 | grep -oE '[A-Z]{2}' | tail -n1)
+    PREMIUM_AVAILABLE_COUNTRIES="DZ AS AR AW AU AT AZ BH BD BY BE BM BO BA BR BG KH CA KY CL CO CR HR CY CZ DK DO EC EG SV EE FI FR GF PF GE DE GH GR GP GU GT HN HK HU IS IN ID IQ IE IL IT JM JP JO KZ KE KW LA LV LB LY LI LT LU MY MT MX MA NP NL NZ NI NG MK MP NO OM PK PA PG PY PE PH PL PT PR QA RE RO SA SN RS SG SK SI ZA KR ES LK SE CH TW TZ TH TN TR TC VI UG AE GB US UY VE VN YE ZW"
+    if [ -n "\$REGION" ] && ! echo " \$PREMIUM_AVAILABLE_COUNTRIES " | grep -qw "\$REGION"; then
+        return 0
+    fi
+    return 1
+}
+check_youtube_premium_region
 DETECTED=\$?
 if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 if [ "\${1:-}" = "--test" ]; then
@@ -13067,8 +13076,17 @@ EOF
                             cat > /home/jiancegoogle-Resend-email.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
-echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" -H "Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8" "\$URL")
+check_youtube_premium_region() {
+    echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出|YouTube Premium is not available in your country|This service isn't available in your country" && return 0
+    REGION=\$(printf '%s' "\$HTML" | grep -oE '"INNERTUBE_CONTEXT_GL":"[A-Z]{2}"|"GL":"[A-Z]{2}"' | head -n1 | grep -oE '[A-Z]{2}' | tail -n1)
+    PREMIUM_AVAILABLE_COUNTRIES="DZ AS AR AW AU AT AZ BH BD BY BE BM BO BA BR BG KH CA KY CL CO CR HR CY CZ DK DO EC EG SV EE FI FR GF PF GE DE GH GR GP GU GT HN HK HU IS IN ID IQ IE IL IT JM JP JO KZ KE KW LA LV LB LY LI LT LU MY MT MX MA NP NL NZ NI NG MK MP NO OM PK PA PG PY PE PH PL PT PR QA RE RO SA SN RS SG SK SI ZA KR ES LK SE CH TW TZ TH TN TR TC VI UG AE GB US UY VE VN YE ZW"
+    if [ -n "\$REGION" ] && ! echo " \$PREMIUM_AVAILABLE_COUNTRIES " | grep -qw "\$REGION"; then
+        return 0
+    fi
+    return 1
+}
+check_youtube_premium_region
 DETECTED=\$?
 if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 if [ "\${1:-}" = "--test" ]; then
@@ -13118,8 +13136,17 @@ EOF
                             cat > /home/jiancegoogle-smtp-email.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
-echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" -H "Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8" "\$URL")
+check_youtube_premium_region() {
+    echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出|YouTube Premium is not available in your country|This service isn't available in your country" && return 0
+    REGION=\$(printf '%s' "\$HTML" | grep -oE '"INNERTUBE_CONTEXT_GL":"[A-Z]{2}"|"GL":"[A-Z]{2}"' | head -n1 | grep -oE '[A-Z]{2}' | tail -n1)
+    PREMIUM_AVAILABLE_COUNTRIES="DZ AS AR AW AU AT AZ BH BD BY BE BM BO BA BR BG KH CA KY CL CO CR HR CY CZ DK DO EC EG SV EE FI FR GF PF GE DE GH GR GP GU GT HN HK HU IS IN ID IQ IE IL IT JM JP JO KZ KE KW LA LV LB LY LI LT LU MY MT MX MA NP NL NZ NI NG MK MP NO OM PK PA PG PY PE PH PL PT PR QA RE RO SA SN RS SG SK SI ZA KR ES LK SE CH TW TZ TH TN TR TC VI UG AE GB US UY VE VN YE ZW"
+    if [ -n "\$REGION" ] && ! echo " \$PREMIUM_AVAILABLE_COUNTRIES " | grep -qw "\$REGION"; then
+        return 0
+    fi
+    return 1
+}
+check_youtube_premium_region
 DETECTED=\$?
 if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 export SMTP_HOST="${SMTP_HOST}" SMTP_PORT="${SMTP_PORT}" SMTP_SSL="${SMTP_SSL}" SMTP_USER="${SMTP_USER}" SMTP_PASS="${SMTP_PASS}" FROM_EMAIL="${FROM_EMAIL}" TO_EMAIL="${TO_EMAIL}"
@@ -13177,8 +13204,17 @@ EOF
                             cat > /home/jiancegoogle-qita-email.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
-echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" -H "Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8" "\$URL")
+check_youtube_premium_region() {
+    echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出|YouTube Premium is not available in your country|This service isn't available in your country" && return 0
+    REGION=\$(printf '%s' "\$HTML" | grep -oE '"INNERTUBE_CONTEXT_GL":"[A-Z]{2}"|"GL":"[A-Z]{2}"' | head -n1 | grep -oE '[A-Z]{2}' | tail -n1)
+    PREMIUM_AVAILABLE_COUNTRIES="DZ AS AR AW AU AT AZ BH BD BY BE BM BO BA BR BG KH CA KY CL CO CR HR CY CZ DK DO EC EG SV EE FI FR GF PF GE DE GH GR GP GU GT HN HK HU IS IN ID IQ IE IL IT JM JP JO KZ KE KW LA LV LB LY LI LT LU MY MT MX MA NP NL NZ NI NG MK MP NO OM PK PA PG PY PE PH PL PT PR QA RE RO SA SN RS SG SK SI ZA KR ES LK SE CH TW TZ TH TN TR TC VI UG AE GB US UY VE VN YE ZW"
+    if [ -n "\$REGION" ] && ! echo " \$PREMIUM_AVAILABLE_COUNTRIES " | grep -qw "\$REGION"; then
+        return 0
+    fi
+    return 1
+}
+check_youtube_premium_region
 DETECTED=\$?
 if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 if [ "\${1:-}" = "--test" ]; then
