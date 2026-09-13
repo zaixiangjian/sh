@@ -12910,6 +12910,41 @@ done
         fi
         return 0
     }
+
+    google_ensure_python3() {
+        echo "正在检查 Python 3..."
+        if command -v python3 >/dev/null 2>&1; then
+            echo -e "${gl_lv}Python 3已安装：$(python3 --version 2>&1)${gl_bai}"
+            return 0
+        fi
+
+        echo "Python 3未安装，正在安装..."
+        if command -v apt-get >/dev/null 2>&1; then
+            DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y python3 >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y python3 >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y python3 >/dev/null 2>&1
+        elif command -v apk >/dev/null 2>&1; then
+            apk update >/dev/null 2>&1 && apk add --no-cache python3 >/dev/null 2>&1
+        elif command -v zypper >/dev/null 2>&1; then
+            zypper --non-interactive install python3 >/dev/null 2>&1
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -Sy --noconfirm python >/dev/null 2>&1
+        else
+            echo -e "${gl_hong}Python 3安装失败：当前系统未检测到支持的包管理器${gl_bai}"
+            return 1
+        fi
+
+        if command -v python3 >/dev/null 2>&1; then
+            echo -e "${gl_lv}Python 3安装完成：$(python3 --version 2>&1)${gl_bai}"
+            return 0
+        else
+            echo -e "${gl_hong}Python 3安装失败${gl_bai}"
+            return 1
+        fi
+    }
+
     while true; do
         clear
         echo "=================================="
@@ -12934,7 +12969,7 @@ done
         echo "1. Telegram 通知（1小时一次）"
         echo "2. 邮件通知（2小时一次）"
         echo "3. 卸载"
-        echo "4.发送测试消息"
+        echo "4. 发送测试消息"
         echo "0) 返回"
         echo "=================================="
         read -p "请输入选项: " opt
@@ -12959,21 +12994,27 @@ done
                             cat > /home/jiancegoogle-telegram.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ "\${1:-}" = "--test" ] || [ \$? -eq 0 ]; then
+DETECTED=\$?
+if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 if [ "\${1:-}" = "--test" ]; then
-TEXT="🏷️ 节点：${REMARK}
+TEXT="🏷 节点：${REMARK}
 
 这是一个区域监控告警测试消息
-https://www.youtube.com/red"
-else
-TEXT="🏷️ 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
 https://www.youtube.com/red
 
-❗可能送中了❌更多详情查看❌
+❌可能送中了❗️更多详情查看❌
+https://www.google.com/search?q=家具"
+else
+TEXT="❗️可能送中了❗️🏷 节点：${REMARK}
+
+⚠️ YouTube Premium 区域限制触发
+https://www.youtube.com/red
+
+❌可能送中了❗️更多详情查看❌
 https://www.google.com/search?q=家具"
 fi
 curl -s -m 10 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d chat_id="${CHAT_ID}" --data-urlencode text="\$TEXT" >/dev/null 2>&1
@@ -12981,7 +13022,7 @@ fi
 exit 0
 EOF
                             chmod +x /home/jiancegoogle-telegram.sh
-                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-telegram.sh" | grep -v "^# Google监控 Telegram通知$"; echo "# Google监控 Telegram通知"; echo "0 * * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-telegram.sh' >/dev/null 2>&1" ) | crontab -
+                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-telegram.sh" | grep -v "^# Google监控 Telegram通知$"; echo "# Google监控 Telegram通知"; echo "0 * * * * /bin/bash -c 'r=\$RANDOM; sleep \$((r - r / 300 * 300)); /bin/bash /home/jiancegoogle-telegram.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ Telegram通知安装完成"
                             read -n1 -r -p "按任意键继续..."
                             break
@@ -13026,36 +13067,43 @@ EOF
                             cat > /home/jiancegoogle-Resend-email.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ "\${1:-}" = "--test" ] || [ \$? -eq 0 ]; then
+DETECTED=\$?
+if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 if [ "\${1:-}" = "--test" ]; then
-BODY="🏷️ 节点：${REMARK}
-
-这是一个区域监控告警测试邮件
-https://www.youtube.com/red"
-SUBJECT="[${REMARK}] [Resend API]区域监控告警测试邮件 \$(date '+%Y/%m/%d %H:%M:%S')"
-else
-BODY="🏷️ 节点：${REMARK}
+TEST_TIME=\$(date '+%Y%m%d-%H%M%S')
+BODY="🏷 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
 https://www.youtube.com/red
 
-❗可能送中了❌更多详情查看❌
+❌可能送中了❗️更多详情查看❌
+https://www.google.com/search?q=家具
+测试时间: \${TEST_TIME}"
+SUBJECT="[${REMARK}] [Resend API]区域监控告警测试邮件 \$(date '+%Y/%m/%d %H:%M:%S')"
+else
+BODY="❗️可能送中了❗️🏷 节点：${REMARK}
+
+⚠️ YouTube Premium 区域限制触发
+https://www.youtube.com/red
+
+❌可能送中了❗️更多详情查看❌
 https://www.google.com/search?q=家具"
-SUBJECT="[${REMARK}] [SMTP]YouTube 区域监控告警 \$(date '+%Y/%m/%d %H:%M:%S')"
+SUBJECT="❗️可能送中了❗️[${REMARK}]⚠️ [Resend API] ❌YouTube 区域监控告警❌ \$(date '+%Y/%m/%d %H:%M:%S')"
 fi
 curl -s -m 15 https://api.resend.com/emails -H "Authorization: Bearer ${RESEND_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=\$SUBJECT" --data-urlencode "text=\$BODY" >/dev/null 2>&1
 fi
 exit 0
 EOF
                             chmod +x /home/jiancegoogle-Resend-email.sh
-                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-Resend-email.sh" | grep -v "^# Google监控 Resend邮件通知$"; echo "# Google监控 Resend邮件通知"; echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-Resend-email.sh' >/dev/null 2>&1" ) | crontab -
+                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-Resend-email.sh" | grep -v "^# Google监控 Resend邮件通知$"; echo "# Google监控 Resend邮件通知"; echo "0 */2 * * * /bin/bash -c 'r=\$RANDOM; sleep \$((r - r / 300 * 300)); /bin/bash /home/jiancegoogle-Resend-email.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ Resend邮件通知安装完成"
                             read -n1 -r -p "按任意键继续..."
                             break
                             ;;
                         2)
+                            google_ensure_python3 || { read -n1 -r -p "按任意键继续..."; continue; }
                             google_confirm_overwrite "SMTP邮件通知" "/home/jiancegoogle-smtp-email.sh" "jiancegoogle-smtp-email.sh" || continue
                             read -p "请输入备注名称: " REMARK
                             read -p "请输入 SMTP服务器: " SMTP_HOST
@@ -13070,27 +13118,30 @@ EOF
                             cat > /home/jiancegoogle-smtp-email.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ "\${1:-}" = "--test" ] || [ \$? -eq 0 ]; then
+DETECTED=\$?
+if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
 export SMTP_HOST="${SMTP_HOST}" SMTP_PORT="${SMTP_PORT}" SMTP_SSL="${SMTP_SSL}" SMTP_USER="${SMTP_USER}" SMTP_PASS="${SMTP_PASS}" FROM_EMAIL="${FROM_EMAIL}" TO_EMAIL="${TO_EMAIL}"
 if [ "\${1:-}" = "--test" ]; then
-TEST_TIME=$(date '+%Y%m%d-%H%M%S')
-export SMTP_SUBJECT="[${REMARK}] [SMTP]96 SMTP测试消息 \$(date '+%Y/%m/%d %H:%M:%S')"
-export SMTP_BODY="🏷️ 节点：${REMARK}
-
-这是一个96 SMTP测试消息
-
-测试时间: ${TEST_TIME}
-说明: 这封邮件用于验证 Google监控 SMTP 发信配置。"
-else
-export SMTP_SUBJECT="[${REMARK}] [SMTP]YouTube 区域监控告警 \$(date '+%Y/%m/%d %H:%M:%S')"
-export SMTP_BODY="🏷️ 节点：${REMARK}
+TEST_TIME=\$(date '+%Y%m%d-%H%M%S')
+export SMTP_SUBJECT="[${REMARK}] [SMTP]区域监控告警测试邮件 \$(date '+%Y/%m/%d %H:%M:%S')"
+export SMTP_BODY="🏷 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
 https://www.youtube.com/red
 
-❗可能送中了❌更多详情查看❌
+❌可能送中了❗️更多详情查看❌
+https://www.google.com/search?q=家具
+测试时间: \${TEST_TIME}"
+else
+export SMTP_SUBJECT="❗️可能送中了❗️[${REMARK}]⚠️ [SMTP] ❌YouTube 区域监控告警❌ \$(date '+%Y/%m/%d %H:%M:%S')"
+export SMTP_BODY="❗️可能送中了❗️🏷 节点：${REMARK}
+
+⚠️ YouTube Premium 区域限制触发
+https://www.youtube.com/red
+
+❌可能送中了❗️更多详情查看❌
 https://www.google.com/search?q=家具"
 fi
 python3 - <<'PYEOF' >/dev/null 2>&1 || true
@@ -13109,7 +13160,7 @@ fi
 exit 0
 EOF
                             chmod +x /home/jiancegoogle-smtp-email.sh
-                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-smtp-email.sh" | grep -v "^# Google监控 SMTP邮件通知$"; echo "# Google监控 SMTP邮件通知"; echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-smtp-email.sh' >/dev/null 2>&1" ) | crontab -
+                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-smtp-email.sh" | grep -v "^# Google监控 SMTP邮件通知$"; echo "# Google监控 SMTP邮件通知"; echo "0 */2 * * * /bin/bash -c 'r=\$RANDOM; sleep \$((r - r / 300 * 300)); /bin/bash /home/jiancegoogle-smtp-email.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ SMTP邮件通知安装完成"
                             read -n1 -r -p "按任意键继续..."
                             break
@@ -13120,30 +13171,45 @@ EOF
                             read -p "请输入 API地址: " API_URL
                             read -p "请输入 API Key: " API_KEY
                             read -p "请输入请求头（回车默认Authorization: Bearer）: " API_HEADER
-                            API_HEADER=${API_HEADER:-Authorization: Bearer}
+                            if [ -z "$API_HEADER" ]; then API_HEADER="Authorization: Bearer"; fi
                             read -p "请输入发件邮箱(From): " FROM_EMAIL
                             read -p "请输入收件邮箱(To): " TO_EMAIL
                             cat > /home/jiancegoogle-qita-email.sh <<EOF
 #!/bin/bash
 URL="https://www.youtube.com/red"
-HTML=\$(curl -s -m 10 -A "Mozilla/5.0" "\$URL")
+HTML=\$(curl -L -s -m 15 -A "Mozilla/5.0" "\$URL")
 echo "\$HTML" | grep -qiE "not available in your country|在你所在的国家/地区尚未推出"
-if [ \$? -eq 0 ]; then
-BODY="🏷️ 节点：${REMARK}
+DETECTED=\$?
+if [ "\${1:-}" = "--test" ] || [ \$DETECTED -eq 0 ]; then
+if [ "\${1:-}" = "--test" ]; then
+TEST_TIME=\$(date '+%Y%m%d-%H%M%S')
+BODY="🏷 节点：${REMARK}
 
 ⚠️ YouTube Premium 区域限制触发
 https://www.youtube.com/red
 
-❗可能送中了❌更多详情查看❌
+❌可能送中了❗️更多详情查看❌
+https://www.google.com/search?q=家具
+测试时间: \${TEST_TIME}"
+SUBJECT="[${REMARK}] [其他 API]区域监控告警测试邮件 \$(date '+%Y/%m/%d %H:%M:%S')"
+else
+BODY="❗️可能送中了❗️🏷 节点：${REMARK}
+
+⚠️ YouTube Premium 区域限制触发
+https://www.youtube.com/red
+
+❌可能送中了❗️更多详情查看❌
 https://www.google.com/search?q=家具"
-curl -s -m 15 "${API_URL}" -H "${API_HEADER} ${API_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=[${REMARK}] [其他 API]YouTube 区域监控告警 \$(date '+%Y/%m/%d %H:%M:%S')" --data-urlencode "text=\$BODY" >/dev/null 2>&1
+SUBJECT="❗️可能送中了❗️[${REMARK}]⚠️ [其他 API] ❌YouTube 区域监控告警❌ \$(date '+%Y/%m/%d %H:%M:%S')"
+fi
+curl -s -m 15 "${API_URL}" -H "${API_HEADER} ${API_KEY}" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "from=${FROM_EMAIL}" --data-urlencode "to=${TO_EMAIL}" --data-urlencode "subject=\$SUBJECT" --data-urlencode "text=\$BODY" >/dev/null 2>&1
 fi
 exit 0
 EOF
                             chmod +x /home/jiancegoogle-qita-email.sh
-                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-qita-email.sh" | grep -v "^# Google监控 其他API邮件通知$"; echo "# Google监控 其他API邮件通知"; echo "0 */2 * * * /bin/bash -c 'sleep \$((RANDOM % 300)); /bin/bash /home/jiancegoogle-qita-email.sh' >/dev/null 2>&1" ) | crontab -
+                            ( crontab -l 2>/dev/null | grep -v "jiancegoogle-qita-email.sh" | grep -v "^# Google监控 其他API邮件通知$"; echo "# Google监控 其他API邮件通知"; echo "0 */2 * * * /bin/bash -c 'r=\$RANDOM; sleep \$((r - r / 300 * 300)); /bin/bash /home/jiancegoogle-qita-email.sh' >/dev/null 2>&1" ) | crontab -
                             echo "✅ 其他API邮件通知安装完成"
-                            echo -e "${gl_hong}请测试发信，不是所有邮件 API 都兼容Authorization: Bearer${gl_bai}"
+                            echo -e "${gl_hong}请测试发信，不是所有邮件 API 都兼容 Authorization: Bearer/form 表单。${gl_bai}"
                             read -n1 -r -p "按任意键继续..."
                             break
                             ;;
@@ -13291,6 +13357,39 @@ EOF
         ;;
 
 103)
+    fail2ban_ensure_python3() {
+        echo "正在检查 Python 3..."
+        if command -v python3 >/dev/null 2>&1; then
+            echo -e "${gl_lv}Python 3已安装：$(python3 --version 2>&1)${gl_bai}"
+            return 0
+        fi
+
+        echo "Python 3未安装，正在安装..."
+        if command -v apt-get >/dev/null 2>&1; then
+            DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y python3 >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y python3 >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y python3 >/dev/null 2>&1
+        elif command -v apk >/dev/null 2>&1; then
+            apk update >/dev/null 2>&1 && apk add --no-cache python3 >/dev/null 2>&1
+        elif command -v zypper >/dev/null 2>&1; then
+            zypper --non-interactive install python3 >/dev/null 2>&1
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -Sy --noconfirm python >/dev/null 2>&1
+        else
+            echo -e "${gl_hong}Python 3安装失败：当前系统未检测到支持的包管理器${gl_bai}"
+            return 1
+        fi
+
+        if command -v python3 >/dev/null 2>&1; then
+            echo -e "${gl_lv}Python 3安装完成：$(python3 --version 2>&1)${gl_bai}"
+            return 0
+        else
+            echo -e "${gl_hong}Python 3安装失败${gl_bai}"
+            return 1
+        fi
+    }
 while true; do
     clear
     echo -e "▶️ Fail2Ban SSH防暴力破解"
@@ -14894,6 +14993,7 @@ EOF
                         read -e -p "输入 Y 确认覆盖，其他键取消: " overwrite_confirm
                         case "$overwrite_confirm" in [Yy]) ;; *) echo "已取消"; read -n1 -r -p "按任意键继续..."; continue ;; esac
                     fi
+                    fail2ban_ensure_python3 || { read -n1 -r -p "按任意键继续..."; continue; }
                     read -e -p "请输入备注名称: " SSH_NOTIFY_REMARK
                     read -e -p "请输入 SMTP服务器: " SSH_SMTP_HOST
                     read -e -p "请输入 SMTP端口465或者587 [默认: 587]: " SSH_SMTP_PORT
