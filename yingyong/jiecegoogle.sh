@@ -1134,21 +1134,25 @@ EOF
                         pkill -f 'google-chrome.*google.com/maps' >/dev/null 2>&1 || true
                         echo "正在卸载 Chromium/Chrome（不卸载 Python 3）..."
                         if command -v apt-get >/dev/null 2>&1; then
-                            DEBIAN_FRONTEND=noninteractive apt-get remove -y chromium chromium-browser google-chrome-stable google-chrome >/dev/null 2>&1 || true
-                            DEBIAN_FRONTEND=noninteractive apt-get autoremove -y >/dev/null 2>&1 || true
+                            DEBIAN_FRONTEND=noninteractive apt-get purge -y chromium chromium-common chromium-sandbox chromium-browser google-chrome-stable google-chrome google-chrome-beta google-chrome-unstable >/dev/null 2>&1 || true
+                            DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1 || true
                         elif command -v dnf >/dev/null 2>&1; then
-                            dnf remove -y chromium google-chrome-stable google-chrome >/dev/null 2>&1 || true
+                            dnf remove -y chromium chromium-common chromium-headless google-chrome-stable google-chrome google-chrome-beta google-chrome-unstable >/dev/null 2>&1 || true
                         elif command -v yum >/dev/null 2>&1; then
-                            yum remove -y chromium google-chrome-stable google-chrome >/dev/null 2>&1 || true
+                            yum remove -y chromium chromium-common chromium-headless google-chrome-stable google-chrome google-chrome-beta google-chrome-unstable >/dev/null 2>&1 || true
                         elif command -v apk >/dev/null 2>&1; then
-                            apk del chromium >/dev/null 2>&1 || true
+                            apk del chromium chromium-chromedriver >/dev/null 2>&1 || true
                         elif command -v zypper >/dev/null 2>&1; then
-                            zypper --non-interactive remove chromium google-chrome-stable google-chrome >/dev/null 2>&1 || true
+                            zypper --non-interactive remove chromium google-chrome-stable google-chrome google-chrome-beta google-chrome-unstable >/dev/null 2>&1 || true
                         elif command -v pacman >/dev/null 2>&1; then
                             pacman -Rns --noconfirm chromium google-chrome >/dev/null 2>&1 || true
                         else
                             echo -e "${gl_huang}未检测到支持的包管理器，已跳过 Chromium/Chrome 卸载。${gl_bai}"
                         fi
+                        if command -v snap >/dev/null 2>&1; then
+                            snap remove chromium >/dev/null 2>&1 || true
+                        fi
+                        hash -r 2>/dev/null || true
                         if command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 || command -v google-chrome >/dev/null 2>&1 || command -v google-chrome-stable >/dev/null 2>&1; then
                             echo -e "${gl_huang}Chromium/Chrome 可能仍存在，请按需手动检查。${gl_bai}"
                         else
