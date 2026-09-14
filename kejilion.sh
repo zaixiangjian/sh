@@ -12866,7 +12866,56 @@ done
       94)
         clear
         echo "▶️ 正在启动Openclaw安装..."
-        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh -o /root/Openclaw.sh && chmod +x /root/Openclaw.sh && /root/Openclaw.sh
+        local_openclaw_script="/root/yingyong/Openclaw.sh"
+        github_openclaw_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh"
+
+        mkdir -p /root/yingyong
+
+        if [ ! -f "$local_openclaw_script" ]; then
+          echo "未检测到本地应用脚本，正在下载到: $local_openclaw_script"
+          if ! curl -fsSL "$github_openclaw_script" -o "$local_openclaw_script"; then
+            echo "❌ GitHub脚本下载失败，请检查网络。"
+            break_end
+            break
+          fi
+          chmod +x "$local_openclaw_script"
+        fi
+
+        echo "------------------------------------------------"
+        echo "已保存本地文件目录"
+        echo -e "${gl_lv}$local_openclaw_script${gl_bai}"
+        echo "------------------------------------------------"
+        echo "1.使用本地应用脚本"
+        echo "2.使用GitHub更新脚本"
+        echo "0. 返回上一级选单"
+        echo "------------------------------------------------"
+        read -e -p "请输入选项并回车（回车默认 1 ）: " openclaw_script_choice
+        openclaw_script_choice=${openclaw_script_choice:-1}
+
+        case "$openclaw_script_choice" in
+          1)
+            chmod +x "$local_openclaw_script"
+            bash "$local_openclaw_script"
+            ;;
+          2)
+            echo "使用GitHub更新将会覆盖本地文件"
+            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " openclaw_update_confirm
+            case "$openclaw_update_confirm" in
+              [Yy])
+                curl -fsSL "$github_openclaw_script" -o "$local_openclaw_script" && chmod +x "$local_openclaw_script" && bash "$local_openclaw_script"
+                ;;
+              *)
+                echo "已取消GitHub更新。"
+                ;;
+            esac
+            ;;
+          0)
+            ;;
+          *)
+            echo "无效选项，已返回上一级选单。"
+            ;;
+        esac
+
         echo "✅ Openclaw安装完成。"
         ;;
 
@@ -12916,10 +12965,60 @@ done
         echo "✅ 谷歌浏览器安装成功..."
         ;;
 
+
       99)
         clear
         echo "▶️ 安装hermes-agent..."
-        curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh -o /root/hermes_manager.sh && chmod +x /root/hermes_manager.sh && /root/hermes_manager.sh
+        local_hermes_script="/root/yingyong/hermes_manager.sh"
+        github_hermes_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh"
+
+        mkdir -p /root/yingyong
+
+        if [ ! -f "$local_hermes_script" ]; then
+          echo "未检测到本地应用脚本，正在下载到: $local_hermes_script"
+          if ! curl -fsSL "$github_hermes_script" -o "$local_hermes_script"; then
+            echo "❌ GitHub脚本下载失败，请检查网络。"
+            break_end
+            break
+          fi
+          chmod +x "$local_hermes_script"
+        fi
+
+        echo "------------------------------------------------"
+        echo "已保存本地文件目录"
+        echo -e "${gl_lv}$local_hermes_script${gl_bai}"
+        echo "------------------------------------------------"
+        echo "1.使用本地应用脚本"
+        echo "2.使用GitHub更新脚本"
+        echo "0. 返回上一级选单"
+        echo "------------------------------------------------"
+        read -e -p "请输入选项并回车（回车默认 1 ）: " hermes_script_choice
+        hermes_script_choice=${hermes_script_choice:-1}
+
+        case "$hermes_script_choice" in
+          1)
+            chmod +x "$local_hermes_script"
+            bash "$local_hermes_script"
+            ;;
+          2)
+            echo "使用GitHub更新将会覆盖本地文件"
+            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " hermes_update_confirm
+            case "$hermes_update_confirm" in
+              [Yy])
+                curl -fsSL "$github_hermes_script" -o "$local_hermes_script" && chmod +x "$local_hermes_script" && bash "$local_hermes_script"
+                ;;
+              *)
+                echo "已取消GitHub更新。"
+                ;;
+            esac
+            ;;
+          0)
+            ;;
+          *)
+            echo "无效选项，已返回上一级选单。"
+            ;;
+        esac
+
         echo "✅ hermes-agent安装成功..."
         ;;
 
