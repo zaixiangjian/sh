@@ -12846,7 +12846,7 @@ done
       96)
         clear
         echo "▶️ 安装谷歌地区检测..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/jiecegoogle.sh)
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/96jiecegoogle.sh)
         echo "✅ 谷歌地区检测安装成功..."
         ;;
 
@@ -12860,7 +12860,7 @@ done
       98)
         clear
         echo "▶️ 安装谷歌浏览器..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/chromium.sh)
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/98chromium.sh)
         echo "✅ 谷歌浏览器安装成功..."
         ;;
 
@@ -12941,7 +12941,7 @@ done
       103)
         clear
         echo "▶️ 安装Fail2Ban SSH防暴力破解..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/docker-Fail2Ban.sh)
+        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh)
         echo "✅ Fail2Ban SSH防暴力破解安装成功..."
         ;;
 
