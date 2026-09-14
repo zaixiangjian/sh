@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.6"
+sh_v="0.0.8"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -13,76 +13,12 @@ gl_zi='\033[35m'
 gl_kjlan='\033[96m'
 
 
-
-
-
-
-
 # 修复缺失的初始化/统计函数；本地版本默认关闭统计，避免调用不存在时报错或向外发送统计。
-permission_granted="true"
 ENABLE_STATS="false"
 
 send_stats() {
     return 0
 }
-
-CheckFirstRun_true() {
-    return 0
-}
-
-CheckFirstRun_false() {
-    return 0
-}
-
-install_add_docker_cn() {
-    country=$(curl -s --max-time 3 ipinfo.io/country 2>/dev/null)
-    if [ "$country" = "CN" ]; then
-        mkdir -p /etc/docker
-        cat > /etc/docker/daemon.json << EOF
-{
-    "registry-mirrors": ["https://docker.kejilion.pro"]
-}
-EOF
-    fi
-}
-
-k() {
-    "$0" "$@"
-}
-
-
-# 提示用户同意条款
-UserLicenseAgreement() {
-	clear
-	echo -e "${gl_kjlan}欢迎使用科技lion脚本工具箱${gl_bai}"
-	echo "首次使用脚本，请先阅读并同意用户许可协议。"
-	echo "用户许可协议: https://www.bing.com/"
-	echo -e "----------------------"
-	read -r -p "是否同意以上条款？(y/n): " user_input
-
-
-	if [ "$user_input" = "y" ] || [ "$user_input" = "Y" ]; then
-		send_stats "许可同意"
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' ./kejilion.sh
-		sed -i 's/^permission_granted="false"/permission_granted="true"/' /usr/local/bin/k
-	else
-		send_stats "许可拒绝"
-		clear
-		exit
-	fi
-}
-
-
-
-
-
-
-
-
-
-CheckFirstRun_false
-
-
 
 
 
@@ -285,19 +221,9 @@ check_port() {
 
 
 install_add_docker_guanfang() {
-country=$(curl -s ipinfo.io/country)
-if [ "$country" = "CN" ]; then
-	cd ~
-	curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/docker/main/install && chmod +x install
-	sh install --mirror Aliyun
-	rm -f install
-
-else
 	curl -fsSL https://get.docker.com | sh
-fi
-install_add_docker_cn
-k enable docker
-k start docker
+	enable docker
+	start docker
 
 }
 
@@ -311,71 +237,44 @@ install_add_docker() {
 		dnf update -y
 		dnf install -y yum-utils device-mapper-persistent-data lvm2
 		rm -f /etc/yum.repos.d/docker*.repo > /dev/null
-		country=$(curl -s ipinfo.io/country)
 		arch=$(uname -m)
-		if [ "$country" = "CN" ]; then
-			if [ "$arch" = "x86_64" ]; then
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo | tee /etc/yum.repos.d/docker-ce.repo > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/centos/arm64/docker-ce.repo | tee /etc/yum.repos.d/docker-ce.repo > /dev/null
-			fi
-		else
-			if [ "$arch" = "x86_64" ]; then
-				yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				yum-config-manager --add-repo https://download.docker.com/linux/centos/arm64/docker-ce.repo > /dev/null
-			fi
+		if [ "$arch" = "x86_64" ]; then
+			yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo > /dev/null
+		elif [ "$arch" = "aarch64" ]; then
+			yum-config-manager --add-repo https://download.docker.com/linux/centos/arm64/docker-ce.repo > /dev/null
 		fi
 		dnf install -y docker-ce docker-ce-cli containerd.io
-		install_add_docker_cn
-		k enable docker
-		k start docker
+		enable docker
+		start docker
 
 	elif [ -f /etc/os-release ] && grep -q "Kali" /etc/os-release; then
 		apt update
 		apt upgrade -y
 		apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
 		rm -f /usr/share/keyrings/docker-archive-keyring.gpg
-		country=$(curl -s ipinfo.io/country)
 		arch=$(uname -m)
-		if [ "$country" = "CN" ]; then
-			if [ "$arch" = "x86_64" ]; then
-				sed -i '/^deb \[arch=amd64 signed-by=\/etc\/apt\/keyrings\/docker-archive-keyring.gpg\] https:\/\/mirrors.aliyun.com\/docker-ce\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				sed -i '/^deb \[arch=arm64 signed-by=\/etc\/apt\/keyrings\/docker-archive-keyring.gpg\] https:\/\/mirrors.aliyun.com\/docker-ce\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			fi
-		else
-			if [ "$arch" = "x86_64" ]; then
-				sed -i '/^deb \[arch=amd64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			elif [ "$arch" = "aarch64" ]; then
-				sed -i '/^deb \[arch=arm64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
-				mkdir -p /etc/apt/keyrings
-				curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
-				echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-			fi
+		if [ "$arch" = "x86_64" ]; then
+			sed -i '/^deb \[arch=amd64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
+			mkdir -p /etc/apt/keyrings
+			curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
+			echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+		elif [ "$arch" = "aarch64" ]; then
+			sed -i '/^deb \[arch=arm64 signed-by=\/usr\/share\/keyrings\/docker-archive-keyring.gpg\] https:\/\/download.docker.com\/linux\/debian bullseye stable/d' /etc/apt/sources.list.d/docker.list > /dev/null
+			mkdir -p /etc/apt/keyrings
+			curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker-archive-keyring.gpg > /dev/null
+			echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 		fi
 		apt update
 		apt install -y docker-ce docker-ce-cli containerd.io
-		install_add_docker_cn
-		k enable docker
-		k start docker
+		enable docker
+		start docker
 
 	elif command -v apt &>/dev/null || command -v yum &>/dev/null; then
 		install_add_docker_guanfang
 	else
-		k install docker docker-compose
-		install_add_docker_cn
-		k enable docker
-		k start docker
+		install docker docker-compose
+		enable docker
+		start docker
 	fi
 	sleep 2
 }
@@ -12965,7 +12864,6 @@ done
         echo "✅ 谷歌浏览器安装成功..."
         ;;
 
-
       99)
         clear
         echo "▶️ 安装hermes-agent..."
@@ -15151,7 +15049,7 @@ EOF
 			root_use
 			while true; do
 			  clear
-			  yinsiyuanquan1
+			  status_message="${gl_lv}采集已关闭（本地版本不采集）${gl_bai}"
 			  echo "隐私与安全"
 			  echo "脚本将收集用户使用功能的数据，优化脚本体验，制作更多好玩好用的功能"
 			  echo "将收集脚本版本号，使用的时间，系统版本，CPU架构，机器所属国家和使用的功能的名称，"
@@ -15665,8 +15563,9 @@ kejilion_update() {
 				else
 					curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh
 				fi
-				CheckFirstRun_true
-				yinsiyuanquan2
+				if declare -F yinsiyuanquan2 >/dev/null 2>&1; then
+					yinsiyuanquan2
+				fi
 				cp -f ./kejilion.sh /usr/local/bin/k > /dev/null 2>&1
 				echo -e "${gl_lv}脚本已更新到最新版本！${gl_huang}v$sh_v_new${gl_bai}"
 				send_stats "脚本已经最新$sh_v_new"
