@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.9"
+sh_v="1.0.0"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -7136,6 +7136,84 @@ nezha_remote_backup_menu() {
 
 
 
+show_github_script_update_status() {
+  local local_script="$1"
+  local github_script="$2"
+  local tmp_script local_hash remote_hash local_version remote_version
+
+  echo "------------------------------------------------"
+  echo "GitHub是否有更新"
+
+  [ -f "$local_script" ] || {
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    return 1
+  }
+
+  tmp_script="$(mktemp)" || {
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    return 1
+  }
+
+  if ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
+    rm -f "$tmp_script"
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    return 1
+  fi
+
+  local_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$local_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
+  remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
+  local_hash="$(sha256sum "$local_script" 2>/dev/null | awk '{print $1}')"
+  remote_hash="$(sha256sum "$tmp_script" 2>/dev/null | awk '{print $1}')"
+  rm -f "$tmp_script"
+
+  if [ -n "$local_version" ] || [ -n "$remote_version" ]; then
+    echo "当前版本：${local_version:-未知}"
+    echo "最新版本：${remote_version:-未知}"
+    if [ -n "$local_version" ] && [ -n "$remote_version" ] && [ "$local_version" != "$remote_version" ]; then
+      echo -e "${gl_hong}有新内容${gl_bai}"
+      return 0
+    fi
+  fi
+
+  if [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
+    echo -e "${gl_hong}有新内容${gl_bai}"
+    return 0
+  fi
+
+  echo -e "${gl_lv}已是最新${gl_bai}"
+  return 1
+}
+
+show_kejilion_update_status() {
+  local github_script="${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh"
+  local tmp_script remote_version
+
+  echo -e "${gl_kjlan}------------------------${gl_bai}"
+  echo "GitHub是否有更新"
+
+  tmp_script="$(mktemp)" || {
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    return 1
+  }
+
+  if ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
+    rm -f "$tmp_script"
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    return 1
+  fi
+
+  remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
+  rm -f "$tmp_script"
+
+  if [ -n "$remote_version" ] && [ "$remote_version" != "$sh_v" ]; then
+    echo -e "${gl_hong}有新内容${gl_bai}"
+    return 0
+  fi
+
+  echo -e "${gl_lv}已是最新${gl_bai}"
+  return 1
+}
+
 linux_panel() {
   while true; do
     clear
@@ -12762,6 +12840,7 @@ done
         echo "✅ Sub2API安装完成。"
         ;;
 
+
       94)
         clear
         echo "▶️ 正在启动Openclaw安装..."
@@ -12780,6 +12859,7 @@ done
           chmod +x "$local_openclaw_script"
           bash "$local_openclaw_script"
         else
+          show_github_script_update_status "$local_openclaw_script" "$github_openclaw_script"
           echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_openclaw_script${gl_bai}"
@@ -12837,6 +12917,7 @@ done
           chmod +x "$local_open_webui_script"
           bash "$local_open_webui_script"
         else
+          show_github_script_update_status "$local_open_webui_script" "$github_open_webui_script"
           echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_open_webui_script${gl_bai}"
@@ -12916,6 +12997,7 @@ done
           chmod +x "$local_hermes_script"
           bash "$local_hermes_script"
         else
+          show_github_script_update_status "$local_hermes_script" "$github_hermes_script"
           echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_hermes_script${gl_bai}"
@@ -12991,6 +13073,7 @@ done
           chmod +x "$local_fail2ban_script"
           bash "$local_fail2ban_script"
         else
+          show_github_script_update_status "$local_fail2ban_script" "$github_fail2ban_script"
           echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_fail2ban_script${gl_bai}"
@@ -15723,9 +15806,10 @@ echo -e "${gl_kjlan}_  _ ____  _ _ _    _ ____ _  _ "
 echo "|_/  |___  | | |    | |  | |\ | "
 echo "| \_ |___ _| | |___ | |__| | \| "
 echo "                                "
-echo -e "科技lion脚本工具箱 v$sh_v 只为更简单的Linux的使用！"
+echo -e "脚本工具箱 v$sh_v 只为更简单的Linux的使用！"
 echo -e "适配Ubuntu/Debian/CentOS/Alpine/Kali/Arch/RedHat/Fedora/Alma/Rocky系统"
 echo -e "-输入${gl_huang}k${gl_kjlan}可快速启动此脚本-${gl_bai}"
+show_kejilion_update_status
 echo -e "${gl_kjlan}------------------------${gl_bai}"
 echo -e "${gl_kjlan}1.   ${gl_bai}系统信息查询"
 echo -e "${gl_kjlan}2.   ${gl_bai}系统更新"
