@@ -14,6 +14,80 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+fail2ban_pkg_install() {
+    if [ "$#" -eq 0 ]; then
+        return 0
+    fi
+
+    local packages=("$@")
+    echo -e "${gl_huang}正在安装依赖: ${packages[*]}${gl_bai}"
+
+    if command -v apt-get >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y "${packages[@]}"
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y "${packages[@]}"
+    elif command -v apk >/dev/null 2>&1; then
+        apk update && apk add --no-cache "${packages[@]}"
+    elif command -v zypper >/dev/null 2>&1; then
+        zypper --non-interactive install "${packages[@]}"
+    elif command -v pacman >/dev/null 2>&1; then
+        pacman -Sy --noconfirm "${packages[@]}"
+    else
+        echo -e "${gl_hong}未识别的包管理器，无法自动安装: ${packages[*]}${gl_bai}"
+        return 1
+    fi
+}
+
+# 兼容从 /root/kejilion.sh 拆分出来的旧调用：install rsyslog logrotate
+install() {
+    fail2ban_pkg_install "$@"
+}
+
+fail2ban_service_enable_start() {
+    local svc="$1"
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl enable "$svc" >/dev/null 2>&1 || true
+        systemctl start "$svc" >/dev/null 2>&1 || true
+    elif command -v rc-update >/dev/null 2>&1; then
+        rc-update add "$svc" default >/dev/null 2>&1 || true
+        rc-service "$svc" start >/dev/null 2>&1 || true
+    elif command -v service >/dev/null 2>&1; then
+        service "$svc" start >/dev/null 2>&1 || true
+    fi
+}
+
+install_docker() {
+    if command -v docker >/dev/null 2>&1; then
+        echo -e "${gl_lv}Docker 已安装：$(docker --version 2>/dev/null)${gl_bai}"
+        fail2ban_service_enable_start docker
+        return 0
+    fi
+
+    echo -e "${gl_huang}Docker 未安装，正在安装 Docker...${gl_bai}"
+    if command -v curl >/dev/null 2>&1; then
+        if curl -fsSL https://get.docker.com | sh; then
+            fail2ban_service_enable_start docker
+        else
+            echo -e "${gl_hong}Docker 官方安装脚本执行失败。${gl_bai}"
+            return 1
+        fi
+    else
+        fail2ban_pkg_install curl || return 1
+        curl -fsSL https://get.docker.com | sh || return 1
+        fail2ban_service_enable_start docker
+    fi
+
+    if command -v docker >/dev/null 2>&1; then
+        echo -e "${gl_lv}Docker 安装完成：$(docker --version 2>/dev/null)${gl_bai}"
+        return 0
+    fi
+
+    echo -e "${gl_hong}Docker 安装失败或 docker 命令不可用。${gl_bai}"
+    return 1
+}
+
     fail2ban_ensure_python3() {
         echo "正在检查 Python 3..."
         if command -v python3 >/dev/null 2>&1; then
