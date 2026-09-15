@@ -795,17 +795,33 @@ check_installed() {
     if command -v hermes >/dev/null 2>&1; then return 0; else return 1; fi
 }
 
-# 获取版本号（优先直接读取安装元数据，避免启动 hermes CLI 导致菜单变慢）
+# 获取版本号；优先使用 hermes --version，因为它能显示 git 安装的 upstream 提交与 behind 状态。
 get_version() {
     if ! check_installed; then
         return
     fi
 
-    local hermes_bin python_bin venv_dir metadata version
-    hermes_bin="$(command -v hermes 2>/dev/null)"
+    local hv first_line update_line hermes_bin python_bin venv_dir metadata version
 
-    # pip/venv 生成的 hermes 入口第一行通常指向 venv/bin/python3。
-    # 直接读 dist-info/METADATA，比执行 `hermes --version` 更快。
+    if command -v timeout >/dev/null 2>&1; then
+        hv="$(timeout 8 hermes --version 2>/dev/null || true)"
+    else
+        hv="$(hermes --version 2>/dev/null || true)"
+    fi
+
+    first_line="$(echo "$hv" | sed -n '1p')"
+    update_line="$(echo "$hv" | sed -n '/Update available/p' | sed -n '1p')"
+    if [ -n "$first_line" ]; then
+        if [ -n "$update_line" ]; then
+            echo "$first_line  |  $update_line"
+        else
+            echo "$first_line"
+        fi
+        return
+    fi
+
+    # 兜底：如果 hermes --version 异常，再读 dist-info/METADATA。
+    hermes_bin="$(command -v hermes 2>/dev/null)"
     if [ -n "$hermes_bin" ] && [ -r "$hermes_bin" ]; then
         python_bin="$(sed -n '1s/^#!//p' "$hermes_bin" 2>/dev/null)"
         if [ -n "$python_bin" ] && [ -x "$python_bin" ]; then
@@ -820,9 +836,6 @@ get_version() {
             done
         fi
     fi
-
-    # 兜底：兼容非标准安装方式。
-    hermes --version 2>/dev/null | sed -n '1p'
 }
 
 # 提取语义版本号，例如 v0.13.0 / 0.13.0
@@ -1184,6 +1197,36 @@ backup_restore_submenu() {
     done
 }
 
+hermes_update_robust() {
+    if ! check_installed; then
+        echo -e "${RED}请先安装 Hermes。${NC}"
+        return 1
+    fi
+
+    local version_text update_rc
+
+    echo -e "${YELLOW}正在执行官方更新：hermes update${NC}"
+    hermes update
+    update_rc=$?
+
+    refresh_hermes_path
+    hash -r 2>/dev/null || true
+
+    version_text="$(hermes --version 2>&1)"
+    if [ "$update_rc" -eq 0 ] && ! echo "$version_text" | grep -qi "Update available"; then
+        echo -e "${GREEN}✅ 官方更新完成。${NC}"
+        echo "$version_text" | sed -n '1,8p'
+        add_app_id
+        return 0
+    fi
+
+    echo -e "${RED}❌ 官方更新未完成，或更新后仍显示有可用更新。${NC}"
+    echo "$version_text" | sed -n '1,12p'
+    echo ""
+    echo -e "${YELLOW}为降低供应链风险，脚本不会执行 git fetch/reset 等强制兜底更新。${NC}"
+    echo -e "${YELLOW}请检查上方 hermes update 输出、服务器网络、GitHub 访问或稍后重试。${NC}"
+    return 1
+}
 
 
 # 主菜单UI
@@ -1256,11 +1299,7 @@ show_menu() {
             else echo -e "${RED}请先安装 Hermes。${NC}"; fi
             ;;
         7)
-            if check_installed; then
-                echo -e "${YELLOW}正在检查更新...${NC}"
-                hermes update
-                add_app_id
-            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            hermes_update_robust
             ;;
         8)
             if check_installed; then
