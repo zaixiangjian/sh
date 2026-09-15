@@ -47,6 +47,114 @@ fi
             return 1
         fi
     }
+
+
+fail2ban_duration_to_seconds() {
+    local value="$1"
+    value=$(echo "${value:-}" | tr '[:upper:]' '[:lower:]' | xargs)
+    [ -z "$value" ] && { echo 0; return; }
+    case "$value" in
+        -1|perm|permanent|永久) echo -1; return ;;
+    esac
+    if echo "$value" | grep -Eq '^[0-9]+$'; then
+        echo "$value"
+        return
+    fi
+    local num unit
+    num=$(echo "$value" | sed -E 's/^([0-9]+).*/\1/')
+    unit=$(echo "$value" | sed -E 's/^[0-9]+//')
+    [ -z "$num" ] && { echo 0; return; }
+    case "$unit" in
+        s|sec|secs|second|seconds) echo "$num" ;;
+        m|min|mins|minute|minutes) echo $((num * 60)) ;;
+        h|hour|hours) echo $((num * 3600)) ;;
+        d|day|days) echo $((num * 86400)) ;;
+        w|week|weeks) echo $((num * 604800)) ;;
+        *) echo 0 ;;
+    esac
+}
+
+fail2ban_get_config_value() {
+    local key="$1"
+    local value=""
+    for conf in /home/docker/fail2ban/config/fail2ban/jail.d/sshd.local /home/docker/fail2ban/config/fail2ban/jail.local; do
+        if [ -f "$conf" ]; then
+            value=$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "$conf" 2>/dev/null | tail -n1 | cut -d= -f2- | xargs)
+            [ -n "$value" ] && { echo "$value"; return; }
+        fi
+    done
+    echo ""
+}
+
+fail2ban_format_epoch() {
+    local epoch="$1"
+    if [ -z "$epoch" ] || ! echo "$epoch" | grep -Eq '^[0-9]+$'; then
+        echo "-"
+        return
+    fi
+    date -d "@$epoch" '+%m月%d日' 2>/dev/null || echo "-"
+}
+
+fail2ban_prepare_ban_events() {
+    local out_file="$1"
+    : > "$out_file"
+    local tmp_lines
+    tmp_lines=$(mktemp)
+
+    for log_file in /home/docker/fail2ban/log/fail2ban.log* /home/docker/fail2ban/config/log/fail2ban/fail2ban.log*; do
+        [ -e "$log_file" ] || continue
+        case "$log_file" in
+            *.gz) zgrep -h ' Ban ' "$log_file" 2>/dev/null >> "$tmp_lines" || true ;;
+            *) grep -h ' Ban ' "$log_file" 2>/dev/null >> "$tmp_lines" || true ;;
+        esac
+    done
+
+    if [ ! -s "$tmp_lines" ] && docker inspect fail2ban >/dev/null 2>&1; then
+        docker logs fail2ban 2>&1 | grep ' Ban ' >> "$tmp_lines" || true
+    fi
+
+    sed -nE 's/^([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]+([0-9]{2}:[0-9]{2}:[0-9]{2}).* Ban[[:space:]]+([0-9A-Fa-f:.]+).*/\3 \1 \2/p' "$tmp_lines" |
+    while read -r ip day time_text; do
+        epoch=$(date -d "$day $time_text" '+%s' 2>/dev/null || true)
+        [ -n "$epoch" ] && echo "$ip $epoch"
+    done | sort -k1,1 -k2,2n > "$out_file"
+
+    rm -f "$tmp_lines"
+}
+
+fail2ban_get_ip_ban_times() {
+    local ip="$1"
+    local plain_status="$2"
+    local ban_events_file="$3"
+    local bantime bantime_seconds ban_epoch unban_epoch
+
+    if [ "$plain_status" != "已封禁" ]; then
+        echo "- -"
+        return
+    fi
+
+    bantime=$(fail2ban_get_config_value bantime)
+    bantime_seconds=$(fail2ban_duration_to_seconds "${bantime:-}")
+    ban_epoch=$(awk -v qip="$ip" '$1 == qip { last=$2 } END { print last }' "$ban_events_file" 2>/dev/null)
+
+    if [ -z "$ban_epoch" ]; then
+        echo "- 未知"
+        return
+    fi
+
+    if [ "$bantime_seconds" = "-1" ]; then
+        echo "$(fail2ban_format_epoch "$ban_epoch") 永久"
+        return
+    fi
+
+    if [ "$bantime_seconds" -gt 0 ] 2>/dev/null; then
+        unban_epoch=$((ban_epoch + bantime_seconds))
+        echo "$(fail2ban_format_epoch "$ban_epoch") $(fail2ban_format_epoch "$unban_epoch")"
+    else
+        echo "$(fail2ban_format_epoch "$ban_epoch") 未知"
+    fi
+}
+
 while true; do
     clear
     echo -e "▶️ Fail2Ban SSH防暴力破解"
@@ -663,6 +771,8 @@ EOF
                 fi
 
                 banned_ips=""
+                tmp_ban_events=$(mktemp)
+                fail2ban_prepare_ban_events "$tmp_ban_events"
                 if docker inspect fail2ban &>/dev/null && \
                    docker exec fail2ban fail2ban-client ping &>/dev/null && \
                    docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
@@ -694,25 +804,29 @@ EOF
                     }
                 }' "$tmp_ssh_stats" | sort -k2,2nr -k4,4nr | head -50 > "$tmp_ssh_table"
 
-                printf "%-20s %-8s %-8s %-8s %s\n" "IP" "成功" "失败" "总计" "状态"
-                echo "------------------------------------------------"
+                printf "%-20s %-8s %-8s %-8s %-8s %-15s %-15s\n" "IP" "成功" "失败" "总计" "状态" "封禁时间" "解封时间"
+                echo "--------------------------------------------------------------------------------"
 
                 if [ ! -s "$tmp_ssh_table" ]; then
                     echo -e "${gl_huang}最近${stat_days}天没有统计到 SSH 成功登录记录。${gl_bai}"
                 else
                     while read -r stat_ip stat_ok stat_fail stat_total; do
                         if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
+                            stat_status_plain="白名单"
                             stat_status="${gl_lv}白名单${gl_bai}"
                         elif echo " $banned_ips " | grep -Fqw -- "$stat_ip"; then
+                            stat_status_plain="已封禁"
                             stat_status="${gl_hong}已封禁${gl_bai}"
                         else
+                            stat_status_plain="未封禁"
                             stat_status="${gl_huang}未封禁${gl_bai}"
                         fi
-                        printf "%-20s %-8s %-8s %-8s %b\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status"
+                        read -r stat_ban_time stat_unban_time < <(fail2ban_get_ip_ban_times "$stat_ip" "$stat_status_plain" "$tmp_ban_events")
+                        printf "%-20s %-8s %-8s %-8s %-18b %-15s %-15s\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status" "$stat_ban_time" "$stat_unban_time"
                     done < "$tmp_ssh_table"
                 fi
 
-                rm -f "$tmp_ssh_stats" "$tmp_ssh_table"
+                rm -f "$tmp_ssh_stats" "$tmp_ssh_table" "$tmp_ban_events"
 
                 echo "------------------------------------------------"
                 echo "说明: 这是日志统计，不会修改或清除日志。"
@@ -782,6 +896,8 @@ EOF
                 fi
 
                 banned_ips=""
+                tmp_ban_events=$(mktemp)
+                fail2ban_prepare_ban_events "$tmp_ban_events"
                 if docker inspect fail2ban &>/dev/null && \
                    docker exec fail2ban fail2ban-client ping &>/dev/null && \
                    docker exec fail2ban fail2ban-client status sshd &>/dev/null; then
@@ -813,25 +929,29 @@ EOF
                     }
                 }' "$tmp_ssh_stats" | sort -k3,3nr -k4,4nr | head -50 > "$tmp_ssh_table"
 
-                printf "%-20s %-8s %-8s %-8s %s\n" "IP" "成功" "失败" "总计" "状态"
-                echo "------------------------------------------------"
+                printf "%-20s %-8s %-8s %-8s %-8s %-15s %-15s\n" "IP" "成功" "失败" "总计" "状态" "封禁时间" "解封时间"
+                echo "--------------------------------------------------------------------------------"
 
                 if [ ! -s "$tmp_ssh_table" ]; then
                     echo -e "${gl_huang}最近${stat_days}天没有统计到 SSH 失败登录记录。${gl_bai}"
                 else
                     while read -r stat_ip stat_ok stat_fail stat_total; do
                         if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
+                            stat_status_plain="白名单"
                             stat_status="${gl_lv}白名单${gl_bai}"
                         elif echo " $banned_ips " | grep -Fqw -- "$stat_ip"; then
+                            stat_status_plain="已封禁"
                             stat_status="${gl_hong}已封禁${gl_bai}"
                         else
+                            stat_status_plain="未封禁"
                             stat_status="${gl_huang}未封禁${gl_bai}"
                         fi
-                        printf "%-20s %-8s %-8s %-8s %b\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status"
+                        read -r stat_ban_time stat_unban_time < <(fail2ban_get_ip_ban_times "$stat_ip" "$stat_status_plain" "$tmp_ban_events")
+                        printf "%-20s %-8s %-8s %-8s %-18b %-15s %-15s\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status" "$stat_ban_time" "$stat_unban_time"
                     done < "$tmp_ssh_table"
                 fi
 
-                rm -f "$tmp_ssh_stats" "$tmp_ssh_table"
+                rm -f "$tmp_ssh_stats" "$tmp_ssh_table" "$tmp_ban_events"
 
                 echo "------------------------------------------------"
                 echo "说明: 这是日志统计，不会修改或清除日志。"
@@ -934,6 +1054,8 @@ EOF
                 tmp_ip_stats=$(mktemp)
                 tmp_banned_table=$(mktemp)
                 tmp_banned_sorted=$(mktemp)
+                tmp_ban_events=$(mktemp)
+                fail2ban_prepare_ban_events "$tmp_ban_events"
 
                 if command -v journalctl &>/dev/null; then
                     journalctl -u ssh --since "7 days ago" --no-pager 2>/dev/null \
@@ -980,8 +1102,8 @@ EOF
                         banned_ips=$(docker exec fail2ban fail2ban-client status sshd 2>/dev/null | sed -n 's/^.*Banned IP list:[[:space:]]*//p')
                     fi
 
-                    printf "%-20s %-8s %-8s %-8s\n" "IP" "成功" "失败" "总计"
-                    echo "------------------------------------------------"
+                    printf "%-20s %-8s %-8s %-8s %-15s %-15s\n" "IP" "成功" "失败" "总计" "封禁时间" "解封时间"
+                    echo "--------------------------------------------------------------------------------"
 
                     if [ -z "$banned_ips" ]; then
                         echo "当前没有封禁IP"
@@ -995,10 +1117,11 @@ EOF
                         sort -k2,2nr -k3,3nr -k4,4nr "$tmp_banned_table" > "$tmp_banned_sorted"
                         i=1
                         while read -r stat_ip stat_ok stat_fail stat_total; do
+                            read -r stat_ban_time stat_unban_time < <(fail2ban_get_ip_ban_times "$stat_ip" "已封禁" "$tmp_ban_events")
                             if [ "${stat_ok:-0}" -gt 0 ]; then
-                                printf "${gl_hong}%s. %-17s %-8s %-8s %-8s${gl_bai}\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次"
+                                printf "${gl_hong}%s. %-17s %-8s %-8s %-8s %-15s %-15s${gl_bai}\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_ban_time" "$stat_unban_time"
                             else
-                                printf "%s. %-17s %-8s %-8s %-8s\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次"
+                                printf "%s. %-17s %-8s %-8s %-8s %-15s %-15s\n" "$i" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_ban_time" "$stat_unban_time"
                             fi
                             banned_display_ips="$banned_display_ips $stat_ip"
                             i=$((i + 1))
@@ -1006,7 +1129,7 @@ EOF
                     fi
                 fi
 
-                rm -f "$tmp_ssh_stats" "$tmp_ip_stats" "$tmp_banned_table" "$tmp_banned_sorted"
+                rm -f "$tmp_ssh_stats" "$tmp_ip_stats" "$tmp_banned_table" "$tmp_banned_sorted" "$tmp_ban_events"
 
                 echo "------------------------"
                 echo "1. 添加封禁IP"
