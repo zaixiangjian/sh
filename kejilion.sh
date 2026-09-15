@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="1.0.1"
+sh_v="0.0.1"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -7243,7 +7243,7 @@ show_kejilion_update_status() {
   rm -f "$tmp_script"
 
   if [ -n "$remote_version" ] && [ "$remote_version" != "$sh_v" ]; then
-    echo -e "${gl_hong}有新内容${gl_bai}"
+    echo -e "${gl_hong}有新内容 请使用 00 更新${gl_bai}"
     return 0
   fi
 
