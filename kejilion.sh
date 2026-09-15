@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="1.0.0"
+sh_v="1.0.1"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -3391,6 +3391,19 @@ linux_docker() {
 	  # send_stats "docker管理"
 	  echo -e "▶ Docker管理"
 	  echo -e "${gl_kjlan}------------------------"
+	  if ! command -v docker >/dev/null 2>&1; then
+		echo -e "${gl_hong}Docker未安装${gl_bai}"
+	  elif ! docker info >/dev/null 2>&1; then
+		echo -e "${gl_huang}Docker已安装但未运行${gl_bai}"
+	  else
+		local docker_container_count docker_image_count docker_network_count docker_volume_count
+		docker_container_count="$(docker ps -a -q 2>/dev/null | wc -l | tr -d ' ')"
+		docker_image_count="$(docker images -q 2>/dev/null | sort -u | wc -l | tr -d ' ')"
+		docker_network_count="$(docker network ls -q 2>/dev/null | wc -l | tr -d ' ')"
+		docker_volume_count="$(docker volume ls -q 2>/dev/null | wc -l | tr -d ' ')"
+		echo -e "${gl_lv}Docker已安装${gl_bai}  容器：${gl_lv}${docker_container_count:-0}${gl_bai}  镜像：${gl_lv}${docker_image_count:-0}${gl_bai}  网络：${gl_lv}${docker_network_count:-0}${gl_bai}  卷：${gl_lv}${docker_volume_count:-0}${gl_bai}"
+	  fi
+	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}安装更新Docker环境 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}2.   ${gl_bai}查看Docker全局状态 ${gl_huang}★${gl_bai}"
@@ -4000,6 +4013,23 @@ linux_ldnmp() {
 	clear
 	# send_stats "LDNMP建站"
 	echo -e "${gl_huang}▶ LDNMP建站"
+	echo -e "${gl_huang}------------------------"
+	ldnmp_site_count="$(find /home/web/conf.d -maxdepth 1 -type f -name '*.conf' ! -name 'default.conf' 2>/dev/null | wc -l | tr -d ' ')"
+	ldnmp_db_count="0"
+	if docker inspect mysql >/dev/null 2>&1 && [ -f /home/web/docker-compose.yml ]; then
+		dbrootpasswd="$(grep -oP 'MYSQL_ROOT_PASSWORD:\s*\K.*' /home/web/docker-compose.yml 2>/dev/null | tr -d '[:space:]')"
+		if [ -n "$dbrootpasswd" ]; then
+			ldnmp_db_count="$(docker exec mysql mysql -u root -p"$dbrootpasswd" -N -e "SHOW DATABASES;" 2>/dev/null | grep -Ev '^(information_schema|mysql|performance_schema|sys)$' | wc -l | tr -d ' ')"
+		fi
+	fi
+
+	if docker inspect php >/dev/null 2>&1 || docker inspect mysql >/dev/null 2>&1 || docker inspect redis >/dev/null 2>&1; then
+		echo -e "${gl_lv}环境已安装${gl_bai}  站点：${gl_lv}${ldnmp_site_count:-0}${gl_bai}  数据库：${gl_lv}${ldnmp_db_count:-0}${gl_bai}"
+	elif docker inspect nginx >/dev/null 2>&1; then
+		echo -e "${gl_kjlan}仅安装nginx${gl_bai}  站点：${gl_lv}${ldnmp_site_count:-0}${gl_bai}  数据库：${gl_lv}${ldnmp_db_count:-0}${gl_bai}"
+	else
+		echo -e "${gl_hong}环境未安装${gl_bai}  站点：${gl_lv}0${gl_bai}  数据库：${gl_lv}0${gl_bai}"
+	fi
 	echo -e "${gl_huang}------------------------"
 	echo -e "${gl_huang}1.   ${gl_bai}安装LDNMP环境 ${gl_huang}★${gl_bai}"
 	echo -e "${gl_huang}2.   ${gl_bai}安装WordPress ${gl_huang}★${gl_bai}"
