@@ -69,34 +69,6 @@ update_app() {
     echo
 }
 
-uninstall_app() {
-
-    echo
-    echo "卸载 ${APP_NAME}"
-    echo
-
-    if [ ! -d "$APP_DIR" ]; then
-        echo "未安装"
-        return
-    fi
-
-    cd "$APP_DIR"
-
-    docker compose down --rmi all --volumes || true
-
-    cd /home/docker
-
-    rm -rf "$APP_DIR"
-
-    echo
-    echo "已删除:"
-    echo "- 容器"
-    echo "- 网络"
-    echo "- 卷"
-    echo "- ${APP_DIR}"
-    echo
-}
-
 backup_app() {
 
     echo
@@ -217,6 +189,38 @@ restore_app() {
     echo
 }
 
+
+uninstall_app() {
+
+    echo
+    echo "卸载 ${APP_NAME}"
+    echo
+
+    if [ ! -d "$APP_DIR" ]; then
+        echo "未安装"
+        return
+    fi
+
+    cd "$APP_DIR"
+
+    docker compose down --rmi all --volumes || true
+
+    cd /home/docker
+
+    rm -rf "$APP_DIR"
+
+    echo
+    echo "已删除:"
+    echo "- 容器"
+    echo "- 网络"
+    echo "- 卷"
+    echo "- ${APP_DIR}"
+    echo
+}
+
+
+
+
 show_menu() {
 
     clear
@@ -227,9 +231,9 @@ show_menu() {
     echo
     echo "1. 安装"
     echo "2. 更新"
-    echo "3. 卸载"
-    echo "4. 备份（home目录）"
-    echo "5. 恢复（从home/目录获取）"
+    echo "3. 备份（home目录）"
+    echo "4. 恢复（从home/目录获取）"
+    echo "9. 卸载"
     echo "0. 退出"
     echo
 }
@@ -251,15 +255,15 @@ while true; do
             ;;
 
         3)
-            uninstall_app
-            ;;
-
-        4)
             backup_app
             ;;
 
-        5)
+        4)
             restore_app
+            ;;
+
+        9)
+            uninstall_app
             ;;
 
         0)
