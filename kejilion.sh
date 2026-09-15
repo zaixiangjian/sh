@@ -12778,9 +12778,9 @@ done
             break
           fi
           chmod +x "$local_openclaw_script"
-        fi
-
-        echo "------------------------------------------------"
+          bash "$local_openclaw_script"
+        else
+          echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_openclaw_script${gl_bai}"
         echo "------------------------------------------------"
@@ -12814,6 +12814,7 @@ done
             echo "无效选项，已返回上一级选单。"
             ;;
         esac
+        fi
 
         echo "✅ Openclaw安装完成。"
         ;;
@@ -12834,9 +12835,9 @@ done
             break
           fi
           chmod +x "$local_open_webui_script"
-        fi
-
-        echo "------------------------------------------------"
+          bash "$local_open_webui_script"
+        else
+          echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_open_webui_script${gl_bai}"
         echo "------------------------------------------------"
@@ -12870,6 +12871,7 @@ done
             echo "无效选项，已返回上一级选单。"
             ;;
         esac
+        fi
 
         echo "✅ open-webui安装完成。"
         ;;
@@ -12912,9 +12914,9 @@ done
             break
           fi
           chmod +x "$local_hermes_script"
-        fi
-
-        echo "------------------------------------------------"
+          bash "$local_hermes_script"
+        else
+          echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_hermes_script${gl_bai}"
         echo "------------------------------------------------"
@@ -12948,6 +12950,7 @@ done
             echo "无效选项，已返回上一级选单。"
             ;;
         esac
+        fi
 
         echo "✅ hermes-agent安装成功..."
         ;;
@@ -12986,9 +12989,9 @@ done
             break
           fi
           chmod +x "$local_fail2ban_script"
-        fi
-
-        echo "------------------------------------------------"
+          bash "$local_fail2ban_script"
+        else
+          echo "------------------------------------------------"
         echo "已保存本地文件目录"
         echo -e "${gl_lv}$local_fail2ban_script${gl_bai}"
         echo "------------------------------------------------"
@@ -13022,6 +13025,7 @@ done
             echo "无效选项，已返回上一级选单。"
             ;;
         esac
+        fi
 
         echo "✅ Fail2Ban SSH防暴力破解安装成功..."
         ;;
