@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# 换模型可以成功检测
 # ===== OpenClaw.sh compatibility/bootstrap helpers =====
 # These helpers make this script usable as a standalone script on fresh VPSes.
 # They intentionally stay quiet unless something is missing or fails.
