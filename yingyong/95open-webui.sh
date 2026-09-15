@@ -40,10 +40,27 @@ get_ip() {
     hostname -I 2>/dev/null | awk '{print $1}'
 }
 
+start_docker_service() {
+    if cmd_exists systemctl; then
+        systemctl enable docker >/dev/null 2>&1 || true
+        systemctl start docker >/dev/null 2>&1 || true
+    elif cmd_exists rc-update; then
+        rc-update add docker boot >/dev/null 2>&1 || true
+        service docker start >/dev/null 2>&1 || true
+    elif cmd_exists service; then
+        service docker start >/dev/null 2>&1 || true
+    fi
+}
+
 install_docker() {
     if cmd_exists docker; then
         echo -e "${green}Docker 已安装：$(docker --version 2>/dev/null)${plain}"
-        return 0
+        start_docker_service
+        if docker info >/dev/null 2>&1; then
+            return 0
+        fi
+        echo -e "${red}Docker 已安装但服务未运行或无法连接 Docker daemon，请先检查 Docker 服务。${plain}"
+        return 1
     fi
 
     echo -e "${yellow}未检测到 Docker，开始自动安装 Docker...${plain}"
@@ -60,18 +77,20 @@ install_docker() {
         curl -fsSL https://get.docker.com | sh
     elif cmd_exists apk; then
         apk add --no-cache docker docker-cli-compose curl
-        rc-update add docker boot >/dev/null 2>&1 || true
-        service docker start >/dev/null 2>&1 || true
     else
         echo -e "${red}未识别的软件包管理器，请先手动安装 Docker。${plain}"
         return 1
     fi
 
-    systemctl enable docker >/dev/null 2>&1 || true
-    systemctl start docker >/dev/null 2>&1 || true
+    start_docker_service
 
     if ! cmd_exists docker; then
         echo -e "${red}Docker 安装失败，请手动安装后重试。${plain}"
+        return 1
+    fi
+
+    if ! docker info >/dev/null 2>&1; then
+        echo -e "${red}Docker 已安装但服务未运行或无法连接 Docker daemon，请先检查 Docker 服务。${plain}"
         return 1
     fi
 
