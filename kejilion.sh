@@ -3479,12 +3479,19 @@ linux_docker() {
 				  for container_id in $container_ids; do
 					  container_info=$(docker inspect --format '{{ .Name }}{{ range $network, $config := .NetworkSettings.Networks }} {{ $network }} {{ $config.IPAddress }}{{ end }}' "$container_id")
 
-					  container_name=$(echo "$container_info" | awk '{print $1}')
+					  container_name=$(echo "$container_info" | awk '{print $1}' | sed 's#^/##')
 					  network_info=$(echo "$container_info" | cut -d' ' -f2-)
 
 					  while IFS= read -r line; do
 						  network_name=$(echo "$line" | awk '{print $1}')
 						  ip_address=$(echo "$line" | awk '{print $2}')
+						  case "$network_name" in
+							  host) ip_address="宿主机网络" ;;
+							  none) ip_address="无网络" ;;
+						  esac
+						  if [ -z "$ip_address" ] || [ "$ip_address" = "<no" ] || [ "$ip_address" = "<no value>" ] || [ "$ip_address" = "invalid" ]; then
+							  ip_address="-"
+						  fi
 
 						  printf "%-20s %-20s %-15s\n" "$container_name" "$network_name" "$ip_address"
 					  done <<< "$network_info"
