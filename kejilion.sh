@@ -12819,28 +12819,60 @@ done
         ;;
 
 95)
-    docker_name="open-webui"
-    docker_img="ghcr.io/open-webui/open-webui:main"
-    docker_port=3000
+        clear
+        echo "▶️ 安装open-webui..."
+        local_open_webui_script="/root/yingyong/95open-webui.sh"
+        github_open_webui_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/95open-webui.sh"
 
-    # 自动获取公网IP（稳定三重备用）
-    IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+        mkdir -p /root/yingyong
 
-    docker_rum="docker run -d \
-                    --name open-webui \
-                    --restart always \
-                    -p ${docker_port}:8080 \
-                    -v /home/docker/open-webui:/app/backend/data \
-                    ${docker_img}"
+        if [ ! -f "$local_open_webui_script" ]; then
+          echo "未检测到本地应用脚本，正在下载到: $local_open_webui_script"
+          if ! curl -fsSL "$github_open_webui_script" -o "$local_open_webui_script"; then
+            echo "❌ GitHub脚本下载失败，请检查网络。"
+            break_end
+            break
+          fi
+          chmod +x "$local_open_webui_script"
+        fi
 
-    docker_describe="一个类似ChatGPT的AI网页界面，支持多模型接入和API管理。"
-    docker_url="官网: https://github.com/open-webui/open-webui"
+        echo "------------------------------------------------"
+        echo "已保存本地文件目录"
+        echo -e "${gl_lv}$local_open_webui_script${gl_bai}"
+        echo "------------------------------------------------"
+        echo "1.使用本地应用脚本"
+        echo "2.使用GitHub更新脚本"
+        echo "0. 返回上一级选单"
+        echo "------------------------------------------------"
+        read -e -p "请输入选项并回车（回车默认 1 ）: " open_webui_script_choice
+        open_webui_script_choice=${open_webui_script_choice:-1}
 
-    docker_use="浏览器访问: http://${IP}:${docker_port}"
-    docker_passwd="首次进入需要创建管理员账号"
+        case "$open_webui_script_choice" in
+          1)
+            chmod +x "$local_open_webui_script"
+            bash "$local_open_webui_script"
+            ;;
+          2)
+            echo "使用GitHub更新将会覆盖本地文件"
+            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " open_webui_update_confirm
+            case "$open_webui_update_confirm" in
+              [Yy])
+                curl -fsSL "$github_open_webui_script" -o "$local_open_webui_script" && chmod +x "$local_open_webui_script" && bash "$local_open_webui_script"
+                ;;
+              *)
+                echo "已取消GitHub更新。"
+                ;;
+            esac
+            ;;
+          0)
+            ;;
+          *)
+            echo "无效选项，已返回上一级选单。"
+            ;;
+        esac
 
-    docker_app
-;;
+        echo "✅ open-webui安装完成。"
+        ;;
 
 
       96)
