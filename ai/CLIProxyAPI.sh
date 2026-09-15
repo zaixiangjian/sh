@@ -189,7 +189,6 @@ restore_app() {
     echo
 }
 
-
 uninstall_app() {
 
     echo
@@ -217,8 +216,6 @@ uninstall_app() {
     echo "- ${APP_DIR}"
     echo
 }
-
-
 
 
 show_menu() {
