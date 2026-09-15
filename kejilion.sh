@@ -12941,7 +12941,56 @@ done
       103)
         clear
         echo "▶️ 安装Fail2Ban SSH防暴力破解..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh)
+        local_fail2ban_script="/root/yingyong/103docker-Fail2Ban.sh"
+        github_fail2ban_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh"
+
+        mkdir -p /root/yingyong
+
+        if [ ! -f "$local_fail2ban_script" ]; then
+          echo "未检测到本地应用脚本，正在下载到: $local_fail2ban_script"
+          if ! curl -fsSL "$github_fail2ban_script" -o "$local_fail2ban_script"; then
+            echo "❌ GitHub脚本下载失败，请检查网络。"
+            break_end
+            break
+          fi
+          chmod +x "$local_fail2ban_script"
+        fi
+
+        echo "------------------------------------------------"
+        echo "已保存本地文件目录"
+        echo -e "${gl_lv}$local_fail2ban_script${gl_bai}"
+        echo "------------------------------------------------"
+        echo "1.使用本地应用脚本"
+        echo "2.使用GitHub更新脚本"
+        echo "0. 返回上一级选单"
+        echo "------------------------------------------------"
+        read -e -p "请输入选项并回车（回车默认 1 ）: " fail2ban_script_choice
+        fail2ban_script_choice=${fail2ban_script_choice:-1}
+
+        case "$fail2ban_script_choice" in
+          1)
+            chmod +x "$local_fail2ban_script"
+            bash "$local_fail2ban_script"
+            ;;
+          2)
+            echo "使用GitHub更新将会覆盖本地文件"
+            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " fail2ban_update_confirm
+            case "$fail2ban_update_confirm" in
+              [Yy])
+                curl -fsSL "$github_fail2ban_script" -o "$local_fail2ban_script" && chmod +x "$local_fail2ban_script" && bash "$local_fail2ban_script"
+                ;;
+              *)
+                echo "已取消GitHub更新。"
+                ;;
+            esac
+            ;;
+          0)
+            ;;
+          *)
+            echo "无效选项，已返回上一级选单。"
+            ;;
+        esac
+
         echo "✅ Fail2Ban SSH防暴力破解安装成功..."
         ;;
 
