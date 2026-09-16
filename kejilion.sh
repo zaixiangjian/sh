@@ -693,6 +693,127 @@ ldnmp_v() {
 
 
 
+
+ldnmp_compose_set_image() {
+  local service="$1"
+  local image="$2"
+  local compose_file="/home/web/docker-compose.yml"
+  [ -f "$compose_file" ] || return 1
+  python3 - "$compose_file" "$service" "$image" <<'PY'
+import sys
+path, service, image = sys.argv[1:4]
+lines = open(path, encoding='utf-8').read().splitlines(True)
+out = []
+in_service = False
+service_indent = None
+changed = False
+for line in lines:
+    stripped = line.lstrip(' ')
+    indent = len(line) - len(stripped)
+    if stripped.startswith(service + ':') and indent >= 2:
+        in_service = True
+        service_indent = indent
+        out.append(line)
+        continue
+    if in_service and stripped and not stripped.startswith('#') and indent <= service_indent and ':' in stripped:
+        in_service = False
+        service_indent = None
+    if in_service and stripped.startswith('image:'):
+        newline = '\n' if line.endswith('\n') else ''
+        out.append(' ' * indent + 'image: ' + image + newline)
+        changed = True
+    else:
+        out.append(line)
+if not changed:
+    sys.exit(1)
+open(path, 'w', encoding='utf-8').write(''.join(out))
+PY
+}
+
+ldnmp_wait_mysql_ready() {
+  local dbrootpasswd="$1"
+  local i
+  for i in {1..60}; do
+    if docker exec mysql mysqladmin ping -uroot -p"$dbrootpasswd" --silent >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+ldnmp_mysql_datadir_version() {
+  local mysql_cnf="/home/web/mysql/auto.cnf"
+  local dd_file="/home/web/mysql/mysql.ibd"
+  [ -f "$dd_file" ] || return 1
+  if [ -f "$mysql_cnf" ]; then
+    grep -aoE 'mysql_server_version=[0-9]+|server_version=[0-9]+|[0-9]{6}' "$mysql_cnf" 2>/dev/null | grep -aoE '[0-9]{6}' | head -n1
+  fi
+}
+
+ldnmp_mysql_image_major_code() {
+  local image="$1"
+  local ver
+  ver=$(docker run --rm --entrypoint mysqld "$image" --version 2>/dev/null | grep -aoE 'Ver [0-9]+\.[0-9]+\.[0-9]+' | head -n1 | awk '{print $2}')
+  [ -n "$ver" ] || return 1
+  IFS=. read -r major minor patch <<EOF
+$ver
+EOF
+  printf '%d%02d%02d
+' "$major" "$minor" "$patch"
+}
+
+ldnmp_mysql_version_guard() {
+  local image="$1"
+  local current target
+  current=$(ldnmp_mysql_datadir_version || true)
+  [ -n "$current" ] || return 0
+  target=$(ldnmp_mysql_image_major_code "$image" || true)
+  [ -n "$target" ] || return 0
+  if [ "$target" -lt "$current" ]; then
+    echo "检测到 MySQL 数据目录版本高于目标镜像，禁止降级。"
+    echo "当前数据目录版本代码：$current"
+    echo "目标镜像版本代码：$target"
+    echo "MySQL 不支持跨版本降级，只允许同一补丁线内降级。请使用不低于当前数据目录版本的镜像，或从低版本备份恢复到新的空数据目录。"
+    return 1
+  fi
+  return 0
+}
+
+ldnmp_configure_php_container() {
+  local php_container="$1"
+  run_command docker exec "$php_container" sed -i "s/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g" /etc/apk/repositories > /dev/null 2>&1 || true
+  docker exec "$php_container" apk update
+  curl -sL ${gh_proxy}https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions -o /usr/local/bin/install-php-extensions
+  docker exec "$php_container" mkdir -p /usr/local/bin/
+  docker cp /usr/local/bin/install-php-extensions "$php_container":/usr/local/bin/
+  docker exec "$php_container" chmod +x /usr/local/bin/install-php-extensions
+  docker exec "$php_container" sh -c "apk add --no-cache imagemagick imagemagick-dev && apk add --no-cache git autoconf gcc g++ make pkgconfig && rm -rf /tmp/imagick && git clone ${gh_proxy}https://github.com/Imagick/imagick /tmp/imagick && cd /tmp/imagick && phpize && ./configure && make && make install && echo 'extension=imagick.so' > /usr/local/etc/php/conf.d/imagick.ini && rm -rf /tmp/imagick"
+  docker exec "$php_container" install-php-extensions mysqli pdo_mysql gd intl zip exif bcmath opcache redis
+  docker exec "$php_container" sh -c 'echo "upload_max_filesize=50M " > /usr/local/etc/php/conf.d/uploads.ini'
+  docker exec "$php_container" sh -c 'echo "post_max_size=50M " > /usr/local/etc/php/conf.d/post.ini'
+  docker exec "$php_container" sh -c 'echo "memory_limit=256M" > /usr/local/etc/php/conf.d/memory.ini'
+  docker exec "$php_container" sh -c 'echo "max_execution_time=1200" > /usr/local/etc/php/conf.d/max_execution_time.ini'
+  docker exec "$php_container" sh -c 'echo "max_input_time=600" > /usr/local/etc/php/conf.d/max_input_time.ini'
+  docker exec "$php_container" sh -c 'echo "max_input_vars=3000" > /usr/local/etc/php/conf.d/max_input_vars.ini'
+  docker exec "$php_container" chmod -R 777 /var/www/html
+  docker restart "$php_container" > /dev/null 2>&1
+}
+
+ldnmp_set_redis_policy() {
+  docker exec redis redis-cli CONFIG SET maxmemory 512mb >/dev/null 2>&1 || true
+  docker exec redis redis-cli CONFIG SET maxmemory-policy allkeys-lru >/dev/null 2>&1 || true
+}
+
+ldnmp_show_default_versions() {
+  echo -e "${gl_huang}默认版本策略 包括安装 还原全站数据 更新完整环境${gl_bai}"
+  echo -e "1. nginx：${gl_lv}最新${gl_bai}"
+  echo -e "2. mysql：${gl_lv}默认9.7${gl_bai}"
+  echo -e "3. php：${gl_lv}默认8.3，可选 8.4/8.5${gl_bai}"
+  echo -e "4. redis：${gl_lv}最新${gl_bai}"
+  echo "------------------------"
+}
+
 install_ldnmp_conf() {
 
   # 创建必要的目录和文件
@@ -710,6 +831,11 @@ install_ldnmp_conf() {
   sed -i "s#webroot#$dbrootpasswd#g" /home/web/docker-compose.yml
   sed -i "s#kejilionYYDS#$dbusepasswd#g" /home/web/docker-compose.yml
   sed -i "s#kejilion#$dbuse#g" /home/web/docker-compose.yml
+  # 固定数据库/PHP默认版本，避免 full/latest 自动升级导致数据目录不可降级
+  ldnmp_compose_set_image mysql "mysql:9.7"
+  ldnmp_compose_set_image php "php:8.3-fpm-alpine"
+  ldnmp_compose_set_image nginx "nginx:alpine"
+  ldnmp_compose_set_image redis "redis:alpine"
 
 }
 
@@ -4084,6 +4210,7 @@ linux_ldnmp() {
 
 	  install_ldnmp_conf
 	  install_ldnmp
+	  nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 37 → 1. 更新nginx 查看详细错误。"
 
 		;;
 	  2)
@@ -4925,7 +5052,12 @@ linux_ldnmp() {
 		  install_dependency
 		  install_docker
 		  install_certbot
+		  ldnmp_compose_set_image mysql "mysql:9.7"
+		  ldnmp_compose_set_image php "php:8.3-fpm-alpine"
+		  ldnmp_compose_set_image nginx "nginx:alpine"
+		  ldnmp_compose_set_image redis "redis:alpine"
 		  install_ldnmp
+		  nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 37 → 1. 更新nginx 查看详细错误。"
 	  else
 		  echo "没有找到压缩包。"
 	  fi
@@ -5229,6 +5361,7 @@ linux_ldnmp() {
 		  echo "更新LDNMP环境"
 		  echo "------------------------"
 		  ldnmp_v
+		  ldnmp_show_default_versions
 		  echo "1. 更新nginx               2. 更新mysql              3. 更新php              4. 更新redis"
 		  echo "------------------------"
 		  echo "5. 更新完整环境            6. 更新phpmyadmin"
@@ -5249,16 +5382,22 @@ linux_ldnmp() {
 
 			  2)
 			  ldnmp_pods="mysql"
-			  read -e -p "请输入${ldnmp_pods}版本号 （如: 8.0 8.3 8.4 9.0 9.5）（回车获取最新版）: " version
-			  version=${version:-latest}
+			  read -e -p "请输入${ldnmp_pods}版本号 （9.7）（回车默认9.7）: " version
+			  version=${version:-9.7}
 
-			  cd /home/web/
+			  cd /home/web/ || break
 			  cp /home/web/docker-compose.yml /home/web/docker-compose1.yml
-			  sed -i "s/image: mysql/image: mysql:${version}/" /home/web/docker-compose.yml
-			  docker rm -f $ldnmp_pods
-			  docker images --filter=reference="$ldnmp_pods*" -q | xargs docker rmi > /dev/null 2>&1
+			  ldnmp_compose_set_image mysql "mysql:${version}" || { echo "修改 mysql 镜像失败"; cp /home/web/docker-compose1.yml /home/web/docker-compose.yml; break; }
+			  docker compose pull $ldnmp_pods || { echo "mysql 镜像拉取失败"; cp /home/web/docker-compose1.yml /home/web/docker-compose.yml; break; }
+			  # 按用户要求暂不限制 MySQL 降级，允许手动测试 8.4/9.x；失败时下面会提示查看日志。
 			  docker compose up -d --force-recreate $ldnmp_pods
-			  docker restart $ldnmp_pods
+			  dbrootpasswd=$(grep -oP 'MYSQL_ROOT_PASSWORD:\s*\K.*' /home/web/docker-compose.yml | tr -d '[:space:]')
+			  if ! ldnmp_wait_mysql_ready "$dbrootpasswd"; then
+				echo "mysql 启动失败/超时，未确认更新成功。"
+				echo "请查看日志：docker logs --tail 120 mysql"
+				cp /home/web/docker-compose1.yml /home/web/docker-compose.yml
+				break
+			  fi
 			  cp /home/web/docker-compose1.yml /home/web/docker-compose.yml
 			  send_stats "更新$ldnmp_pods"
 			  echo "更新${ldnmp_pods}完成"
@@ -5266,50 +5405,15 @@ linux_ldnmp() {
 				  ;;
 			  3)
 			  ldnmp_pods="php"
-			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车获取最新版）: " version
+			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车默认8.3）: " version
 			  version=${version:-8.3}
-			  cd /home/web/
+			  cd /home/web/ || break
 			  cp /home/web/docker-compose.yml /home/web/docker-compose1.yml
-			  sed -i "s/image: php:fpm-alpine/image: php:${version}-fpm-alpine/" /home/web/docker-compose.yml
-			  docker rm -f $ldnmp_pods
-			  docker images --filter=reference="$ldnmp_pods*" -q | xargs docker rmi > /dev/null 2>&1
+			  php_image="php:${version}-fpm-alpine"
+			  ldnmp_compose_set_image php "$php_image" || { echo "修改 php 镜像失败"; cp /home/web/docker-compose1.yml /home/web/docker-compose.yml; break; }
+			  docker compose pull $ldnmp_pods
 			  docker compose up -d --force-recreate $ldnmp_pods
-			  docker exec $ldnmp_pods chmod -R 777 /var/www/html
-
-			  run_command docker exec php sed -i "s/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g" /etc/apk/repositories > /dev/null 2>&1
-
-			  docker exec php apk update
-			  curl -sL ${gh_proxy}https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions -o /usr/local/bin/install-php-extensions
-			  docker exec php mkdir -p /usr/local/bin/
-			  docker cp /usr/local/bin/install-php-extensions php:/usr/local/bin/
-			  docker exec php chmod +x /usr/local/bin/install-php-extensions
-
-			  docker exec php sh -c "\
-							apk add --no-cache imagemagick imagemagick-dev \
-							&& apk add --no-cache git autoconf gcc g++ make pkgconfig \
-							&& rm -rf /tmp/imagick \
-							&& git clone ${gh_proxy}https://github.com/Imagick/imagick /tmp/imagick \
-							&& cd /tmp/imagick \
-							&& phpize \
-							&& ./configure \
-							&& make \
-							&& make install \
-							&& echo 'extension=imagick.so' > /usr/local/etc/php/conf.d/imagick.ini \
-							&& rm -rf /tmp/imagick"
-
-
-			  docker exec php install-php-extensions mysqli pdo_mysql gd intl zip exif bcmath opcache redis
-
-
-			  docker exec php sh -c 'echo "upload_max_filesize=50M " > /usr/local/etc/php/conf.d/uploads.ini' > /dev/null 2>&1
-			  docker exec php sh -c 'echo "post_max_size=50M " > /usr/local/etc/php/conf.d/post.ini' > /dev/null 2>&1
-			  docker exec php sh -c 'echo "memory_limit=256M" > /usr/local/etc/php/conf.d/memory.ini' > /dev/null 2>&1
-			  docker exec php sh -c 'echo "max_execution_time=1200" > /usr/local/etc/php/conf.d/max_execution_time.ini' > /dev/null 2>&1
-			  docker exec php sh -c 'echo "max_input_time=600" > /usr/local/etc/php/conf.d/max_input_time.ini' > /dev/null 2>&1
-			  docker exec php sh -c 'echo "max_input_vars=3000" > /usr/local/etc/php/conf.d/max_input_vars.ini' > /dev/null 2>&1
-
-
-			  docker restart $ldnmp_pods > /dev/null 2>&1
+			  ldnmp_configure_php_container php
 			  cp /home/web/docker-compose1.yml /home/web/docker-compose.yml
 			  send_stats "更新$ldnmp_pods"
 			  echo "更新${ldnmp_pods}完成"
@@ -5317,12 +5421,10 @@ linux_ldnmp() {
 				  ;;
 			  4)
 			  ldnmp_pods="redis"
-			  cd /home/web/
-			  docker rm -f $ldnmp_pods
-			  docker images --filter=reference="$ldnmp_pods*" -q | xargs docker rmi > /dev/null 2>&1
+			  cd /home/web/ || break
+			  docker compose pull $ldnmp_pods
 			  docker compose up -d --force-recreate $ldnmp_pods
-			  docker exec -it redis redis-cli CONFIG SET maxmemory 512mb
-			  docker exec -it redis redis-cli CONFIG SET maxmemory-policy allkeys-lru
+			  ldnmp_set_redis_policy
 			  docker restart $ldnmp_pods > /dev/null 2>&1
 			  send_stats "更新$ldnmp_pods"
 			  echo "更新${ldnmp_pods}完成"
@@ -5341,7 +5443,12 @@ linux_ldnmp() {
 					install_dependency
 					install_docker
 					install_certbot
+					ldnmp_compose_set_image mysql "mysql:9.7"
+					ldnmp_compose_set_image php "php:8.3-fpm-alpine"
+					ldnmp_compose_set_image nginx "nginx:alpine"
+					ldnmp_compose_set_image redis "redis:alpine"
 					install_ldnmp
+					nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 1. 更新nginx 查看详细错误。"
 					;;
 				  *)
 					;;
