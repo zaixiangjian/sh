@@ -5536,274 +5536,8 @@ linux_ldnmp() {
 
 
 
-# ===== Hermes: 已安装应用端口管理（990） =====
-kj_app_label() {
-	local key="$1"
-	case "$key" in
-		bt|baota) echo "1|宝塔面板官方版" ;;
-		aapanel) echo "2|aaPanel宝塔国际版" ;;
-		1panel|1pctl) echo "3|1Panel新一代管理面板" ;;
-		npm) echo "4|NginxProxyManager可视化面板" ;;
-		nezha|nezha-dashboard) echo "7|哪吒探针VPS监控面板" ;;
-		webtop-ubuntu) echo "6|Ubuntu远程桌面网页版3006端口" ;;
-		qbittorrent) echo "8|QB离线BT磁力下载面板" ;;
-		mailserver|poste) echo "9|Poste.io邮件服务器程序" ;;
-		rocketchat) echo "10|RocketChat多人在线聊天系统" ;;
-		zentao-server|zentao) echo "11|禅道项目管理软件" ;;
-		qinglong) echo "12|青龙面板定时任务管理平台" ;;
-		cloudreve) echo "13|Cloudreve网盘" ;;
-		easyimage) echo "14|简单图床图片管理程序" ;;
-		emby) echo "15|emby多媒体管理系统" ;;
-		looking-glass) echo "16|Speedtest测速面板" ;;
-		adguardhome) echo "17|AdGuardHome去广告软件" ;;
-		onlyoffice) echo "18|onlyoffice在线办公OFFICE" ;;
-		safeline-mgt|safeline) echo "19|雷池WAF防火墙面板" ;;
-		portainer) echo "20|portainer容器管理面板" ;;
-		vscode-web) echo "21|VScode网页版" ;;
-		uptime-kuma) echo "22|UptimeKuma监控工具" ;;
-		memos) echo "23|Memos网页备忘录" ;;
-		webtop) echo "24|Webtop远程桌面" ;;
-		nextcloud-aio|nextcloud) echo "25|Nextcloud网盘" ;;
-		qd) echo "26|QD-Today定时任务管理框架" ;;
-		dockge) echo "27|Dockge容器堆栈管理面板" ;;
-		speedtest) echo "28|LibreSpeed测速工具" ;;
-		searxng) echo "29|searxng聚合搜索站" ;;
-		photoprism) echo "30|PhotoPrism私有相册系统" ;;
-		s-pdf|stirling-pdf) echo "31|StirlingPDF工具大全" ;;
-		drawio) echo "32|drawio免费的在线图表软件" ;;
-		sun-panel) echo "33|Sun-Panel导航面板" ;;
-		pingvin-share) echo "34|Pingvin-Share文件分享平台" ;;
-		moments) echo "35|极简朋友圈" ;;
-		lobe-chat) echo "36|LobeChatAI聊天聚合网站" ;;
-		myip) echo "37|MyIP工具箱" ;;
-		alist) echo "38|小雅alist全家桶" ;;
-		bililive-go) echo "39|Bililive直播录制工具" ;;
-		windows) echo "40|远程Windows11" ;;
-		vaultwarden) echo "42|vaultwarden" ;;
-		aria2-pro) echo "46|Aria2离线下载" ;;
-		nexterm) echo "53|NextermSSH链接" ;;
-		webssh) echo "54|webssh" ;;
-		openlist) echo "55|openlist4.0.8" ;;
-		umami) echo "56|umami网站流量统计系统" ;;
-		dify) echo "57|dify安装" ;;
-		caddy) echo "100|caddy官方docker安装" ;;
-		hbbs) echo "59|docker安装rustdesk服务端" ;;
-		hbbr) echo "60|docker安装rustdesk中继端" ;;
-		x-ui|xui) echo "62|安装x-ui" ;;
-		rclone) echo "63|安装rclone" ;;
-		r2beifen) echo "64|安装r2beifen备份" ;;
-		owncloud) echo "67|ownCloud网盘安装" ;;
-		m38u8) echo "68|安装M38u8" ;;
-		it-tools) echo "69|it-tools工具箱" ;;
-		pansou) echo "70|安装盘搜" ;;
-		zfile) echo "71|安装zfile网盘" ;;
-		discourse) echo "72|安装Discourse论坛" ;;
-		minio) echo "73|安装minio对象存储" ;;
-		mailcow) echo "78|Caddy安装mailcow邮箱" ;;
-		hitokoto) echo "84|Hitokoto API" ;;
-		backrest) echo "86|Backrest 资源备份" ;;
-		certimate) echo "87|Certimate 证书管理" ;;
-		btc) echo "90|BTC安装" ;;
-		chrome) echo "91|自动进行谷歌浏览" ;;
-		cli-proxy-api) echo "92|CLIProxyAPI" ;;
-		sub2api) echo "93|Sub2API" ;;
-		openclaw) echo "94|Openclaw" ;;
-		open-webui) echo "95|Open WebUI" ;;
-		chromium) echo "98|安装Google" ;;
-		hermes) echo "99|Hermes机器人爱马仕" ;;
-		edge-admin) echo "996|CDN安装" ;;
-		*) echo "-|$key" ;;
-	esac
-}
-
-kj_app_domains_for_ports() {
-	local ports="$1"
-	local target="$2"
-	local type="$3"
-	local domains=""
-	local docker_ips=""
-	local internal_ports=""
-	local port conf domain proxy_line proxy_host proxy_port
-
-	[ -d /home/web/conf.d ] || { echo "-"; return; }
-
-	if [ "$type" = "docker" ] && command -v docker >/dev/null 2>&1; then
-		docker_ips=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$target" 2>/dev/null)
-		for port in ${ports//,/ }; do
-			[ -z "$port" ] && continue
-			local ipt
-			ipt=$(docker port "$target" 2>/dev/null | awk -v hp="$port" '$0 ~ ":"hp"$" {split($1,a,"/"); print a[1]; exit}')
-			[ -n "$ipt" ] && internal_ports="$internal_ports $ipt"
-		done
-	fi
-
-	for conf in /home/web/conf.d/*.conf; do
-		[ -f "$conf" ] || continue
-		while IFS= read -r proxy_line; do
-			proxy_host=$(echo "$proxy_line" | sed -E 's#^[[:space:]]*proxy_pass[[:space:]]+https?://([^/:;]+).*#\1#')
-			proxy_port=$(echo "$proxy_line" | sed -nE 's#^[[:space:]]*proxy_pass[[:space:]]+https?://[^/:;]+:([0-9]+).*#\1#p')
-			[ -z "$proxy_port" ] && proxy_port="80"
-
-			local matched="false"
-			for port in ${ports//,/ }; do
-				[ "$proxy_port" = "$port" ] && matched="true"
-			done
-			if [ "$type" = "docker" ]; then
-				[ "$proxy_host" = "$target" ] && matched="true"
-				for port in $internal_ports; do
-					[ "$proxy_port" = "$port" ] && matched="true"
-				done
-				for ip in $docker_ips; do
-					[ "$proxy_host" = "$ip" ] && matched="true"
-				done
-			fi
-
-			if [ "$matched" = "true" ]; then
-				domain=$(grep -m1 -E "^[[:space:]]*server_name[[:space:]]+" "$conf" 2>/dev/null | sed -E 's/^[[:space:]]*server_name[[:space:]]+//; s/;.*$//' | awk '{print $1}')
-				domain=${domain:-$(basename "$conf" .conf)}
-				case " $domains " in *" $domain "*) ;; *) domains="$domains $domain" ;; esac
-			fi
-		done < <(grep -E "^[[:space:]]*proxy_pass[[:space:]]+https?://" "$conf" 2>/dev/null)
-	done
-
-	# 同时识别本地 Caddy 与 Docker Caddy 的 Caddyfile：domain { reverse_proxy host:PORT }
-	local caddyfile
-	for caddyfile in /etc/caddy/Caddyfile /home/docker/caddy/Caddyfile; do
-		[ -f "$caddyfile" ] || continue
-		local current_domains line rp_host rp_port matched d
-		current_domains=""
-		while IFS= read -r line; do
-			# Caddy 站点块开头：example.com, www.example.com {
-			if echo "$line" | grep -Eq '^[^#[:space:]][^{}]*[[:space:]]*\{[[:space:]]*$'; then
-				current_domains=$(echo "$line" | sed -E 's/[[:space:]]*\{[[:space:]]*$//' | tr ',' ' ' | xargs 2>/dev/null)
-			fi
-			if echo "$line" | grep -Eq '^[[:space:]]*reverse_proxy[[:space:]]+'; then
-				rp_host=$(echo "$line" | sed -E 's#^[[:space:]]*reverse_proxy[[:space:]]+(https?://)?([^/:[:space:]]+).*#\2#')
-				rp_port=$(echo "$line" | sed -nE 's#^[[:space:]]*reverse_proxy[[:space:]]+(https?://)?[^/:[:space:]]+:([0-9]+).*#\2#p')
-				[ -z "$rp_port" ] && rp_port="80"
-				matched="false"
-				for port in ${ports//,/ }; do
-					[ "$rp_port" = "$port" ] && matched="true"
-				done
-				if [ "$type" = "docker" ]; then
-					[ "$rp_host" = "$target" ] && matched="true"
-					for port in $internal_ports; do [ "$rp_port" = "$port" ] && matched="true"; done
-					for ip in $docker_ips; do [ "$rp_host" = "$ip" ] && matched="true"; done
-				fi
-				if [ "$matched" = "true" ]; then
-					for d in $current_domains; do
-						case " $domains " in *" $d "*) ;; *) domains="$domains $d" ;; esac
-					done
-				fi
-			fi
-		done < "$caddyfile"
-	done
-
-	domains=$(echo "$domains" | xargs 2>/dev/null)
-	[ -n "$domains" ] && echo "$domains" || echo "-"
-}
-
-kj_app_install_method_label() {
-	local app_type="$1"
-	case "$app_type" in
-		docker) echo -e "${gl_lv}容器${gl_bai}" ;;
-		*) echo -e "${gl_hong}本地${gl_bai}" ;;
-	esac
-}
-
-kj_app_docker_container_ports() {
-	local cname="$1"
-	docker port "$cname" 2>/dev/null | awk '{split($1,a,"/"); if (a[1] ~ /^[0-9]+$/) print a[1]}' | sort -n -u | tr '
-' ',' | sed 's/,$//'
-}
-
-kj_app_add_row() {
-	local app_id="$1"
-	local app_name="$2"
-	local app_ports="$3"
-	local app_target="$4"
-	local app_type="$5"
-	local app_container_ports="$6"
-	local app_domains
-	[ -z "$app_ports" ] && return
-	[ -z "$app_container_ports" ] && app_container_ports="-"
-	app_domains=$(kj_app_domains_for_ports "$app_ports" "$app_target" "$app_type")
-	KJ_APP_IDS+=("$app_id")
-	KJ_APP_NAMES+=("$app_name")
-	KJ_APP_PORTS+=("$app_ports")
-	KJ_APP_CONTAINER_PORTS+=("$app_container_ports")
-	KJ_APP_DOMAINS+=("$app_domains")
-	KJ_APP_TARGETS+=("$app_target")
-	KJ_APP_TYPES+=("$app_type")
-}
-
-kj_app_collect_ports() {
-	KJ_APP_IDS=()
-	KJ_APP_NAMES=()
-	KJ_APP_PORTS=()
-	KJ_APP_CONTAINER_PORTS=()
-	KJ_APP_DOMAINS=()
-	KJ_APP_TARGETS=()
-	KJ_APP_TYPES=()
-	local used_ports=" "
-
-	if command -v docker >/dev/null 2>&1; then
-		while IFS='|' read -r cname cports; do
-			[ -z "$cname" ] && continue
-			local ports
-			ports=$(echo "$cports" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]+|\[::\]:[0-9]+|:::[0-9]+|127\.0\.0\.1:[0-9]+' | awk -F: '{print $NF}' | sort -n -u | tr '\n' ',' | sed 's/,$//')
-			if [ -z "$ports" ]; then
-				ports=$(docker port "$cname" 2>/dev/null | awk -F: '/->/ {print $NF}' | sort -n -u | tr '\n' ',' | sed 's/,$//')
-			fi
-			[ -z "$ports" ] && continue
-			local label app_id app_name container_ports
-			label=$(kj_app_label "$cname")
-			app_id=${label%%|*}
-			app_name=${label#*|}
-			container_ports=$(kj_app_docker_container_ports "$cname")
-			[ -z "$container_ports" ] && container_ports="-"
-			kj_app_add_row "$app_id" "$app_name" "$ports" "$cname" "docker" "$container_ports"
-			local p
-			for p in ${ports//,/ }; do used_ports="$used_ports$p "; done
-		done < <(docker ps --format '{{.Names}}|{{.Ports}}' 2>/dev/null)
-	fi
-
-	if command -v ss >/dev/null 2>&1; then
-		while read -r port proc; do
-			[ -z "$port" ] && continue
-			case " $used_ports " in *" $port "*) continue ;; esac
-			[ -z "$proc" ] && proc="unknown"
-			case "$proc" in docker-proxy|containerd-shim*) continue ;; esac
-			local label app_id app_name
-			label=$(kj_app_label "$proc")
-			app_id=${label%%|*}
-			app_name=${label#*|}
-			kj_app_add_row "$app_id" "$app_name" "$port" "$proc" "binary" "-"
-			used_ports="$used_ports$port "
-		done < <(ss -H -tulnp 2>/dev/null | awk '
-			{
-				addr=$5; port=addr; sub(/^.*:/,"",port);
-				proc="";
-				if (match($0,/users:\(\("[^"]+"/)) { proc=substr($0,RSTART+9,RLENGTH-9); gsub(/"/,"",proc); }
-				if (port ~ /^[0-9]+$/) print port, proc;
-			}' | sort -n -u)
-	fi
-}
-
-kj_app_save_iptables_rules() {
-	mkdir -p /etc/iptables
-	iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
-	if command -v crontab >/dev/null 2>&1; then
-		(
-			crontab -l 2>/dev/null 				| grep -v 'iptables-restore < /etc/iptables/rules.v4' 				| grep -v '^# 990应用 安装的应用以及应用端口封禁（勿删）$'
-			echo '# 990应用 安装的应用以及应用端口封禁（勿删）'
-			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
-		) | crontab - 2>/dev/null || true
-	fi
-}
-
-
-KJ_APP_BLOCK_REMARK_FILE="/etc/kj_app_port_block_remarks"
+# ===== Hermes: 应用端口白名单管理（990） =====
+KJ_APP_ALLOW_REMARK_FILE="/etc/kj_app_port_allow_remarks"
 
 kj_app_sort_ports_csv() {
 	local ports="$1"
@@ -5817,1301 +5551,300 @@ kj_app_ports_contains() {
 	return 1
 }
 
-kj_app_prompt_block_remark() {
+kj_app_validate_ports_csv() {
+	local ports="$1"
+	[ -n "$ports" ] || return 1
+	echo "$ports" | grep -Eq '^[0-9]+(,[0-9]+)*$' || return 1
+	local p
+	for p in ${ports//,/ }; do
+		[ "$p" -ge 1 ] 2>/dev/null && [ "$p" -le 65535 ] 2>/dev/null || return 1
+	done
+	return 0
+}
+
+kj_app_ssh_ports_detect() {
+	{
+		[ -f /etc/ssh/sshd_config ] && awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null
+		command -v ss >/dev/null 2>&1 && ss -ltnp 2>/dev/null | awk '/sshd/ {split($4,a,":"); p=a[length(a)]; if (p ~ /^[0-9]+$/) print p}'
+		[ -n "${SSH_CONNECTION:-}" ] && echo "$SSH_CONNECTION" | awk '{print $4}'
+		echo 22
+	} | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u
+}
+
+kj_app_protected_allow_ports() {
+	{
+		kj_app_ssh_ports_detect
+		echo 80
+		echo 443
+	} | awk '/^[0-9]+$/ {print}' | sort -n -u
+}
+
+kj_app_prompt_allow_remark() {
 	local remark
 	while true; do
-		read -e -p "请输入你的备注：" remark
+		read -e -p "请输入备注: " remark
 		remark=$(echo "$remark" | tr '|' ' ' | xargs 2>/dev/null)
 		if [ -n "$remark" ]; then
 			echo "$remark"
 			return 0
 		fi
-		echo -e "${gl_hong}输入不能为空${gl_bai}" >&2
+		echo -e "${gl_hong}备注不能为空${gl_bai}" >&2
 	done
 }
 
-kj_app_save_block_remark() {
-	local remark="$1"
-	local ports="$2"
-	[ -z "$remark" ] && return 0
-	ports=$(kj_app_sort_ports_csv "$ports")
-	[ -z "$ports" ] && return 0
-	mkdir -p "$(dirname "$KJ_APP_BLOCK_REMARK_FILE")"
-	local tmp existing_ports=""
-	tmp=$(mktemp)
-	if [ -f "$KJ_APP_BLOCK_REMARK_FILE" ]; then
-		while IFS='|' read -r old_remark old_ports; do
-			[ -z "$old_remark" ] && continue
-			local keep_ports="" p
-			for p in ${old_ports//,/ }; do
-				[ -z "$p" ] && continue
-				if kj_app_ports_contains "$ports" "$p"; then
-					continue
-				fi
-				keep_ports="${keep_ports:+$keep_ports,}$p"
-			done
-			keep_ports=$(kj_app_sort_ports_csv "$keep_ports")
-			if [ "$old_remark" = "$remark" ]; then
-				existing_ports="$keep_ports"
-			elif [ -n "$keep_ports" ]; then
-				echo "$old_remark|$keep_ports" >> "$tmp"
-			fi
-		done < "$KJ_APP_BLOCK_REMARK_FILE"
-	fi
-	ports=$(kj_app_sort_ports_csv "${existing_ports:+$existing_ports,}$ports")
-	echo "$remark|$ports" >> "$tmp"
-	mv "$tmp" "$KJ_APP_BLOCK_REMARK_FILE"
+kj_app_allow_file_init_default() {
+	mkdir -p "$(dirname "$KJ_APP_ALLOW_REMARK_FILE")"
+	[ -s "$KJ_APP_ALLOW_REMARK_FILE" ] && return 0
+	: > "$KJ_APP_ALLOW_REMARK_FILE"
+	local p
+	for p in $(kj_app_protected_allow_ports); do
+		echo "默认|$p" >> "$KJ_APP_ALLOW_REMARK_FILE"
+	done
 }
 
-kj_app_remove_block_remark_ports() {
+kj_app_all_allowed_ports() {
+	[ -f "$KJ_APP_ALLOW_REMARK_FILE" ] || return 0
+	awk -F'|' '{gsub(/,/,"\n",$2); print $2}' "$KJ_APP_ALLOW_REMARK_FILE" 2>/dev/null | awk '/^[0-9]+$/ {print}' | sort -n -u | paste -sd, -
+}
+
+kj_app_save_iptables_rules() {
+	mkdir -p /etc/iptables
+	iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+	command -v ip6tables-save >/dev/null 2>&1 && ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+	if command -v crontab >/dev/null 2>&1; then
+		(
+			crontab -l 2>/dev/null \
+				| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
+				| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
+				| grep -v '^# 990应用 端口白名单（勿删）$'
+			echo '# 990应用 端口白名单（勿删）'
+			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
+			if [ -s /etc/iptables/rules.v6 ]; then
+				echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
+			fi
+		) | crontab - 2>/dev/null || true
+	fi
+}
+
+kj_app_allow_remove_ports() {
 	local ports="$1"
+	local quiet="$2"
 	ports=$(kj_app_sort_ports_csv "$ports")
 	[ -z "$ports" ] && return 0
-	[ -f "$KJ_APP_BLOCK_REMARK_FILE" ] || return 0
-	local tmp
+	[ -f "$KJ_APP_ALLOW_REMARK_FILE" ] || return 0
+	local tmp p old_remark old_ports keep_ports protected skipped=""
 	tmp=$(mktemp)
+	protected=",$(kj_app_protected_allow_ports | paste -sd, -),"
 	while IFS='|' read -r old_remark old_ports; do
 		[ -z "$old_remark" ] && continue
-		local keep_ports="" p
+		keep_ports=""
 		for p in ${old_ports//,/ }; do
 			[ -z "$p" ] && continue
 			if kj_app_ports_contains "$ports" "$p"; then
+				if kj_app_ports_contains "$protected" "$p"; then
+					keep_ports="${keep_ports:+$keep_ports,}$p"
+					skipped="${skipped:+$skipped,}$p"
+				fi
 				continue
 			fi
 			keep_ports="${keep_ports:+$keep_ports,}$p"
 		done
 		keep_ports=$(kj_app_sort_ports_csv "$keep_ports")
 		[ -n "$keep_ports" ] && echo "$old_remark|$keep_ports" >> "$tmp"
-	done < "$KJ_APP_BLOCK_REMARK_FILE"
-	mv "$tmp" "$KJ_APP_BLOCK_REMARK_FILE"
+	done < "$KJ_APP_ALLOW_REMARK_FILE"
+	mv "$tmp" "$KJ_APP_ALLOW_REMARK_FILE"
+	if [ -n "$skipped" ] && [ "$quiet" != "quiet" ]; then
+		skipped=$(kj_app_sort_ports_csv "$skipped")
+		local sshp
+		for sshp in $(kj_app_ssh_ports_detect); do
+			kj_app_ports_contains "$skipped" "$sshp" && echo -e "${gl_hong}检测到SSH端口为${sshp}，不允许阻止${gl_bai}"
+		done
+		{ kj_app_ports_contains "$skipped" "80" || kj_app_ports_contains "$skipped" "443"; } && echo -e "${gl_hong}80/443为默认放行端口，不允许阻止${gl_bai}"
+	fi
 }
 
-kj_app_blocked_ports_with_remarks() {
-	local blocked_ports
-	blocked_ports=$(kj_app_blocked_ports_summary)
-	[ -z "$blocked_ports" ] && return 0
-	local tmp used="," line_no=0
-	tmp=$(mktemp)
-	if [ -f "$KJ_APP_BLOCK_REMARK_FILE" ]; then
-		while IFS='|' read -r remark ports; do
-			[ -z "$remark" ] && continue
-			local shown_ports="" p
-			for p in ${ports//,/ }; do
-				[ -z "$p" ] && continue
-				if kj_app_ports_contains "$blocked_ports" "$p"; then
-					shown_ports="${shown_ports:+$shown_ports,}$p"
-					used="${used}${p},"
-				fi
-			done
-			shown_ports=$(kj_app_sort_ports_csv "$shown_ports")
-			if [ -n "$shown_ports" ]; then
-				local min_port=${shown_ports%%,*}
-				printf '%s|%s|%s\n' "$min_port" "$remark" "$shown_ports" >> "$tmp"
-			fi
-		done < "$KJ_APP_BLOCK_REMARK_FILE"
+kj_app_allow_firewall_active() {
+	iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'
+}
+
+kj_app_allow_add_entry() {
+	local remark="$1"
+	local ports="$2"
+	ports=$(kj_app_sort_ports_csv "$ports")
+	[ -z "$remark" ] || [ -z "$ports" ] && return 1
+	mkdir -p "$(dirname "$KJ_APP_ALLOW_REMARK_FILE")"
+	kj_app_allow_remove_ports "$ports" "quiet"
+	echo "$remark|$ports" >> "$KJ_APP_ALLOW_REMARK_FILE"
+}
+
+kj_app_apply_allow_firewall() {
+	install iptables
+	local allowed_ports p
+	allowed_ports=$(kj_app_all_allowed_ports)
+
+	iptables -N KJ_APP_ALLOW 2>/dev/null || true
+	iptables -F KJ_APP_ALLOW 2>/dev/null || true
+	iptables -C INPUT -j KJ_APP_ALLOW 2>/dev/null || iptables -I INPUT 1 -j KJ_APP_ALLOW
+	iptables -A KJ_APP_ALLOW -i lo -j ACCEPT
+	iptables -A KJ_APP_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
+	iptables -A KJ_APP_ALLOW -i docker0 -j ACCEPT
+	iptables -A KJ_APP_ALLOW -i br+ -j ACCEPT
+	for p in ${allowed_ports//,/ }; do
+		[ -z "$p" ] && continue
+		iptables -A KJ_APP_ALLOW -p tcp --dport "$p" -j ACCEPT
+		iptables -A KJ_APP_ALLOW -p udp --dport "$p" -j ACCEPT
+	done
+	iptables -A KJ_APP_ALLOW -p tcp -j DROP
+	iptables -A KJ_APP_ALLOW -p udp -j DROP
+	iptables -A KJ_APP_ALLOW -j RETURN
+
+	iptables -N DOCKER-USER 2>/dev/null || true
+	iptables -N KJ_APP_DOCKER_ALLOW 2>/dev/null || true
+	iptables -F KJ_APP_DOCKER_ALLOW 2>/dev/null || true
+	iptables -C DOCKER-USER -j KJ_APP_DOCKER_ALLOW 2>/dev/null || iptables -I DOCKER-USER 1 -j KJ_APP_DOCKER_ALLOW
+	iptables -A KJ_APP_DOCKER_ALLOW -i br+ -j ACCEPT
+	iptables -A KJ_APP_DOCKER_ALLOW -i docker0 -j ACCEPT
+	iptables -A KJ_APP_DOCKER_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
+	for p in ${allowed_ports//,/ }; do
+		[ -z "$p" ] && continue
+		iptables -A KJ_APP_DOCKER_ALLOW -p tcp -m conntrack --ctorigdstport "$p" -j ACCEPT
+		iptables -A KJ_APP_DOCKER_ALLOW -p udp -m conntrack --ctorigdstport "$p" -j ACCEPT
+	done
+	iptables -A KJ_APP_DOCKER_ALLOW -p tcp -j DROP
+	iptables -A KJ_APP_DOCKER_ALLOW -p udp -j DROP
+	iptables -A KJ_APP_DOCKER_ALLOW -j RETURN
+
+	if command -v ip6tables >/dev/null 2>&1; then
+		ip6tables -N KJ_APP_ALLOW 2>/dev/null || true
+		ip6tables -F KJ_APP_ALLOW 2>/dev/null || true
+		ip6tables -C INPUT -j KJ_APP_ALLOW 2>/dev/null || ip6tables -I INPUT 1 -j KJ_APP_ALLOW
+		ip6tables -A KJ_APP_ALLOW -i lo -j ACCEPT
+		ip6tables -A KJ_APP_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
+		for p in ${allowed_ports//,/ }; do
+			[ -z "$p" ] && continue
+			ip6tables -A KJ_APP_ALLOW -p tcp --dport "$p" -j ACCEPT
+			ip6tables -A KJ_APP_ALLOW -p udp --dport "$p" -j ACCEPT
+		done
+		ip6tables -A KJ_APP_ALLOW -p tcp -j DROP
+		ip6tables -A KJ_APP_ALLOW -p udp -j DROP
+		ip6tables -A KJ_APP_ALLOW -j RETURN
 	fi
-	local p unremarked=""
-	for p in ${blocked_ports//,/ }; do
-		[ -z "$p" ] && continue
-		if ! kj_app_ports_contains "$used" "$p"; then
-			unremarked="${unremarked:+$unremarked,}$p"
-		fi
-	done
-	for p in ${unremarked//,/ }; do
-		[ -z "$p" ] && continue
-		printf '%s|未备注|%s\n' "$p" "$p" >> "$tmp"
-	done
+	kj_app_save_iptables_rules
+}
+
+kj_app_show_allow_list() {
+	kj_app_allow_file_init_default
+	echo -e "${gl_hong}=============================================${gl_bai}"
+	echo -e "${gl_lv}允许公网IP+端口访问${gl_bai}"
+	echo "备注名  端口"
+	local tmp line_no=0
+	tmp=$(mktemp)
+	while IFS='|' read -r remark ports; do
+		[ -z "$remark" ] && continue
+		ports=$(kj_app_sort_ports_csv "$ports")
+		[ -z "$ports" ] && continue
+		printf '%s|%s|%s\n' "${ports%%,*}" "$remark" "$ports" >> "$tmp"
+	done < "$KJ_APP_ALLOW_REMARK_FILE"
 	if [ -s "$tmp" ]; then
 		sort -n -t'|' -k1,1 "$tmp" | while IFS='|' read -r min_port remark ports; do
 			line_no=$((line_no + 1))
-			echo -e "${line_no}.${gl_lv}${remark}${gl_bai}  ${ports//,/ }"
+			printf "%s. %-14s %s\n" "$line_no" "$remark" "$ports"
 		done
 	fi
 	rm -f "$tmp"
+	echo -e "${gl_hong}=============================================${gl_bai}"
 }
 
-kj_app_docker_ip() {
-	local cname="$1"
-	docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$cname" 2>/dev/null | awk '{print $1}'
-}
-
-kj_app_docker_container_port_for_host() {
-	local cname="$1"
-	local host_port="$2"
-	docker port "$cname" 2>/dev/null | awk -v hp="$host_port" '
-		/->/ {
-			left=$1
-			split(left,a,"/")
-			container_port=a[1]
-			n=split($0,b,":")
-			published=b[n]
-			gsub(/[^0-9]/,"",published)
-			if (published == hp) { print container_port; exit }
-		}'
-}
-
-kj_app_cleanup_docker_container_wide_block() {
-	local cname="$1"
-	local container_ip
-	container_ip=$(kj_app_docker_ip "$cname")
-	[ -z "$container_ip" ] && return 0
-	while iptables -C DOCKER-USER -d "$container_ip" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -j DROP; done
-}
-
-kj_app_block_docker_port() {
-	local cname="$1"
-	local host_port="$2"
-	local container_ip container_port
-	[ -z "$host_port" ] && return 1
-	install iptables
-	kj_app_cleanup_docker_container_wide_block "$cname"
-	container_ip=$(kj_app_docker_ip "$cname")
-	container_port=$(kj_app_docker_container_port_for_host "$cname" "$host_port")
-
-	# 990 的语义始终是封禁“宿主机本地端口/公网IP+端口”。
-	# Docker 发布端口有的系统走 INPUT/docker-proxy，有的系统走 FORWARD/DNAT；
-	# FORWARD 里用 conntrack --ctorigdstport 匹配原始宿主机端口，不能按容器端口封禁。
-	kj_app_block_host_port "$host_port"
-	iptables -N DOCKER-USER 2>/dev/null || true
-	iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
-	iptables -C DOCKER-USER -i br+ -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i br+ -j ACCEPT
-	iptables -C DOCKER-USER -i docker0 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i docker0 -j ACCEPT
-	iptables -C DOCKER-USER -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-	# 清理旧版误按“容器IP+容器端口”写入的规则，避免误伤同容器其它宿主机映射。
-	if [ -n "$container_ip" ] && [ -n "$container_port" ]; then
-		while iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP; done
-		while iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP; done
-	fi
-
-	iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP
-	iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP
-}
-
-kj_app_allow_docker_port() {
-	local cname="$1"
-	local host_port="$2"
-	local container_ip container_port
-	[ -z "$host_port" ] && return 1
-	kj_app_cleanup_docker_container_wide_block "$cname"
-	container_ip=$(kj_app_docker_ip "$cname")
-	container_port=$(kj_app_docker_container_port_for_host "$cname" "$host_port")
-	kj_app_allow_host_port "$host_port"
-	while iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP; done
-	while iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP; done
-	if [ -n "$container_ip" ] && [ -n "$container_port" ]; then
-		while iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP; done
-		while iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP; done
-	fi
-}
-
-kj_app_refresh_blocked_ports_cache() {
-	KJ_APP_BLOCKED_PORTS=","
-	local ports
-	ports=$(
-		{
-			iptables-save 2>/dev/null
-			command -v ip6tables-save >/dev/null 2>&1 && ip6tables-save 2>/dev/null
-		} | awk '
-			/^-A (KJ_APP_PORT_BLOCK|INPUT) / && /--dport [0-9]+/ && / -j DROP/ {
-				for (i=1; i<=NF; i++) {
-					if ($i == "--dport" && $(i+1) ~ /^[0-9]+$/) print $(i+1)
-				}
-			}
-			/^-A DOCKER-USER / && /--ctorigdstport [0-9]+/ && / -j DROP/ {
-				for (i=1; i<=NF; i++) {
-					if ($i == "--ctorigdstport" && $(i+1) ~ /^[0-9]+$/) print $(i+1)
-				}
-			}
-		' | sort -n -u
-	)
-	local p
-	for p in $ports; do
-		KJ_APP_BLOCKED_PORTS="${KJ_APP_BLOCKED_PORTS}${p},"
-	done
-}
-
-kj_app_port_is_blocked() {
-	local port="$1"
-	# 990 只按宿主机本地端口判断封禁状态；Docker FORWARD/DNAT 路径使用 conntrack 原始宿主机端口匹配。
-	if [ -n "${KJ_APP_BLOCKED_PORTS:-}" ]; then
-		case "$KJ_APP_BLOCKED_PORTS" in
-			*,"$port",*) return 0 ;;
-		esac
+kj_app_allow_menu_add() {
+	local remark ports
+	remark=$(kj_app_prompt_allow_remark)
+	read -e -p "请输入需要放行的端口，多个端口用英文逗号分隔:" ports
+	ports=$(echo "$ports" | tr -d ' ')
+	if ! kj_app_validate_ports_csv "$ports"; then
+		echo -e "${gl_hong}端口格式无效，请输入 1-65535，多个端口用英文逗号分隔${gl_bai}"
 		return 1
 	fi
-	if iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || iptables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; then
-		return 0
-	fi
-	if iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null || iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null; then
-		return 0
-	fi
-	if command -v ip6tables >/dev/null 2>&1 && { ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || ip6tables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; }; then
-		return 0
-	fi
-	return 1
+	kj_app_allow_add_entry "$remark" "$ports"
+	kj_app_apply_allow_firewall
+	echo "放行成功"
 }
 
-kj_app_access_status() {
-	local ports="$1"
-	local target="$2"
-	local type="$3"
-	local total=0
-	local blocked=0
-	local p
-	for p in ${ports//,/ }; do
-		[ -z "$p" ] && continue
-		total=$((total + 1))
-		if kj_app_port_is_blocked "$p" "$target" "$type"; then
-			blocked=$((blocked + 1))
-		fi
+kj_app_allow_menu_remove() {
+	clear
+	kj_app_show_allow_list
+	local choice selected ports
+	read -e -p "输入需要封禁的序号（回车返回上一级）: " choice
+	[ -z "$choice" ] && return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || { echo "无效选择"; return 1; }
+	selected=$(awk -F'|' 'NF>=2 {print NR"|"$0}' "$KJ_APP_ALLOW_REMARK_FILE" 2>/dev/null | awk -F'|' -v n="$choice" 'NR==n {print $0}')
+	[ -n "$selected" ] || { echo "无效选择"; return 1; }
+	ports=$(echo "$selected" | cut -d'|' -f3)
+	kj_app_allow_remove_ports "$ports"
+	kj_app_apply_allow_firewall
+	echo "阻止成功"
+}
+
+kj_app_allow_reset_default() {
+	local extra_ports="$1"
+	local confirm default_ports p
+	default_ports=$(kj_app_protected_allow_ports | paste -sd, -)
+	echo "检测到SSH端口: $(kj_app_ssh_ports_detect | paste -sd, -)"
+	echo "将默认允许: ${default_ports//,/ }"
+	[ -n "$extra_ports" ] && echo "额外允许: ${extra_ports//,/ }"
+	read -e -p "确认启用全部阻止模式 [确认请输入yes，默认n]: " confirm
+	[ "$confirm" = "yes" ] || { echo "已取消"; return 1; }
+	mkdir -p "$(dirname "$KJ_APP_ALLOW_REMARK_FILE")"
+	: > "$KJ_APP_ALLOW_REMARK_FILE"
+	for p in ${default_ports//,/ }; do
+		[ -n "$p" ] && echo "默认|$p" >> "$KJ_APP_ALLOW_REMARK_FILE"
 	done
-	if [ "$total" -eq 0 ]; then
-		echo "未知"
-	elif [ "$blocked" -eq 0 ]; then
-		echo "允许"
-	elif [ "$blocked" -eq "$total" ]; then
-		echo "阻止"
-	else
-		echo "部分阻止"
-	fi
-} 
-
-kj_app_access_status_color() {
-	local status="$1"
-	case "$status" in
-		允许) echo -e "${gl_lv}允许${gl_bai}" ;;
-		阻止) echo -e "${gl_hong}阻止${gl_bai}" ;;
-		部分阻止) echo -e "${gl_huang}部分阻止${gl_bai}" ;;
-		*) echo "$status" ;;
-	esac
-}
-
-kj_app_blocked_ports_summary() {
-	if [ -z "${KJ_APP_BLOCKED_PORTS:-}" ]; then
-		kj_app_refresh_blocked_ports_cache
-	fi
-	echo "${KJ_APP_BLOCKED_PORTS#,}" | sed 's/,$//'
-}
-
-kj_app_block_host_port() {
-	local port="$1"
-	[ -z "$port" ] && return 1
-	install iptables
-	iptables -N KJ_APP_PORT_BLOCK 2>/dev/null || true
-	iptables -C INPUT -j KJ_APP_PORT_BLOCK 2>/dev/null || iptables -I INPUT -j KJ_APP_PORT_BLOCK
-
-	# 本机服务的“阻止 IP+端口访问”只阻止公网/外部来源。
-	# Docker 容器访问宿主机 host.docker.internal:端口 时，来源会是 docker0/br-* 网桥上的 172.* 容器 IP，
-	# 这里必须放行，否则 nginx/caddy 等容器反代宿主机端口会被误判为外部访问并 DROP。
-	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I KJ_APP_PORT_BLOCK -m state --state ESTABLISHED,RELATED -j ACCEPT
-	iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || iptables -A KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP
-	iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP 2>/dev/null || iptables -A KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP
-}
-
-kj_app_allow_host_port() {
-	local port="$1"
-	[ -z "$port" ] && return 1
-	install iptables
-	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP; done
-	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP; done
-	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s 127.0.0.0/8 -j ACCEPT; done
-	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -s 127.0.0.0/8 -j ACCEPT; done
-	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i docker0 -j ACCEPT; done
-	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT; done
-	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT; done
-	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT; done
-
-	# 手动放行也必须清理 Docker DNAT/FORWARD 路径里的“宿主机原始端口”规则；否则汇总仍显示阻止，公网端口也可能仍不通。
-	while iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP; done
-	while iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p udp -m conntrack --ctorigdstport "$port" -j DROP; done
-
-	if command -v ip6tables >/dev/null 2>&1; then
-		while ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP; done
-		while ip6tables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP; done
-		while ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s ::1/128 -j ACCEPT 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s ::1/128 -j ACCEPT; done
-		while ip6tables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -s ::1/128 -j ACCEPT 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -s ::1/128 -j ACCEPT; done
-	fi
-}
-
-kj_app_block_docker() {
-	local cname="$1"
-	local container_ip
-	container_ip=$(kj_app_docker_ip "$cname")
-	if [ -z "$container_ip" ]; then
-		echo "未找到容器IP: $cname"
-		return 1
-	fi
-	install iptables
-	iptables -N DOCKER-USER 2>/dev/null || true
-	# 有些系统/重载后 FORWARD 链没有跳到 DOCKER-USER，导致显示“阻止”但仍可访问；这里强制补上。
-	iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
-
-	# 先清理这个容器IP的旧规则，避免旧的 10/172/192 私网放行导致局域网 IP+端口仍能访问。
-	while iptables -C DOCKER-USER -d "$container_ip" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -j DROP; done
-	while iptables -C DOCKER-USER -s 127.0.0.0/8 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 127.0.0.0/8 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 10.0.0.0/8 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 10.0.0.0/8 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 172.16.0.0/12 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 172.16.0.0/12 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 192.168.0.0/16 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 192.168.0.0/16 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT; done
-
-	# 放行已建立连接和 Docker 网桥来源，阻止其它来源直接 IP+端口访问容器。
-	iptables -I DOCKER-USER 1 -d "$container_ip" -j DROP
-	iptables -I DOCKER-USER 1 -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT
-	iptables -I DOCKER-USER 1 -i br+ -d "$container_ip" -j ACCEPT
-	iptables -I DOCKER-USER 1 -i docker0 -d "$container_ip" -j ACCEPT
-
-	# Docker 可能同时发布 IPv6（如 [::]:18080）。IPv6 多数走 docker-proxy/INPUT，补 ip6tables 端口阻止。
-	if command -v ip6tables >/dev/null 2>&1; then
-		ip6tables -N KJ_APP_PORT_BLOCK 2>/dev/null || true
-		ip6tables -C INPUT -j KJ_APP_PORT_BLOCK 2>/dev/null || ip6tables -I INPUT -j KJ_APP_PORT_BLOCK
-		local hp
-		for hp in $(docker port "$cname" 2>/dev/null | awk -F: '/->/ {print $NF}' | sort -n -u); do
-			ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -s ::1/128 -j ACCEPT 2>/dev/null || ip6tables -I KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -s ::1/128 -j ACCEPT
-			ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -j DROP 2>/dev/null || ip6tables -A KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -j DROP
-		done
-	fi
-}
-
-kj_app_allow_docker() {
-	local cname="$1"
-	local container_ip
-	container_ip=$(kj_app_docker_ip "$cname")
-	[ -z "$container_ip" ] && return 0
-	while iptables -C DOCKER-USER -d "$container_ip" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -j DROP; done
-	while iptables -C DOCKER-USER -i br+ -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -i br+ -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -i docker0 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -i docker0 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 127.0.0.0/8 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 127.0.0.0/8 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 10.0.0.0/8 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 10.0.0.0/8 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 172.16.0.0/12 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 172.16.0.0/12 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -s 192.168.0.0/16 -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -s 192.168.0.0/16 -d "$container_ip" -j ACCEPT; done
-	while iptables -C DOCKER-USER -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT 2>/dev/null; do iptables -D DOCKER-USER -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT; done
-	if command -v ip6tables >/dev/null 2>&1; then
-		local hp
-		for hp in $(docker port "$cname" 2>/dev/null | awk -F: '/->/ {print $NF}' | sort -n -u); do
-			while ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -j DROP 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -j DROP; done
-			while ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -s ::1/128 -j ACCEPT 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p tcp --dport "$hp" -s ::1/128 -j ACCEPT; done
-		done
-	fi
-}
-
-kj_app_ssh_risky_ports() {
-	{
-		echo "22"
-		if [ -f /etc/ssh/sshd_config ]; then
-			awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null
-		fi
-		if command -v ss >/dev/null 2>&1; then
-			ss -ltnp 2>/dev/null | awk '/sshd/ {split($4,a,":"); p=a[length(a)]; if (p ~ /^[0-9]+$/) print p}'
-		fi
-	} | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u
-}
-
-kj_app_port_is_ssh_risky() {
-	local check_port="$1"
-	local risky_port
-	for risky_port in $(kj_app_ssh_risky_ports); do
-		[ "$check_port" = "$risky_port" ] && return 0
-	done
-	return 1
-}
-
-kj_app_confirm_block_ssh_risky_port() {
-	local risky_port="$1"
-	local confirm
-	if [ "$risky_port" = "22" ]; then
-		echo -e "${gl_hong}注意22为默认SSH端口${gl_bai}"
-	else
-		echo -e "${gl_hong}注意${risky_port}为当前SSH监听端口${gl_bai}"
-	fi
-	echo -e "${gl_hong}阻止可能会导致SSH无法登录${gl_bai}"
-	echo -e "${gl_lv}请确保更改了默认端口或添加了其他端口${gl_bai}"
-	read -e -p "高危操作需要慎重选择（确认请输入yes）[默认: N]: " confirm
-	[ "$confirm" = "yes" ]
-}
-
-kj_app_block_port() {
-	local port="$1"
-	local target="$2"
-	local type="$3"
-	local p
-	local total_count=0
-	local block_ports=""
-	local skipped_ports=""
-	if [ "$type" = "docker" ]; then
-		kj_app_cleanup_docker_container_wide_block "$target"
-	fi
-	for p in ${port//,/ }; do
-		[ -z "$p" ] && continue
-		total_count=$((total_count + 1))
-	done
-	for p in ${port//,/ }; do
-		[ -z "$p" ] && continue
-		if kj_app_port_is_ssh_risky "$p"; then
-			if [ "$total_count" -gt 1 ]; then
-				skipped_ports="${skipped_ports:+$skipped_ports,}$p"
-				continue
-			fi
-			if ! kj_app_confirm_block_ssh_risky_port "$p"; then
-				echo -e "${gl_hong}${p}端口操作已取消${gl_bai}"
-				return 1
-			fi
-		fi
-		block_ports="${block_ports:+$block_ports,}$p"
-	done
-	if [ -n "$block_ports" ]; then
-		for p in ${block_ports//,/ }; do
-			[ -z "$p" ] && continue
-			if [ "$type" = "docker" ]; then
-				kj_app_block_docker_port "$target" "$p"
-			else
-				kj_app_block_host_port "$p"
-			fi
-		done
-		if [ -n "${KJ_APP_PENDING_BLOCK_REMARK:-}" ]; then
-			kj_app_save_block_remark "$KJ_APP_PENDING_BLOCK_REMARK" "$block_ports"
-			KJ_APP_PENDING_BLOCK_REMARK=""
-		fi
-		kj_app_save_iptables_rules
-		kj_app_refresh_blocked_ports_cache
-		echo "已阻止公网 IP+端口 直接访问: $block_ports"
-	fi
-	if [ -n "$skipped_ports" ]; then
-		local skipped_port
-		for skipped_port in ${skipped_ports//,/ }; do
-			echo -e "${gl_hong}${skipped_port}端口操作失败，需单独操作${gl_bai}"
-		done
-		[ -n "$block_ports" ] && echo "其他端口操作完成"
-	fi
-}
-
-kj_app_allow_port() {
-	local port="$1"
-	local target="$2"
-	local type="$3"
-	local p
-	if [ "$type" = "docker" ]; then
-		kj_app_cleanup_docker_container_wide_block "$target"
-	fi
-	for p in ${port//,/ }; do
-		[ -z "$p" ] && continue
-		kj_app_allow_host_port "$p"
-	done
-	kj_app_remove_block_remark_ports "$port"
-	kj_app_save_iptables_rules
-	kj_app_refresh_blocked_ports_cache
-	echo "已允许 IP+端口 直接访问: $port"
-}
-
-kj_app_nginx_running() {
-	if docker inspect -f '{{.State.Running}}' nginx 2>/dev/null | grep -q true; then
-		return 0
-	fi
-	systemctl is-active --quiet nginx 2>/dev/null
-}
-
-kj_app_caddy_running() {
-	# 本地安装的 Caddy 按 58 号配置检测；Docker Caddy 按容器运行状态检测。
-	[ "$(systemctl is-active caddy 2>/dev/null)" = "active" ] && return 0
-	docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true
-}
-
-kj_app_running_proxy_name() {
-	local names=""
-	kj_app_nginx_running && names="nginx"
-	kj_app_caddy_running && names="${names:+$names、}caddy"
-	[ -n "$names" ] && echo "$names" || echo "无"
-}
-
-kj_app_default_proxy() {
-	# 如果只有一个服务运行，用正在运行的；两个都运行时优先 caddy。
-	if kj_app_caddy_running; then
-		echo "caddy"
-	elif kj_app_nginx_running; then
-		echo "nginx"
-	else
-		echo "nginx"
-	fi
-}
-
-kj_app_select_proxy() {
-	local running default_proxy choice
-	running=$(kj_app_running_proxy_name)
-	default_proxy=$(kj_app_default_proxy)
-	echo "------------------------" >&2
-	echo "1. 使用 nginx" >&2
-	echo "2. 使用 caddy" >&2
-	echo "现在运行的是：$running" >&2
-	echo "0. 退出" >&2
-	echo "------------------------" >&2
-	read -e -p "请输入你的选择回车默认选择正在运行的: " choice
-	case "$choice" in
-		1) echo "nginx" ;;
-		2) echo "caddy" ;;
-		0) echo "" ;;
-		"") echo "$default_proxy" ;;
-		*) echo "$default_proxy" ;;
-	esac
-}
-
-kj_app_reload_proxy_after_network_fix() {
-	local proxy_type="$1"
-	case "$proxy_type" in
-		nginx)
-			if docker inspect -f '{{.State.Running}}' nginx 2>/dev/null | grep -q true; then
-				echo "正在检测 Docker nginx 配置..."
-				if docker exec nginx nginx -t >/dev/null 2>&1; then
-					docker exec nginx nginx -s reload >/dev/null 2>&1 || docker restart nginx
-					echo "Docker nginx 检查通过，已重载/重启。"
-				else
-					echo "nginx 配置检测失败，已跳过重启，避免 nginx 启动不了。"
-					docker exec nginx nginx -t 2>&1 || true
-				fi
-			elif systemctl is-active --quiet nginx 2>/dev/null; then
-				echo "正在重载本地 nginx..."
-				systemctl reload nginx || systemctl restart nginx
-			else
-				echo "未检测到正在运行的 nginx，跳过重启。"
-			fi
-			;;
-		caddy)
-			if [ "$(systemctl is-active caddy 2>/dev/null)" = "active" ]; then
-				echo "正在重载本地 Caddy..."
-				systemctl reload caddy || systemctl restart caddy
-			elif docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true; then
-				echo "正在重启 Docker caddy..."
-				docker restart caddy
-			else
-				echo "未检测到正在运行的 caddy，跳过重载。"
-			fi
-			;;
-	esac
-}
-
-kj_app_check_reload_proxy_menu() {
-	local proxy_type
-	proxy_type=$(kj_app_select_proxy)
-	[ -z "$proxy_type" ] && return 0
-	kj_app_reload_proxy_after_network_fix "$proxy_type"
-}
-
-kj_app_add_domain_nginx() {
-	local port="$1"
-	local target="$2"
-	local type="$3"
-	# Docker nginx 统一反代到宿主机映射端口；nginx 容器需已配置 host.docker.internal:host-gateway。
-	local backend_host="host.docker.internal"
-	local backend_port="$port"
-	nginx_install_status
-	add_yuming
-	install_ssltls
-	certs_status
-	mkdir -p /home/web/conf.d
-	wget -O /home/web/conf.d/$yuming.conf ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/nginx/main/reverse-proxy.conf
-	sed -i "s/yuming.com/$yuming/g" /home/web/conf.d/$yuming.conf
-	sed -i "s/0.0.0.0/$backend_host/g" /home/web/conf.d/$yuming.conf
-	sed -i "s/0000/$backend_port/g" /home/web/conf.d/$yuming.conf
-	if docker exec nginx nginx -t >/dev/null 2>&1; then
-		docker exec nginx nginx -s reload >/dev/null 2>&1 || docker restart nginx >/dev/null 2>&1
-		echo "已使用 nginx 添加域名访问: https://$yuming -> $backend_host:$backend_port"
-	else
-		echo "nginx 配置检测失败，请检查: /home/web/conf.d/$yuming.conf"
-		docker exec nginx nginx -t 2>&1 || true
-	fi
-}
-
-kj_app_add_domain_caddy() {
-	local port="$1"
-	local target="$2"
-	local type="$3"
-	local backend_host="127.0.0.1"
-	local backend_port="$port"
-	local caddyfile="/etc/caddy/Caddyfile"
-	local caddy_mode="local"
-	# 本地 Caddy 参考 58 号配置，使用 127.0.0.1:本地端口；Docker Caddy 使用 host.docker.internal:本地端口。
-	if [ "$(systemctl is-active caddy 2>/dev/null)" = "active" ]; then
-		caddy_mode="local"
-		backend_host="127.0.0.1"
-		caddyfile="/etc/caddy/Caddyfile"
-	elif docker inspect -f '{{.State.Running}}' caddy 2>/dev/null | grep -q true; then
-		caddy_mode="docker"
-		backend_host="host.docker.internal"
-		caddyfile="$caddy_docker_caddyfile"
-	else
-		echo "未检测到正在运行的本地 Caddy 或 Docker Caddy。"
-		return 1
-	fi
-	add_yuming
-	mkdir -p "$(dirname "$caddyfile")"
-	[ -f "$caddyfile" ] || touch "$caddyfile"
-	if grep -qE "^[[:space:]]*$yuming[[:space:]]*\{" "$caddyfile" 2>/dev/null; then
-		echo "域名 $yuming 已存在于 Caddyfile，请勿重复添加。"
-		return 1
-	fi
-	cat >> "$caddyfile" <<EOF
-
-# TAG: $yuming
-$yuming {
-    reverse_proxy $backend_host:$backend_port {
-        header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-    }
-}
-EOF
-	if [ "$caddy_mode" = "docker" ]; then
-		docker run --rm -v "$caddyfile:/etc/caddy/Caddyfile" caddy:latest caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null 2>&1 || true
-		caddy_docker_reload
-		echo "已使用 Docker caddy 添加域名访问: https://$yuming -> $backend_host:$backend_port"
-	else
-		if ! command -v caddy >/dev/null 2>&1; then
-			echo "未检测到 caddy 命令，请检查本地 Caddy 安装。"
-			return 1
-		fi
-		caddy fmt --overwrite "$caddyfile" >/dev/null 2>&1 || true
-		if caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null 2>&1; then
-			systemctl reload caddy >/dev/null 2>&1 || systemctl restart caddy >/dev/null 2>&1
-			echo "已使用本地 caddy 添加域名访问: https://$yuming -> $backend_host:$backend_port"
-		else
-			echo "Caddyfile 配置有误，请手动检查: $caddyfile"
-			caddy validate --config "$caddyfile" --adapter caddyfile
-		fi
-	fi
-}
-
-kj_app_add_domain() {
-	local port="$1"
-	local target="$2"
-	local type="$3"
-	local proxy_type
-	[ -z "$port" ] && return 1
-	proxy_type=$(kj_app_select_proxy)
-	[ -z "$proxy_type" ] && return 0
-	case "$proxy_type" in
-		nginx) kj_app_add_domain_nginx "$port" "$target" "$type" ;;
-		caddy) kj_app_add_domain_caddy "$port" "$target" "$type" ;;
-	esac
-}
-
-kj_app_del_domain() {
-	read -e -p "请输入要删除访问配置的域名（不带 https://）: " yuming
-	[ -z "$yuming" ] && return
-	rm -f "/home/web/conf.d/$yuming.conf"
-	rm -f "/home/web/certs/${yuming}_key.pem" "/home/web/certs/${yuming}_cert.pem"
-	docker exec nginx nginx -s reload >/dev/null 2>&1 || docker restart nginx >/dev/null 2>&1
-	echo "已删除域名访问配置: $yuming"
-}
-
-kj_app_select_port() {
-	local ports="$1"
-	local mode="${2:-select}"
-	local port_count prompt
-	port_count=$(echo "$ports" | tr ',' '\n' | sed '/^$/d' | wc -l)
-	if [ "$port_count" -le 1 ]; then
-		echo "$ports" | cut -d',' -f1
-		return
-	fi
-	while true; do
-		echo "该应用有多个端口: $ports" >&2
-		echo "说明: 可输入一个端口，也可复制多个端口用英文逗号分隔。" >&2
-		case "$mode" in
-			allow) prompt="请输入要操作的端口（回车全部允许，输入0退出）: " ;;
-			block) prompt="请输入要操作的端口（回车全部封禁，输入0退出）: " ;;
-			*) prompt="请输入要操作的端口: " ;;
-		esac
-		read -e -p "$prompt" chosen_port
-		chosen_port=$(echo "$chosen_port" | tr -d ' ')
-		if [ "$chosen_port" = "0" ]; then
-			echo ""
-			return
-		fi
-		if [ -z "$chosen_port" ] && { [ "$mode" = "allow" ] || [ "$mode" = "block" ]; }; then
-			echo "$ports"
-			return
-		fi
-		if echo "$chosen_port" | grep -Eq '^[0-9]+(,[0-9]+)*$'; then
-			local valid="true"
-			local p
-			for p in ${chosen_port//,/ }; do
-				if ! echo ",$ports," | grep -Fq ",$p,"; then
-					valid="false"
-					break
-				fi
-			done
-			if [ "$valid" = "true" ]; then
-				echo "$chosen_port"
-				return
-			fi
-		fi
-		echo "端口无效，请输入列表中的端口；多个端口用英文逗号分隔。" >&2
-	done
-}
-
-kj_app_wrap_csv_lines() {
-	local value="$1"
-	local width="${2:-42}"
-	if [ -z "$value" ] || [ "$value" = "-" ]; then
-		echo "-"
-		return
-	fi
-	awk -v s="$value" -v w="$width" '
-	BEGIN {
-		n = split(s, a, ",")
-		line = ""
-		for (i = 1; i <= n; i++) {
-			item = a[i]
-			gsub(/^[[:space:]]+|[[:space:]]+$/, "", item)
-			candidate = (line == "" ? item : line "," item)
-			if (length(candidate) > w && line != "") {
-				print line
-				line = item
-			} else {
-				line = candidate
-			}
-		}
-		if (line != "") print line
-	}'
-}
-
-kj_app_wrap_ports_colored() {
-	local ports="$1"
-	local target="$2"
-	local type="$3"
-	local width="${4:-34}"
-	if [ -z "$ports" ] || [ "$ports" = "-" ]; then
-		echo "-"
-		return
-	fi
-	local p token raw_line color_line raw_candidate color_candidate
-	raw_line=""
-	color_line=""
-	for p in ${ports//,/ }; do
-		[ -z "$p" ] && continue
-		if kj_app_port_is_blocked "$p" "$target" "$type"; then
-			token="${gl_hong}${p}${gl_bai}"
-		else
-			token="$p"
-		fi
-		raw_candidate="${raw_line:+$raw_line,}$p"
-		color_candidate="${color_line:+$color_line,}$token"
-		if [ ${#raw_candidate} -gt "$width" ] && [ -n "$raw_line" ]; then
-			echo -e "$color_line"
-			raw_line="$p"
-			color_line="$token"
-		else
-			raw_line="$raw_candidate"
-			color_line="$color_candidate"
-		fi
-	done
-	[ -n "$color_line" ] && echo -e "$color_line"
-}
-
-kj_app_port_detail_menu() {
-	local idx="$1"
-	local app_id="${KJ_APP_IDS[$idx]}"
-	local app_name="${KJ_APP_NAMES[$idx]}"
-	local app_ports="${KJ_APP_PORTS[$idx]}"
-	local app_container_ports="${KJ_APP_CONTAINER_PORTS[$idx]}"
-	local app_domains="${KJ_APP_DOMAINS[$idx]}"
-	local app_target="${KJ_APP_TARGETS[$idx]}"
-	local app_type="${KJ_APP_TYPES[$idx]}"
-	local local_ports_display container_ports_display
-	if [ "$app_type" = "docker" ]; then
-		local_ports_display="$app_ports"
-		container_ports_display="${app_container_ports:-}"; [ -z "$container_ports_display" ] && container_ports_display="-"
-	else
-		local_ports_display="$app_ports"
-		container_ports_display="-"
-	fi
-	while true; do
-		clear
-		echo "应用: $app_id  $app_name"
-		echo "本地端口:"
-		kj_app_wrap_ports_colored "$local_ports_display" "$app_target" "$app_type" 60
-		echo "容器端口:"
-		kj_app_wrap_csv_lines "$container_ports_display" 60
-		echo -e "安装方法：$(kj_app_install_method_label "$app_type")"
-		echo "域名: $app_domains"
-		local status_plain
-		status_plain=$(kj_app_access_status "$app_ports" "$app_target" "$app_type")
-		echo -e "是否允许: $(kj_app_access_status_color "$status_plain")"
-		echo "------------------------"
-		echo "1. 添加域名访问     2. 删除域名访问"
-		echo "3. 允许IP+端口访问  4. 阻止公网IP+端口访问"
-		echo "5. nginx或caddy检查重启"
-		echo "------------------------"
-		echo "0. 返回上一级"
-		echo "------------------------"
-		read -e -p "请输入你的选择: " choice
-		case "$choice" in
-			1)
-				local port
-				port=$(kj_app_select_port "$app_ports")
-				kj_app_add_domain "$port" "$app_target" "$app_type"
-				;;
-			2)
-				kj_app_del_domain
-				;;
-			3)
-				local port
-				port=$(kj_app_select_port "$app_ports" "allow")
-				[ -z "$port" ] && break_end && continue
-				kj_app_allow_port "$port" "$app_target" "$app_type"
-				;;
-			4)
-				local port
-				KJ_APP_PENDING_BLOCK_REMARK=$(kj_app_prompt_block_remark)
-				port=$(kj_app_select_port "$app_ports" "block")
-				if [ -z "$port" ]; then
-					KJ_APP_PENDING_BLOCK_REMARK=""
-					break_end
-					continue
-				fi
-				kj_app_block_port "$port" "$app_target" "$app_type"
-				;;
-			5)
-				kj_app_check_reload_proxy_menu
-				;;
-			0)
-				break
-				;;
-			*)
-				echo "无效的输入!"
-				;;
-		esac
-		break_end
-	done
-}
-
-kj_app_manual_port_manage() {
-	while true; do
-		clear
-		kj_app_refresh_blocked_ports_cache
-		local blocked_ports_summary
-		blocked_ports_summary=$(kj_app_blocked_ports_summary)
-		echo -e "${gl_hong}=============================================${gl_bai}"
-		echo -e "${gl_hong}现有阻止的端口${gl_bai}"
-		if [ -n "$blocked_ports_summary" ]; then
-			kj_app_blocked_ports_with_remarks
-		else
-			echo -e "${gl_lv}暂无${gl_bai}"
-		fi
-		echo -e "${gl_hong}=============================================${gl_bai}"
-		echo "1. 阻止端口"
-		echo "2. 放行端口"
-		echo "0. 返回上一级"
-		echo "------------------------"
-		read -e -p "请输入序号进入管理: " manage_choice
-		case "$manage_choice" in
-			1|2)
-				if [ "$manage_choice" = "1" ]; then
-					KJ_APP_PENDING_BLOCK_REMARK=$(kj_app_prompt_block_remark)
-				fi
-				read -e -p "请输入端口，多个端口用英文逗号分隔: " manage_ports
-				manage_ports=$(echo "$manage_ports" | tr -d ' ')
-				if ! echo "$manage_ports" | grep -Eq '^[0-9]+(,[0-9]+)*$'; then
-					echo "端口格式无效"
-					KJ_APP_PENDING_BLOCK_REMARK=""
-					break_end
-					continue
-				fi
-				local p invalid="false"
-				for p in ${manage_ports//,/ }; do
-					if [ "$p" -lt 1 ] || [ "$p" -gt 65535 ]; then
-						invalid="true"
-						break
-					fi
-				done
-				if [ "$invalid" = "true" ]; then
-					echo "端口范围无效，请输入 1-65535"
-					KJ_APP_PENDING_BLOCK_REMARK=""
-					break_end
-					continue
-				fi
-				if [ "$manage_choice" = "1" ]; then
-					kj_app_block_port "$manage_ports" "" "manual"
-				else
-					for p in ${manage_ports//,/ }; do
-						kj_app_allow_host_port "$p"
-					done
-					kj_app_remove_block_remark_ports "$manage_ports"
-					kj_app_save_iptables_rules
-					kj_app_refresh_blocked_ports_cache
-					echo "已放行公网 IP+端口 直接访问: $manage_ports"
-				fi
-				break_end
-				;;
-			0)
-				break
-				;;
-			*)
-				echo "无效选择"
-				break_end
-				;;
-		esac
-	done
+	[ -n "$extra_ports" ] && kj_app_allow_add_entry "手动" "$extra_ports"
+	kj_app_apply_allow_firewall
+	echo "全部阻止模式已启用"
 }
 
 linux_app_ports() {
 	while true; do
 		clear
-		send_stats "安装的应用以及应用端口"
-		kj_app_collect_ports
-		kj_app_refresh_blocked_ports_cache
-		echo -e "${gl_kjlan}安装的应用以及应用端口${gl_bai}"
-		printf "%-6s %-6s %-34s %-34s %-10s\n" "序号" "编号" "本地端口" "容器端口" "是否允许"
-		echo "------------------------"
-		local i
-		for i in "${!KJ_APP_NAMES[@]}"; do
-			local status status_color local_ports_display container_ports_display method_color
-			local local_lines container_lines max_lines line_idx
-			status=$(kj_app_access_status "${KJ_APP_PORTS[$i]}" "${KJ_APP_TARGETS[$i]}" "${KJ_APP_TYPES[$i]}")
-			status_color=$(kj_app_access_status_color "$status")
-			if [ "${KJ_APP_TYPES[$i]}" = "docker" ]; then
-				local_ports_display="${KJ_APP_PORTS[$i]}"
-				container_ports_display="${KJ_APP_CONTAINER_PORTS[$i]}"; [ -z "$container_ports_display" ] && container_ports_display="-"
-			else
-				local_ports_display="${KJ_APP_PORTS[$i]}"
-				container_ports_display="-"
-			fi
-			method_color=$(kj_app_install_method_label "${KJ_APP_TYPES[$i]}")
-			mapfile -t local_lines < <(kj_app_wrap_ports_colored "$local_ports_display" "${KJ_APP_TARGETS[$i]}" "${KJ_APP_TYPES[$i]}" 34)
-			mapfile -t container_lines < <(kj_app_wrap_csv_lines "$container_ports_display" 34)
-			max_lines=${#local_lines[@]}
-			[ ${#container_lines[@]} -gt "$max_lines" ] && max_lines=${#container_lines[@]}
-			for ((line_idx=0; line_idx<max_lines; line_idx++)); do
-				if [ "$line_idx" -eq 0 ]; then
-					printf "%-6s %-6s %-34s %-34s %-10b\n" "$((i+1))." "${KJ_APP_IDS[$i]}" "${local_lines[$line_idx]:-}" "${container_lines[$line_idx]:-}" "$status_color"
-				else
-					printf "%-6s %-6s %-34s %-34s %-10s\n" "" "" "${local_lines[$line_idx]:-}" "${container_lines[$line_idx]:-}" ""
-				fi
-			done
-			echo -e "安装方法：$method_color"
-			echo -e "名称：${gl_bai}${KJ_APP_NAMES[$i]}"
-			echo -e "域名：${gl_huang}${KJ_APP_DOMAINS[$i]}${gl_bai}"
-			echo "------------------------"
-		done
-		local blocked_ports_summary
-		blocked_ports_summary=$(kj_app_blocked_ports_summary)
-		echo -e "${gl_hong}=============================================${gl_bai}"
-		echo -e "${gl_hong}阻止公网IP+端口访问${gl_bai}"
-		if [ -n "$blocked_ports_summary" ]; then
-			kj_app_blocked_ports_with_remarks
-		else
-			echo -e "${gl_lv}暂无${gl_bai}"
+		send_stats "安装的应用端口"
+		kj_app_allow_file_init_default
+		if ! kj_app_allow_firewall_active; then
+			echo -e "${gl_huang}检测到当前还没有启用端口白名单模式。${gl_bai}"
+			echo -e "${gl_huang}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
+			echo -e "${gl_huang}建议先选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
+			echo ""
 		fi
-		echo ""
-		echo -e "${gl_hong}=============================================${gl_bai}"
+		echo -e "${gl_kjlan}安装的应用端口${gl_bai}"
+		kj_app_show_allow_list
 		echo "------------------------"
-		echo "999. 手动管理"
+		echo "1. 放行端口"
+		echo "2. 阻止端口"
+		echo "3. 全部阻止"
+		echo "------------------------"
 		echo "0. 返回上一级"
 		echo "------------------------"
 		read -e -p "请输入序号进入应用管理: " app_choice
-		if [ "$app_choice" = "0" ]; then
-			break
-		fi
-		if [ "$app_choice" = "999" ]; then
-			kj_app_manual_port_manage
-			continue
-		fi
-		if [[ "$app_choice" =~ ^[0-9]+$ ]] && [ "$app_choice" -ge 1 ] && [ "$app_choice" -le "${#KJ_APP_NAMES[@]}" ]; then
-			kj_app_port_detail_menu "$((app_choice-1))"
-		else
-			echo "无效的输入!"
-			break_end
-		fi
-	done
-}
-# ===== Hermes: 已安装应用端口管理（990）结束 =====
-
-
-# ===== Hermes: Caddy 官方 Docker 管理（100） =====
-caddy_docker_dir="/home/docker/caddy"
-caddy_docker_backup_dir="/home/caddy"
-caddy_docker_compose_file="$caddy_docker_dir/docker-compose.yml"
-caddy_docker_caddyfile="$caddy_docker_dir/Caddyfile"
-
-caddy_docker_ensure_installed() {
-	install docker docker-compose-plugin
-	mkdir -p "$caddy_docker_dir/data" "$caddy_docker_dir/config" "$caddy_docker_backup_dir"
-	if [ ! -f "$caddy_docker_caddyfile" ]; then
-		cat > "$caddy_docker_caddyfile" <<'EOF'
-:80 {
-    respond "Caddy Docker is running"
-}
-EOF
-	fi
-	cat > "$caddy_docker_compose_file" <<'EOF'
-services:
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./data:/data
-      - ./config:/config
-EOF
-	cd "$caddy_docker_dir" || return 1
-	docker compose up -d
-}
-
-caddy_docker_reload() {
-	cd "$caddy_docker_dir" || return 1
-	if ! docker ps --format '{{.Names}}' | grep -Fxq caddy; then
-		docker compose up -d
-	fi
-	if docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
-		docker exec caddy caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1 || docker compose restart caddy
-		echo "✅ Caddy Docker 配置已生效"
-	else
-		echo "❌ Caddyfile 配置有误："
-		docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-	fi
-}
-
-caddy_docker_list_config_internal() {
-	if [ ! -s "$caddy_docker_caddyfile" ]; then
-		echo "⚠️ 无配置。"
-		return
-	fi
-	awk '
-	BEGIN { tag = ""; block = ""; inside = 0 }
-	/^# TAG: / { tag = substr($0, 8); next }
-	/^[^# \t].*\{$/ { inside = 1; block = $0; next }
-	inside == 1 {
-		block = block "\n" $0
-		if ($0 ~ /^}/) {
-			printf "[\033[36m%s\033[0m] %s\n\n", (tag==""?"无备注":tag), block
-			tag = ""; block = ""; inside = 0
-		}
-	}' "$caddy_docker_caddyfile"
-}
-
-caddy_docker_add_site() {
-	caddy_docker_ensure_installed
-	local DOMAIN PORT COMMENT
-	while true; do
-		read -e -p "请输入你的域名（例如 www.123.com）: " DOMAIN
-		[ -n "$DOMAIN" ] && break
-		echo "❌ 域名不能为空"
-	done
-	while true; do
-		read -e -p "请输入反向代理端口（例如 18080）: " PORT
-		[[ "$PORT" =~ ^[0-9]+$ ]] && break
-		echo "❌ 端口必须是纯数字"
-	done
-	read -e -p "请输入该网站的备注（可留空，默认域名）: " COMMENT
-	COMMENT=${COMMENT:-$DOMAIN}
-	if grep -qE "^[[:space:]]*$DOMAIN[[:space:]]*\{" "$caddy_docker_caddyfile" 2>/dev/null; then
-		echo "⚠️ 域名 $DOMAIN 已存在，请勿重复添加。"
-		return
-	fi
-	cat >> "$caddy_docker_caddyfile" <<EOF
-
-# TAG: $COMMENT
-$DOMAIN {
-    reverse_proxy host.docker.internal:$PORT {
-        header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-    }
-}
-EOF
-	docker run --rm -v "$caddy_docker_caddyfile:/etc/caddy/Caddyfile" caddy:latest caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null 2>&1 || true
-	caddy_docker_reload
-}
-
-caddy_docker_delete_site() {
-	[ -f "$caddy_docker_caddyfile" ] || { echo "❌ 配置文件不存在"; return; }
-	mapfile -t INDEX_LIST < <(awk '/^# TAG: / { tag = substr($0, 8); next } /^[^# \t].*\{$/ { d=$1; gsub(/,/, "", d); printf "[%s] %s\n", (tag==""?"无备注":tag), d; tag="" }' "$caddy_docker_caddyfile")
-	if [ ${#INDEX_LIST[@]} -eq 0 ]; then
-		echo "⚠️ 未发现可删除的网站配置"
-		return
-	fi
-	echo "请选择要删除的网站配置："
-	for i in "${!INDEX_LIST[@]}"; do
-		echo "$((i+1)). ${INDEX_LIST[$i]}"
-	done
-	echo "0. 退出"
-	read -e -p "请输入序号: " SELECTED
-	[ "$SELECTED" = "0" ] && return
-	if [[ ! "$SELECTED" =~ ^[0-9]+$ ]] || [ "$SELECTED" -lt 1 ] || [ "$SELECTED" -gt "${#INDEX_LIST[@]}" ]; then
-		echo "❌ 无效选择"
-		return
-	fi
-	TARGET_INFO="${INDEX_LIST[$((SELECTED-1))]}"
-	TARGET_DOMAIN=$(echo "$TARGET_INFO" | awk '{print $2}')
-	TARGET_TAG=$(echo "$TARGET_INFO" | cut -d']' -f1 | sed 's/\[//')
-	read -e -p "确定删除 $TARGET_DOMAIN 吗？(y/n): " CONFIRM
-	if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
-		awk -v domain="$TARGET_DOMAIN" -v tag="$TARGET_TAG" '
-		BEGIN { skip=0; brace=0 }
-		$0 == "# TAG: " tag { pending=1; next }
-		pending && $0 ~ "^" domain "[[:space:]]*\\{" { skip=1; pending=0; brace=1; next }
-		pending { print "# TAG: " tag; pending=0 }
-		skip {
-			if ($0 ~ /^}/) { skip=0; brace=0 }
-			next
-		}
-		{ print }
-		' "$caddy_docker_caddyfile" > "$caddy_docker_caddyfile.tmp" && mv "$caddy_docker_caddyfile.tmp" "$caddy_docker_caddyfile"
-		caddy_docker_reload
-		 echo "🗑 已删除 $TARGET_DOMAIN"
-	fi
-}
-
-caddy_docker_backup() {
-	mkdir -p "$caddy_docker_backup_dir"
-	local ts backup_file
-	ts=$(date +%Y-%m%d-%H%M)
-	backup_file="$caddy_docker_backup_dir/caddy-$ts.tar.gz"
-	if [ ! -d "$caddy_docker_dir" ]; then
-		echo "❌ 未找到 $caddy_docker_dir，无法备份"
-		return 1
-	fi
-	tar -czf "$backup_file" -C /home/docker caddy
-	echo "✅ 备份完成：$backup_file"
-}
-
-caddy_docker_restore_from_dir() {
-	local src_dir="$1"
-	mapfile -t backups < <(ls -t "$src_dir"/caddy-*.tar.gz "$src_dir"/caddy*.tar.gz 2>/dev/null | awk '!seen[$0]++')
-	if [ ${#backups[@]} -eq 0 ]; then
-		echo "❌ $src_dir 没有找到 caddy 备份包"
-		return
-	fi
-	echo "请选择恢复包："
-	for i in "${!backups[@]}"; do
-		echo "$((i+1)). $(basename "${backups[$i]}")"
-	done
-	echo "0. 退出"
-	read -e -p "请输入序号（回车默认最新）: " sel
-	[ "$sel" = "0" ] && return
-	if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#backups[@]}" ]; then
-		restore_file="${backups[$((sel-1))]}"
-	else
-		restore_file="${backups[0]}"
-	fi
-	if [ -d "$caddy_docker_dir" ]; then
-		cd "$caddy_docker_dir" && docker compose down >/dev/null 2>&1 || true
-		mv "$caddy_docker_dir" "${caddy_docker_dir}.before_restore_$(date +%Y%m%d%H%M%S)"
-	fi
-	mkdir -p /home/docker
-	tar -xzf "$restore_file" -C /home/docker
-	echo "✅ 已恢复：$restore_file"
-	caddy_docker_ensure_installed
-}
-
-caddy_docker_restore_menu() {
-	caddy_docker_ensure_installed
-	echo "1. 从 /home/ 恢复"
-	echo "2. 从 /home/caddy 恢复"
-	echo "0. 退出"
-	read -e -p "请输入你的选择: " src_choice
-	case "$src_choice" in
-		1) caddy_docker_restore_from_dir "/home" ;;
-		2|"") caddy_docker_restore_from_dir "/home/caddy" ;;
-		0) return ;;
-		*) echo "无效选择" ;;
-	esac
-}
-
-caddy_docker_update() {
-	caddy_docker_ensure_installed
-	cd "$caddy_docker_dir" || return 1
-	docker compose pull
-	docker compose up -d
-	echo "✅ Caddy Docker 已更新"
-}
-
-caddy_docker_start_restart() {
-	caddy_docker_ensure_installed
-	cd "$caddy_docker_dir" || return 1
-	docker compose up -d
-	docker compose restart caddy >/dev/null 2>&1 || true
-	caddy_docker_reload
-	echo "✅ Caddy Docker 已启动/重启"
-}
-
-caddy_docker_stop() {
-	if [ ! -d "$caddy_docker_dir" ]; then
-		echo "❌ 未找到 $caddy_docker_dir"
-		return 1
-	fi
-	cd "$caddy_docker_dir" || return 1
-	docker compose down
-	echo "✅ Caddy Docker 已停止"
-}
-
-caddy_docker_uninstall() {
-	if [ ! -d "$caddy_docker_dir" ]; then
-		echo "❌ 未找到 $caddy_docker_dir，无需卸载"
-		return 1
-	fi
-	echo "⚠️ 将停止并删除 Caddy Docker：$caddy_docker_dir"
-	echo "   备份目录 $caddy_docker_backup_dir 不会删除。"
-	read -e -p "卸载前是否先备份？(Y/n): " backup_confirm
-	if [[ ! "$backup_confirm" =~ ^[Nn]$ ]]; then
-		caddy_docker_backup || return 1
-	fi
-	read -e -p "确认卸载并删除 $caddy_docker_dir 吗？(y/N): " confirm
-	if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-		echo "已取消卸载"
-		return
-	fi
-	cd "$caddy_docker_dir" && docker compose down >/dev/null 2>&1 || true
-	rm -rf "$caddy_docker_dir"
-	echo "✅ Caddy Docker 已卸载，备份保留在：$caddy_docker_backup_dir"
-}
-
-caddy_docker_manager() {
-	while true; do
-		clear
-		echo "=============================="
-		echo "      🛠 Caddy Docker 管理脚本"
-		echo "📄 当前配置内容："
-		echo "=============================="
-		caddy_docker_list_config_internal
-		echo "1. 安装到 /home/docker/caddy（可备注，端口 80/443/443udp）"
-		echo "2. 添加网站配置"
-		echo "3. 删除网站配置"
-		echo "4. 备份到 /home/caddy/caddy-时间.tar.gz"
-		echo "5. 恢复（从 /home 或 /home/caddy 选择）"
-		echo "6. 更新"
-		echo "7. 启动或重启"
-		echo "8. 停止"
-		echo "9. 卸载"
-		echo "0. 退出"
-		echo "=============================="
-		read -e -p "请输入你的选择: " choice
-		case "$choice" in
-			1) caddy_docker_ensure_installed ;;
-			2) caddy_docker_ensure_installed; caddy_docker_add_site ;;
-			3) caddy_docker_delete_site ;;
-			4) caddy_docker_backup ;;
-			5) caddy_docker_restore_menu ;;
-			6) caddy_docker_update ;;
-			7) caddy_docker_start_restart ;;
-			8) caddy_docker_stop ;;
-			9) caddy_docker_uninstall ;;
+		case "$app_choice" in
+			1) kj_app_allow_menu_add; break_end ;;
+			2) kj_app_allow_menu_remove; break_end ;;
+			3)
+				local extra_ports
+				read -e -p "请输入需要手动放行的端口，多个端口用英文逗号分隔（可留空）: " extra_ports
+				extra_ports=$(echo "$extra_ports" | tr -d ' ')
+				if [ -n "$extra_ports" ] && ! kj_app_validate_ports_csv "$extra_ports"; then
+					echo -e "${gl_hong}端口格式无效，请输入 1-65535，多个端口用英文逗号分隔${gl_bai}"
+					break_end
+					continue
+				fi
+				kj_app_allow_reset_default "$extra_ports"
+				break_end
+				;;
 			0) break ;;
-			*) echo "无效选择" ;;
+			*) echo "无效的输入!"; break_end ;;
 		esac
-		break_end
 	done
 }
-# ===== Hermes: Caddy 官方 Docker 管理（100）结束 =====
+# ===== Hermes: 应用端口白名单管理（990）结束 =====
 
 # ===== 哪吒远程定时备份配置（11 -> 5 -> 1000） =====
 nezha_remote_backup_base_dir="/home/nezha/remote_backup"
@@ -7631,7 +6364,7 @@ linux_panel() {
     echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
     echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
     echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                     ${gl_kjlan}100. ${gl_bai}caddy官方docker安装"
+    echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕"
     echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份                        ${gl_kjlan}102. ${gl_bai}lobehub安装webai"
     echo -e "${gl_kjlan}103. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}------------------------"
@@ -7758,7 +6491,6 @@ linux_panel() {
     fi
     check_docker "98" "chromium"
     check_path "99" "/root/.hermes"
-    check_docker "100" "caddy"
 	check_path "101" "/root/agent-ai.sh"
 	check_path "102" "lobehub.sh"
     check_docker "102" "windows"
@@ -13388,9 +12120,6 @@ done
         echo "✅ hermes-agent安装成功..."
         ;;
 
-      100)
-        caddy_docker_manager
-        ;;
 
       101)
         clear
