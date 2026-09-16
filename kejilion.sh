@@ -685,7 +685,6 @@ ldnmp_v() {
 	  echo -e "            redis : ${gl_huang}v$redis_version${gl_bai}"
 
 	  echo "------------------------"
-	  echo ""
 
 }
 
@@ -805,15 +804,48 @@ ldnmp_set_redis_policy() {
   docker exec redis redis-cli CONFIG SET maxmemory-policy allkeys-lru >/dev/null 2>&1 || true
 }
 
+ldnmp_default_mysql_version="9.7"
+ldnmp_default_php_version="8.3"
+ldnmp_selected_mysql_version="$ldnmp_default_mysql_version"
+ldnmp_selected_php_version="$ldnmp_default_php_version"
+
+ldnmp_detect_current_versions() {
+  local cur_mysql cur_php
+  cur_mysql=$(docker exec mysql mysqld --version 2>/dev/null | grep -aoE 'Ver [0-9]+\.[0-9]+\.[0-9]+' | head -n1 | awk '{print $2}')
+  cur_php=$(docker exec php php -r 'echo PHP_VERSION;' 2>/dev/null)
+  [ -n "$cur_mysql" ] && echo "当前 MySQL：$cur_mysql"
+  [ -n "$cur_php" ] && echo "当前 PHP：$cur_php"
+}
+
+ldnmp_select_versions() {
+  local mysql_prompt="${1:-请输入mysql版本号 （如: $ldnmp_default_mysql_version）（回车默认$ldnmp_default_mysql_version）: }"
+  local php_prompt="${2:-请输入php版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车默认$ldnmp_default_php_version）: }"
+  local mysql_version php_version
+  ldnmp_detect_current_versions
+  read -e -p "$mysql_prompt" mysql_version
+  mysql_version=${mysql_version:-$ldnmp_default_mysql_version}
+  read -e -p "$php_prompt" php_version
+  php_version=${php_version:-$ldnmp_default_php_version}
+  ldnmp_selected_mysql_version="$mysql_version"
+  ldnmp_selected_php_version="$php_version"
+}
+
+ldnmp_apply_versions() {
+  local mysql_version="${1:-$ldnmp_selected_mysql_version}"
+  local php_version="${2:-$ldnmp_selected_php_version}"
+  ldnmp_compose_set_image mysql "mysql:${mysql_version}"
+  ldnmp_compose_set_image php "php:${php_version}-fpm-alpine"
+  ldnmp_compose_set_image nginx "nginx:alpine"
+  ldnmp_compose_set_image redis "redis:alpine"
+}
 ldnmp_show_default_versions() {
   echo -e "${gl_huang}默认版本策略 包括安装 还原全站数据 更新完整环境${gl_bai}"
   echo -e "1. nginx：${gl_lv}最新${gl_bai}"
-  echo -e "2. mysql：${gl_lv}默认9.7${gl_bai}"
-  echo -e "3. php：${gl_lv}默认8.3，可选 8.4/8.5${gl_bai}"
+  echo -e "2. mysql：${gl_hong}默认${ldnmp_default_mysql_version}${gl_bai}"
+  echo -e "3. php：${gl_hong}默认${ldnmp_default_php_version}，可选 8.4/8.5${gl_bai}"
   echo -e "4. redis：${gl_lv}最新${gl_bai}"
   echo "------------------------"
 }
-
 install_ldnmp_conf() {
 
   # 创建必要的目录和文件
@@ -831,11 +863,6 @@ install_ldnmp_conf() {
   sed -i "s#webroot#$dbrootpasswd#g" /home/web/docker-compose.yml
   sed -i "s#kejilionYYDS#$dbusepasswd#g" /home/web/docker-compose.yml
   sed -i "s#kejilion#$dbuse#g" /home/web/docker-compose.yml
-  # 固定数据库/PHP默认版本，避免 full/latest 自动升级导致数据目录不可降级
-  ldnmp_compose_set_image mysql "mysql:9.7"
-  ldnmp_compose_set_image php "php:8.3-fpm-alpine"
-  ldnmp_compose_set_image nginx "nginx:alpine"
-  ldnmp_compose_set_image redis "redis:alpine"
 
 }
 
@@ -4209,6 +4236,8 @@ linux_ldnmp() {
 	  install_certbot
 
 	  install_ldnmp_conf
+	  ldnmp_select_versions
+	  ldnmp_apply_versions
 	  install_ldnmp
 	  nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 37 → 1. 更新nginx 查看详细错误。"
 
@@ -5052,10 +5081,9 @@ linux_ldnmp() {
 		  install_dependency
 		  install_docker
 		  install_certbot
-		  ldnmp_compose_set_image mysql "mysql:9.7"
-		  ldnmp_compose_set_image php "php:8.3-fpm-alpine"
-		  ldnmp_compose_set_image nginx "nginx:alpine"
-		  ldnmp_compose_set_image redis "redis:alpine"
+		  echo "还原全站数据会使用备份中的 MySQL 数据目录，建议选择与备份创建时相同的 MySQL 主版本。"
+		  ldnmp_select_versions
+		  ldnmp_apply_versions
 		  install_ldnmp
 		  nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 37 → 1. 更新nginx 查看详细错误。"
 	  else
@@ -5382,8 +5410,8 @@ linux_ldnmp() {
 
 			  2)
 			  ldnmp_pods="mysql"
-			  read -e -p "请输入${ldnmp_pods}版本号 （9.7）（回车默认9.7）: " version
-			  version=${version:-9.7}
+			  read -e -p "请输入${ldnmp_pods}版本号 （如: ${ldnmp_default_mysql_version}）（回车默认${ldnmp_default_mysql_version}）: " version
+			  version=${version:-$ldnmp_default_mysql_version}
 
 			  cd /home/web/ || break
 			  cp /home/web/docker-compose.yml /home/web/docker-compose1.yml
@@ -5405,8 +5433,8 @@ linux_ldnmp() {
 				  ;;
 			  3)
 			  ldnmp_pods="php"
-			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车默认8.3）: " version
-			  version=${version:-8.3}
+			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车默认${ldnmp_default_php_version}）: " version
+			  version=${version:-$ldnmp_default_php_version}
 			  cd /home/web/ || break
 			  cp /home/web/docker-compose.yml /home/web/docker-compose1.yml
 			  php_image="php:${version}-fpm-alpine"
@@ -5443,10 +5471,9 @@ linux_ldnmp() {
 					install_dependency
 					install_docker
 					install_certbot
-					ldnmp_compose_set_image mysql "mysql:9.7"
-					ldnmp_compose_set_image php "php:8.3-fpm-alpine"
-					ldnmp_compose_set_image nginx "nginx:alpine"
-					ldnmp_compose_set_image redis "redis:alpine"
+					echo "mysql:${ldnmp_default_mysql_version} 会跟随官方同分支补丁版本，例如 ${ldnmp_default_mysql_version}.x；不建议跨版本升级或降级。"
+					ldnmp_select_versions
+					ldnmp_apply_versions
 					install_ldnmp
 					nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 1. 更新nginx 查看详细错误。"
 					;;
