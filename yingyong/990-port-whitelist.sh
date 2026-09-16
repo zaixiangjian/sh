@@ -284,7 +284,7 @@ kj_app_show_allow_list() {
 	if [ -s "$tmp" ]; then
 		sort -n -t'|' -k1,1 "$tmp" | while IFS='|' read -r min_port remark ports; do
 			line_no=$((line_no + 1))
-			printf "%s. %-14s %s\n" "$line_no" "$remark" "$ports"
+			printf "%s. %-22s %s\n" "$line_no" "$remark" "$ports"
 		done
 	fi
 	rm -f "$tmp"
@@ -325,7 +325,7 @@ kj_app_allow_menu_remove() {
 			printf "%s|%s|%s\n" "$line_no" "$remark" "$row_ports"
 		done > "${tmp}.sorted"
 		while IFS='|' read -r n remark row_ports; do
-			printf "%s. %-14s %s\n" "$n" "$remark" "$row_ports"
+			printf "%s. %-22s %s\n" "$n" "$remark" "$row_ports"
 		done < "${tmp}.sorted"
 	fi
 	echo -e "${gl_hong}=============================================${gl_bai}"
@@ -360,6 +360,99 @@ kj_app_allow_reset_default() {
 	echo "全部阻止模式已启用"
 }
 
+kj_app_ports_allow_status() {
+	local ports="$1"
+	local allowed_ports total=0 allowed=0 p
+	allowed_ports=",$(kj_app_all_allowed_ports),"
+	for p in ${ports//,/ }; do
+		[ -z "$p" ] && continue
+		total=$((total + 1))
+		kj_app_ports_contains "$allowed_ports" "$p" && allowed=$((allowed + 1))
+	done
+	if [ "$total" -eq 0 ]; then
+		echo "未知"
+	elif [ "$allowed" -eq 0 ]; then
+		echo "阻止"
+	elif [ "$allowed" -eq "$total" ]; then
+		echo "允许"
+	else
+		echo "部分允许"
+	fi
+}
+
+kj_app_view_port_details() {
+	clear
+	echo -e "${gl_kjlan}应用端口详情${gl_bai}"
+	echo "============================================="
+	echo "名称                   端口详情"
+	echo "---------------------------------------------"
+
+	local tmp line_no=0 has_item="false"
+	tmp=$(mktemp)
+	if command -v docker >/dev/null 2>&1; then
+		while IFS='|' read -r cname cports; do
+			[ -z "$cname" ] && continue
+			local host_ports container_ports status min_port
+			host_ports=$(echo "$cports" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]+|\[::\]:[0-9]+|:::[0-9]+|127\.0\.0\.1:[0-9]+' | awk -F: '{print $NF}' | sort -n -u | paste -sd, -)
+			if [ -z "$host_ports" ]; then
+				host_ports=$(docker port "$cname" 2>/dev/null | awk -F: '/->/ {print $NF}' | sort -n -u | paste -sd, -)
+			fi
+			[ -z "$host_ports" ] && continue
+			container_ports=$(docker port "$cname" 2>/dev/null | awk '{split($1,a,"/"); if (a[1] ~ /^[0-9]+$/) print a[1]}' | sort -n -u | paste -sd, -)
+			[ -z "$container_ports" ] && container_ports="-"
+			status=$(kj_app_ports_allow_status "$host_ports")
+			min_port=${host_ports%%,*}
+			local status_order
+			case "$status" in
+				允许) status_order=1 ;;
+				部分允许) status_order=2 ;;
+				*) status_order=3 ;;
+			esac
+			printf '%s|%s|%s|%s|%s|%s|%s\n' "$status_order" "$min_port" "$cname" "$host_ports" "$container_ports" "容器" "$status" >> "$tmp"
+		done < <(docker ps --format '{{.Names}}|{{.Ports}}' 2>/dev/null)
+	fi
+
+	if command -v ss >/dev/null 2>&1; then
+		while read -r port proc; do
+			[ -z "$port" ] && continue
+			case "$proc" in docker-proxy|containerd-shim*) continue ;; esac
+			[ -z "$proc" ] && proc="unknown"
+			local status
+			status=$(kj_app_ports_allow_status "$port")
+			local status_order
+			case "$status" in
+				允许) status_order=1 ;;
+				部分允许) status_order=2 ;;
+				*) status_order=3 ;;
+			esac
+			printf '%s|%s|%s|%s|%s|%s|%s\n' "$status_order" "$port" "$proc" "$port" "-" "本地" "$status" >> "$tmp"
+		done < <(ss -H -tulnp 2>/dev/null | awk '
+			{
+				addr=$5; port=addr; sub(/^.*:/,"",port);
+				proc="";
+				if (match($0,/users:\(\("[^"]+"/)) { proc=substr($0,RSTART+9,RLENGTH-9); gsub(/"/,"",proc); }
+				if (port ~ /^[0-9]+$/) print port, proc;
+			}' | sort -n -u)
+	fi
+
+	if [ -s "$tmp" ]; then
+		sort -n -t'|' -k1,1 -k2,2 "$tmp" | while IFS='|' read -r status_order min_port name host_ports container_ports app_type status; do
+			line_no=$((line_no + 1))
+			case "$status" in
+				允许) status="${gl_lv}${status}${gl_bai}" ;;
+				阻止) status="${gl_hong}${status}${gl_bai}" ;;
+				部分允许) status="${gl_huang}${status}${gl_bai}" ;;
+			esac
+			printf "%-30s 本地端口:%s\n" "${line_no}.${name}" "$host_ports"
+			printf "状态:%-25b 容器端口:%s\n" "$status" "$container_ports"
+			echo "---------------------------------------------"
+		done
+		has_item="true"
+	fi
+	rm -f "$tmp"
+	[ "$has_item" = "false" ] && echo "未检测到监听端口"
+	echo "============================================="
+}
 linux_app_ports() {
 	while true; do
 		clear
@@ -379,6 +472,7 @@ linux_app_ports() {
 		echo -e "1. ${gl_lv}放行端口${gl_bai}"
 		echo -e "2. ${gl_hong}阻止端口${gl_bai}"
 		echo -e "3. ${gl_huang}全部阻止${gl_bai}"
+		echo "4. 查看应用端口详情"
 		echo "------------------------"
 		echo "0. 返回上一级"
 		echo "------------------------"
@@ -404,6 +498,10 @@ linux_app_ports() {
 					done
 				fi
 				kj_app_allow_reset_default "$extra_ports" "$extra_remark"
+				break_end
+				;;
+			4)
+				kj_app_view_port_details
 				break_end
 				;;
 			0) break ;;
