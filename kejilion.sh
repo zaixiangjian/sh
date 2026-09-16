@@ -5802,6 +5802,134 @@ kj_app_save_iptables_rules() {
 	fi
 }
 
+
+KJ_APP_BLOCK_REMARK_FILE="/etc/kj_app_port_block_remarks"
+
+kj_app_sort_ports_csv() {
+	local ports="$1"
+	echo "$ports" | tr ',' '\n' | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u | paste -sd, -
+}
+
+kj_app_ports_contains() {
+	local csv="$1"
+	local port="$2"
+	case ",$csv," in *",$port,"*) return 0 ;; esac
+	return 1
+}
+
+kj_app_prompt_block_remark() {
+	local remark
+	while true; do
+		read -e -p "请输入你的备注：" remark
+		remark=$(echo "$remark" | tr '|' ' ' | xargs 2>/dev/null)
+		if [ -n "$remark" ]; then
+			echo "$remark"
+			return 0
+		fi
+		echo -e "${gl_hong}输入不能为空${gl_bai}" >&2
+	done
+}
+
+kj_app_save_block_remark() {
+	local remark="$1"
+	local ports="$2"
+	[ -z "$remark" ] && return 0
+	ports=$(kj_app_sort_ports_csv "$ports")
+	[ -z "$ports" ] && return 0
+	mkdir -p "$(dirname "$KJ_APP_BLOCK_REMARK_FILE")"
+	local tmp existing_ports=""
+	tmp=$(mktemp)
+	if [ -f "$KJ_APP_BLOCK_REMARK_FILE" ]; then
+		while IFS='|' read -r old_remark old_ports; do
+			[ -z "$old_remark" ] && continue
+			local keep_ports="" p
+			for p in ${old_ports//,/ }; do
+				[ -z "$p" ] && continue
+				if kj_app_ports_contains "$ports" "$p"; then
+					continue
+				fi
+				keep_ports="${keep_ports:+$keep_ports,}$p"
+			done
+			keep_ports=$(kj_app_sort_ports_csv "$keep_ports")
+			if [ "$old_remark" = "$remark" ]; then
+				existing_ports="$keep_ports"
+			elif [ -n "$keep_ports" ]; then
+				echo "$old_remark|$keep_ports" >> "$tmp"
+			fi
+		done < "$KJ_APP_BLOCK_REMARK_FILE"
+	fi
+	ports=$(kj_app_sort_ports_csv "${existing_ports:+$existing_ports,}$ports")
+	echo "$remark|$ports" >> "$tmp"
+	mv "$tmp" "$KJ_APP_BLOCK_REMARK_FILE"
+}
+
+kj_app_remove_block_remark_ports() {
+	local ports="$1"
+	ports=$(kj_app_sort_ports_csv "$ports")
+	[ -z "$ports" ] && return 0
+	[ -f "$KJ_APP_BLOCK_REMARK_FILE" ] || return 0
+	local tmp
+	tmp=$(mktemp)
+	while IFS='|' read -r old_remark old_ports; do
+		[ -z "$old_remark" ] && continue
+		local keep_ports="" p
+		for p in ${old_ports//,/ }; do
+			[ -z "$p" ] && continue
+			if kj_app_ports_contains "$ports" "$p"; then
+				continue
+			fi
+			keep_ports="${keep_ports:+$keep_ports,}$p"
+		done
+		keep_ports=$(kj_app_sort_ports_csv "$keep_ports")
+		[ -n "$keep_ports" ] && echo "$old_remark|$keep_ports" >> "$tmp"
+	done < "$KJ_APP_BLOCK_REMARK_FILE"
+	mv "$tmp" "$KJ_APP_BLOCK_REMARK_FILE"
+}
+
+kj_app_blocked_ports_with_remarks() {
+	local blocked_ports
+	blocked_ports=$(kj_app_blocked_ports_summary)
+	[ -z "$blocked_ports" ] && return 0
+	local tmp used="," line_no=0
+	tmp=$(mktemp)
+	if [ -f "$KJ_APP_BLOCK_REMARK_FILE" ]; then
+		while IFS='|' read -r remark ports; do
+			[ -z "$remark" ] && continue
+			local shown_ports="" p
+			for p in ${ports//,/ }; do
+				[ -z "$p" ] && continue
+				if kj_app_ports_contains "$blocked_ports" "$p"; then
+					shown_ports="${shown_ports:+$shown_ports,}$p"
+					used="${used}${p},"
+				fi
+			done
+			shown_ports=$(kj_app_sort_ports_csv "$shown_ports")
+			if [ -n "$shown_ports" ]; then
+				local min_port=${shown_ports%%,*}
+				printf '%s|%s|%s\n' "$min_port" "$remark" "$shown_ports" >> "$tmp"
+			fi
+		done < "$KJ_APP_BLOCK_REMARK_FILE"
+	fi
+	local p unremarked=""
+	for p in ${blocked_ports//,/ }; do
+		[ -z "$p" ] && continue
+		if ! kj_app_ports_contains "$used" "$p"; then
+			unremarked="${unremarked:+$unremarked,}$p"
+		fi
+	done
+	for p in ${unremarked//,/ }; do
+		[ -z "$p" ] && continue
+		printf '%s|未备注|%s\n' "$p" "$p" >> "$tmp"
+	done
+	if [ -s "$tmp" ]; then
+		sort -n -t'|' -k1,1 "$tmp" | while IFS='|' read -r min_port remark ports; do
+			line_no=$((line_no + 1))
+			echo -e "${line_no}.${gl_lv}${remark}${gl_bai}  ${ports//,/ }"
+		done
+	fi
+	rm -f "$tmp"
+}
+
 kj_app_docker_ip() {
 	local cname="$1"
 	docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$cname" 2>/dev/null | awk '{print $1}'
@@ -5839,17 +5967,25 @@ kj_app_block_docker_port() {
 	kj_app_cleanup_docker_container_wide_block "$cname"
 	container_ip=$(kj_app_docker_ip "$cname")
 	container_port=$(kj_app_docker_container_port_for_host "$cname" "$host_port")
-	# 同时阻止宿主机监听路径；部分 Docker 发布端口走 docker-proxy/INPUT。
+
+	# 990 的语义始终是封禁“宿主机本地端口/公网IP+端口”。
+	# Docker 发布端口有的系统走 INPUT/docker-proxy，有的系统走 FORWARD/DNAT；
+	# FORWARD 里用 conntrack --ctorigdstport 匹配原始宿主机端口，不能按容器端口封禁。
 	kj_app_block_host_port "$host_port"
+	iptables -N DOCKER-USER 2>/dev/null || true
+	iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
+	iptables -C DOCKER-USER -i br+ -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i br+ -j ACCEPT
+	iptables -C DOCKER-USER -i docker0 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i docker0 -j ACCEPT
+	iptables -C DOCKER-USER -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+	# 清理旧版误按“容器IP+容器端口”写入的规则，避免误伤同容器其它宿主机映射。
 	if [ -n "$container_ip" ] && [ -n "$container_port" ]; then
-		iptables -N DOCKER-USER 2>/dev/null || true
-		iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
-		iptables -C DOCKER-USER -i br+ -d "$container_ip" -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i br+ -d "$container_ip" -j ACCEPT
-		iptables -C DOCKER-USER -i docker0 -d "$container_ip" -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i docker0 -d "$container_ip" -j ACCEPT
-		iptables -C DOCKER-USER -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -m state --state ESTABLISHED,RELATED -d "$container_ip" -j ACCEPT
-		iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP
-		iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP
+		while iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP; done
+		while iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP; done
 	fi
+
+	iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP
+	iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null || iptables -A DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP
 }
 
 kj_app_allow_docker_port() {
@@ -5861,6 +5997,8 @@ kj_app_allow_docker_port() {
 	container_ip=$(kj_app_docker_ip "$cname")
 	container_port=$(kj_app_docker_container_port_for_host "$cname" "$host_port")
 	kj_app_allow_host_port "$host_port"
+	while iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p tcp -m conntrack --ctorigdstport "$host_port" -j DROP; done
+	while iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p udp -m conntrack --ctorigdstport "$host_port" -j DROP; done
 	if [ -n "$container_ip" ] && [ -n "$container_port" ]; then
 		while iptables -C DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p tcp --dport "$container_port" -j DROP; done
 		while iptables -C DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -d "$container_ip" -p udp --dport "$container_port" -j DROP; done
@@ -5870,12 +6008,23 @@ kj_app_allow_docker_port() {
 kj_app_refresh_blocked_ports_cache() {
 	KJ_APP_BLOCKED_PORTS=","
 	local ports
-	ports=$(iptables-save 2>/dev/null | awk '
-		/^-A (KJ_APP_PORT_BLOCK|INPUT) / && /--dport [0-9]+/ && / -j DROP/ {
-			for (i=1; i<=NF; i++) {
-				if ($i == "--dport" && $(i+1) ~ /^[0-9]+$/) print $(i+1)
+	ports=$(
+		{
+			iptables-save 2>/dev/null
+			command -v ip6tables-save >/dev/null 2>&1 && ip6tables-save 2>/dev/null
+		} | awk '
+			/^-A (KJ_APP_PORT_BLOCK|INPUT) / && /--dport [0-9]+/ && / -j DROP/ {
+				for (i=1; i<=NF; i++) {
+					if ($i == "--dport" && $(i+1) ~ /^[0-9]+$/) print $(i+1)
+				}
 			}
-		}' | sort -n -u)
+			/^-A DOCKER-USER / && /--ctorigdstport [0-9]+/ && / -j DROP/ {
+				for (i=1; i<=NF; i++) {
+					if ($i == "--ctorigdstport" && $(i+1) ~ /^[0-9]+$/) print $(i+1)
+				}
+			}
+		' | sort -n -u
+	)
 	local p
 	for p in $ports; do
 		KJ_APP_BLOCKED_PORTS="${KJ_APP_BLOCKED_PORTS}${p},"
@@ -5884,8 +6033,7 @@ kj_app_refresh_blocked_ports_cache() {
 
 kj_app_port_is_blocked() {
 	local port="$1"
-	# 990 只判断“公网IP+宿主机端口”是否被阻止，不再按 Docker 容器 IP 判断。
-	# 优先使用本轮页面刷新时生成的缓存，避免每个端口都调用 iptables 导致 990 打开很慢。
+	# 990 只按宿主机本地端口判断封禁状态；Docker FORWARD/DNAT 路径使用 conntrack 原始宿主机端口匹配。
 	if [ -n "${KJ_APP_BLOCKED_PORTS:-}" ]; then
 		case "$KJ_APP_BLOCKED_PORTS" in
 			*,"$port",*) return 0 ;;
@@ -5893,6 +6041,12 @@ kj_app_port_is_blocked() {
 		return 1
 	fi
 	if iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || iptables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; then
+		return 0
+	fi
+	if iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null || iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null; then
+		return 0
+	fi
+	if command -v ip6tables >/dev/null 2>&1 && { ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null || ip6tables -C INPUT -p tcp --dport "$port" -j DROP 2>/dev/null; }; then
 		return 0
 	fi
 	return 1
@@ -5973,6 +6127,17 @@ kj_app_allow_host_port() {
 	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -i docker0 -j ACCEPT; done
 	while iptables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -i br+ -j ACCEPT; done
 	while iptables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT 2>/dev/null; do iptables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -i br+ -j ACCEPT; done
+
+	# 手动放行也必须清理 Docker DNAT/FORWARD 路径里的“宿主机原始端口”规则；否则汇总仍显示阻止，公网端口也可能仍不通。
+	while iptables -C DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p tcp -m conntrack --ctorigdstport "$port" -j DROP; done
+	while iptables -C DOCKER-USER -p udp -m conntrack --ctorigdstport "$port" -j DROP 2>/dev/null; do iptables -D DOCKER-USER -p udp -m conntrack --ctorigdstport "$port" -j DROP; done
+
+	if command -v ip6tables >/dev/null 2>&1; then
+		while ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -j DROP; done
+		while ip6tables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -j DROP; done
+		while ip6tables -C KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s ::1/128 -j ACCEPT 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p tcp --dport "$port" -s ::1/128 -j ACCEPT; done
+		while ip6tables -C KJ_APP_PORT_BLOCK -p udp --dport "$port" -s ::1/128 -j ACCEPT 2>/dev/null; do ip6tables -D KJ_APP_PORT_BLOCK -p udp --dport "$port" -s ::1/128 -j ACCEPT; done
+	fi
 }
 
 kj_app_block_docker() {
@@ -6103,8 +6268,16 @@ kj_app_block_port() {
 	if [ -n "$block_ports" ]; then
 		for p in ${block_ports//,/ }; do
 			[ -z "$p" ] && continue
-			kj_app_block_host_port "$p"
+			if [ "$type" = "docker" ]; then
+				kj_app_block_docker_port "$target" "$p"
+			else
+				kj_app_block_host_port "$p"
+			fi
 		done
+		if [ -n "${KJ_APP_PENDING_BLOCK_REMARK:-}" ]; then
+			kj_app_save_block_remark "$KJ_APP_PENDING_BLOCK_REMARK" "$block_ports"
+			KJ_APP_PENDING_BLOCK_REMARK=""
+		fi
 		kj_app_save_iptables_rules
 		kj_app_refresh_blocked_ports_cache
 		echo "已阻止公网 IP+端口 直接访问: $block_ports"
@@ -6130,6 +6303,7 @@ kj_app_allow_port() {
 		[ -z "$p" ] && continue
 		kj_app_allow_host_port "$p"
 	done
+	kj_app_remove_block_remark_ports "$port"
 	kj_app_save_iptables_rules
 	kj_app_refresh_blocked_ports_cache
 	echo "已允许 IP+端口 直接访问: $port"
@@ -6458,7 +6632,7 @@ kj_app_port_detail_menu() {
 		clear
 		echo "应用: $app_id  $app_name"
 		echo "本地端口:"
-		kj_app_wrap_csv_lines "$local_ports_display" 60
+		kj_app_wrap_ports_colored "$local_ports_display" "$app_target" "$app_type" 60
 		echo "容器端口:"
 		kj_app_wrap_csv_lines "$container_ports_display" 60
 		echo -e "安装方法：$(kj_app_install_method_label "$app_type")"
@@ -6491,8 +6665,13 @@ kj_app_port_detail_menu() {
 				;;
 			4)
 				local port
+				KJ_APP_PENDING_BLOCK_REMARK=$(kj_app_prompt_block_remark)
 				port=$(kj_app_select_port "$app_ports" "block")
-				[ -z "$port" ] && break_end && continue
+				if [ -z "$port" ]; then
+					KJ_APP_PENDING_BLOCK_REMARK=""
+					break_end
+					continue
+				fi
 				kj_app_block_port "$port" "$app_target" "$app_type"
 				;;
 			5)
@@ -6518,9 +6697,7 @@ kj_app_manual_port_manage() {
 		echo -e "${gl_hong}=============================================${gl_bai}"
 		echo -e "${gl_hong}现有阻止的端口${gl_bai}"
 		if [ -n "$blocked_ports_summary" ]; then
-			kj_app_wrap_csv_lines "$blocked_ports_summary" 60 | while IFS= read -r blocked_line; do
-				echo -e "${gl_lv}${blocked_line}${gl_bai}"
-			done
+			kj_app_blocked_ports_with_remarks
 		else
 			echo -e "${gl_lv}暂无${gl_bai}"
 		fi
@@ -6532,10 +6709,14 @@ kj_app_manual_port_manage() {
 		read -e -p "请输入序号进入管理: " manage_choice
 		case "$manage_choice" in
 			1|2)
+				if [ "$manage_choice" = "1" ]; then
+					KJ_APP_PENDING_BLOCK_REMARK=$(kj_app_prompt_block_remark)
+				fi
 				read -e -p "请输入端口，多个端口用英文逗号分隔: " manage_ports
 				manage_ports=$(echo "$manage_ports" | tr -d ' ')
 				if ! echo "$manage_ports" | grep -Eq '^[0-9]+(,[0-9]+)*$'; then
 					echo "端口格式无效"
+					KJ_APP_PENDING_BLOCK_REMARK=""
 					break_end
 					continue
 				fi
@@ -6548,6 +6729,7 @@ kj_app_manual_port_manage() {
 				done
 				if [ "$invalid" = "true" ]; then
 					echo "端口范围无效，请输入 1-65535"
+					KJ_APP_PENDING_BLOCK_REMARK=""
 					break_end
 					continue
 				fi
@@ -6557,6 +6739,7 @@ kj_app_manual_port_manage() {
 					for p in ${manage_ports//,/ }; do
 						kj_app_allow_host_port "$p"
 					done
+					kj_app_remove_block_remark_ports "$manage_ports"
 					kj_app_save_iptables_rules
 					kj_app_refresh_blocked_ports_cache
 					echo "已放行公网 IP+端口 直接访问: $manage_ports"
@@ -6617,11 +6800,8 @@ linux_app_ports() {
 		blocked_ports_summary=$(kj_app_blocked_ports_summary)
 		echo -e "${gl_hong}=============================================${gl_bai}"
 		echo -e "${gl_hong}阻止公网IP+端口访问${gl_bai}"
-		echo -e "${gl_hong}现有阻止的端口${gl_bai}"
 		if [ -n "$blocked_ports_summary" ]; then
-			kj_app_wrap_csv_lines "$blocked_ports_summary" 60 | while IFS= read -r blocked_line; do
-				echo -e "${gl_lv}${blocked_line}${gl_bai}"
-			done
+			kj_app_blocked_ports_with_remarks
 		else
 			echo -e "${gl_lv}暂无${gl_bai}"
 		fi
