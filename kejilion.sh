@@ -5616,12 +5616,12 @@ kj_app_save_iptables_rules() {
 			crontab -l 2>/dev/null \
 				| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
 				| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
-				| grep -v '^# 990应用 端口白名单（勿删）$'
+				| grep -v 'ip6tables-restore < /etc/iptables/rules$' \
+				| grep -v '^# 990应用 端口白名单（勿删）$' \
+				| grep -v '^# 990应用 安装的应用以及应用端口封禁（勿删）$'
 			echo '# 990应用 端口白名单（勿删）'
 			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
-			if [ -s /etc/iptables/rules.v6 ]; then
-				echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
-			fi
+			echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
 		) | crontab - 2>/dev/null || true
 	fi
 }
@@ -5641,7 +5641,8 @@ kj_app_allow_remove_ports() {
 		for p in ${old_ports//,/ }; do
 			[ -z "$p" ] && continue
 			if kj_app_ports_contains "$ports" "$p"; then
-				if kj_app_ports_contains "$protected" "$p"; then
+				# SSH/80/443 只保护“默认”项；如果用户误把它们加进自定义备注，删除该备注时不要残留重复项。
+				if [ "$old_remark" = "默认" ] && kj_app_ports_contains "$protected" "$p"; then
 					keep_ports="${keep_ports:+$keep_ports,}$p"
 					skipped="${skipped:+$skipped,}$p"
 				fi
@@ -5659,12 +5660,32 @@ kj_app_allow_remove_ports() {
 		for sshp in $(kj_app_ssh_ports_detect); do
 			kj_app_ports_contains "$skipped" "$sshp" && echo -e "${gl_hong}检测到SSH端口为${sshp}，不允许阻止${gl_bai}"
 		done
-		{ kj_app_ports_contains "$skipped" "80" || kj_app_ports_contains "$skipped" "443"; } && echo -e "${gl_hong}80/443为默认放行端口，不允许阻止${gl_bai}"
+		if kj_app_ports_contains "$skipped" "80" || kj_app_ports_contains "$skipped" "443"; then
+			if [ "$skipped" = "80" ] || [ "$skipped" = "443" ] || [ "$skipped" = "80,443" ]; then
+				echo -e "${gl_hong}80/443为默认放行端口，不允许阻止${gl_bai}"
+			fi
+		fi
 	fi
 }
 
 kj_app_allow_firewall_active() {
 	iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'
+}
+
+kj_app_allow_repair_reboot_cron() {
+	command -v crontab >/dev/null 2>&1 || return 0
+	mkdir -p /etc/iptables
+	(
+		crontab -l 2>/dev/null \
+			| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
+			| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
+			| grep -v 'ip6tables-restore < /etc/iptables/rules$' \
+			| grep -v '^# 990应用 端口白名单（勿删）$' \
+				| grep -v '^# 990应用 安装的应用以及应用端口封禁（勿删）$'
+		echo '# 990应用 端口白名单（勿删）'
+		echo '@reboot iptables-restore < /etc/iptables/rules.v4'
+		echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
+	) | crontab - 2>/dev/null || true
 }
 
 kj_app_allow_add_entry() {
@@ -5771,14 +5792,34 @@ kj_app_allow_menu_add() {
 
 kj_app_allow_menu_remove() {
 	clear
-	kj_app_show_allow_list
-	local choice selected ports
+	kj_app_allow_file_init_default
+	local tmp line_no=0 choice ports
+	tmp=$(mktemp)
+	echo -e "${gl_hong}=============================================${gl_bai}"
+	echo -e "${gl_lv}允许公网IP+端口访问${gl_bai}"
+	echo "备注名  端口"
+	while IFS='|' read -r remark row_ports; do
+		[ -z "$remark" ] && continue
+		row_ports=$(kj_app_sort_ports_csv "$row_ports")
+		[ -z "$row_ports" ] && continue
+		printf '%s|%s|%s\n' "${row_ports%%,*}" "$remark" "$row_ports" >> "$tmp"
+	done < "$KJ_APP_ALLOW_REMARK_FILE"
+	if [ -s "$tmp" ]; then
+		sort -n -t'|' -k1,1 "$tmp" | while IFS='|' read -r min_port remark row_ports; do
+			line_no=$((line_no + 1))
+			printf "%s|%s|%s\n" "$line_no" "$remark" "$row_ports"
+		done > "${tmp}.sorted"
+		while IFS='|' read -r n remark row_ports; do
+			printf "%s. %-14s %s\n" "$n" "$remark" "$row_ports"
+		done < "${tmp}.sorted"
+	fi
+	echo -e "${gl_hong}=============================================${gl_bai}"
 	read -e -p "输入需要封禁的序号（回车返回上一级）: " choice
-	[ -z "$choice" ] && return 0
-	[[ "$choice" =~ ^[0-9]+$ ]] || { echo "无效选择"; return 1; }
-	selected=$(awk -F'|' 'NF>=2 {print NR"|"$0}' "$KJ_APP_ALLOW_REMARK_FILE" 2>/dev/null | awk -F'|' -v n="$choice" 'NR==n {print $0}')
-	[ -n "$selected" ] || { echo "无效选择"; return 1; }
-	ports=$(echo "$selected" | cut -d'|' -f3)
+	[ -z "$choice" ] && { rm -f "$tmp" "${tmp}.sorted"; return 0; }
+	[[ "$choice" =~ ^[0-9]+$ ]] || { rm -f "$tmp" "${tmp}.sorted"; echo "无效选择"; return 1; }
+	ports=$(awk -F'|' -v n="$choice" '$1==n {print $3; exit}' "${tmp}.sorted" 2>/dev/null)
+	rm -f "$tmp" "${tmp}.sorted"
+	[ -n "$ports" ] || { echo "无效选择"; return 1; }
 	kj_app_allow_remove_ports "$ports"
 	kj_app_apply_allow_firewall
 	echo "阻止成功"
@@ -5786,6 +5827,7 @@ kj_app_allow_menu_remove() {
 
 kj_app_allow_reset_default() {
 	local extra_ports="$1"
+	local extra_remark="${2:-手动}"
 	local confirm default_ports p
 	default_ports=$(kj_app_protected_allow_ports | paste -sd, -)
 	echo "检测到SSH端口: $(kj_app_ssh_ports_detect | paste -sd, -)"
@@ -5798,7 +5840,7 @@ kj_app_allow_reset_default() {
 	for p in ${default_ports//,/ }; do
 		[ -n "$p" ] && echo "默认|$p" >> "$KJ_APP_ALLOW_REMARK_FILE"
 	done
-	[ -n "$extra_ports" ] && kj_app_allow_add_entry "手动" "$extra_ports"
+	[ -n "$extra_ports" ] && kj_app_allow_add_entry "$extra_remark" "$extra_ports"
 	kj_app_apply_allow_firewall
 	echo "全部阻止模式已启用"
 }
@@ -5813,13 +5855,15 @@ linux_app_ports() {
 			echo -e "${gl_huang}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
 			echo -e "${gl_huang}建议先选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
 			echo ""
+		else
+			kj_app_allow_repair_reboot_cron
 		fi
 		echo -e "${gl_kjlan}安装的应用端口${gl_bai}"
 		kj_app_show_allow_list
 		echo "------------------------"
-		echo "1. 放行端口"
-		echo "2. 阻止端口"
-		echo "3. 全部阻止"
+		echo -e "1. ${gl_lv}放行端口${gl_bai}"
+		echo -e "2. ${gl_hong}阻止端口${gl_bai}"
+		echo -e "3. ${gl_huang}全部阻止${gl_bai}"
 		echo "------------------------"
 		echo "0. 返回上一级"
 		echo "------------------------"
@@ -5828,15 +5872,23 @@ linux_app_ports() {
 			1) kj_app_allow_menu_add; break_end ;;
 			2) kj_app_allow_menu_remove; break_end ;;
 			3)
-				local extra_ports
-				read -e -p "请输入需要手动放行的端口，多个端口用英文逗号分隔（可留空）: " extra_ports
+				local extra_ports extra_remark
+				echo "需要手动放行的端口，多个端口用英文逗号分隔"
+				read -e -p "请输入端口（可留空）: " extra_ports
 				extra_ports=$(echo "$extra_ports" | tr -d ' ')
-				if [ -n "$extra_ports" ] && ! kj_app_validate_ports_csv "$extra_ports"; then
-					echo -e "${gl_hong}端口格式无效，请输入 1-65535，多个端口用英文逗号分隔${gl_bai}"
-					break_end
-					continue
+				if [ -n "$extra_ports" ]; then
+					if ! kj_app_validate_ports_csv "$extra_ports"; then
+						echo -e "${gl_hong}端口格式无效，请输入 1-65535，多个端口用英文逗号分隔${gl_bai}"
+						break_end
+						continue
+					fi
+					while [ -z "$extra_remark" ]; do
+						read -e -p "请输入备注: " extra_remark
+						extra_remark=$(echo "$extra_remark" | tr '|' ' ' | xargs 2>/dev/null)
+						[ -z "$extra_remark" ] && echo -e "${gl_hong}备注不能为空${gl_bai}"
+					done
 				fi
-				kj_app_allow_reset_default "$extra_ports"
+				kj_app_allow_reset_default "$extra_ports" "$extra_remark"
 				break_end
 				;;
 			0) break ;;
@@ -6495,7 +6547,7 @@ linux_panel() {
 	check_path "102" "lobehub.sh"
     check_docker "102" "windows"
     check_docker "103" "fail2ban"
-    if crontab -l 2>/dev/null | grep -q "990应用 安装的应用以及应用端口封禁" ||        grep -q "KJ_APP_PORT_BLOCK" /etc/iptables/rules.v4 2>/dev/null ||        iptables -S KJ_APP_PORT_BLOCK >/dev/null 2>&1; then
+    if crontab -l 2>/dev/null | grep -q "990应用 端口白名单" ||        grep -q "KJ_APP_ALLOW" /etc/iptables/rules.v4 2>/dev/null ||        iptables -S KJ_APP_ALLOW >/dev/null 2>&1; then
         installed_items+=("990")
     fi
     if ! printf '%s
@@ -12212,8 +12264,63 @@ done
 
 
       990)
-      linux_app_ports
-      ;;
+        clear
+        echo "▶️ 正在启动990端口白名单管理..."
+        local_990_script="/root/yingyong/990-port-whitelist.sh"
+        github_990_script="https://raw.githubusercontent.com/zaixiangjian/sh/main/yingyong/990-port-whitelist.sh"
+
+        mkdir -p /root/yingyong
+
+        if [ ! -f "$local_990_script" ]; then
+          echo "未检测到本地应用脚本，正在下载到: $local_990_script"
+          if ! curl -fsSL "$github_990_script" -o "$local_990_script"; then
+            echo "❌ GitHub脚本下载失败，使用内置990逻辑。"
+            linux_app_ports
+            break_end
+            break
+          fi
+          chmod +x "$local_990_script"
+          bash "$local_990_script"
+        else
+          show_github_script_update_status "$local_990_script" "$github_990_script"
+          echo "------------------------------------------------"
+          echo "已保存本地文件目录"
+          echo -e "${gl_lv}$local_990_script${gl_bai}"
+          echo "------------------------------------------------"
+          echo "1.使用本地应用脚本"
+          echo "2.使用GitHub更新脚本"
+          echo "0. 返回上一级选单"
+          echo "------------------------------------------------"
+          read -e -p "请输入选项并回车（回车默认 1 ）: " port990_script_choice
+          port990_script_choice=${port990_script_choice:-1}
+
+          case "$port990_script_choice" in
+            1)
+              chmod +x "$local_990_script"
+              bash "$local_990_script"
+              ;;
+            2)
+              echo "使用GitHub更新将会覆盖本地文件"
+              read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " port990_update_confirm
+              case "$port990_update_confirm" in
+                [Yy])
+                  curl -fsSL "$github_990_script" -o "$local_990_script" && chmod +x "$local_990_script" && bash "$local_990_script"
+                  ;;
+                *)
+                  echo "已取消GitHub更新。"
+                  ;;
+              esac
+              ;;
+            0)
+              ;;
+            *)
+              echo "无效选项，已返回上一级选单。"
+              ;;
+          esac
+        fi
+
+        echo "✅ 990端口白名单管理完成。"
+        ;;
 
       996)
 
