@@ -134,10 +134,8 @@ kj_app_save_iptables_rules() {
 			crontab -l 2>/dev/null \
 				| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
 				| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
-				| grep -v 'ip6tables-restore < /etc/iptables/rules$' \
-				| grep -v '^# 990应用 端口白名单（勿删）$' \
-			| grep -v '^# 990应用 安装的应用以及应用端口封禁（勿删）$' \
-				| grep -v '^# 990应用 安装的应用以及应用端口封禁（勿删）$'
+				| grep -v '^# 990应用 端口白名单（勿删）$'
+
 			echo '# 990应用 端口白名单（勿删）'
 			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
 			echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
@@ -198,7 +196,6 @@ kj_app_allow_repair_reboot_cron() {
 		crontab -l 2>/dev/null \
 			| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
 			| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
-			| grep -v 'ip6tables-restore < /etc/iptables/rules$' \
 			| grep -v '^# 990应用 端口白名单（勿删）$'
 		echo '# 990应用 端口白名单（勿删）'
 		echo '@reboot iptables-restore < /etc/iptables/rules.v4'
