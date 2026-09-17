@@ -501,7 +501,7 @@ linux_app_ports() {
 		if ! kj_app_allow_firewall_active; then
 			echo -e "${gl_hong}检测到当前还没有启用端口白名单模式。${gl_bai}"
 			echo -e "${gl_hong}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
-			echo -e "${gl_hong}选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
+			echo -e "${gl_lv}选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
 			echo -e "${gl_hong}=============================================${gl_bai}"
 		else
 			echo -e "${gl_lv}已开启${gl_bai}"
