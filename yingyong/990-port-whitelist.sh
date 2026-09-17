@@ -220,7 +220,9 @@ kj_app_apply_allow_firewall() {
 
 	iptables -N KJ_APP_ALLOW 2>/dev/null || true
 	iptables -F KJ_APP_ALLOW 2>/dev/null || true
-	iptables -C INPUT -j KJ_APP_ALLOW 2>/dev/null || iptables -I INPUT 1 -j KJ_APP_ALLOW
+	# 强制把白名单链放到 INPUT 第一位，避免系统/面板已有 ACCEPT 规则在前面导致绕过。
+	while iptables -C INPUT -j KJ_APP_ALLOW 2>/dev/null; do iptables -D INPUT -j KJ_APP_ALLOW; done
+	iptables -I INPUT 1 -j KJ_APP_ALLOW
 	iptables -A KJ_APP_ALLOW -i lo -j ACCEPT
 	iptables -A KJ_APP_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
 	iptables -A KJ_APP_ALLOW -i docker0 -j ACCEPT
@@ -235,9 +237,13 @@ kj_app_apply_allow_firewall() {
 	iptables -A KJ_APP_ALLOW -j RETURN
 
 	iptables -N DOCKER-USER 2>/dev/null || true
+	# 有些服务器 FORWARD 链没有跳到 DOCKER-USER；只创建 DOCKER-USER 不会生效，必须补上入口。
+	iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
 	iptables -N KJ_APP_DOCKER_ALLOW 2>/dev/null || true
 	iptables -F KJ_APP_DOCKER_ALLOW 2>/dev/null || true
-	iptables -C DOCKER-USER -j KJ_APP_DOCKER_ALLOW 2>/dev/null || iptables -I DOCKER-USER 1 -j KJ_APP_DOCKER_ALLOW
+	# Docker 默认 DOCKER-USER 里常有 RETURN；必须把白名单链强制放到第一位，否则 Docker 映射端口会绕过。
+	while iptables -C DOCKER-USER -j KJ_APP_DOCKER_ALLOW 2>/dev/null; do iptables -D DOCKER-USER -j KJ_APP_DOCKER_ALLOW; done
+	iptables -I DOCKER-USER 1 -j KJ_APP_DOCKER_ALLOW
 	iptables -A KJ_APP_DOCKER_ALLOW -i br+ -j ACCEPT
 	iptables -A KJ_APP_DOCKER_ALLOW -i docker0 -j ACCEPT
 	iptables -A KJ_APP_DOCKER_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
@@ -270,7 +276,6 @@ kj_app_apply_allow_firewall() {
 
 kj_app_show_allow_list() {
 	kj_app_allow_file_init_default
-	echo -e "${gl_hong}=============================================${gl_bai}"
 	echo -e "${gl_lv}允许公网IP+端口访问${gl_bai}"
 	echo "备注名  端口"
 	local tmp line_no=0
@@ -458,15 +463,18 @@ linux_app_ports() {
 		clear
 		send_stats "安装的应用端口"
 		kj_app_allow_file_init_default
+		echo -e "${gl_kjlan}安装的应用端口${gl_bai}"
+		echo -e "${gl_hong}=============================================${gl_bai}"
+		echo "是否开启白名单模式"
 		if ! kj_app_allow_firewall_active; then
-			echo -e "${gl_huang}检测到当前还没有启用端口白名单模式。${gl_bai}"
-			echo -e "${gl_huang}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
-			echo -e "${gl_huang}建议先选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
-			echo ""
+			echo -e "${gl_hong}检测到当前还没有启用端口白名单模式。${gl_bai}"
+			echo -e "${gl_hong}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
+			echo -e "${gl_hong}选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
 		else
+			echo -e "${gl_lv}已开启${gl_bai}"
 			kj_app_allow_repair_reboot_cron
 		fi
-		echo -e "${gl_kjlan}安装的应用端口${gl_bai}"
+		echo -e "${gl_hong}=============================================${gl_bai}"
 		kj_app_show_allow_list
 		echo "------------------------"
 		echo -e "1. ${gl_lv}放行端口${gl_bai}"
