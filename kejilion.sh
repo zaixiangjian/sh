@@ -5911,55 +5911,7 @@ nezha_remote_backup_menu() {
 
 
 # ===== 本地应用脚本更新逻辑 开始 =====
-show_github_script_update_status() {
-  local local_script="$1"
-  local github_script="$2"
-  local tmp_script local_hash remote_hash local_version remote_version
-
-  echo "------------------------------------------------"
-  echo "GitHub是否有更新"
-
-  [ -f "$local_script" ] || {
-    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
-    return 1
-  }
-
-  tmp_script="$(mktemp)" || {
-    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
-    return 1
-  }
-
-  if ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
-    rm -f "$tmp_script"
-    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
-    return 1
-  fi
-
-  local_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$local_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
-  remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
-  local_hash="$(sha256sum "$local_script" 2>/dev/null | awk '{print $1}')"
-  remote_hash="$(sha256sum "$tmp_script" 2>/dev/null | awk '{print $1}')"
-  rm -f "$tmp_script"
-
-  if [ -n "$local_version" ] || [ -n "$remote_version" ]; then
-    echo "当前版本：${local_version:-未知}"
-    echo "最新版本：${remote_version:-未知}"
-    if [ -n "$local_version" ] && [ -n "$remote_version" ] && [ "$local_version" != "$remote_version" ]; then
-      echo -e "${gl_hong}有新内容${gl_bai}"
-      return 0
-    fi
-  fi
-
-  if [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
-    echo -e "${gl_hong}有新内容${gl_bai}"
-    return 0
-  fi
-
-  echo -e "${gl_lv}已是最新${gl_bai}"
-  return 1
-}
-
-run_local_first_app_script() {
+un_local_first_app_script() {
   local title="$1"
   local local_script="$2"
   local github_script="$3"
