@@ -502,12 +502,13 @@ linux_app_ports() {
 			echo -e "${gl_hong}检测到当前还没有启用端口白名单模式。${gl_bai}"
 			echo -e "${gl_hong}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
 			echo -e "${gl_hong}选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
+			echo -e "${gl_hong}=============================================${gl_bai}"
 		else
 			echo -e "${gl_lv}已开启${gl_bai}"
 			kj_app_allow_repair_reboot_cron
+			echo -e "${gl_hong}=============================================${gl_bai}"
+			kj_app_show_allow_list
 		fi
-		echo -e "${gl_hong}=============================================${gl_bai}"
-		kj_app_show_allow_list
 		echo "------------------------"
 		echo -e "1. ${gl_lv}放行端口${gl_bai}"
 		echo -e "2. ${gl_hong}阻止端口${gl_bai}"
