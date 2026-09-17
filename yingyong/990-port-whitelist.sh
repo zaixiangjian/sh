@@ -274,6 +274,20 @@ kj_app_apply_allow_firewall() {
 	kj_app_save_iptables_rules
 }
 
+kj_app_clear_existing_connections() {
+	# 只在 3. 全部阻止 时清理已有连接，避免旧连接继续复用导致未放行端口仍可访问。
+	# 保留 ESTABLISHED/RELATED 规则，保证服务器主动发起的 DNS/GitHub 更新检测等出站连接仍能正常返回。
+	if ! command -v conntrack >/dev/null 2>&1; then
+		install conntrack >/dev/null 2>&1 || true
+	fi
+	if command -v conntrack >/dev/null 2>&1; then
+		conntrack -F >/dev/null 2>&1 || true
+		echo "已清理已有连接"
+	else
+		echo -e "${gl_huang}未安装 conntrack，跳过清理已有连接${gl_bai}"
+	fi
+}
+
 kj_app_show_allow_list() {
 	kj_app_allow_file_init_default
 	echo -e "${gl_lv}允许公网IP+端口访问${gl_bai}"
@@ -298,13 +312,13 @@ kj_app_show_allow_list() {
 
 kj_app_allow_menu_add() {
 	local remark ports
-	remark=$(kj_app_prompt_allow_remark)
 	read -e -p "请输入需要放行的端口，多个端口用英文逗号分隔:" ports
 	ports=$(echo "$ports" | tr -d ' ')
 	if ! kj_app_validate_ports_csv "$ports"; then
 		echo -e "${gl_hong}端口格式无效，请输入 1-65535，多个端口用英文逗号分隔${gl_bai}"
 		return 1
 	fi
+	remark=$(kj_app_prompt_allow_remark)
 	kj_app_allow_add_entry "$remark" "$ports"
 	kj_app_apply_allow_firewall
 	echo "放行成功"
@@ -362,6 +376,7 @@ kj_app_allow_reset_default() {
 	done
 	[ -n "$extra_ports" ] && kj_app_allow_add_entry "$extra_remark" "$extra_ports"
 	kj_app_apply_allow_firewall
+	kj_app_clear_existing_connections
 	echo "全部阻止模式已启用"
 }
 
