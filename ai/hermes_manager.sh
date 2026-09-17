@@ -1229,6 +1229,34 @@ hermes_update_robust() {
 }
 
 
+hermes_messaging_robust() {
+    if ! check_installed; then
+        echo -e "${RED}请先安装 Hermes。${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}正在启动 Hermes 机器人连接配置向导...${NC}"
+    echo ""
+
+    hermes gateway setup
+    local setup_rc=$?
+
+    if [ "$setup_rc" -eq 0 ]; then
+        echo -e "${GREEN}✅ Hermes Gateway 配置完成。${NC}"
+        echo ""
+        echo -e "${YELLOW}现在可以启动 Gateway：${NC}"
+        echo "  hermes gateway start"
+        echo ""
+        echo -e "${YELLOW}查看状态：${NC}"
+        echo "  hermes gateway status"
+    else
+        echo -e "${RED}❌ Hermes Gateway 配置失败。${NC}"
+        return "$setup_rc"
+    fi
+}
+
+
+
 # 主菜单UI
 show_menu() {
     clear
@@ -1246,6 +1274,7 @@ show_menu() {
     echo -e "${GREEN}6.${NC} 运行初始化配置向导 (Setup Wizard)"
     echo -e "${GREEN}7.${NC} 检查并更新 Hermes"
     echo -e "${GREEN}8.${NC} 卸载 Hermes"
+    echo -e "${GREEN}9.${NC} 机器人连接对接"
     echo -e "${GREEN}18.${NC} 备份与还原"
     echo -e "${GREEN}0.${NC} 退出"
     echo -e "${CYAN}=================================================${NC}"
@@ -1310,6 +1339,11 @@ show_menu() {
                 else echo "已取消。"; fi
             else echo -e "${RED}请先安装 Hermes。${NC}"; fi
             ;;
+
+        9)
+            hermes_messaging_robust
+            ;;
+
         18)
             backup_restore_submenu
             ;;
