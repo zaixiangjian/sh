@@ -5538,7 +5538,7 @@ linux_ldnmp() {
 
 
 
-# ===== 哪吒远程定时备份配置（11 -> 5 -> 1000） =====
+# ===== 哪吒远程定时备份配置（11 -> 5 -> 1000） 开始 =====
 nezha_remote_backup_base_dir="/home/nezha/remote_backup"
 nezha_remote_backup_job_dir="$nezha_remote_backup_base_dir/jobs"
 nezha_remote_backup_state_dir="$nezha_remote_backup_base_dir/state"
@@ -5905,13 +5905,12 @@ nezha_remote_backup_menu() {
         read -n 1 -s -r -p "按任意键继续..."
     done
 }
+# ===== 哪吒远程定时备份配置（11 -> 5 -> 1000） 结束 =====
 
 
 
 
-
-
-
+# ===== 本地应用脚本更新逻辑 开始 =====
 show_github_script_update_status() {
   local local_script="$1"
   local github_script="$2"
@@ -5960,6 +5959,115 @@ show_github_script_update_status() {
   return 1
 }
 
+run_local_first_app_script() {
+  local title="$1"
+  local local_script="$2"
+  local github_script="$3"
+  local fallback_func="${4:-}"
+  local tmp_script local_hash remote_hash local_version remote_version has_update="false" check_failed="false"
+
+  clear
+  echo "$title"
+  mkdir -p "$(dirname "$local_script")"
+
+  if [ ! -f "$local_script" ]; then
+    echo "未检测到本地应用脚本，正在下载到: $local_script"
+    if ! curl -fsSL "$github_script" -o "$local_script"; then
+      echo "❌ GitHub脚本下载失败，请检查网络。"
+      if [ -n "$fallback_func" ] && declare -F "$fallback_func" >/dev/null 2>&1; then
+        "$fallback_func"
+      else
+        break_end
+      fi
+      return
+    fi
+    chmod +x "$local_script"
+    bash "$local_script"
+    return
+  fi
+
+  tmp_script="$(mktemp)" || check_failed="true"
+  if [ "$check_failed" != "true" ] && ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
+    check_failed="true"
+  fi
+
+  if [ "$check_failed" = "true" ]; then
+    rm -f "$tmp_script" 2>/dev/null || true
+    echo "------------------------------------------------"
+    echo "GitHub是否有更新，本地保存目录"
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    echo -e "${gl_lv}$local_script${gl_bai}"
+    echo "------------------------------------------------"
+    chmod +x "$local_script"
+    bash "$local_script"
+    return
+  fi
+
+  local_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$local_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
+  remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
+  local_hash="$(sha256sum "$local_script" 2>/dev/null | awk '{print $1}')"
+  remote_hash="$(sha256sum "$tmp_script" 2>/dev/null | awk '{print $1}')"
+  rm -f "$tmp_script"
+
+  if [ -n "$local_version" ] || [ -n "$remote_version" ]; then
+    [ -n "$local_version" ] && [ -n "$remote_version" ] && [ "$local_version" != "$remote_version" ] && has_update="true"
+  elif [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
+    has_update="true"
+  fi
+
+  if [ "$has_update" != "true" ]; then
+    echo "------------------------------------------------"
+    echo "GitHub是否有更新，本地保存目录"
+    [ -n "$local_version" ] || [ -n "$remote_version" ] && echo "当前版本：${local_version:-未知}" && echo "最新版本：${remote_version:-未知}"
+    echo -e "${gl_lv}已是最新${gl_bai}"
+    echo -e "${gl_lv}$local_script${gl_bai}"
+    echo "------------------------------------------------"
+    chmod +x "$local_script"
+    bash "$local_script"
+    return
+  fi
+
+  echo "------------------------------------------------"
+  echo "GitHub是否有更新，本地保存目录"
+  [ -n "$local_version" ] || [ -n "$remote_version" ] && echo "当前版本：${local_version:-未知}" && echo "最新版本：${remote_version:-未知}"
+  echo -e "${gl_hong}有新内容${gl_bai}"
+  echo -e "${gl_lv}$local_script${gl_bai}"
+  echo "------------------------------------------------"
+  echo "1.使用本地应用脚本"
+  echo "2.使用GitHub更新脚本"
+  echo "0. 返回上一级选单"
+  echo "------------------------------------------------"
+  local script_choice update_confirm
+  read -e -p "请输入选项并回车（回车默认 1 ）: " script_choice
+  script_choice=${script_choice:-1}
+  case "$script_choice" in
+    1)
+      chmod +x "$local_script"
+      bash "$local_script"
+      ;;
+    2)
+      echo "使用GitHub更新将会覆盖本地文件"
+      read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " update_confirm
+      case "$update_confirm" in
+        [Yy])
+          curl -fsSL "$github_script" -o "$local_script" && chmod +x "$local_script" && bash "$local_script"
+          ;;
+        *)
+          echo "已取消GitHub更新。"
+          ;;
+      esac
+      ;;
+    0)
+      ;;
+    *)
+      echo "无效选项，已返回上一级选单。"
+      ;;
+  esac
+}
+# ===== 本地应用脚本更新逻辑 结束 =====
+
+# ===== kejilion 主脚本更新检测逻辑 开始 =====
+
 show_kejilion_update_status() {
   local github_script="${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh"
   local tmp_script remote_version
@@ -5989,6 +6097,7 @@ show_kejilion_update_status() {
   echo -e "${gl_lv}已是最新${gl_bai}"
   return 1
 }
+# ===== kejilion 主脚本更新检测逻辑 结束 =====
 
 linux_panel() {
   while true; do
@@ -6187,7 +6296,7 @@ linux_panel() {
 	check_path "102" "lobehub.sh"
     check_docker "102" "windows"
     check_docker "103" "fail2ban"
-    if crontab -l 2>/dev/null | grep -q "990应用 端口白名单" ||        grep -q "KJ_APP_ALLOW" /etc/iptables/rules.v4 2>/dev/null ||        iptables -S KJ_APP_ALLOW >/dev/null 2>&1; then
+    if crontab -l 2>/dev/null | grep -q "990应用 端口白名单" ||        { iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'; }; then
         installed_items+=("990")
     fi
     if ! printf '%s
@@ -11617,118 +11726,12 @@ done
 
 
       94)
-        clear
-        echo "▶️ 正在启动Openclaw安装..."
-        local_openclaw_script="/root/yingyong/Openclaw.sh"
-        github_openclaw_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh"
-
-        mkdir -p /root/yingyong
-
-        if [ ! -f "$local_openclaw_script" ]; then
-          echo "未检测到本地应用脚本，正在下载到: $local_openclaw_script"
-          if ! curl -fsSL "$github_openclaw_script" -o "$local_openclaw_script"; then
-            echo "❌ GitHub脚本下载失败，请检查网络。"
-            break_end
-            break
-          fi
-          chmod +x "$local_openclaw_script"
-          bash "$local_openclaw_script"
-        else
-          show_github_script_update_status "$local_openclaw_script" "$github_openclaw_script"
-          echo "------------------------------------------------"
-        echo "已保存本地文件目录"
-        echo -e "${gl_lv}$local_openclaw_script${gl_bai}"
-        echo "------------------------------------------------"
-        echo "1.使用本地应用脚本"
-        echo "2.使用GitHub更新脚本"
-        echo "0. 返回上一级选单"
-        echo "------------------------------------------------"
-        read -e -p "请输入选项并回车（回车默认 1 ）: " openclaw_script_choice
-        openclaw_script_choice=${openclaw_script_choice:-1}
-
-        case "$openclaw_script_choice" in
-          1)
-            chmod +x "$local_openclaw_script"
-            bash "$local_openclaw_script"
-            ;;
-          2)
-            echo "使用GitHub更新将会覆盖本地文件"
-            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " openclaw_update_confirm
-            case "$openclaw_update_confirm" in
-              [Yy])
-                curl -fsSL "$github_openclaw_script" -o "$local_openclaw_script" && chmod +x "$local_openclaw_script" && bash "$local_openclaw_script"
-                ;;
-              *)
-                echo "已取消GitHub更新。"
-                ;;
-            esac
-            ;;
-          0)
-            ;;
-          *)
-            echo "无效选项，已返回上一级选单。"
-            ;;
-        esac
-        fi
-
+        run_local_first_app_script "▶️ 正在启动Openclaw安装..." "/root/yingyong/Openclaw.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Openclaw.sh"
         echo "✅ Openclaw安装完成。"
         ;;
 
 95)
-        clear
-        echo "▶️ 安装open-webui..."
-        local_open_webui_script="/root/yingyong/95open-webui.sh"
-        github_open_webui_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/95open-webui.sh"
-
-        mkdir -p /root/yingyong
-
-        if [ ! -f "$local_open_webui_script" ]; then
-          echo "未检测到本地应用脚本，正在下载到: $local_open_webui_script"
-          if ! curl -fsSL "$github_open_webui_script" -o "$local_open_webui_script"; then
-            echo "❌ GitHub脚本下载失败，请检查网络。"
-            break_end
-            break
-          fi
-          chmod +x "$local_open_webui_script"
-          bash "$local_open_webui_script"
-        else
-          show_github_script_update_status "$local_open_webui_script" "$github_open_webui_script"
-          echo "------------------------------------------------"
-        echo "已保存本地文件目录"
-        echo -e "${gl_lv}$local_open_webui_script${gl_bai}"
-        echo "------------------------------------------------"
-        echo "1.使用本地应用脚本"
-        echo "2.使用GitHub更新脚本"
-        echo "0. 返回上一级选单"
-        echo "------------------------------------------------"
-        read -e -p "请输入选项并回车（回车默认 1 ）: " open_webui_script_choice
-        open_webui_script_choice=${open_webui_script_choice:-1}
-
-        case "$open_webui_script_choice" in
-          1)
-            chmod +x "$local_open_webui_script"
-            bash "$local_open_webui_script"
-            ;;
-          2)
-            echo "使用GitHub更新将会覆盖本地文件"
-            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " open_webui_update_confirm
-            case "$open_webui_update_confirm" in
-              [Yy])
-                curl -fsSL "$github_open_webui_script" -o "$local_open_webui_script" && chmod +x "$local_open_webui_script" && bash "$local_open_webui_script"
-                ;;
-              *)
-                echo "已取消GitHub更新。"
-                ;;
-            esac
-            ;;
-          0)
-            ;;
-          *)
-            echo "无效选项，已返回上一级选单。"
-            ;;
-        esac
-        fi
-
+        run_local_first_app_script "▶️ 安装open-webui..." "/root/yingyong/95open-webui.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/95open-webui.sh"
         echo "✅ open-webui安装完成。"
         ;;
 
@@ -11755,60 +11758,7 @@ done
         ;;
 
       99)
-        clear
-        echo "▶️ 安装hermes-agent..."
-        local_hermes_script="/root/yingyong/hermes_manager.sh"
-        github_hermes_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh"
-
-        mkdir -p /root/yingyong
-
-        if [ ! -f "$local_hermes_script" ]; then
-          echo "未检测到本地应用脚本，正在下载到: $local_hermes_script"
-          if ! curl -fsSL "$github_hermes_script" -o "$local_hermes_script"; then
-            echo "❌ GitHub脚本下载失败，请检查网络。"
-            break_end
-            break
-          fi
-          chmod +x "$local_hermes_script"
-          bash "$local_hermes_script"
-        else
-          show_github_script_update_status "$local_hermes_script" "$github_hermes_script"
-          echo "------------------------------------------------"
-        echo "已保存本地文件目录"
-        echo -e "${gl_lv}$local_hermes_script${gl_bai}"
-        echo "------------------------------------------------"
-        echo "1.使用本地应用脚本"
-        echo "2.使用GitHub更新脚本"
-        echo "0. 返回上一级选单"
-        echo "------------------------------------------------"
-        read -e -p "请输入选项并回车（回车默认 1 ）: " hermes_script_choice
-        hermes_script_choice=${hermes_script_choice:-1}
-
-        case "$hermes_script_choice" in
-          1)
-            chmod +x "$local_hermes_script"
-            bash "$local_hermes_script"
-            ;;
-          2)
-            echo "使用GitHub更新将会覆盖本地文件"
-            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " hermes_update_confirm
-            case "$hermes_update_confirm" in
-              [Yy])
-                curl -fsSL "$github_hermes_script" -o "$local_hermes_script" && chmod +x "$local_hermes_script" && bash "$local_hermes_script"
-                ;;
-              *)
-                echo "已取消GitHub更新。"
-                ;;
-            esac
-            ;;
-          0)
-            ;;
-          *)
-            echo "无效选项，已返回上一级选单。"
-            ;;
-        esac
-        fi
-
+        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/hermes_manager.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/hermes_manager.sh"
         echo "✅ hermes-agent安装成功..."
         ;;
 
@@ -11828,137 +11778,12 @@ done
         ;;
 
       103)
-        clear
-        echo "▶️ 安装Fail2Ban SSH防暴力破解..."
-        local_fail2ban_script="/root/yingyong/103docker-Fail2Ban.sh"
-        github_fail2ban_script="https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh"
-
-        mkdir -p /root/yingyong
-
-        if [ ! -f "$local_fail2ban_script" ]; then
-          echo "未检测到本地应用脚本，正在下载到: $local_fail2ban_script"
-          if ! curl -fsSL "$github_fail2ban_script" -o "$local_fail2ban_script"; then
-            echo "❌ GitHub脚本下载失败，请检查网络。"
-            break_end
-            break
-          fi
-          chmod +x "$local_fail2ban_script"
-          bash "$local_fail2ban_script"
-        else
-          show_github_script_update_status "$local_fail2ban_script" "$github_fail2ban_script"
-          echo "------------------------------------------------"
-        echo "已保存本地文件目录"
-        echo -e "${gl_lv}$local_fail2ban_script${gl_bai}"
-        echo "------------------------------------------------"
-        echo "1.使用本地应用脚本"
-        echo "2.使用GitHub更新脚本"
-        echo "0. 返回上一级选单"
-        echo "------------------------------------------------"
-        read -e -p "请输入选项并回车（回车默认 1 ）: " fail2ban_script_choice
-        fail2ban_script_choice=${fail2ban_script_choice:-1}
-
-        case "$fail2ban_script_choice" in
-          1)
-            chmod +x "$local_fail2ban_script"
-            bash "$local_fail2ban_script"
-            ;;
-          2)
-            echo "使用GitHub更新将会覆盖本地文件"
-            read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " fail2ban_update_confirm
-            case "$fail2ban_update_confirm" in
-              [Yy])
-                curl -fsSL "$github_fail2ban_script" -o "$local_fail2ban_script" && chmod +x "$local_fail2ban_script" && bash "$local_fail2ban_script"
-                ;;
-              *)
-                echo "已取消GitHub更新。"
-                ;;
-            esac
-            ;;
-          0)
-            ;;
-          *)
-            echo "无效选项，已返回上一级选单。"
-            ;;
-        esac
-        fi
-
+        run_local_first_app_script "▶️ 安装Fail2Ban SSH防暴力破解..." "/root/yingyong/103docker-Fail2Ban.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh"
         echo "✅ Fail2Ban SSH防暴力破解安装成功..."
         ;;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       990)
-        clear
-        echo "▶️ 正在启动990端口白名单管理..."
-        local_990_script="/root/yingyong/990-port-whitelist.sh"
-        github_990_script="https://raw.githubusercontent.com/zaixiangjian/sh/main/yingyong/990-port-whitelist.sh"
-
-        mkdir -p /root/yingyong
-
-        if [ ! -f "$local_990_script" ]; then
-          echo "未检测到本地应用脚本，正在下载到: $local_990_script"
-          if ! curl -fsSL "$github_990_script" -o "$local_990_script"; then
-            echo "❌ GitHub脚本下载失败，使用内置990逻辑。"
-            linux_app_ports
-            break_end
-            break
-          fi
-          chmod +x "$local_990_script"
-          bash "$local_990_script"
-        else
-          show_github_script_update_status "$local_990_script" "$github_990_script"
-          echo "------------------------------------------------"
-          echo "已保存本地文件目录"
-          echo -e "${gl_lv}$local_990_script${gl_bai}"
-          echo "------------------------------------------------"
-          echo "1.使用本地应用脚本"
-          echo "2.使用GitHub更新脚本"
-          echo "0. 返回上一级选单"
-          echo "------------------------------------------------"
-          read -e -p "请输入选项并回车（回车默认 1 ）: " port990_script_choice
-          port990_script_choice=${port990_script_choice:-1}
-
-          case "$port990_script_choice" in
-            1)
-              chmod +x "$local_990_script"
-              bash "$local_990_script"
-              ;;
-            2)
-              echo "使用GitHub更新将会覆盖本地文件"
-              read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " port990_update_confirm
-              case "$port990_update_confirm" in
-                [Yy])
-                  curl -fsSL "$github_990_script" -o "$local_990_script" && chmod +x "$local_990_script" && bash "$local_990_script"
-                  ;;
-                *)
-                  echo "已取消GitHub更新。"
-                  ;;
-              esac
-              ;;
-            0)
-              ;;
-            *)
-              echo "无效选项，已返回上一级选单。"
-              ;;
-          esac
-        fi
-
+        run_local_first_app_script "▶️ 正在启动990端口白名单管理..." "/root/yingyong/990-port-whitelist.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/main/yingyong/990-port-whitelist.sh" "linux_app_ports"
         echo "✅ 990端口白名单管理完成。"
         ;;
 
