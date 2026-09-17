@@ -365,6 +365,21 @@ kj_app_allow_reset_default() {
 	echo "全部阻止模式已启用"
 }
 
+kj_app_ports_colored_allowed() {
+	local ports="$1"
+	local allowed_ports p result=""
+	allowed_ports=",$(kj_app_all_allowed_ports),"
+	for p in ${ports//,/ }; do
+		[ -z "$p" ] && continue
+		if kj_app_ports_contains "$allowed_ports" "$p"; then
+			result="${result:+$result,}${gl_lv}${p}${gl_bai}"
+		else
+			result="${result:+$result,}$p"
+		fi
+	done
+	echo -e "$result"
+}
+
 kj_app_ports_allow_status() {
 	local ports="$1"
 	local allowed_ports total=0 allowed=0 p
@@ -448,7 +463,9 @@ kj_app_view_port_details() {
 				阻止) status="${gl_hong}${status}${gl_bai}" ;;
 				部分允许) status="${gl_huang}${status}${gl_bai}" ;;
 			esac
-			printf "%-30s 本地端口:%s\n" "${line_no}.${name}" "$host_ports"
+			local host_ports_colored
+			host_ports_colored=$(kj_app_ports_colored_allowed "$host_ports")
+			printf "%-30s 本地端口:%b\n" "${line_no}.${name}" "$host_ports_colored"
 			printf "状态:%-25b 容器端口:%s\n" "$status" "$container_ports"
 			echo "---------------------------------------------"
 		done
