@@ -113,11 +113,6 @@ ensure_dirs() {
     mkdir -p "$DATA_DIR"
 }
 
-quote_env_value() {
-    # env-file 支持 KEY=value；这里去掉换行，避免写坏配置。
-    printf '%s' "$1" | tr -d '\r\n'
-}
-
 write_default_env_if_missing() {
     ensure_dirs
     if [ ! -f "$ENV_FILE" ]; then
@@ -131,15 +126,6 @@ FRONTEND_URL=http://${ip:-127.0.0.1}:${HOST_PORT}
 ENABLE_SIGNUP=true
 ENABLE_LOGIN_FORM=true
 ENABLE_PASSWORD_AUTH=true
-ENABLE_MAIL=False
-MAIL_SERVER=
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM=
-MAIL_FROM_NAME=Open WebUI
-MAIL_STARTTLS=True
-MAIL_SSL_TLS=False
 EOF
     fi
 }
@@ -148,22 +134,6 @@ read_env_value() {
     local key="$1"
     [ -f "$ENV_FILE" ] || return 0
     grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d= -f2-
-}
-
-set_env_value() {
-    local key="$1"
-    local value="$2"
-    local tmp
-    tmp=$(mktemp)
-    touch "$ENV_FILE"
-    if grep -qE "^${key}=" "$ENV_FILE"; then
-        awk -v k="$key" -v v="$value" 'BEGIN{done=0} $0 ~ "^" k "=" {print k "=" v; done=1; next} {print} END{if(done==0) print k "=" v}' "$ENV_FILE" > "$tmp"
-    else
-        cp "$ENV_FILE" "$tmp"
-        printf '%s=%s\n' "$key" "$value" >> "$tmp"
-    fi
-    mv "$tmp" "$ENV_FILE"
-    chmod 600 "$ENV_FILE"
 }
 
 run_container() {
@@ -189,13 +159,6 @@ install_app() {
     install_docker || { pause; return 1; }
     ensure_dirs
     write_default_env_if_missing
-
-    # 默认安装明确关闭邮件，避免沿用旧 SMTP 配置。
-    set_env_value ENABLE_MAIL "False"
-    set_env_value MAIL_SERVER ""
-    set_env_value MAIL_USERNAME ""
-    set_env_value MAIL_PASSWORD ""
-    set_env_value MAIL_FROM ""
 
     if container_exists; then
         echo -e "${yellow}检测到 open-webui 容器已存在，将按当前配置重建容器，数据目录保留：${DATA_DIR}${plain}"
