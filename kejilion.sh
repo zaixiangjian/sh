@@ -5911,7 +5911,7 @@ nezha_remote_backup_menu() {
 
 
 # ===== 本地应用脚本更新逻辑 开始 =====
-un_local_first_app_script() {
+run_local_first_app_script() {
   local title="$1"
   local local_script="$2"
   local github_script="$3"
