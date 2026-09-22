@@ -6019,10 +6019,9 @@ run_local_first_app_script() {
 # ===== 本地应用脚本更新逻辑 结束 =====
 
 # ===== kejilion 主脚本更新检测逻辑 开始 =====
-
 show_kejilion_update_status() {
   local github_script="${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh"
-  local tmp_script remote_version
+  local tmp_script remote_version remote_sha256 local_sha256
 
   echo -e "${gl_kjlan}------------------------${gl_bai}"
   echo "GitHub是否有更新"
@@ -6038,11 +6037,24 @@ show_kejilion_update_status() {
     return 1
   fi
 
+  # 获取 GitHub 最新版本号
   remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
+
+  # 计算 GitHub 文件 SHA-256
+  remote_sha256="$(sha256sum "$tmp_script" 2>/dev/null | awk '{print $1}')"
+
+  # 计算当前运行脚本 SHA-256
+  local_sha256="$(sha256sum "$0" 2>/dev/null | awk '{print $1}')"
+
   rm -f "$tmp_script"
 
-  if [ -n "$remote_version" ] && [ "$remote_version" != "$sh_v" ]; then
-    echo -e "${gl_hong}有新内容 请使用 00 更新${gl_bai}"
+  # SHA-256 不同 = 文件内容发生变化
+  if [ -n "$remote_sha256" ] && [ "$remote_sha256" != "$local_sha256" ]; then
+    if [ -n "$remote_version" ] && [ "$remote_version" != "$sh_v" ]; then
+      echo -e "${gl_hong}有新版本：${remote_version} 当前版本：${sh_v} 请使用 00 更新${gl_bai}"
+    else
+      echo -e "${gl_hong}检测到文件内容有变化 请使用 00 更新${gl_bai}"
+    fi
     return 0
   fi
 
