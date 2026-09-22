@@ -6018,50 +6018,113 @@ run_local_first_app_script() {
 }
 # ===== 本地应用脚本更新逻辑 结束 =====
 
-# ===== kejilion 主脚本更新检测逻辑 开始 =====
-show_kejilion_update_status() {
-  local github_script="${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh"
-  local tmp_script remote_version remote_sha256 local_sha256
+# ===== 本地应用脚本更新逻辑 开始 =====
+run_local_first_app_script() {
+  local title="$1"
+  local local_script="$2"
+  local github_script="$3"
+  local fallback_func="${4:-}"
+  local tmp_script local_hash remote_hash local_version remote_version has_update="false" check_failed="false"
 
-  echo -e "${gl_kjlan}------------------------${gl_bai}"
-  echo "GitHub是否有更新"
+  clear
+  echo "$title"
+  mkdir -p "$(dirname "$local_script")"
 
-  tmp_script="$(mktemp)" || {
-    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
-    return 1
-  }
-
-  if ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
-    rm -f "$tmp_script"
-    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
-    return 1
+  if [ ! -f "$local_script" ]; then
+    echo "未检测到本地应用脚本，正在下载到: $local_script"
+    if ! curl -fsSL "$github_script" -o "$local_script"; then
+      echo "❌ GitHub脚本下载失败，请检查网络。"
+      if [ -n "$fallback_func" ] && declare -F "$fallback_func" >/dev/null 2>&1; then
+        "$fallback_func"
+      else
+        break_end
+      fi
+      return
+    fi
+    chmod +x "$local_script"
+    bash "$local_script"
+    return
   fi
 
-  # 获取 GitHub 最新版本号
+  tmp_script="$(mktemp)" || check_failed="true"
+  if [ "$check_failed" != "true" ] && ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
+    check_failed="true"
+  fi
+
+  if [ "$check_failed" = "true" ]; then
+    rm -f "$tmp_script" 2>/dev/null || true
+    echo "------------------------------------------------"
+    echo "GitHub是否有更新，本地保存目录"
+    echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
+    echo -e "${gl_lv}$local_script${gl_bai}"
+    echo "------------------------------------------------"
+    chmod +x "$local_script"
+    bash "$local_script"
+    return
+  fi
+
+  local_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$local_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
   remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
-
-  # 计算 GitHub 文件 SHA-256
-  remote_sha256="$(sha256sum "$tmp_script" 2>/dev/null | awk '{print $1}')"
-
-  # 计算当前运行脚本 SHA-256
-  local_sha256="$(sha256sum "$0" 2>/dev/null | awk '{print $1}')"
-
+  local_hash="$(sha256sum "$local_script" 2>/dev/null | awk '{print $1}')"
+  remote_hash="$(sha256sum "$tmp_script" 2>/dev/null | awk '{print $1}')"
   rm -f "$tmp_script"
 
-  # SHA-256 不同 = 文件内容发生变化
-  if [ -n "$remote_sha256" ] && [ "$remote_sha256" != "$local_sha256" ]; then
-    if [ -n "$remote_version" ] && [ "$remote_version" != "$sh_v" ]; then
-      echo -e "${gl_hong}有新版本：${remote_version} 当前版本：${sh_v} 请使用 00 更新${gl_bai}"
-    else
-      echo -e "${gl_hong}检测到文件内容有变化 请使用 00 更新${gl_bai}"
-    fi
-    return 0
+  if [ -n "$local_version" ] || [ -n "$remote_version" ]; then
+    [ -n "$local_version" ] && [ -n "$remote_version" ] && [ "$local_version" != "$remote_version" ] && has_update="true"
+  elif [ -n "$local_hash" ] && [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
+    has_update="true"
   fi
 
-  echo -e "${gl_lv}已是最新${gl_bai}"
-  return 1
+  if [ "$has_update" != "true" ]; then
+    echo "------------------------------------------------"
+    echo "GitHub是否有更新，本地保存目录"
+    [ -n "$local_version" ] || [ -n "$remote_version" ] && echo "当前版本：${local_version:-未知}" && echo "最新版本：${remote_version:-未知}"
+    echo -e "${gl_lv}已是最新${gl_bai}"
+    echo -e "${gl_lv}$local_script${gl_bai}"
+    echo "------------------------------------------------"
+    chmod +x "$local_script"
+    bash "$local_script"
+    return
+  fi
+
+  echo "------------------------------------------------"
+  echo "GitHub是否有更新，本地保存目录"
+  [ -n "$local_version" ] || [ -n "$remote_version" ] && echo "当前版本：${local_version:-未知}" && echo "最新版本：${remote_version:-未知}"
+  echo -e "${gl_hong}有新内容${gl_bai}"
+  echo -e "${gl_lv}$local_script${gl_bai}"
+  echo "------------------------------------------------"
+  echo "1.使用本地应用脚本"
+  echo "2.使用GitHub更新脚本"
+  echo "0. 返回上一级选单"
+  echo "------------------------------------------------"
+  local script_choice update_confirm
+  read -e -p "请输入选项并回车（回车默认 1 ）: " script_choice
+  script_choice=${script_choice:-1}
+  case "$script_choice" in
+    1)
+      chmod +x "$local_script"
+      bash "$local_script"
+      ;;
+    2)
+      echo "使用GitHub更新将会覆盖本地文件"
+      read -e -p "更新覆盖谨慎操作 (Y/N) [默认: N]: " update_confirm
+      case "$update_confirm" in
+        [Yy])
+          curl -fsSL "$github_script" -o "$local_script" && chmod +x "$local_script" && bash "$local_script"
+          ;;
+        *)
+          echo "已取消GitHub更新。"
+          ;;
+      esac
+      ;;
+    0)
+      ;;
+    *)
+      echo "无效选项，已返回上一级选单。"
+      ;;
+  esac
 }
-# ===== kejilion 主脚本更新检测逻辑 结束 =====
+# ===== 本地应用脚本更新逻辑 结束 =====
 
 linux_panel() {
   while true; do
