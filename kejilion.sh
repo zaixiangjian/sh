@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.5"
+sh_v="0.0.6"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6118,7 +6118,7 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕"
     echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份                        ${gl_kjlan}102. ${gl_bai}lobehub安装webai"
-    echo -e "${gl_kjlan}103. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}103. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}              ${gl_kjlan}104. ${gl_bai}Epay和发卡跟加密支付"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
     echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
@@ -6247,6 +6247,9 @@ linux_panel() {
 	check_path "102" "lobehub.sh"
     check_docker "102" "windows"
     check_docker "103" "fail2ban"
+    if [ -d "/home/docker/Epay" ] || [ -d "/home/docker/GMPay" ] || [ -d "/home/docker/bepusdt" ] || [ -d "/home/docker/dujiao-next" ] || [ -d "/home/docker/acg-faka" ]; then
+        installed_items+=("104")
+    fi
     if crontab -l 2>/dev/null | grep -q "990应用 端口白名单" ||        { iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'; }; then
         installed_items+=("990")
     fi
@@ -11731,6 +11734,46 @@ done
       103)
         run_local_first_app_script "▶️ 安装Fail2Ban SSH防暴力破解..." "/root/yingyong/103docker-Fail2Ban.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh"
         echo "✅ Fail2Ban SSH防暴力破解安装成功..."
+        ;;
+
+      104)
+        while true; do
+          clear
+          echo "Epay和发卡跟加密支付"
+          echo "------------------------"
+          echo "1. 安装 易支付"
+          echo "2. 安装 GMPay 又名 epusdt"
+          echo "3. 安装 bepusdt"
+          echo "4. 独角兽发卡"
+          echo "5. 异次元发卡"
+          echo "0. 退出"
+          echo "------------------------"
+          read -e -p "请输入选项并回车：" epay_faka_choice
+          case "$epay_faka_choice" in
+            1)
+              run_local_first_app_script "▶️ 正在启动易支付管理脚本..." "/root/yingyong/9999Epay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999Epay.sh"
+              ;;
+            2)
+              run_local_first_app_script "▶️ 正在启动GMPay / Epusdt管理脚本..." "/root/yingyong/9999GMPay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999GMPay.sh"
+              ;;
+            3)
+              run_local_first_app_script "▶️ 正在启动BEpusdt管理脚本..." "/root/yingyong/9999bepusdt.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999bepusdt.sh"
+              ;;
+            4)
+              run_local_first_app_script "▶️ 正在启动独角兽发卡管理脚本..." "/root/yingyong/9999dujiao-next.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999dujiao-next.sh"
+              ;;
+            5)
+              run_local_first_app_script "▶️ 正在启动异次元发卡管理脚本..." "/root/yingyong/9999acg-faka.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999acg-faka.sh"
+              ;;
+            0)
+              break
+              ;;
+            *)
+              echo "无效选项"
+              break_end
+              ;;
+          esac
+        done
         ;;
 
       990)
