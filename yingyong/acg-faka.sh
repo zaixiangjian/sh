@@ -938,6 +938,7 @@ restore_legacy_volume_backup() {
 }
 
 restore_acg() {
+  local restore_mode="${1:-keep}"
   require_root
   install_docker
   local archive tmp ts old_dir extracted_dir
@@ -981,7 +982,19 @@ restore_acg() {
   fi
   rm -rf "${tmp}"
 
-  start_stack
+  if [ "${restore_mode}" = "image" ]; then
+    warn "恢复完成，按 2 镜像更新/启动流程启动服务..."
+    image_update_acg
+  elif [ "${restore_mode}" = "source" ]; then
+    warn "恢复完成，按 12 源码更新/启动流程启动服务..."
+    if [ -d "${SOURCE_DIR}" ] && [ ! -d "${SOURCE_DIR}/.git" ]; then
+      warn "备份不包含 source/.git，保留恢复出的源码目录并重新拉取源码..."
+      mv "${SOURCE_DIR}" "${SOURCE_DIR}.before_git_restore_${ts}"
+    fi
+    source_update_acg
+  else
+    start_stack
+  fi
   success "恢复完成，已启动服务"
   [ -d "${old_dir}" ] && warn "旧目录保留在：${old_dir}"
 }
@@ -1031,7 +1044,8 @@ main_menu() {
       1) image_install_acg; pause ;;
       2) image_update_acg; pause ;;
       3|13) backup_acg; pause ;;
-      4|14) restore_acg; pause ;;
+      4) restore_acg image; pause ;;
+      14) restore_acg source; pause ;;
       5) docker_login; pause ;;
       6) build_plugin_image; pause ;;
       7) docker_push_image; pause ;;
