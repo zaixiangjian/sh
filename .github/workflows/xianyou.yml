@@ -45,6 +45,10 @@ jobs:
             "zaixiangjian/komari"
             "zaixiangjian/acg-faka"
             "zaixiangjian/dujiao-next"
+            "zaixiangjian/bepusdt"
+            "zaixiangjian/epusdt"
+            "zaixiangjian/epay"
+
           )
 
           echo "Processing ${#IMAGES[@]} images..."
