@@ -466,7 +466,22 @@ supplement_pay_plugins() {
     return 0
   fi
 
-  local plugin tmp
+  local plugin tmp file
+
+  # /var/www/html/app/Pay 会软链到 /data/pay；除了各支付插件目录，
+  # PayFactory 还依赖 Pay 根目录下的 Base.php/Pay.php/Signature.php。
+  # 缺少这些基础类时，所有支付都会在 /user/api/order/trade 静默 500。
+  for file in Base.php Pay.php Signature.php; do
+    if [ ! -f "${DATA_DIR}/pay/${file}" ]; then
+      if docker exec acg-faka-app sh -lc "test -f /opt/acg-skel/pay/${file}" >/dev/null 2>&1; then
+        warn "检测到本地缺少支付基础文件 ${file}，正在从镜像补齐..."
+        docker cp "acg-faka-app:/opt/acg-skel/pay/${file}" "${DATA_DIR}/pay/${file}"
+      else
+        warn "镜像内未找到支付基础文件 ${file}，跳过。"
+      fi
+    fi
+  done
+
   for plugin in BEpusdt Epay Epusdt; do
     if [ ! -d "${DATA_DIR}/pay/${plugin}" ]; then
       if docker exec acg-faka-app sh -lc "test -d /opt/acg-skel/pay/${plugin}" >/dev/null 2>&1; then
@@ -675,6 +690,12 @@ verify_preinstalled_image() {
     "${image}" -lc '
     set -e
     if [ "${CHECK_PAY}" = "1" ]; then
+      for file in Base.php Pay.php Signature.php; do
+        test -f "/opt/acg-skel/pay/${file}" || {
+          echo "镜像缺少 /opt/acg-skel/pay/${file}" >&2
+          exit 1
+        }
+      done
       for plugin in ${PAY_PLUGINS}; do
         test -d "/opt/acg-skel/pay/${plugin}" || {
           echo "镜像缺少 /opt/acg-skel/pay/${plugin}" >&2
