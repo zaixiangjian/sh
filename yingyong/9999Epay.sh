@@ -9,7 +9,7 @@ MYSQL_DIR="${APP_DIR}/mysql"
 BACKUP_DIR="/home"
 BACKUP_PREFIX="Epay"
 COMPOSE_FILE="docker-compose.yaml"
-REPO_URL="https://github.com/zaixiangjian/Epay.git"
+REPO_URL="https://github.com/zaixiangjian/wodezhifu.git"
 CUSTOM_IMAGE="zaixiangjian/epay:latest"
 DEFAULT_PORT="8502"
 
@@ -136,6 +136,19 @@ RUN set -eux; \
     docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli gd zip mbstring bcmath opcache
 
 WORKDIR /var/www/html
+COPY --chown=82:82 html/ /var/www/html/
+EOF
+}
+
+write_dockerignore() {
+  cat > "${APP_DIR}/.dockerignore" <<'EOF'
+html/config.php
+html/install/install.lock
+html/epay_release*
+html/epay_update*
+mysql/
+.env
+.git/
 EOF
 }
 
@@ -158,8 +171,23 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    # 生产环境禁止访问安装器；如需重新安装，临时注释本段并重载 nginx。
-    location ^~ /install/ { return 404; }
+    # 安装完成后自动禁止访问安装器；新环境没有 install.lock 时仍允许打开安装向导。
+    # 显式把 /install/index.php 交给 PHP-FPM，避免任何环境把安装器 PHP 当静态文件下载。
+    location = /install/index.php {
+        if (-f $document_root/install/install.lock) { return 404; }
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_NAME $fastcgi_script_name;
+        fastcgi_pass php:9000;
+    }
+    location = /install/ {
+        if (-f $document_root/install/install.lock) { return 404; }
+        rewrite ^ /install/index.php last;
+    }
+    location /install/ {
+        if (-f $document_root/install/install.lock) { return 404; }
+        try_files $uri /install/index.php?$query_string;
+    }
 
     location ^~ /plugins { deny all; }
     location ^~ /includes { deny all; }
@@ -199,6 +227,46 @@ EOF
   fi
 }
 
+
+repair_epay_source_layout() {
+  if [ ! -d "${HTML_DIR}" ]; then
+    return 0
+  fi
+
+  # 常见错误：把 GitHub/ZIP 包多套了一层目录，导致 /var/www/html 下只有 index.php 或结构不完整。
+  # 如果检测到唯一子目录才是真正源码根目录，则自动上移，避免 include ./includes/common.php 失败。
+  if [ ! -f "${HTML_DIR}/includes/common.php" ]; then
+    local dirs_count nested_dir
+    dirs_count="$(find "${HTML_DIR}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+    nested_dir="$(find "${HTML_DIR}" -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+    if [ "${dirs_count}" = "1" ] && [ -n "${nested_dir}" ] && [ -f "${nested_dir}/index.php" ] && [ -f "${nested_dir}/includes/common.php" ]; then
+      warn "检测到源码多套了一层目录，正在自动上移到 ${HTML_DIR} ..."
+      (shopt -s dotglob nullglob; mv "${nested_dir}"/* "${HTML_DIR}/")
+      rmdir "${nested_dir}" 2>/dev/null || true
+    fi
+  fi
+}
+
+validate_epay_source() {
+  local missing=0
+  for path in \
+    "index.php" \
+    "includes/common.php" \
+    "includes/lib/Template.php" \
+    "includes/vendor/composer/autoload_real.php" \
+    "install/index.php"; do
+    if [ ! -f "${HTML_DIR}/${path}" ]; then
+      error "源码缺少必要文件：${HTML_DIR}/${path}"
+      missing=1
+    fi
+  done
+
+  if [ "${missing}" -ne 0 ]; then
+    error "Epay 源码不完整，已停止启动。"
+    warn "请检查 ${HTML_DIR} 是否完整，或确认 GitHub 仓库根目录是否直接包含 index.php、includes/、plugins/、install/。"
+    return 1
+  fi
+}
 
 sanitize_epay_source() {
   if [ ! -d "${HTML_DIR}" ]; then
@@ -308,11 +376,71 @@ ${php_image_block}
 EOF
 }
 
+seed_html_from_image() {
+  local cid tmp_config tmp_lock
+  mkdir -p "${HTML_DIR}"
+  tmp_config="$(mktemp)"
+  tmp_lock="$(mktemp)"
+  [ -f "${HTML_DIR}/config.php" ] && cp -a "${HTML_DIR}/config.php" "${tmp_config}" || true
+  [ -f "${HTML_DIR}/install/install.lock" ] && cp -a "${HTML_DIR}/install/install.lock" "${tmp_lock}" || true
+
+  warn "正在从镜像 ${CUSTOM_IMAGE} 提取源码到 ${HTML_DIR} ..."
+  rm -rf "${HTML_DIR}"
+  mkdir -p "${HTML_DIR}"
+  docker pull "${CUSTOM_IMAGE}"
+  cid="$(docker create "${CUSTOM_IMAGE}" sh -c true)"
+  docker cp "${cid}:/var/www/html/." "${HTML_DIR}/"
+  docker rm "${cid}" >/dev/null
+
+  [ -s "${tmp_config}" ] && cp -a "${tmp_config}" "${HTML_DIR}/config.php" || true
+  [ -s "${tmp_lock}" ] && mkdir -p "${HTML_DIR}/install" && cp -a "${tmp_lock}" "${HTML_DIR}/install/install.lock" || true
+  rm -f "${tmp_config}" "${tmp_lock}"
+}
+
+env_value() {
+  local key="$1"
+  [ -f "${APP_DIR}/.env" ] && grep -E "^${key}=" "${APP_DIR}/.env" | head -n1 | cut -d= -f2- || true
+}
+
+ensure_placeholder_config() {
+  # Epay 的 includes/common.php 直接 require ROOT.'config.php'；新安装源码包如果没有
+  # config.php，会在进入 /install/ 前先 Fatal。这里按 .env 自动写入运行期数据库配置。
+  # 仅在文件缺失或仍是空模板时重写，不覆盖已安装后的有效配置。
+  local db_name db_user db_pwd rewrite=0
+  db_name="$(env_value MYSQL_DATABASE)"
+  db_user="$(env_value MYSQL_USER)"
+  db_pwd="$(env_value MYSQL_PASSWORD)"
+  db_name="${db_name:-epay}"
+  db_user="${db_user:-epay}"
+
+  if [ ! -f "${HTML_DIR}/config.php" ]; then
+    rewrite=1
+  elif ! grep -Eq "'user'[[:space:]]*=>[[:space:]]*'[^']+'" "${HTML_DIR}/config.php" || ! grep -Eq "'dbname'[[:space:]]*=>[[:space:]]*'[^']+'" "${HTML_DIR}/config.php"; then
+    rewrite=1
+  fi
+
+  if [ "${rewrite}" -eq 1 ]; then
+    cat > "${HTML_DIR}/config.php" <<EOF
+<?php
+/*数据库配置*/
+\$dbconfig=array(
+    'host' => 'mysql', //数据库服务器
+    'port' => 3306, //数据库端口
+    'user' => '${db_user}', //数据库用户名
+    'pwd' => '${db_pwd}', //数据库密码
+    'dbname' => '${db_name}', //数据库名
+    'dbqz' => 'pay' //数据表前缀
+);
+EOF
+  fi
+}
+
 fix_permissions() {
   mkdir -p "${HTML_DIR}" "${MYSQL_DIR}"
-  docker run --rm -v "${HTML_DIR}:/data" alpine:3.20 sh -c 'chown -R 33:33 /data && find /data -type d -exec chmod 755 {} \; && find /data -type f -exec chmod 644 {} \;' >/dev/null 2>&1 || true
-  # PHP-FPM 官方镜像默认 www-data(uid 33) 运行；文件归属已是 33:33，
-  # config.php 用 664 足够安装器写入，避免 666；install 目录也不需要 777。
+  ensure_placeholder_config
+  # php:8.3-fpm-alpine 中 www-data 是 uid/gid 82，不是 Debian php:8.2-fpm-bookworm 的 33。
+  # 源码与 install 目录必须归 82:82，否则安装器无法写 config.php / install.lock。
+  docker run --rm -v "${HTML_DIR}:/data" alpine:3.20 sh -c 'chown -R 82:82 /data && find /data -type d -exec chmod 755 {} \; && find /data -type f -exec chmod 644 {} \;' >/dev/null 2>&1 || true
   [ -f "${HTML_DIR}/config.php" ] && chmod 664 "${HTML_DIR}/config.php" || true
   [ -d "${HTML_DIR}/install" ] && find "${HTML_DIR}/install" -type d -exec chmod 755 {} \; -o -type f -exec chmod 644 {} \; || true
 }
@@ -362,18 +490,29 @@ install_app() {
   fi
 
   mkdir -p "${APP_DIR}"
-  if [ ! -d "${HTML_DIR}/.git" ]; then
-    if [ -e "${HTML_DIR}" ] && [ -n "$(ls -A "${HTML_DIR}" 2>/dev/null || true)" ]; then
-      error "${HTML_DIR} 已存在但不是 git 仓库，请先备份/移走后重试。"
-      return 1
+  if [ "${mode}" = "image" ]; then
+    # 镜像模式使用镜像内源码作为宿主机 ./html 的种子；否则 ./html 绑定会覆盖镜像内 /var/www/html。
+    seed_html_from_image
+    repair_epay_source_layout
+    validate_epay_source
+    sanitize_epay_source
+  else
+    if [ ! -d "${HTML_DIR}/.git" ]; then
+      if [ -e "${HTML_DIR}" ] && [ -n "$(ls -A "${HTML_DIR}" 2>/dev/null || true)" ]; then
+        error "${HTML_DIR} 已存在但不是 git 仓库，请先备份/移走后重试。"
+        return 1
+      fi
+      rm -rf "${HTML_DIR}"
+      git clone --depth=1 "${REPO_URL}" "${HTML_DIR}"
     fi
-    rm -rf "${HTML_DIR}"
-    git clone --depth=1 "${REPO_URL}" "${HTML_DIR}"
+    repair_epay_source_layout
+    validate_epay_source
+    sanitize_epay_source
   fi
-  sanitize_epay_source
 
   write_env "${port}"
   write_dockerfile
+  write_dockerignore
   write_nginx_conf
   write_compose "${mode}"
   fix_permissions
@@ -419,6 +558,8 @@ update_app() {
   [ -f install/install.lock ] && cp -a install/install.lock "${tmp_lock}" || true
   git fetch --depth=1 origin main
   git reset --hard origin/main
+  repair_epay_source_layout
+  validate_epay_source
   sanitize_epay_source
   [ -s "${tmp_config}" ] && cp -a "${tmp_config}" config.php || true
   [ -s "${tmp_lock}" ] && mkdir -p install && cp -a "${tmp_lock}" install/install.lock || true
@@ -426,6 +567,7 @@ update_app() {
 
   cd "${APP_DIR}"
   write_dockerfile
+  write_dockerignore
   write_nginx_conf
   write_compose "${mode}"
   fix_permissions
@@ -608,7 +750,22 @@ docker_push_app() {
     *) warn "已取消推送"; return 0 ;;
   esac
   cd "${APP_DIR}"
-  docker build -t "${CUSTOM_IMAGE}" -f Dockerfile .
+  repair_epay_source_layout
+  validate_epay_source
+  sanitize_epay_source
+  ensure_placeholder_config
+  fix_permissions
+  write_dockerfile
+  write_dockerignore
+  docker build --no-cache -t "${CUSTOM_IMAGE}" -f Dockerfile .
+  docker run --rm --entrypoint sh "${CUSTOM_IMAGE}" -lc '
+    test -f /var/www/html/index.php &&
+    test -f /var/www/html/includes/common.php &&
+    test -f /var/www/html/includes/lib/Template.php &&
+    test -f /var/www/html/install/index.php &&
+    test ! -f /var/www/html/config.php &&
+    test ! -f /var/www/html/install/install.lock
+  '
   docker push "${CUSTOM_IMAGE}"
   success "推送完成：${CUSTOM_IMAGE}"
 }
