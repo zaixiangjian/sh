@@ -6054,88 +6054,6 @@ linux_panel() {
   while true; do
     clear
     # send_stats "面板工具"
-    echo -e "▶ 面板工具"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}1.   ${gl_bai}宝塔面板官方版                      ${gl_kjlan}2.   ${gl_bai}aaPanel宝塔国际版"
-    echo -e "${gl_kjlan}3.   ${gl_bai}1Panel新一代管理面板                ${gl_kjlan}4.   ${gl_bai}NginxProxyManager可视化面板"
-    echo -e "${gl_kjlan}5.   ${gl_bai}哪吒探针备份与恢复                   ${gl_kjlan}6.   ${gl_bai}Ubuntu远程桌面网页版3006端口"
-    echo -e "${gl_kjlan}7.   ${gl_bai}哪吒探针VPS监控面板                 ${gl_kjlan}8.   ${gl_bai}QB离线BT磁力下载面板"
-    echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io邮件服务器程序              ${gl_kjlan}10.  ${gl_bai}RocketChat多人在线聊天系统"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}11.  ${gl_bai}禅道项目管理软件                    ${gl_kjlan}12.  ${gl_bai}青龙面板定时任务管理平台"
-    echo -e "${gl_kjlan}13.  ${gl_bai}Cloudreve网盘 ${gl_huang}★${gl_bai}                   ${gl_kjlan}14.  ${gl_bai}简单图床图片管理程序"
-    echo -e "${gl_kjlan}15.  ${gl_bai}emby多媒体管理系统                  ${gl_kjlan}16.  ${gl_bai}Speedtest测速面板"
-    echo -e "${gl_kjlan}17.  ${gl_bai}AdGuardHome去广告软件              ${gl_kjlan}18.  ${gl_bai}onlyoffice在线办公OFFICE"
-    echo -e "${gl_kjlan}19.  ${gl_bai}雷池WAF防火墙面板                   ${gl_kjlan}20.  ${gl_bai}portainer容器管理面板"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}21.  ${gl_bai}VScode网页版                       ${gl_kjlan}22.  ${gl_bai}UptimeKuma监控工具"
-    echo -e "${gl_kjlan}23.  ${gl_bai}Memos网页备忘录                     ${gl_kjlan}24.  ${gl_bai}Webtop远程桌面   用6号或者99 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}25.  ${gl_bai}Nextcloud网盘                      ${gl_kjlan}26.  ${gl_bai}QD-Today定时任务管理框架"
-    echo -e "${gl_kjlan}27.  ${gl_bai}Dockge容器堆栈管理面板              ${gl_kjlan}28.  ${gl_bai}LibreSpeed测速工具"
-    echo -e "${gl_kjlan}29.  ${gl_bai}searxng聚合搜索站 ${gl_huang}★${gl_bai}                 ${gl_kjlan}30.  ${gl_bai}PhotoPrism私有相册系统"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}31.  ${gl_bai}StirlingPDF工具大全                 ${gl_kjlan}32.  ${gl_bai}drawio免费的在线图表软件 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}33.  ${gl_bai}Sun-Panel导航面板                   ${gl_kjlan}34.  ${gl_bai}Pingvin-Share文件分享平台"
-    echo -e "${gl_kjlan}35.  ${gl_bai}极简朋友圈                          ${gl_kjlan}36.  ${gl_bai}LobeChatAI聊天聚合网站"
-    echo -e "${gl_kjlan}37.  ${gl_bai}MyIP工具箱 ${gl_huang}★${gl_bai}                        ${gl_kjlan}38.  ${gl_bai}小雅alist全家桶"
-    echo -e "${gl_kjlan}39.  ${gl_bai}Bililive直播录制工具                 ${gl_kjlan}40.  ${gl_bai}远程Windows11"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}41.  ${gl_bai}耗子管理面板                        ${gl_kjlan}42.  ${gl_bai}vaultwarden(可以注册)"
-       echo -e "${gl_kjlan}43.  ${gl_bai}vaultwarden(禁止注册SMTP设置)       ${gl_kjlan}44.  ${gl_bai}vaultwarden(禁止注册)"
-       echo -e "${gl_kjlan}45.  ${gl_bai}vaultwarden(注册SMTP设置)           ${gl_kjlan}46.  ${gl_bai}Aria2离线下载"
-       echo -e "${gl_kjlan}47.  ${gl_bai}Cloudreve网盘                      ${gl_kjlan}48.  ${gl_bai}编译部署ssh Nexterm  53 79"
-    echo -e "${gl_kjlan}49.  ${gl_bai}LibreTV                            ${gl_kjlan}50.  ${gl_bai}MoonTV"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}51.  ${gl_bai}极光面板                            ${gl_kjlan}52.  ${gl_bai}emby安装"
-    echo -e "${gl_kjlan}53.  ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}               ${gl_kjlan}54.  ${gl_bai}webssh ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}55.  ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}                    ${gl_kjlan}56.  ${gl_bai}umami网站流量统计系统"
-    echo -e "${gl_kjlan}57.  ${gl_bai}dify安装 ${gl_huang}★${gl_bai}                          ${gl_kjlan}58.  ${gl_bai}安装caddy"
-       echo -e "${gl_kjlan}------------------------"
-       echo -e "${gl_kjlan}59.  ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}           ${gl_kjlan}60.  ${gl_bai}docker安装rustdesk中继端"
-    echo -e "${gl_kjlan}61.  ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}               ${gl_kjlan}62.  ${gl_bai}安装x-ui"
-    echo -e "${gl_kjlan}63.  ${gl_bai}安装rclone搭配64使用（82.86） ${gl_huang}★${gl_bai}      ${gl_kjlan}64.  ${gl_bai}安装r2beifen备份（82.86）"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}65.  ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}       ${gl_kjlan}66.  ${gl_bai}安装65caddy DNS配置版"
-    echo -e "${gl_kjlan}67.  ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}                   ${gl_kjlan}68.  ${gl_bai}安装M38u8安装完成使用58添加反代"
-    echo -e "${gl_kjlan}69.  ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}                    ${gl_kjlan}70.  ${gl_bai}安装盘搜"
-    echo -e "${gl_kjlan}71.  ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}                      ${gl_kjlan}72.  ${gl_bai}安装Discourse论坛"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}73.  ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}          ${gl_kjlan}74.  ${gl_bai}添加对象存储api（73.88）"
-    echo -e "${gl_kjlan}75.  ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}                 ${gl_kjlan}76.  ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai} "
-    echo -e "${gl_kjlan}77.  ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}              ${gl_kjlan}78.  ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}79.  ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}             ${gl_kjlan}80.  ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}81.  ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}         ${gl_kjlan}82.  ${gl_bai}s3自动备份安装包（63.64.86） ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}83.  ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}                     ${gl_kjlan}84.  ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}85.  ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}                      ${gl_kjlan}86.  ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}87.  ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}                  ${gl_kjlan}88.  ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}89.  ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}         ${gl_kjlan}90.  ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}91.  ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}                      ${gl_kjlan}92.  ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}93.  ${gl_bai}Sub2API ${gl_huang}★${gl_bai}                             ${gl_kjlan}94.  ${gl_bai}Openclaw ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}95.  ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}                          ${gl_kjlan}96.  ${gl_bai}Google检测${gl_huang}"
-    echo -e "${gl_kjlan}97.  ${gl_bai}IP白名单模式                           ${gl_kjlan}98.  ${gl_bai}安装Google${gl_huang}"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}99.  ${gl_bai}Hermes机器人爱马仕                    ${gl_kjlan}100. ${gl_bai}lobehub安装webai"
-    echo -e "${gl_kjlan}101.  ${gl_bai}agent-ai备份                        ${gl_kjlan}102. ${gl_bai}加密支付GMPay 又名 epusdt ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}103. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}              ${gl_kjlan}104. ${gl_bai}易支付Epay ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}105. ${gl_bai}异次元发卡                            ${gl_kjlan}106. ${gl_bai}独角兽发卡 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}107. ${gl_bai}加密支付bepusdt"
-
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}990.  ${gl_bai}安装的应用以及应用端口"
-    echo -e "${gl_kjlan}996.  ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}                           ${gl_kjlan}997.  ${gl_bai}PVE开小鸡面板"
-       echo -e "${gl_kjlan}998.  ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}                        ${gl_kjlan}999.  ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}1000.  ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}                       ${gl_kjlan}1001.  ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}1002.  ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}                    ${gl_kjlan}1003.  ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-       echo -e "${gl_kjlan}1004.  ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}                      ${gl_kjlan}1005.  ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}------------------------"
-    echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
-    echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
-    echo -e "${gl_kjlan}------------------------${gl_bai}"
-    
     # ================= 动态检测已安装面板服务 =================
     declare -a installed_items=()
     # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
@@ -6208,7 +6126,21 @@ linux_panel() {
     check_docker "39" "bililive-go"
     check_docker "40" "windows"
     check_path "41" "/www/server/panel-haozi"
-    check_docker "42" "vaultwarden"
+    # Vaultwarden 42/43/44/45 共用同一个容器名，按容器环境变量区分安装类型
+    if [ -n "$docker_container_list" ] && echo "$docker_container_list" | grep -Fxq "vaultwarden"; then
+        vaultwarden_env="$(docker inspect vaultwarden --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+        if echo "$vaultwarden_env" | grep -qx 'SIGNUPS_ALLOWED=false'; then
+            if echo "$vaultwarden_env" | grep -q '^SMTP_HOST='; then
+                installed_items+=("43")
+            else
+                installed_items+=("44")
+            fi
+        elif echo "$vaultwarden_env" | grep -q '^SMTP_HOST='; then
+            installed_items+=("45")
+        else
+            installed_items+=("42")
+        fi
+    fi
     check_docker "46" "aria2-pro"
     check_docker "48" "nexterm"
     check_docker "49" "libretv"
@@ -6242,38 +6174,135 @@ linux_panel() {
     check_docker "93" "sub2api"
     check_path "94" "/root/.openclaw"
     check_docker "95" "open-webui"
+    if [ -f "/home/myip.sh" ] || [ -f "/home/myip_db.txt" ] || crontab -l 2>/dev/null | grep -Fq "/home/myip.sh"; then
+        installed_items+=("97")
+    fi
     if [ -f "/home/jiancegoogle-telegram.sh" ] ||        [ -f "/home/jiancegoogle-Resend-email.sh" ] ||        [ -f "/home/jiancegoogle-smtp-email.sh" ] ||        [ -f "/home/jiancegoogle-qita-email.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-telegram.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-Resend-email.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-smtp-email.sh" ] ||        [ -f "/home/jiancegoogle-jingweidu-qita-email.sh" ] ||        crontab -l 2>/dev/null | grep -Eq 'jiancegoogle-(telegram|Resend-email|smtp-email|qita-email|jingweidu-telegram|jingweidu-Resend-email|jingweidu-smtp-email|jingweidu-qita-email)\.sh'; then
         installed_items+=("96")
     fi
     check_docker "98" "chromium"
     check_path "99" "/root/.hermes"
-    check_path "100" "lobehub.sh"
-    check_docker "100" "windows"
+    check_docker "100" "lobehub"
     check_path "101" "/root/agent-ai.sh"
     check_docker "102" "epusdt"
-    check_docker "103" "fail2ban"
     if { [ -n "$docker_container_list" ] && echo "$docker_container_list" | grep -Eq '^(epay-nginx|epay-php|epay-mysql)$'; }; then
-        installed_items+=("104")
+        installed_items+=("103")
     fi
-    check_docker "105" "acg-faka-app"
-    check_docker "106" "dujiao-next"
-    check_docker "107" "bepusdt"
+    check_docker "104" "acg-faka-app"
+    check_docker "105" "dujiao-next"
+    check_docker "106" "bepusdt"
 
     if crontab -l 2>/dev/null | grep -q "990应用 端口白名单" ||        { iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'; }; then
         installed_items+=("990")
     fi
+    check_docker "991" "fail2ban"
     if ! printf '%s
-' "${installed_items[@]}" | grep -qx "103"; then
+' "${installed_items[@]}" | grep -qx "991"; then
         if [ -f "/home/docker/fail2ban/notify/ssh-login-telegram.sh" ] ||            [ -f "/home/docker/fail2ban/notify/ssh-Resend-email-smtp.sh" ] ||            [ -f "/home/docker/fail2ban/notify/ssh-smtp-email-smtp.sh" ] ||            [ -f "/home/docker/fail2ban/notify/ssh-login-pam-alert.sh" ] ||            crontab -l 2>/dev/null | grep -Eq 'ssh-login-telegram|ssh-Resend-email-smtp|ssh-smtp-email-smtp|ssh-qita-email-smtp|ssh-login-pam-alert'; then
-            installed_items+=("103")
+            installed_items+=("991")
         fi
     fi
 
+    panel_item_installed() {
+        local num="$1"
+        printf '%s
+' "${installed_items[@]}" | grep -qx "$num"
+    }
+    # 面板菜单项染色：第2个参数保持原版显示；第3个参数只在已安装时整项变绿
+    panel_menu_item_green_if_installed() {
+        local num="$1"
+        local normal_text="$2"
+        local installed_text="$3"
+        if panel_item_installed "$num"; then
+            printf "%b" "${gl_lv}${installed_text}${gl_bai}"
+        else
+            printf "%b" "$normal_text"
+        fi
+    }
+
+    echo -e "▶ 面板工具"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 1 "${gl_kjlan}1. ${gl_bai}宝塔面板官方版" "1. 宝塔面板官方版")\033[48G$(panel_menu_item_green_if_installed 2 "${gl_kjlan}2. ${gl_bai}aaPanel宝塔国际版" "2. aaPanel宝塔国际版")"
+    echo -e "$(panel_menu_item_green_if_installed 3 "${gl_kjlan}3. ${gl_bai}1Panel新一代管理面板" "3. 1Panel新一代管理面板")\033[48G$(panel_menu_item_green_if_installed 4 "${gl_kjlan}4. ${gl_bai}NginxProxyManager可视化面板" "4. NginxProxyManager可视化面板")"
+    echo -e "$(panel_menu_item_green_if_installed 5 "${gl_kjlan}5. ${gl_bai}哪吒探针备份与恢复" "5. 哪吒探针备份与恢复")\033[48G$(panel_menu_item_green_if_installed 6 "${gl_kjlan}6. ${gl_bai}Ubuntu远程桌面网页版3006端口" "6. Ubuntu远程桌面网页版3006端口")"
+    echo -e "$(panel_menu_item_green_if_installed 7 "${gl_kjlan}7. ${gl_bai}哪吒探针VPS监控面板" "7. 哪吒探针VPS监控面板")\033[48G$(panel_menu_item_green_if_installed 8 "${gl_kjlan}8. ${gl_bai}QB离线BT磁力下载面板" "8. QB离线BT磁力下载面板")"
+    echo -e "$(panel_menu_item_green_if_installed 9 "${gl_kjlan}9. ${gl_bai}Poste.io邮件服务器程序" "9. Poste.io邮件服务器程序")\033[48G$(panel_menu_item_green_if_installed 10 "${gl_kjlan}10. ${gl_bai}RocketChat多人在线聊天系统" "10. RocketChat多人在线聊天系统")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 11 "${gl_kjlan}11. ${gl_bai}禅道项目管理软件" "11. 禅道项目管理软件")\033[48G$(panel_menu_item_green_if_installed 12 "${gl_kjlan}12. ${gl_bai}青龙面板定时任务管理平台" "12. 青龙面板定时任务管理平台")"
+    echo -e "$(panel_menu_item_green_if_installed 13 "${gl_kjlan}13. ${gl_bai}Cloudreve网盘 ${gl_huang}★${gl_bai}" "13. Cloudreve网盘 ★")\033[48G$(panel_menu_item_green_if_installed 14 "${gl_kjlan}14. ${gl_bai}简单图床图片管理程序" "14. 简单图床图片管理程序")"
+    echo -e "$(panel_menu_item_green_if_installed 15 "${gl_kjlan}15. ${gl_bai}emby多媒体管理系统" "15. emby多媒体管理系统")\033[48G$(panel_menu_item_green_if_installed 16 "${gl_kjlan}16. ${gl_bai}Speedtest测速面板" "16. Speedtest测速面板")"
+    echo -e "$(panel_menu_item_green_if_installed 17 "${gl_kjlan}17. ${gl_bai}AdGuardHome去广告软件" "17. AdGuardHome去广告软件")\033[48G$(panel_menu_item_green_if_installed 18 "${gl_kjlan}18. ${gl_bai}onlyoffice在线办公OFFICE" "18. onlyoffice在线办公OFFICE")"
+    echo -e "$(panel_menu_item_green_if_installed 19 "${gl_kjlan}19. ${gl_bai}雷池WAF防火墙面板" "19. 雷池WAF防火墙面板")\033[48G$(panel_menu_item_green_if_installed 20 "${gl_kjlan}20. ${gl_bai}portainer容器管理面板" "20. portainer容器管理面板")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 21 "${gl_kjlan}21. ${gl_bai}VScode网页版" "21. VScode网页版")\033[48G$(panel_menu_item_green_if_installed 22 "${gl_kjlan}22. ${gl_bai}UptimeKuma监控工具" "22. UptimeKuma监控工具")"
+    echo -e "$(panel_menu_item_green_if_installed 23 "${gl_kjlan}23. ${gl_bai}Memos网页备忘录" "23. Memos网页备忘录")\033[48G$(panel_menu_item_green_if_installed 24 "${gl_kjlan}24. ${gl_bai}Webtop远程桌面   用6号或者99 ${gl_huang}★${gl_bai}" "24. Webtop远程桌面   用6号或者99 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 25 "${gl_kjlan}25. ${gl_bai}Nextcloud网盘" "25. Nextcloud网盘")\033[48G$(panel_menu_item_green_if_installed 26 "${gl_kjlan}26. ${gl_bai}QD-Today定时任务管理框架" "26. QD-Today定时任务管理框架")"
+    echo -e "$(panel_menu_item_green_if_installed 27 "${gl_kjlan}27. ${gl_bai}Dockge容器堆栈管理面板" "27. Dockge容器堆栈管理面板")\033[48G$(panel_menu_item_green_if_installed 28 "${gl_kjlan}28. ${gl_bai}LibreSpeed测速工具" "28. LibreSpeed测速工具")"
+    echo -e "$(panel_menu_item_green_if_installed 29 "${gl_kjlan}29. ${gl_bai}searxng聚合搜索站 ${gl_huang}★${gl_bai}" "29. searxng聚合搜索站 ★")\033[48G$(panel_menu_item_green_if_installed 30 "${gl_kjlan}30. ${gl_bai}PhotoPrism私有相册系统" "30. PhotoPrism私有相册系统")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 31 "${gl_kjlan}31. ${gl_bai}StirlingPDF工具大全" "31. StirlingPDF工具大全")\033[48G$(panel_menu_item_green_if_installed 32 "${gl_kjlan}32. ${gl_bai}drawio免费的在线图表软件 ${gl_huang}★${gl_bai}" "32. drawio免费的在线图表软件 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 33 "${gl_kjlan}33. ${gl_bai}Sun-Panel导航面板" "33. Sun-Panel导航面板")\033[48G$(panel_menu_item_green_if_installed 34 "${gl_kjlan}34. ${gl_bai}Pingvin-Share文件分享平台" "34. Pingvin-Share文件分享平台")"
+    echo -e "$(panel_menu_item_green_if_installed 35 "${gl_kjlan}35. ${gl_bai}极简朋友圈" "35. 极简朋友圈")\033[48G$(panel_menu_item_green_if_installed 36 "${gl_kjlan}36. ${gl_bai}LobeChatAI聊天聚合网站" "36. LobeChatAI聊天聚合网站")"
+    echo -e "$(panel_menu_item_green_if_installed 37 "${gl_kjlan}37. ${gl_bai}MyIP工具箱 ${gl_huang}★${gl_bai}" "37. MyIP工具箱 ★")\033[48G$(panel_menu_item_green_if_installed 38 "${gl_kjlan}38. ${gl_bai}小雅alist全家桶" "38. 小雅alist全家桶")"
+    echo -e "$(panel_menu_item_green_if_installed 39 "${gl_kjlan}39. ${gl_bai}Bililive直播录制工具" "39. Bililive直播录制工具")\033[48G$(panel_menu_item_green_if_installed 40 "${gl_kjlan}40. ${gl_bai}远程Windows11" "40. 远程Windows11")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 41 "${gl_kjlan}41. ${gl_bai}耗子管理面板" "41. 耗子管理面板")\033[48G$(panel_menu_item_green_if_installed 42 "${gl_kjlan}42. ${gl_bai}vaultwarden(可以注册)" "42. vaultwarden(可以注册)")"
+    echo -e "$(panel_menu_item_green_if_installed 43 "${gl_kjlan}43. ${gl_bai}vaultwarden(禁止注册SMTP设置)" "43. vaultwarden(禁止注册SMTP设置)")\033[48G$(panel_menu_item_green_if_installed 44 "${gl_kjlan}44. ${gl_bai}vaultwarden(禁止注册)" "44. vaultwarden(禁止注册)")"
+    echo -e "$(panel_menu_item_green_if_installed 45 "${gl_kjlan}45. ${gl_bai}vaultwarden(注册SMTP设置)" "45. vaultwarden(注册SMTP设置)")\033[48G$(panel_menu_item_green_if_installed 46 "${gl_kjlan}46. ${gl_bai}Aria2离线下载" "46. Aria2离线下载")"
+    echo -e "$(panel_menu_item_green_if_installed 47 "${gl_kjlan}47. ${gl_bai}Cloudreve网盘" "47. Cloudreve网盘")\033[48G$(panel_menu_item_green_if_installed 48 "${gl_kjlan}48. ${gl_bai}编译部署ssh Nexterm  53 79" "48. 编译部署ssh Nexterm  53 79")"
+    echo -e "$(panel_menu_item_green_if_installed 49 "${gl_kjlan}49. ${gl_bai}LibreTV" "49. LibreTV")\033[48G$(panel_menu_item_green_if_installed 50 "${gl_kjlan}50. ${gl_bai}MoonTV" "50. MoonTV")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 51 "${gl_kjlan}51. ${gl_bai}极光面板" "51. 极光面板")\033[48G$(panel_menu_item_green_if_installed 52 "${gl_kjlan}52. ${gl_bai}emby安装" "52. emby安装")"
+    echo -e "$(panel_menu_item_green_if_installed 53 "${gl_kjlan}53. ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}" "53. NextermSSH链接 48 79★")\033[48G$(panel_menu_item_green_if_installed 54 "${gl_kjlan}54. ${gl_bai}webssh ${gl_huang}★${gl_bai}" "54. webssh ★")"
+    echo -e "$(panel_menu_item_green_if_installed 55 "${gl_kjlan}55. ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}" "55. openlist4.0.8 ★")\033[48G$(panel_menu_item_green_if_installed 56 "${gl_kjlan}56. ${gl_bai}umami网站流量统计系统" "56. umami网站流量统计系统")"
+    echo -e "$(panel_menu_item_green_if_installed 57 "${gl_kjlan}57. ${gl_bai}dify安装 ${gl_huang}★${gl_bai}" "57. dify安装 ★")\033[48G$(panel_menu_item_green_if_installed 58 "${gl_kjlan}58. ${gl_bai}安装caddy" "58. 安装caddy")"
+    echo -e "$(panel_menu_item_green_if_installed 59 "${gl_kjlan}59. ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}" "59. docker安装rustdesk服务端 ★")\033[48G$(panel_menu_item_green_if_installed 60 "${gl_kjlan}60. ${gl_bai}docker安装rustdesk中继端" "60. docker安装rustdesk中继端")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 61 "${gl_kjlan}61. ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}" "61. 安装rustdesk远程桌面 ★")\033[48G$(panel_menu_item_green_if_installed 62 "${gl_kjlan}62. ${gl_bai}安装x-ui" "62. 安装x-ui")"
+    echo -e "$(panel_menu_item_green_if_installed 63 "${gl_kjlan}63. ${gl_bai}安装rclone搭配64使用（82.86） ${gl_huang}★${gl_bai}" "63. 安装rclone搭配64使用（82.86） ★")\033[48G$(panel_menu_item_green_if_installed 64 "${gl_kjlan}64. ${gl_bai}安装r2beifen备份（82.86）" "64. 安装r2beifen备份（82.86）")"
+    echo -e "$(panel_menu_item_green_if_installed 65 "${gl_kjlan}65. ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}" "65. 安装caddy DNS版使用66配置反代 ★")\033[48G$(panel_menu_item_green_if_installed 66 "${gl_kjlan}66. ${gl_bai}安装65caddy DNS配置版" "66. 安装65caddy DNS配置版")"
+    echo -e "$(panel_menu_item_green_if_installed 67 "${gl_kjlan}67. ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}" "67. ownCloud网盘安装 ★")\033[48G$(panel_menu_item_green_if_installed 68 "${gl_kjlan}68. ${gl_bai}安装M38u8安装完成使用58添加反代" "68. 安装M38u8安装完成使用58添加反代")"
+    echo -e "$(panel_menu_item_green_if_installed 69 "${gl_kjlan}69. ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}" "69. it-tools工具箱 ★")\033[48G$(panel_menu_item_green_if_installed 70 "${gl_kjlan}70. ${gl_bai}安装盘搜" "70. 安装盘搜")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 71 "${gl_kjlan}71. ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}" "71. 安装zfile网盘 ★")\033[48G$(panel_menu_item_green_if_installed 72 "${gl_kjlan}72. ${gl_bai}安装Discourse论坛" "72. 安装Discourse论坛")"
+    echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}" "73. 安装minio对象存储（74.88） ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}添加对象存储api（73.88）" "74. 添加对象存储api（73.88）")"
+    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}" "75. docker安装openliat ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 81 "${gl_kjlan}81. ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}" "81. Sun-Panel压缩包安装33docker ★")\033[48G$(panel_menu_item_green_if_installed 82 "${gl_kjlan}82. ${gl_bai}s3自动备份安装包（63.64.86） ${gl_huang}★${gl_bai}" "82. s3自动备份安装包（63.64.86） ★")"
+    echo -e "$(panel_menu_item_green_if_installed 83 "${gl_kjlan}83. ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}" "83. 自编译caddy-dns ★")\033[48G$(panel_menu_item_green_if_installed 84 "${gl_kjlan}84. ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}" "84. Hitokoto API (一言)  ★")"
+    echo -e "$(panel_menu_item_green_if_installed 85 "${gl_kjlan}85. ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}" "85. 自编译openlist ★")\033[48G$(panel_menu_item_green_if_installed 86 "${gl_kjlan}86. ${gl_bai}Backrest 资源备份（63.64.82） ${gl_huang}★${gl_bai}" "86. Backrest 资源备份（63.64.82） ★")"
+    echo -e "$(panel_menu_item_green_if_installed 87 "${gl_kjlan}87. ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}" "87. Certimate 证书管理 ★")\033[48G$(panel_menu_item_green_if_installed 88 "${gl_kjlan}88. ${gl_bai}自编译minio（73.74） ${gl_huang}★${gl_bai}" "88. 自编译minio（73.74） ★")"
+    echo -e "$(panel_menu_item_green_if_installed 89 "${gl_kjlan}89. ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}" "89. 自编译docker安装哪吒v2官方7号 ★")\033[48G$(panel_menu_item_green_if_installed 90 "${gl_kjlan}90. ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}" "90. BTC安装 ★")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 91 "${gl_kjlan}91. ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}" "91. 自动进行谷歌浏览 ★")\033[48G$(panel_menu_item_green_if_installed 92 "${gl_kjlan}92. ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}" "92. CLIProxyAPI ★")"
+    echo -e "$(panel_menu_item_green_if_installed 93 "${gl_kjlan}93. ${gl_bai}Sub2API ${gl_huang}★${gl_bai}" "93. Sub2API ★")\033[48G$(panel_menu_item_green_if_installed 94 "${gl_kjlan}94. ${gl_bai}Openclaw ${gl_huang}★${gl_bai}" "94. Openclaw ★")"
+    echo -e "$(panel_menu_item_green_if_installed 95 "${gl_kjlan}95. ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}" "95. Open WebUI ★")\033[48G$(panel_menu_item_green_if_installed 96 "${gl_kjlan}96. ${gl_bai}Google检测" "96. Google检测")"
+    echo -e "$(panel_menu_item_green_if_installed 97 "${gl_kjlan}97. ${gl_bai}IP白名单模式" "97. IP白名单模式")\033[48G$(panel_menu_item_green_if_installed 98 "${gl_kjlan}98. ${gl_bai}安装Google" "98. 安装Google")"
+    echo -e "$(panel_menu_item_green_if_installed 99 "${gl_kjlan}99. ${gl_bai}Hermes机器人爱马仕" "99. Hermes机器人爱马仕")\033[48G$(panel_menu_item_green_if_installed 100 "${gl_kjlan}100. ${gl_bai}lobehub安装webai" "100. lobehub安装webai")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 101 "${gl_kjlan}101. ${gl_bai}agent-ai备份" "101. agent-ai备份")\033[48G$(panel_menu_item_green_if_installed 102 "${gl_kjlan}102. ${gl_bai}加密支付GMPay 又名 epusdt ${gl_huang}★${gl_bai}" "102. 加密支付GMPay 又名 epusdt ★")"
+    echo -e "$(panel_menu_item_green_if_installed 103 "${gl_kjlan}103. ${gl_bai}易支付Epay ${gl_huang}★${gl_bai}" "103. 易支付Epay ★")\033[48G$(panel_menu_item_green_if_installed 104 "${gl_kjlan}104. ${gl_bai}异次元发卡" "104. 异次元发卡")"
+    echo -e "$(panel_menu_item_green_if_installed 105 "${gl_kjlan}105. ${gl_bai}独角兽发卡 ${gl_huang}★${gl_bai}" "105. 独角兽发卡 ★")\033[48G$(panel_menu_item_green_if_installed 106 "${gl_kjlan}106. ${gl_bai}加密支付bepusdt" "106. 加密支付bepusdt")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "$(panel_menu_item_green_if_installed 990 "${gl_kjlan}990. ${gl_bai}安装的应用以及应用端口" "990. 安装的应用以及应用端口")\033[48G$(panel_menu_item_green_if_installed 991 "${gl_kjlan}991. ${gl_bai}Fail2Ban SSH防暴力破解 ${gl_huang}★${gl_bai}" "991. Fail2Ban SSH防暴力破解 ★")"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}996. ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}997. ${gl_bai}PVE开小鸡面板"
+    echo -e "${gl_kjlan}998. ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}999. ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}1000. ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1001. ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}1002. ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1003. ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}1004. ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1005. ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}------------------------"
+    echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
+    echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
+    echo -e "${gl_kjlan}------------------------${gl_bai}"
+    
     # 打印重要项目固定提醒：已安装黄色，未安装红色
     local important_line=""
     local important_item=""
     local important_colored=""
-    for important_item in 96 103 990; do
+    for important_item in 96 990 991; do
         if printf '%s
 ' "${installed_items[@]}" | grep -qx "$important_item"; then
             important_colored="${gl_huang}${important_item}${gl_bai}"
@@ -6299,7 +6328,7 @@ linux_panel() {
         local colored_item=""
         for item in "${installed_items[@]}"; do
             case "$item" in
-                5|96|103|990)
+                5|96|990|991)
                     colored_item="${gl_huang}${item}${gl_bai}"
                     ;;
                 *)
@@ -11693,7 +11722,7 @@ done
         echo "✅ Openclaw安装完成。"
         ;;
 
-95)
+      95)
         run_local_first_app_script "▶️ 安装open-webui..." "/root/yingyong/95open-webui.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/95open-webui.sh"
         echo "✅ open-webui安装完成。"
         ;;
@@ -11744,27 +11773,23 @@ done
         echo "✅ 加密支付GMPay 又名 epusdt管理脚本执行完成..."
         ;;
 
-      103)
-        run_local_first_app_script "▶️ 安装Fail2Ban SSH防暴力破解..." "/root/yingyong/103docker-Fail2Ban.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh"
-        echo "✅ Fail2Ban SSH防暴力破解安装成功..."
-        ;;
 
-      104)
+      103)
         run_local_first_app_script "▶️ 正在启动易支付Epay管理脚本..." "/root/yingyong/9999Epay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999Epay.sh"
         echo "✅ 易支付Epay管理脚本执行完成..."
         ;;
 
-      105)
+      104)
         run_local_first_app_script "▶️ 正在启动异次元发卡管理脚本..." "/root/yingyong/9999acg-faka.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999acg-faka.sh"
         echo "✅ 异次元发卡管理脚本执行完成..."
         ;;
 
-      106)
+      105)
         run_local_first_app_script "▶️ 正在启动独角兽发卡管理脚本..." "/root/yingyong/9999dujiao-next.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999dujiao-next.sh"
         echo "✅ 独角兽发卡管理脚本执行完成..."
         ;;
 
-      107)
+      106)
         run_local_first_app_script "▶️ 正在启动加密支付bepusdt管理脚本..." "/root/yingyong/9999bepusdt.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999bepusdt.sh"
         echo "✅ 加密支付bepusdt管理脚本执行完成..."
         ;;
@@ -11772,6 +11797,11 @@ done
       990)
         run_local_first_app_script "▶️ 正在启动990端口白名单管理..." "/root/yingyong/990-port-whitelist.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/main/yingyong/990-port-whitelist.sh" "linux_app_ports"
         echo "✅ 990端口白名单管理完成。"
+        ;;
+
+      991)
+        run_local_first_app_script "▶️ 安装Fail2Ban SSH防暴力破解..." "/root/yingyong/103docker-Fail2Ban.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103docker-Fail2Ban.sh"
+        echo "✅ Fail2Ban SSH防暴力破解安装成功..."
         ;;
 
       996)
