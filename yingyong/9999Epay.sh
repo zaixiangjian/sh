@@ -85,12 +85,6 @@ compose_cmd() {
   fi
 }
 
-image_mode_guard() {
-  # 镜像模式不再限制：菜单 1/2 可直接安装/更新。
-  # 安装/更新流程仍会生成安全 nginx.conf，并在启动前清理残留备份文件、检查源码加固点。
-  return 0
-}
-
 ensure_iptables() {
   if command -v iptables >/dev/null 2>&1; then
     return 0
@@ -402,11 +396,15 @@ PYFIX
     changed=1
   fi
 
-  if grep -RInE "SENTENCEIA|SERVER_PHP_VERSION|HTTP_PHP_VERSION|Set-Cookie: PHPSESSID|sg_load|xitong\.uno|zhangzitong|jiami\.ka234|jiami\.xitong" "${HTML_DIR}" --exclude-dir=.git >/tmp/epay_sanitize_check.txt 2>/dev/null; then
+  local sanitize_check_file
+  sanitize_check_file="$(mktemp)"
+  if grep -RInE "SENTENCEIA|SERVER_PHP_VERSION|HTTP_PHP_VERSION|Set-Cookie: PHPSESSID|sg_load|xitong\.uno|zhangzitong|jiami\.ka234|jiami\.xitong" "${HTML_DIR}" --exclude-dir=.git >"${sanitize_check_file}" 2>/dev/null; then
     error "仍发现可疑后门特征，请人工检查："
-    sed -n '1,80p' /tmp/epay_sanitize_check.txt
+    sed -n '1,80p' "${sanitize_check_file}"
+    rm -f "${sanitize_check_file}"
     return 1
   fi
+  rm -f "${sanitize_check_file}"
 
   harden_epay_ssrf
 
@@ -615,7 +613,6 @@ show_status() {
 install_app() {
   local mode="${1:-source}"
   require_root
-  image_mode_guard "${mode}" || return 1
   install_docker
   ensure_git
   ensure_python3
@@ -695,7 +692,6 @@ install_app() {
 update_app() {
   local mode="${1:-source}"
   require_root
-  image_mode_guard "${mode}" || return 1
   install_docker
   ensure_git
   ensure_python3
@@ -947,7 +943,7 @@ main_menu() {
     echo "3. 备份（/home/${BACKUP_PREFIX}-YYYYmmddHHMMSS.tar.gz）"
     echo "4. 恢复（从 /home/${BACKUP_PREFIX}-*.tar.gz 获取，回车默认最新）"
     echo "5. 登录docker"
-    echo "6. 推送到docker（zaixiangjian/epay）"
+    echo "6. 构建并推送 Docker 镜像（zaixiangjian/epay）"
     echo "7. 卸载"
     echo "------------------------------------------------"
     echo
