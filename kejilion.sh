@@ -11806,7 +11806,7 @@ done
         ;;
 
       991)
-        run_local_first_app_script "▶️ 安装Fail2Ban SSH防暴力破解..." "/root/yingyong/103docker-Fail2Ban.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/991docker-Fail2Ban.sh"
+        run_local_first_app_script "▶️ 安装Fail2Ban SSH防暴力破解..." "/root/yingyong/991docker-Fail2Ban.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/991docker-Fail2Ban.sh"
         echo "✅ Fail2Ban SSH防暴力破解安装成功..."
         ;;
 
