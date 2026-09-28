@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.7"
+sh_v="0.0.8"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6192,7 +6192,13 @@ linux_panel() {
     check_docker "105" "dujiao-next"
     check_docker "106" "bepusdt"
 
-    if crontab -l 2>/dev/null | grep -q "990应用 端口白名单" ||        { iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'; }; then
+    # 990 只按真实启用证据标记已安装：live 规则已生效，或 systemd 持久化恢复服务已启用且规则文件存在。
+    # 不再仅凭 crontab 标记，避免旧 @reboot 残留导致菜单显示已安装但实际未启用。
+    if { iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'; } || \
+       { command -v systemctl >/dev/null 2>&1 && \
+         systemctl is-enabled kj-990-port-whitelist.service >/dev/null 2>&1 && \
+         [ -x /usr/local/sbin/kj-990-port-whitelist-restore.sh ] && \
+         [ -s /etc/iptables/rules.v4 ] && grep -q 'KJ_APP_ALLOW' /etc/iptables/rules.v4 2>/dev/null; }; then
         installed_items+=("990")
     fi
     check_docker "991" "fail2ban"
