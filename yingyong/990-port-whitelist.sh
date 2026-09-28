@@ -125,6 +125,136 @@ kj_app_all_allowed_ports() {
 	awk -F'|' '{gsub(/,/,"\n",$2); print $2}' "$KJ_APP_ALLOW_REMARK_FILE" 2>/dev/null | awk '/^[0-9]+$/ {print}' | sort -n -u | paste -sd, -
 }
 
+kj_app_install_systemd_restore_service() {
+	command -v systemctl >/dev/null 2>&1 || return 0
+	cat > /usr/local/sbin/kj-990-port-whitelist-restore.sh <<'EOF'
+#!/usr/bin/env bash
+set -u
+REMARK_FILE="/etc/kj_app_port_allow_remarks"
+log() { :; }
+ssh_ports_detect() {
+	{
+		[ -f /etc/ssh/sshd_config ] && awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null
+		ss -ltnp 2>/dev/null | awk '/sshd/ {sub(/.*:/,"",$4); if ($4 ~ /^[0-9]+$/) print $4}'
+		echo 22
+	} | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u
+}
+all_allowed_ports() {
+	{
+		ssh_ports_detect
+		echo 80
+		echo 443
+		[ -f "$REMARK_FILE" ] && awk -F'|' '{gsub(/,/,"\n",$2); print $2}' "$REMARK_FILE" 2>/dev/null | awk '/^[0-9]+$/ {print}'
+	} | awk '/^[0-9]+$/ && $1 >= 1 && $1 <= 65535 {print $1}' | sort -n -u | paste -sd, -
+}
+apply_ipv4() {
+	local allowed_ports="$1" p
+	iptables -N KJ_APP_ALLOW 2>/dev/null || true
+	iptables -F KJ_APP_ALLOW 2>/dev/null || true
+	while iptables -C INPUT -j KJ_APP_ALLOW 2>/dev/null; do iptables -D INPUT -j KJ_APP_ALLOW; done
+	iptables -I INPUT 1 -j KJ_APP_ALLOW
+	iptables -A KJ_APP_ALLOW -i lo -j ACCEPT
+	iptables -A KJ_APP_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
+	iptables -A KJ_APP_ALLOW -i docker0 -j ACCEPT 2>/dev/null || true
+	iptables -A KJ_APP_ALLOW -i br+ -j ACCEPT
+	for p in ${allowed_ports//,/ }; do
+		[ -z "$p" ] && continue
+		iptables -A KJ_APP_ALLOW -p tcp --dport "$p" -j ACCEPT
+		iptables -A KJ_APP_ALLOW -p udp --dport "$p" -j ACCEPT
+	done
+	iptables -A KJ_APP_ALLOW -p tcp -j DROP
+	iptables -A KJ_APP_ALLOW -p udp -j DROP
+	iptables -A KJ_APP_ALLOW -j RETURN
+	iptables -N DOCKER-USER 2>/dev/null || true
+	iptables -C FORWARD -j DOCKER-USER 2>/dev/null || iptables -I FORWARD 1 -j DOCKER-USER
+	iptables -N KJ_APP_DOCKER_ALLOW 2>/dev/null || true
+	iptables -F KJ_APP_DOCKER_ALLOW 2>/dev/null || true
+	while iptables -C DOCKER-USER -j KJ_APP_DOCKER_ALLOW 2>/dev/null; do iptables -D DOCKER-USER -j KJ_APP_DOCKER_ALLOW; done
+	iptables -I DOCKER-USER 1 -j KJ_APP_DOCKER_ALLOW
+	iptables -A KJ_APP_DOCKER_ALLOW -i br+ -j ACCEPT
+	iptables -A KJ_APP_DOCKER_ALLOW -i docker0 -j ACCEPT 2>/dev/null || true
+	iptables -A KJ_APP_DOCKER_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
+	for p in ${allowed_ports//,/ }; do
+		[ -z "$p" ] && continue
+		iptables -A KJ_APP_DOCKER_ALLOW -p tcp -m conntrack --ctorigdstport "$p" -j ACCEPT
+		iptables -A KJ_APP_DOCKER_ALLOW -p udp -m conntrack --ctorigdstport "$p" -j ACCEPT
+	done
+	iptables -A KJ_APP_DOCKER_ALLOW -p tcp -j DROP
+	iptables -A KJ_APP_DOCKER_ALLOW -p udp -j DROP
+	iptables -A KJ_APP_DOCKER_ALLOW -j RETURN
+}
+apply_ipv6() {
+	local allowed_ports="$1" p
+	command -v ip6tables >/dev/null 2>&1 || return 0
+	ip6tables -N KJ_APP_ALLOW 2>/dev/null || true
+	ip6tables -F KJ_APP_ALLOW 2>/dev/null || true
+	while ip6tables -C INPUT -j KJ_APP_ALLOW 2>/dev/null; do ip6tables -D INPUT -j KJ_APP_ALLOW; done
+	ip6tables -I INPUT 1 -j KJ_APP_ALLOW
+	ip6tables -A KJ_APP_ALLOW -i lo -j ACCEPT
+	ip6tables -A KJ_APP_ALLOW -m state --state ESTABLISHED,RELATED -j ACCEPT
+	for p in ${allowed_ports//,/ }; do
+		[ -z "$p" ] && continue
+		ip6tables -A KJ_APP_ALLOW -p tcp --dport "$p" -j ACCEPT
+		ip6tables -A KJ_APP_ALLOW -p udp --dport "$p" -j ACCEPT
+	done
+	ip6tables -A KJ_APP_ALLOW -p tcp -j DROP
+	ip6tables -A KJ_APP_ALLOW -p udp -j DROP
+	ip6tables -A KJ_APP_ALLOW -j RETURN
+}
+main() {
+	log "start"
+	if command -v docker >/dev/null 2>&1; then
+		for _ in $(seq 1 60); do docker info >/dev/null 2>&1 && break; sleep 1; done
+	fi
+	command -v iptables >/dev/null 2>&1 || { log "iptables not found"; exit 1; }
+	local allowed_ports
+	allowed_ports=$(all_allowed_ports)
+	[ -n "$allowed_ports" ] || { log "no allowed ports detected; abort"; exit 1; }
+	apply_ipv4 "$allowed_ports"
+	apply_ipv6 "$allowed_ports"
+	mkdir -p /etc/iptables
+	iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+	command -v ip6tables-save >/dev/null 2>&1 && ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+	log "applied allowed ports: $allowed_ports"
+}
+main "$@"
+EOF
+	chmod +x /usr/local/sbin/kj-990-port-whitelist-restore.sh
+
+	cat > /usr/local/sbin/kj-990-port-whitelist-schedule.sh <<'EOF'
+#!/usr/bin/env bash
+set -u
+RESTORE="/usr/local/sbin/kj-990-port-whitelist-restore.sh"
+[ -x "$RESTORE" ] || exit 0
+if command -v systemd-run >/dev/null 2>&1; then
+	for delay in 30 60 120 300 600; do
+		systemd-run --quiet --collect --unit="kj-990-port-whitelist-restore-${delay}s" --on-active="${delay}s" "$RESTORE" >/dev/null 2>&1 || true
+	done
+else
+	"$RESTORE" >/dev/null 2>&1 || true
+fi
+EOF
+	chmod +x /usr/local/sbin/kj-990-port-whitelist-schedule.sh
+
+	cat > /etc/systemd/system/kj-990-port-whitelist.service <<'EOF'
+[Unit]
+Description=Kejilion 990 app port whitelist firewall scheduled restore
+After=network-online.target docker.service
+Wants=network-online.target
+ConditionPathExists=/usr/local/sbin/kj-990-port-whitelist-schedule.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kj-990-port-whitelist-schedule.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	systemctl enable kj-990-port-whitelist.service >/dev/null 2>&1 || true
+}
+
 kj_app_save_iptables_rules() {
 	mkdir -p /etc/iptables
 	iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
@@ -135,12 +265,12 @@ kj_app_save_iptables_rules() {
 				| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
 				| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
 				| grep -v '^# 990应用 端口白名单（勿删）$'
-
 			echo '# 990应用 端口白名单（勿删）'
 			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
 			echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
 		) | crontab - 2>/dev/null || true
 	fi
+	kj_app_install_systemd_restore_service
 }
 
 kj_app_allow_remove_ports() {
@@ -189,18 +319,41 @@ kj_app_allow_firewall_active() {
 	iptables -S KJ_APP_ALLOW >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -q -- '-j KJ_APP_ALLOW'
 }
 
+kj_app_allow_try_restore_if_persisted() {
+	# 进入990菜单时，如果持久化文件/服务存在但 live 规则丢了，自动补救一次。
+	# 常见原因是 Docker/防火墙在开机后又改写 FORWARD/DOCKER-USER 链。
+	kj_app_allow_firewall_active && return 0
+	local has_persist="false"
+	[ -s /etc/iptables/rules.v4 ] && grep -q 'KJ_APP_ALLOW' /etc/iptables/rules.v4 2>/dev/null && has_persist="true"
+	command -v systemctl >/dev/null 2>&1 && systemctl is-enabled kj-990-port-whitelist.service >/dev/null 2>&1 && has_persist="true"
+	[ "$has_persist" = "true" ] || return 1
+	if [ -x /usr/local/sbin/kj-990-port-whitelist-restore.sh ]; then
+		/usr/local/sbin/kj-990-port-whitelist-restore.sh >/dev/null 2>&1 || true
+		command -v systemctl >/dev/null 2>&1 && systemctl restart kj-990-port-whitelist.service >/dev/null 2>&1 || true
+	elif [ -s /etc/iptables/rules.v4 ]; then
+		iptables-restore < /etc/iptables/rules.v4 2>/dev/null || true
+		[ -s /etc/iptables/rules.v6 ] && command -v ip6tables-restore >/dev/null 2>&1 && ip6tables-restore < /etc/iptables/rules.v6 2>/dev/null || true
+	fi
+	kj_app_allow_firewall_active
+}
+
 kj_app_allow_repair_reboot_cron() {
-	command -v crontab >/dev/null 2>&1 || return 0
+	# 只要白名单当前已开启，进入990菜单时就自动修复持久化：
+	# 1) 重新保存当前 live 规则到 /etc/iptables/rules.v4/v6
+	# 2) 修复 crontab @reboot 兼容恢复
+	# 3) 安装/启用 systemd 延后恢复服务，避免 Docker 开机后覆盖 DOCKER-USER 链
 	mkdir -p /etc/iptables
-	(
-		crontab -l 2>/dev/null \
-			| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
-			| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
-			| grep -v '^# 990应用 端口白名单（勿删）$'
-		echo '# 990应用 端口白名单（勿删）'
-		echo '@reboot iptables-restore < /etc/iptables/rules.v4'
-		echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
-	) | crontab - 2>/dev/null || true
+	iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+	command -v ip6tables-save >/dev/null 2>&1 && ip6tables-save > /etc/iptables/rules.v6 2>/dev/null || true
+	if command -v crontab >/dev/null 2>&1; then
+		(
+			crontab -l 2>/dev/null 				| grep -v 'iptables-restore < /etc/iptables/rules.v4' 				| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' 				| grep -v '^# 990应用 端口白名单（勿删）$'
+			echo '# 990应用 端口白名单（勿删）'
+			echo '@reboot iptables-restore < /etc/iptables/rules.v4'
+			echo '@reboot ip6tables-restore < /etc/iptables/rules.v6'
+		) | crontab - 2>/dev/null || true
+	fi
+	kj_app_install_systemd_restore_service
 }
 
 kj_app_allow_add_entry() {
@@ -498,7 +651,7 @@ linux_app_ports() {
 		echo -e "${gl_kjlan}安装的应用端口${gl_bai}"
 		echo -e "${gl_hong}=============================================${gl_bai}"
 		echo "是否开启白名单模式"
-		if ! kj_app_allow_firewall_active; then
+		if ! kj_app_allow_try_restore_if_persisted; then
 			echo -e "${gl_hong}检测到当前还没有启用端口白名单模式。${gl_bai}"
 			echo -e "${gl_hong}启用后只允许列表中的公网IP+端口访问，其它端口默认阻止。${gl_bai}"
 			echo -e "${gl_lv}选择 3. 全部阻止，确认默认放行 SSH/80/443。${gl_bai}"
