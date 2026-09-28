@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.9"
+sh_v="0.0.10"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6147,7 +6147,9 @@ linux_panel() {
     check_docker "50" "moontv"
     check_path "51" "/home/docker/jiguang"
     check_docker "54" "webssh"
-    check_docker "55" "openlist"
+    if /bin/systemctl list-unit-files openlist.service 2>/dev/null | grep -q '^openlist\.service'; then
+        installed_items+=("55")
+    fi
     check_docker "56" "umami"
     check_docker "57" "dify"
     check_cmd "58" "caddy"
@@ -6163,6 +6165,7 @@ linux_panel() {
     check_docker "71" "zfile"
     check_docker "72" "discourse"
     check_docker "73" "minio"
+    check_docker "75" "openlist"
     check_docker "78" "mailcow"
     check_docker "84" "hitokoto"
     check_docker "86" "backrest"
@@ -8631,9 +8634,9 @@ WantedBy=multi-user.target
 EOF
 
           # --- 3. 启动服务 ---
-          systemctl daemon-reload
-          systemctl enable openlist > /dev/null 2>&1
-          systemctl restart openlist
+          /bin/systemctl daemon-reload
+          /bin/systemctl enable openlist > /dev/null 2>&1
+          /bin/systemctl restart openlist
 
           echo "等待程序初始化并获取密码..."
           password=""
@@ -8648,7 +8651,7 @@ EOF
           clear
           echo "✅ OpenList 已通过 Systemd 安装成功"
           echo "------------------------------------------------"
-          echo "服务状态：$(systemctl is-active openlist)"
+          echo "服务状态：$(/bin/systemctl is-active openlist)"
           [ -n "$ipv4" ] && echo "访问地址：http://$ipv4:5244"
           [ -n "$password" ] && echo "初始密码：$password"
           echo "------------------------------------------------"
@@ -8662,10 +8665,12 @@ EOF
         2)
           # --- 卸载逻辑 ---
           echo "正在停止服务并清理残留..."
-          systemctl stop openlist > /dev/null 2>&1
-          systemctl disable openlist > /dev/null 2>&1
-          rm -f $SERVICE_FILE
-          systemctl daemon-reload
+          /bin/systemctl stop openlist > /dev/null 2>&1
+          /bin/systemctl disable openlist > /dev/null 2>&1
+          rm -f "$SERVICE_FILE"
+          /bin/systemctl daemon-reload
+          /bin/systemctl reset-failed openlist > /dev/null 2>&1 || true
+          docker rm -f openlist > /dev/null 2>&1 || true
           rm -rf "$INSTALL_PATH"
           
           # 清理旧的 crontab 防止冲突
@@ -8689,12 +8694,11 @@ EOF
       docker_img="docker.umami.is/umami-software/umami:postgresql-latest"
       docker_port=3000
 
-      # 自动创建目录
-      [ ! -d /home/docker/umami ] && mkdir -p /home/docker/umami
-      cd /home/docker/umami || exit 1
+      install_dir="/home/docker/umami"
+      mkdir -p "$install_dir"
 
-      # 写入 docker-compose.yml
-      cat > docker-compose.yml <<EOF
+      umami_app_secret=$(openssl rand -hex 16)
+      docker_rum="mkdir -p $install_dir && cd $install_dir && cat > docker-compose.yml <<UMAMI_EOF
 version: '3.8'
 
 services:
@@ -8714,29 +8718,19 @@ services:
     container_name: umami
     restart: always
     ports:
-      - "3000:3000"
+      - \"3000:3000\"
     environment:
       DATABASE_URL: postgres://umami:umami123@umami-db:5432/umami
-      APP_SECRET: $(openssl rand -hex 16)
+      APP_SECRET: ${umami_app_secret}
     depends_on:
       - umami-db
-EOF
-
-      # 启动容器
-      docker compose up -d
-
-      echo "------------------------"
-      echo "访问地址:"
-      echo "http://$(hostname -I | awk '{print $1}'):3000"
-      echo "http://$(curl -s ifconfig.me):${docker_port}"
-      echo "账号：admin 密码：umami"
-      echo "默认密码：umami123"
-      echo "------------------------"
+UMAMI_EOF
+docker compose up -d"
 
       docker_describe="Umami 网站流量统计系统，轻量、隐私友好"
       docker_url="GitHub: https://github.com/umami-software/umami"
-      docker_use="默认访问地址：http://服务器IP:3000，账号：admin 密码：umami"
-      docker_passwd="umami123"
+      docker_use="echo -e '\033[32m访问地址：http://服务器IP:3000，默认账号：admin 默认密码：umami\033[0m'"
+      docker_passwd=""
       docker_app
         ;;
     57)
@@ -9414,27 +9408,21 @@ endpoint =存储桶访问地址"
 
 docker logs openlist
 "
-    # 创建数据目录并设置权限
-    mkdir -p /home/docker/openlist/data
-    chown -R 1000:1000 /home/docker/openlist/data
-    chmod -R 755 /home/docker/openlist/data
+    install_dir="/home/docker/openlist"
+    mkdir -p "$install_dir/data"
+    chown -R 1000:1000 "$install_dir/data"
+    chmod -R 755 "$install_dir/data"
 
-    # 启动容器
-    docker run -d \
-      --name openlist \
-      --restart always \
-      -p ${docker_port}:5244 \
-      -v /home/docker/openlist/data:/opt/openlist/data \
-      --user 1000:1000 \
-      ${docker_img}
+    docker_rum="mkdir -p $install_dir/data && chown -R 1000:1000 $install_dir/data && chmod -R 755 $install_dir/data && docker run -d \\
+      --name openlist \\
+      --restart always \\
+      -p ${docker_port}:5244 \\
+      -v $install_dir/data:/opt/openlist/data \\
+      --user 1000:1000 \\
+      ${docker_img}"
 
-    # 输出访问地址和首次密码提示
-    docker_use="访问地址：http://$(hostname -I | awk '{print $1}'):${docker_port}"
-    docker_passwd="首次启动后使用：docker logs openlist 查看管理员密码"
-
-    echo "$docker_use"
-    echo "$docker_passwd"
-
+    docker_use="echo -e '\033[32m访问地址：http://服务器IP:${docker_port}\033[0m'"
+    docker_passwd="echo '首次启动后使用：docker logs openlist 查看管理员密码'"
     docker_app
 ;;
 
