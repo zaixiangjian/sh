@@ -356,6 +356,71 @@ kj_app_allow_repair_reboot_cron() {
 	kj_app_install_systemd_restore_service
 }
 
+kj_app_uninstall_whitelist() {
+	clear
+	echo -e "${gl_hong}=============================================${gl_bai}"
+	echo -e "${gl_hong}卸载990端口白名单${gl_bai}"
+	echo "将关闭白名单规则，并删除990创建的持久化恢复服务/脚本/规则文件。"
+	echo "不会重启 Docker，不会删除容器，不会修改应用。"
+	echo -e "${gl_hong}=============================================${gl_bai}"
+	local confirm
+	read -e -p "确认卸载请输入 yes，默认取消: " confirm
+	[ "$confirm" = "yes" ] || { echo "已取消"; return 1; }
+
+	# 停止并移除 systemd 调度；清理未执行的 transient timers/services。
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl disable --now kj-990-port-whitelist.service >/dev/null 2>&1 || true
+		for delay in 30 60 120 300 600; do
+			systemctl stop "kj-990-port-whitelist-restore-${delay}s.timer" "kj-990-port-whitelist-restore-${delay}s.service" >/dev/null 2>&1 || true
+		done
+		rm -f /etc/systemd/system/kj-990-port-whitelist.service
+		systemctl daemon-reload >/dev/null 2>&1 || true
+		for delay in 30 60 120 300 600; do
+			systemctl reset-failed "kj-990-port-whitelist-restore-${delay}s.timer" "kj-990-port-whitelist-restore-${delay}s.service" >/dev/null 2>&1 || true
+		done
+	fi
+
+	# 移除 crontab 里的990恢复项，只删当前990标记和对应 restore 行。
+	if command -v crontab >/dev/null 2>&1; then
+		crontab -l 2>/dev/null \
+			| grep -v 'iptables-restore < /etc/iptables/rules.v4' \
+			| grep -v 'ip6tables-restore < /etc/iptables/rules.v6' \
+			| grep -v '^# 990应用 端口白名单（勿删）$' \
+			| crontab - 2>/dev/null || true
+	fi
+
+	# 从 live IPv4 规则移除990链入口并清空/删除链；不 flush 其它防火墙规则。
+	if command -v iptables >/dev/null 2>&1; then
+		while iptables -C INPUT -j KJ_APP_ALLOW 2>/dev/null; do iptables -D INPUT -j KJ_APP_ALLOW; done
+		while iptables -C DOCKER-USER -j KJ_APP_DOCKER_ALLOW 2>/dev/null; do iptables -D DOCKER-USER -j KJ_APP_DOCKER_ALLOW; done
+		iptables -F KJ_APP_ALLOW 2>/dev/null || true
+		iptables -X KJ_APP_ALLOW 2>/dev/null || true
+		iptables -F KJ_APP_DOCKER_ALLOW 2>/dev/null || true
+		iptables -X KJ_APP_DOCKER_ALLOW 2>/dev/null || true
+	fi
+
+	# 从 live IPv6 规则移除990链入口并清空/删除链。
+	if command -v ip6tables >/dev/null 2>&1; then
+		while ip6tables -C INPUT -j KJ_APP_ALLOW 2>/dev/null; do ip6tables -D INPUT -j KJ_APP_ALLOW; done
+		ip6tables -F KJ_APP_ALLOW 2>/dev/null || true
+		ip6tables -X KJ_APP_ALLOW 2>/dev/null || true
+	fi
+
+	# 删除990自身文件；保留其它 iptables 配置不动。
+	rm -f /usr/local/sbin/kj-990-port-whitelist-restore.sh
+	rm -f /usr/local/sbin/kj-990-port-whitelist-schedule.sh
+	rm -f "$KJ_APP_ALLOW_REMARK_FILE"
+	rm -f /var/log/kj-990-port-whitelist-restore.log
+	if [ -f /etc/iptables/rules.v4 ] && grep -Eq 'KJ_APP_ALLOW|KJ_APP_DOCKER_ALLOW' /etc/iptables/rules.v4 2>/dev/null; then
+		rm -f /etc/iptables/rules.v4
+	fi
+	if [ -f /etc/iptables/rules.v6 ] && grep -q 'KJ_APP_ALLOW' /etc/iptables/rules.v6 2>/dev/null; then
+		rm -f /etc/iptables/rules.v6
+	fi
+
+	echo "990端口白名单已卸载"
+}
+
 kj_app_allow_add_entry() {
 	local remark="$1"
 	local ports="$2"
@@ -572,6 +637,13 @@ kj_app_view_port_details() {
 	clear
 	echo -e "${gl_kjlan}应用端口详情${gl_bai}"
 	echo "============================================="
+	local whitelist_active="false"
+	if kj_app_allow_firewall_active; then
+		whitelist_active="true"
+	else
+		echo -e "${gl_huang}当前未启用白名单模式，仅查看监听端口，不显示允许/阻止状态。${gl_bai}"
+		echo "---------------------------------------------"
+	fi
 	echo "名称                   端口详情"
 	echo "---------------------------------------------"
 
@@ -588,7 +660,11 @@ kj_app_view_port_details() {
 			[ -z "$host_ports" ] && continue
 			container_ports=$(docker port "$cname" 2>/dev/null | awk '{split($1,a,"/"); if (a[1] ~ /^[0-9]+$/) print a[1]}' | sort -n -u | paste -sd, -)
 			[ -z "$container_ports" ] && container_ports="-"
-			status=$(kj_app_ports_allow_status "$host_ports")
+			if [ "$whitelist_active" = "true" ]; then
+				status=$(kj_app_ports_allow_status "$host_ports")
+			else
+				status="未启用"
+			fi
 			min_port=${host_ports%%,*}
 			local status_order
 			case "$status" in
@@ -606,7 +682,11 @@ kj_app_view_port_details() {
 			case "$proc" in docker-proxy|containerd-shim*) continue ;; esac
 			[ -z "$proc" ] && proc="unknown"
 			local status
-			status=$(kj_app_ports_allow_status "$port")
+			if [ "$whitelist_active" = "true" ]; then
+				status=$(kj_app_ports_allow_status "$port")
+			else
+				status="未启用"
+			fi
 			local status_order
 			case "$status" in
 				允许) status_order=1 ;;
@@ -632,7 +712,11 @@ kj_app_view_port_details() {
 				部分允许) status="${gl_huang}${status}${gl_bai}" ;;
 			esac
 			local host_ports_colored
-			host_ports_colored=$(kj_app_ports_colored_allowed "$host_ports")
+			if [ "$whitelist_active" = "true" ]; then
+				host_ports_colored=$(kj_app_ports_colored_allowed "$host_ports")
+			else
+				host_ports_colored="$host_ports"
+			fi
 			printf "%-30s 本地端口:%b\n" "${line_no}.${name}" "$host_ports_colored"
 			printf "状态:%-25b 容器端口:%s\n" "$status" "$container_ports"
 			echo "---------------------------------------------"
@@ -647,7 +731,6 @@ linux_app_ports() {
 	while true; do
 		clear
 		send_stats "安装的应用端口"
-		kj_app_allow_file_init_default
 		echo -e "${gl_kjlan}安装的应用端口${gl_bai}"
 		echo -e "${gl_hong}=============================================${gl_bai}"
 		echo "是否开启白名单模式"
@@ -667,6 +750,7 @@ linux_app_ports() {
 		echo -e "2. ${gl_hong}阻止端口${gl_bai}"
 		echo -e "3. ${gl_huang}全部阻止${gl_bai}"
 		echo "4. 查看应用端口详情"
+		echo -e "9. ${gl_hong}卸载${gl_bai}"
 		echo "------------------------"
 		echo "0. 返回上一级"
 		echo "------------------------"
@@ -696,6 +780,10 @@ linux_app_ports() {
 				;;
 			4)
 				kj_app_view_port_details
+				break_end
+				;;
+			9)
+				kj_app_uninstall_whitelist
 				break_end
 				;;
 			0) break ;;
