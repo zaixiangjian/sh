@@ -12,6 +12,7 @@ COMPOSE_FILE="docker-compose.yaml"
 REPO_URL="https://github.com/zaixiangjian/wodezhifu.git"
 CUSTOM_IMAGE="zaixiangjian/epay:latest"
 DEFAULT_PORT="8502"
+EPAY_NETWORK_SUBNET="172.29.88.0/24"
 
 RED='\033[31m'
 GREEN='\033[32m'
@@ -82,6 +83,33 @@ compose_cmd() {
     error "未检测到 docker compose 插件或 docker-compose"
     return 1
   fi
+}
+
+image_mode_guard() {
+  # 镜像模式不再限制：菜单 1/2 可直接安装/更新。
+  # 安装/更新流程仍会生成安全 nginx.conf，并在启动前清理残留备份文件、检查源码加固点。
+  return 0
+}
+
+ensure_iptables() {
+  if command -v iptables >/dev/null 2>&1; then
+    return 0
+  fi
+  warn "未检测到 iptables，开始安装..."
+  install_pkg iptables
+}
+
+apply_epay_egress_firewall() {
+  ensure_iptables || return 1
+  iptables -N EPAY-EGRESS 2>/dev/null || true
+  iptables -F EPAY-EGRESS
+  iptables -A EPAY-EGRESS -d "${EPAY_NETWORK_SUBNET}" -j RETURN
+  for cidr in     0.0.0.0/8     10.0.0.0/8     100.64.0.0/10     127.0.0.0/8     169.254.0.0/16     172.16.0.0/12     192.168.0.0/16     198.18.0.0/15     224.0.0.0/4     240.0.0.0/4; do
+    iptables -A EPAY-EGRESS -d "$cidr" -j REJECT
+  done
+  iptables -A EPAY-EGRESS -j RETURN
+  iptables -C DOCKER-USER -s "${EPAY_NETWORK_SUBNET}" -j EPAY-EGRESS 2>/dev/null ||     iptables -I DOCKER-USER 1 -s "${EPAY_NETWORK_SUBNET}" -j EPAY-EGRESS
+  success "已应用 Epay 容器出站防火墙：禁止访问宿主机/内网/云元数据，放行公网与本应用网络"
 }
 
 install_docker() {
@@ -184,13 +212,33 @@ server {
         if (-f $document_root/install/install.lock) { return 404; }
         rewrite ^ /install/index.php last;
     }
+    # 升级脚本不得公开访问；安装完成后也禁止整个 install 目录继续暴露。
+    location = /install/update.php {
+        return 404;
+    }
     location /install/ {
         if (-f $document_root/install/install.lock) { return 404; }
         try_files $uri /install/index.php?$query_string;
     }
 
+    location = /config.php { deny all; }
     location ^~ /plugins { deny all; }
     location ^~ /includes { deny all; }
+
+    # 禁止访问 config.php / .git / .env / composer.* / 备份包 / 隐藏文件，防止源码与敏感文件泄露。
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+    location ~* (^|/)(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|\.env|\.git|\.svn|\.hg)(/|$) {
+        deny all;
+    }
+    # 拦截所有备份残留：既包括 .bak 结尾，也包括 .php.bak.audit-时间戳 这类文件。
+    location ~* (^|/).*\.(bak|old|orig|save|swp)(\.|$) {
+        deny all;
+    }
+    location ~* \.(sql|tar|gz|tgz|zip|7z|rar)$ {
+        deny all;
+    }
 
     # 禁止上传/静态目录中的 PHP 被执行，防止图片上传点变成 WebShell。
     location ~* ^/(assets|upload|uploads|static)/.*\.(php|php[0-9]*|phtml|phar)$ {
@@ -268,6 +316,54 @@ validate_epay_source() {
   fi
 }
 
+clean_epay_residue_files() {
+  if [ ! -d "${HTML_DIR}" ]; then
+    return 0
+  fi
+  local count
+  count="$(find "${HTML_DIR}" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \) | wc -l | tr -d ' ')"
+  if [ "${count}" != "0" ]; then
+    warn "检测到 Web 根目录残留备份文件 ${count} 个，正在移出避免公网泄露..."
+    local residue_dir="${APP_DIR}/security-backups/webroot-residue-$(date +%Y%m%d%H%M%S)"
+    mkdir -p "${residue_dir}"
+    while IFS= read -r file; do
+      local rel dest
+      rel="${file#${HTML_DIR}/}"
+      dest="${residue_dir}/${rel}"
+      mkdir -p "$(dirname "${dest}")"
+      mv "${file}" "${dest}"
+    done < <(find "${HTML_DIR}" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \))
+    success "残留备份文件已移到：${residue_dir}"
+  fi
+}
+
+verify_epay_security_fixes() {
+  local fail=0
+  if [ -f "${HTML_DIR}/admin/gonggao.php" ]; then
+    if grep -q "INSERT INTO.*pre_anounce.*{\$content}" "${HTML_DIR}/admin/gonggao.php" || grep -q "UPDATE.*pre_anounce.*content.*\$content" "${HTML_DIR}/admin/gonggao.php"; then
+      error "admin/gonggao.php 仍疑似存在公告 SQL 拼接，请先更新到已加固版本。"
+      fail=1
+    fi
+    if ! grep -q "csrf_check_page('admin')" "${HTML_DIR}/admin/gonggao.php"; then
+      error "admin/gonggao.php 未检测到 CSRF 校验，请先更新到已加固版本。"
+      fail=1
+    fi
+  fi
+  if [ -f "${HTML_DIR}/install/update.php" ] && ! grep -q "install.lock" "${HTML_DIR}/install/update.php"; then
+    error "install/update.php 未检测到 install.lock 保护，请先更新到已加固版本。"
+    fail=1
+  fi
+  if [ -f "${HTML_DIR}/includes/lib/Plugin.php" ] && ! grep -q "safePluginFile" "${HTML_DIR}/includes/lib/Plugin.php"; then
+    error "includes/lib/Plugin.php 未检测到插件 realpath containment 加固。"
+    fail=1
+  fi
+  if [ -f "${HTML_DIR}/user/transfer_add.php" ] && ! grep -q "'uid'=>\$uid" "${HTML_DIR}/user/transfer_add.php"; then
+    error "user/transfer_add.php 未检测到 copy 记录 uid 归属校验。"
+    fail=1
+  fi
+  [ "${fail}" -eq 0 ] || return 1
+}
+
 sanitize_epay_source() {
   if [ ! -d "${HTML_DIR}" ]; then
     return 0
@@ -312,9 +408,45 @@ PYFIX
     return 1
   fi
 
+  harden_epay_ssrf
+
   if [ "${changed}" -eq 1 ]; then
     success "已清理已知后门特征"
   fi
+}
+
+harden_epay_ssrf() {
+  local functions_file="${HTML_DIR}/includes/functions.php"
+  if [ ! -f "${functions_file}" ]; then
+    error "未找到 ${functions_file}，无法应用 SSRF 防护"
+    return 1
+  fi
+
+  python3 - "${functions_file}" <<'PYFIX'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+helper = "function epay_is_public_ip($ip){\n\treturn filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;\n}\n\nfunction epay_is_safe_outbound_url($url, &$reason=null){\n\t$parts = parse_url($url);\n\tif($parts === false || empty($parts['scheme']) || empty($parts['host'])){ $reason = 'URL格式不正确'; return false; }\n\t$scheme = strtolower($parts['scheme']);\n\tif($scheme !== 'http' && $scheme !== 'https'){ $reason = '仅允许 http/https'; return false; }\n\tif(isset($parts['user']) || isset($parts['pass'])){ $reason = 'URL不允许包含用户名或密码'; return false; }\n\t$port = isset($parts['port']) ? intval($parts['port']) : ($scheme === 'https' ? 443 : 80);\n\tif($port !== 80 && $port !== 443){ $reason = '仅允许 80/443 端口'; return false; }\n\t$host = trim($parts['host'], '[]');\n\tif(preg_match('/(^|\\.)localhost$/i', $host)){ $reason = '禁止访问 localhost'; return false; }\n\t$ips = [];\n\tif(filter_var($host, FILTER_VALIDATE_IP)){ $ips[] = $host; }\n\telse { $records = gethostbynamel($host); if($records === false || count($records) === 0){ $reason = '域名解析失败'; return false; } $ips = $records; }\n\tforeach($ips as $ip){ if(!epay_is_public_ip($ip)){ $reason = '禁止访问内网/保留地址：'.$ip; return false; } }\n\treturn true;\n}\n\nfunction epay_assert_safe_outbound_url($url){\n\t$reason = null;\n\tif(!epay_is_safe_outbound_url($url, $reason)){ error_log('Epay blocked unsafe outbound URL: '.$url.' reason: '.$reason); return false; }\n\treturn true;\n}\n\n"
+if 'function epay_is_safe_outbound_url(' not in text:
+    if '<?php\r\n' in text:
+        text = text.replace('<?php\r\n', '<?php\r\n' + helper.replace('\n', '\r\n'), 1)
+    else:
+        text = text.replace('<?php\n', '<?php\n' + helper, 1)
+repls = {
+    "function curl_get($url)\r\n{\r\n\tglobal $conf;\r\n": "function curl_get($url)\r\n{\r\n\tglobal $conf;\r\n\tif(!epay_assert_safe_outbound_url($url)) return false;\r\n",
+    "function get_curl($url, $post=0, $referer=0, $cookie=0, $header=0, $ua=0, $nobaody=0, $addheader=0, $location=0)\r\n{\r\n": "function get_curl($url, $post=0, $referer=0, $cookie=0, $header=0, $ua=0, $nobaody=0, $addheader=0, $location=0)\r\n{\r\n\tif(!epay_assert_safe_outbound_url($url)) return false;\r\n",
+    "function check_proxy($url)\r\n{\r\n\tglobal $conf;\r\n": "function check_proxy($url)\r\n{\r\n\tglobal $conf;\r\n\tif(!epay_assert_safe_outbound_url($url)) return false;\r\n",
+}
+for a,b in repls.items():
+    if b not in text and a in text:
+        text = text.replace(a,b,1)
+text = text.replace('curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);', 'curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);')
+text = text.replace('curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);', 'curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);')
+text = text.replace('curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);', 'curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);')
+path.write_text(text)
+PYFIX
+  success "已应用 Epay SSRF 防护：禁止内网/localhost/保留地址、禁止非 80/443、禁止跳转、启用 HTTPS 校验"
 }
 
 write_compose() {
@@ -341,16 +473,22 @@ services:
     volumes:
       - ./html:/var/www/html
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      epay_net:
 
   php:
 ${php_image_block}
     container_name: epay-php
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
       - ./html:/var/www/html
+    networks:
+      epay_net:
 
   mysql:
     image: mysql:8.4
@@ -373,6 +511,15 @@ ${php_image_block}
       timeout: 5s
       retries: 20
       start_period: 30s
+    networks:
+      epay_net:
+
+networks:
+  epay_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${EPAY_NETWORK_SUBNET}
 EOF
 }
 
@@ -468,6 +615,7 @@ show_status() {
 install_app() {
   local mode="${1:-source}"
   require_root
+  image_mode_guard "${mode}" || return 1
   install_docker
   ensure_git
   ensure_python3
@@ -496,6 +644,8 @@ install_app() {
     repair_epay_source_layout
     validate_epay_source
     sanitize_epay_source
+    clean_epay_residue_files
+    verify_epay_security_fixes
   else
     if [ ! -d "${HTML_DIR}/.git" ]; then
       if [ -e "${HTML_DIR}" ] && [ -n "$(ls -A "${HTML_DIR}" 2>/dev/null || true)" ]; then
@@ -508,6 +658,8 @@ install_app() {
     repair_epay_source_layout
     validate_epay_source
     sanitize_epay_source
+    clean_epay_residue_files
+    verify_epay_security_fixes
   fi
 
   write_env "${port}"
@@ -526,6 +678,7 @@ install_app() {
   else
     ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build
   fi
+  apply_epay_egress_firewall
 
   success "Epay 安装/启动完成"
   echo
@@ -542,6 +695,7 @@ install_app() {
 update_app() {
   local mode="${1:-source}"
   require_root
+  image_mode_guard "${mode}" || return 1
   install_docker
   ensure_git
   ensure_python3
@@ -561,6 +715,8 @@ update_app() {
   repair_epay_source_layout
   validate_epay_source
   sanitize_epay_source
+  clean_epay_residue_files
+  verify_epay_security_fixes
   [ -s "${tmp_config}" ] && cp -a "${tmp_config}" config.php || true
   [ -s "${tmp_lock}" ] && mkdir -p install && cp -a "${tmp_lock}" install/install.lock || true
   rm -f "${tmp_config}" "${tmp_lock}"
@@ -579,6 +735,7 @@ update_app() {
   else
     ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build
   fi
+  apply_epay_egress_firewall
   success "更新完成"
 }
 
@@ -606,6 +763,7 @@ start_stack() {
     local dc
     dc="$(compose_cmd)"
     ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build
+    apply_epay_egress_firewall
   fi
 }
 
@@ -753,6 +911,8 @@ docker_push_app() {
   repair_epay_source_layout
   validate_epay_source
   sanitize_epay_source
+  clean_epay_residue_files
+  verify_epay_security_fixes
   ensure_placeholder_config
   fix_permissions
   write_dockerfile
@@ -773,8 +933,8 @@ docker_push_app() {
 restore_custom_app() {
   restore_app
   if [ -d "${APP_DIR}" ]; then
-    warn "恢复完成，切换为 ${CUSTOM_IMAGE} 并按 2 更新/启动流程启动..."
-    update_app image
+    warn "恢复完成，生产环境默认切换为源码模式更新/启动，避免镜像供应链风险..."
+    update_app source
   fi
 }
 
@@ -782,8 +942,8 @@ main_menu() {
   while true; do
     clear 2>/dev/null || true
     show_status
-    echo "1. 安装（zaixiangjian/epay这里就使用官方容器名一致）"
-    echo "2. 更新（zaixiangjian/epay这里就使用官方容器名一致）"
+    echo "1. 镜像模式安装"
+    echo "2. 镜像模式更新"
     echo "3. 备份（/home/${BACKUP_PREFIX}-YYYYmmddHHMMSS.tar.gz）"
     echo "4. 恢复（从 /home/${BACKUP_PREFIX}-*.tar.gz 获取，回车默认最新）"
     echo "5. 登录docker"
@@ -791,8 +951,8 @@ main_menu() {
     echo "7. 卸载"
     echo "------------------------------------------------"
     echo
-    echo "11. 安装"
-    echo "12. 更新"
+    echo "11. 源码模式安装（推荐生产）"
+    echo "12. 源码模式更新（推荐生产）"
     echo "13. 备份（/home/${BACKUP_PREFIX}-YYYYmmddHHMMSS.tar.gz）"
     echo "14. 恢复（从 /home/${BACKUP_PREFIX}-*.tar.gz 获取，回车默认最新）"
     echo "19. 卸载"
