@@ -670,7 +670,10 @@ seed_html_from_image() {
   old_html="${HTML_DIR}.before_seed_${ts}"
   [ -e "${HTML_DIR}" ] && mv "${HTML_DIR}" "${old_html}"
   mv "${new_html}" "${HTML_DIR}"
-  [ -d "${old_html}" ] && warn "旧 html 已保留：${old_html}"
+  if [ -d "${old_html}" ]; then
+    warn "旧 html 已保留：${old_html}"
+  fi
+  return 0
 }
 
 env_value() {
