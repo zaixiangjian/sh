@@ -396,6 +396,23 @@ mysql/
 EOF
 }
 
+write_404_page() {
+  cat > "${APP_DIR}/404.html" <<'EOF'
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>页面不存在 · Epay</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;color:#263349;background:#f5f7fb}main{width:min(100%,470px);padding:44px 28px;text-align:center;background:white;border:1px solid #e8edf5;border-radius:18px;box-shadow:0 18px 45px rgba(32,47,74,.07)}.code{color:#3c73d5;font-size:72px;font-weight:750;line-height:1}h1{font-size:23px;margin:22px 0 10px}p{margin:0 0 29px;color:#66768b;line-height:1.7}.actions{display:flex;justify-content:center;flex-wrap:wrap;gap:12px}a,button{display:inline-block;padding:11px 19px;border-radius:9px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}a{color:#fff;background:#3776da;border:1px solid #3776da}button{color:#355278;background:#fff;border:1px solid #d6dfec}a:focus-visible,button:focus-visible{outline:3px solid #96baff;outline-offset:2px}
+</style>
+</head>
+<body><main><div class="code" aria-hidden="true">404</div><h1>当前页面不存在</h1><p>链接可能已失效，或您输入的地址有误。</p><div class="actions"><button type="button" id="back">返回上一级</button><a href="/">回到首页</a></div></main>
+<script>document.getElementById('back').addEventListener('click',function(){if(document.referrer){try{var previous=new URL(document.referrer);if(previous.origin===location.origin&&previous.href!==location.href){location.assign(previous.href);return}}catch(e){}}location.assign('/')});</script>
+</body></html>
+EOF
+}
+
 write_nginx_conf() {
   cat > "${APP_DIR}/nginx.conf" <<'EOF'
 log_format epay_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent';
@@ -406,6 +423,14 @@ server {
     root /var/www/html;
     index index.php index.html;
     client_max_body_size 50m;
+    server_tokens off;
+    error_page 404 /__epay_404.html;
+    location = /__epay_404.html {
+        internal;
+        alias /etc/nginx/epay-404.html;
+        default_type text/html;
+        charset utf-8;
+    }
 
     location / {
         if (!-e $request_filename) {
@@ -487,6 +512,7 @@ server {
     }
 
     location ~ \.php$ {
+        try_files $uri =404;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param SCRIPT_NAME $fastcgi_script_name;
@@ -789,6 +815,7 @@ PYFIX
 
 write_compose() {
   local mode="${1:-source}"
+  write_404_page || return 1
   local php_image_block
   if [ "${mode}" = "image" ]; then
     php_image_block="    image: ${CUSTOM_IMAGE}"
@@ -811,6 +838,7 @@ services:
     volumes:
       - ./html:/var/www/html
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./404.html:/etc/nginx/epay-404.html:ro
     networks:
       epay_net:
 
