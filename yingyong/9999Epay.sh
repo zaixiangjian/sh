@@ -801,7 +801,7 @@ write_compose() {
   cat > "${APP_DIR}/${COMPOSE_FILE}" <<EOF
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.31-alpine
     container_name: epay-nginx
     restart: unless-stopped
     depends_on:
