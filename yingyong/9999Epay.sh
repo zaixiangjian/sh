@@ -172,7 +172,6 @@ html/epay_release*
 html/epay_update*
 html/.env
 html/**/*.env
-html/**/*.sql
 html/**/*.zip
 html/**/*.tar
 html/**/*.tar.gz
@@ -1080,7 +1079,7 @@ docker_push_app() {
     test -f /var/www/html/install/index.php &&
     test ! -f /var/www/html/config.php &&
     test ! -f /var/www/html/install/install.lock &&
-    ! find /var/www/html -type f \( -name "*.bak*" -o -name "*.old*" -o -name "*.orig*" -o -name "*.save*" -o -name "*.swp" -o -name "*.env" -o -name "*.log" -o -name "*.key" -o -name "*.sql" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" -o -name "*.rar" -o -name "epay_release*" -o -name "epay_update*" \) | grep -q . &&
+    ! find /var/www/html -type f \( -name "*.bak*" -o -name "*.old*" -o -name "*.orig*" -o -name "*.save*" -o -name "*.swp" -o -name "*.env" -o -name "*.log" -o -name "*.key" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" -o -name "*.rar" -o -name "epay_release*" -o -name "epay_update*" \) | grep -q . &&
     ! find /var/www/html -type f \( -name "*.pem" -o -name "*.crt" \) -print0 | xargs -0 grep -Il "PRIVATE KEY" | grep -q .
   '
   docker push "${CUSTOM_IMAGE}"
