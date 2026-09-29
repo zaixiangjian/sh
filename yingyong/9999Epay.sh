@@ -313,6 +313,7 @@ repair_epay_source_layout() {
       rmdir "${nested_dir}" 2>/dev/null || true
     fi
   fi
+  return 0
 }
 
 validate_epay_source() {
@@ -334,6 +335,7 @@ validate_epay_source() {
     warn "请检查 ${HTML_DIR} 是否完整，或确认 GitHub 仓库根目录是否直接包含 index.php、includes/、plugins/、install/。"
     return 1
   fi
+  return 0
 }
 
 clean_epay_residue_files() {
@@ -355,6 +357,7 @@ clean_epay_residue_files() {
     done < <(find "${HTML_DIR}" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \))
     success "残留备份文件已移到：${residue_dir}"
   fi
+  return 0
 }
 
 scan_epay_sensitive_build_files() {
@@ -410,6 +413,7 @@ validate_repo_origin() {
       return 1
     fi
   fi
+  return 0
 }
 
 validate_backup_archive() {
@@ -522,6 +526,7 @@ PYFIX
   if [ "${changed}" -eq 1 ]; then
     success "已清理已知后门特征"
   fi
+  return 0
 }
 
 harden_epay_ssrf() {
@@ -712,6 +717,7 @@ ensure_placeholder_config() {
 );
 EOF
   fi
+  return 0
 }
 
 fix_permissions() {
@@ -722,6 +728,7 @@ fix_permissions() {
   docker run --rm -v "${HTML_DIR}:/data" alpine:3.20 sh -c 'chown -R 82:82 /data && find /data -type d -exec chmod 755 {} \; && find /data -type f -exec chmod 644 {} \;' >/dev/null 2>&1 || true
   [ -f "${HTML_DIR}/config.php" ] && chmod 664 "${HTML_DIR}/config.php" || true
   [ -d "${HTML_DIR}/install" ] && find "${HTML_DIR}/install" -type d -exec chmod 755 {} \; -o -type f -exec chmod 644 {} \; || true
+  return 0
 }
 
 show_status() {
