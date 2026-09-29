@@ -103,6 +103,8 @@ apply_epay_egress_firewall() {
   done
   iptables -A EPAY-EGRESS -j RETURN
   iptables -C DOCKER-USER -s "${EPAY_NETWORK_SUBNET}" -j EPAY-EGRESS 2>/dev/null ||     iptables -I DOCKER-USER 1 -s "${EPAY_NETWORK_SUBNET}" -j EPAY-EGRESS
+  mkdir -p /etc/iptables 2>/dev/null || true
+  iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
   success "已应用 Epay 容器出站防火墙：禁止访问宿主机/内网/云元数据，放行公网与本应用网络"
 }
 
@@ -168,6 +170,26 @@ html/config.php
 html/install/install.lock
 html/epay_release*
 html/epay_update*
+html/.env
+html/**/*.env
+html/**/*.sql
+html/**/*.zip
+html/**/*.tar
+html/**/*.tar.gz
+html/**/*.tgz
+html/**/*.7z
+html/**/*.rar
+html/**/*.log
+html/**/*.ini
+html/**/*.pem
+html/**/*.key
+html/**/*.crt
+html/**/*.bak*
+html/**/*.old*
+html/**/*.orig*
+html/**/*.save*
+html/**/*.swp
+security-backups/
 mysql/
 .env
 .git/
@@ -329,6 +351,56 @@ clean_epay_residue_files() {
     done < <(find "${HTML_DIR}" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \))
     success "残留备份文件已移到：${residue_dir}"
   fi
+}
+
+scan_epay_sensitive_build_files() {
+  if [ ! -d "${HTML_DIR}" ]; then
+    return 0
+  fi
+  local found_file
+  found_file="$(mktemp)"
+  find "${HTML_DIR}" -type f \( \
+    -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \
+    -o -name '*.env' -o -name '*.log' -o -name '*.pem' -o -name '*.key' -o -name '*.crt' \
+    -o -name '.env' \
+  \) -print >"${found_file}"
+  if [ -s "${found_file}" ]; then
+    error "检测到不应进入镜像/公网目录的敏感文件："
+    sed -n '1,80p' "${found_file}"
+    rm -f "${found_file}"
+    return 1
+  fi
+  rm -f "${found_file}"
+}
+
+validate_repo_origin() {
+  if [ -d "${HTML_DIR}/.git" ]; then
+    local origin
+    origin="$(git -C "${HTML_DIR}" remote get-url origin 2>/dev/null || true)"
+    if [ "${origin}" != "${REPO_URL}" ]; then
+      error "源码仓库 origin 不符合预期：${origin:-未设置}"
+      error "预期：${REPO_URL}"
+      return 1
+    fi
+  fi
+}
+
+validate_backup_archive() {
+  local archive="$1"
+  local list_file
+  list_file="$(mktemp)"
+  if ! tar -tzf "${archive}" >"${list_file}"; then
+    rm -f "${list_file}"
+    error "备份文件无法读取：${archive}"
+    return 1
+  fi
+  if grep -Eq '(^/|(^|/)\.\.(/|$))' "${list_file}" || grep -Evq '^Epay(/|$)' "${list_file}"; then
+    error "备份归档包含异常路径，拒绝恢复：${archive}"
+    sed -n '1,80p' "${list_file}"
+    rm -f "${list_file}"
+    return 1
+  fi
+  rm -f "${list_file}"
 }
 
 verify_epay_security_fixes() {
@@ -522,24 +594,44 @@ EOF
 }
 
 seed_html_from_image() {
-  local cid tmp_config tmp_lock
-  mkdir -p "${HTML_DIR}"
+  local cid tmp_config tmp_lock new_html old_html ts
+  mkdir -p "${APP_DIR}"
   tmp_config="$(mktemp)"
   tmp_lock="$(mktemp)"
   [ -f "${HTML_DIR}/config.php" ] && cp -a "${HTML_DIR}/config.php" "${tmp_config}" || true
   [ -f "${HTML_DIR}/install/install.lock" ] && cp -a "${HTML_DIR}/install/install.lock" "${tmp_lock}" || true
 
-  warn "正在从镜像 ${CUSTOM_IMAGE} 提取源码到 ${HTML_DIR} ..."
-  rm -rf "${HTML_DIR}"
-  mkdir -p "${HTML_DIR}"
+  warn "正在从镜像 ${CUSTOM_IMAGE} 提取源码到临时目录..."
   docker pull "${CUSTOM_IMAGE}"
+  new_html="$(mktemp -d "${APP_DIR}/html.new.XXXXXX")"
   cid="$(docker create "${CUSTOM_IMAGE}" sh -c true)"
-  docker cp "${cid}:/var/www/html/." "${HTML_DIR}/"
+  if ! docker cp "${cid}:/var/www/html/." "${new_html}/"; then
+    docker rm "${cid}" >/dev/null 2>&1 || true
+    rm -rf "${new_html}"
+    rm -f "${tmp_config}" "${tmp_lock}"
+    error "从镜像提取源码失败，已保留原 ${HTML_DIR}"
+    return 1
+  fi
   docker rm "${cid}" >/dev/null
 
-  [ -s "${tmp_config}" ] && cp -a "${tmp_config}" "${HTML_DIR}/config.php" || true
-  [ -s "${tmp_lock}" ] && mkdir -p "${HTML_DIR}/install" && cp -a "${tmp_lock}" "${HTML_DIR}/install/install.lock" || true
+  local old_html_dir="${HTML_DIR}"
+  HTML_DIR="${new_html}"
+  repair_epay_source_layout
+  validate_epay_source
+  sanitize_epay_source
+  clean_epay_residue_files
+  verify_epay_security_fixes
+  HTML_DIR="${old_html_dir}"
+
+  [ -s "${tmp_config}" ] && cp -a "${tmp_config}" "${new_html}/config.php" || true
+  [ -s "${tmp_lock}" ] && mkdir -p "${new_html}/install" && cp -a "${tmp_lock}" "${new_html}/install/install.lock" || true
   rm -f "${tmp_config}" "${tmp_lock}"
+
+  ts="$(date +%Y%m%d%H%M%S)"
+  old_html="${HTML_DIR}.before_seed_${ts}"
+  [ -e "${HTML_DIR}" ] && mv "${HTML_DIR}" "${old_html}"
+  mv "${new_html}" "${HTML_DIR}"
+  [ -d "${old_html}" ] && warn "旧 html 已保留：${old_html}"
 }
 
 env_value() {
@@ -638,11 +730,6 @@ install_app() {
   if [ "${mode}" = "image" ]; then
     # 镜像模式使用镜像内源码作为宿主机 ./html 的种子；否则 ./html 绑定会覆盖镜像内 /var/www/html。
     seed_html_from_image
-    repair_epay_source_layout
-    validate_epay_source
-    sanitize_epay_source
-    clean_epay_residue_files
-    verify_epay_security_fixes
   else
     if [ ! -d "${HTML_DIR}/.git" ]; then
       if [ -e "${HTML_DIR}" ] && [ -n "$(ls -A "${HTML_DIR}" 2>/dev/null || true)" ]; then
@@ -652,6 +739,7 @@ install_app() {
       rm -rf "${HTML_DIR}"
       git clone --depth=1 "${REPO_URL}" "${HTML_DIR}"
     fi
+    validate_repo_origin
     repair_epay_source_layout
     validate_epay_source
     sanitize_epay_source
@@ -695,6 +783,21 @@ update_app() {
   install_docker
   ensure_git
   ensure_python3
+  if [ "${mode}" = "image" ]; then
+    seed_html_from_image
+    cd "${APP_DIR}"
+    write_dockerfile
+    write_dockerignore
+    write_nginx_conf
+    write_compose "${mode}"
+    fix_permissions
+    local dc
+    dc="$(compose_cmd)"
+    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d
+    apply_epay_egress_firewall
+    success "镜像模式更新完成"
+    return 0
+  fi
   if [ ! -d "${HTML_DIR}/.git" ]; then
     error "未找到 ${HTML_DIR}，请先安装"
     return 1
@@ -706,6 +809,7 @@ update_app() {
   tmp_lock="$(mktemp)"
   [ -f config.php ] && cp -a config.php "${tmp_config}" || true
   [ -f install/install.lock ] && cp -a install/install.lock "${tmp_lock}" || true
+  validate_repo_origin
   git fetch --depth=1 origin main
   git reset --hard origin/main
   repair_epay_source_layout
@@ -775,6 +879,8 @@ backup_app() {
   ts="$(date +%Y%m%d%H%M%S)"
   archive="${BACKUP_DIR}/${BACKUP_PREFIX}-${ts}.tar.gz"
 
+  warn "备份会包含数据库、.env 密钥、商户/订单数据，请妥善保存。"
+
   if is_stack_running; then
     was_running=1
     warn "检测到容器运行中，先停止服务以保证 MySQL 数据备份一致性..."
@@ -782,6 +888,7 @@ backup_app() {
   fi
 
   tar -C "$(dirname "${APP_DIR}")" -czf "${archive}" "$(basename "${APP_DIR}")"
+  chmod 600 "${archive}"
 
   if [ "${was_running}" -eq 1 ]; then
     warn "备份完成，正在恢复启动服务..."
@@ -830,6 +937,7 @@ restore_app() {
   install_docker
   local archive ts old_dir
   archive="$(select_backup)" || return 1
+  validate_backup_archive "${archive}"
 
   warn "即将从备份恢复：${archive}"
   warn "当前目录会移动为 ${APP_DIR}.before_restore_时间戳"
@@ -909,6 +1017,7 @@ docker_push_app() {
   sanitize_epay_source
   clean_epay_residue_files
   verify_epay_security_fixes
+  scan_epay_sensitive_build_files
   ensure_placeholder_config
   fix_permissions
   write_dockerfile
@@ -920,17 +1029,29 @@ docker_push_app() {
     test -f /var/www/html/includes/lib/Template.php &&
     test -f /var/www/html/install/index.php &&
     test ! -f /var/www/html/config.php &&
-    test ! -f /var/www/html/install/install.lock
+    test ! -f /var/www/html/install/install.lock &&
+    ! find /var/www/html -type f \( -name "*.bak*" -o -name "*.old*" -o -name "*.orig*" -o -name "*.save*" -o -name "*.swp" -o -name "*.env" -o -name "*.log" -o -name "*.pem" -o -name "*.key" -o -name "*.crt" \) | grep -q .
   '
   docker push "${CUSTOM_IMAGE}"
   success "推送完成：${CUSTOM_IMAGE}"
 }
 
 restore_custom_app() {
+  local mode="${1:-source}"
   restore_app
   if [ -d "${APP_DIR}" ]; then
-    warn "恢复完成，生产环境默认切换为源码模式更新/启动，避免镜像供应链风险..."
-    update_app source
+    if [ "${mode}" = "image" ]; then
+      warn "恢复完成，保持镜像模式配置并启动..."
+      cd "${APP_DIR}"
+      write_dockerfile
+      write_dockerignore
+      write_nginx_conf
+      write_compose image
+      start_stack
+    else
+      warn "恢复完成，正在按源码模式更新/启动..."
+      update_app source
+    fi
   fi
 }
 
@@ -959,7 +1080,7 @@ main_menu() {
       1) install_app image; pause ;;
       2) update_app image; pause ;;
       3) backup_app; pause ;;
-      4) restore_custom_app; pause ;;
+      4) restore_custom_app image; pause ;;
       5) docker_login_app; pause ;;
       6) docker_push_app; pause ;;
       7) uninstall_app; pause ;;
