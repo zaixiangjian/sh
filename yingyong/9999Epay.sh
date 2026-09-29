@@ -189,6 +189,10 @@ html/**/*.old*
 html/**/*.orig*
 html/**/*.save*
 html/**/*.swp
+html.before_seed_*/
+html.new.*/
+*.before_restore_*/
+Epay.before_restore_*/
 security-backups/
 mysql/
 .env
@@ -228,8 +232,11 @@ server {
         if (-f $document_root/install/install.lock) { return 404; }
         rewrite ^ /install/index.php last;
     }
-    # 升级脚本不得公开访问；安装完成后也禁止整个 install 目录继续暴露。
+    # 升级脚本不得公开访问；除 index.php 外的安装目录 PHP 均禁止执行。
     location = /install/update.php {
+        return 404;
+    }
+    location ~* ^/install/(?!index\.php$).*\.php$ {
         return 404;
     }
     location /install/ {
@@ -362,6 +369,7 @@ scan_epay_sensitive_build_files() {
   find "${HTML_DIR}" -type f \( \
     -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \
     -o -name '*.env' -o -name '*.log' -o -name '*.pem' -o -name '*.key' -o -name '*.crt' \
+    -o -name '*.phtml' -o -name '*.phar' -o -name '*.php[0-9]*' \
     -o -name '.env' \
   \) -print >"${found_file}"
   if [ -s "${found_file}" ]; then
@@ -373,6 +381,22 @@ scan_epay_sensitive_build_files() {
   rm -f "${found_file}"
 }
 
+
+scan_epay_untracked_source_files() {
+  if [ ! -d "${HTML_DIR}/.git" ]; then
+    return 0
+  fi
+  local found_file
+  found_file="$(mktemp)"
+  git -C "${HTML_DIR}" ls-files --others --exclude-standard | grep -E '\.(php|php[0-9]*|phtml|phar)$|(^|/)(cgi|pl|py|sh)$' >"${found_file}" || true
+  if [ -s "${found_file}" ]; then
+    error "检测到未跟踪的可执行/PHP 残留文件，拒绝继续："
+    sed -n '1,120p' "${found_file}"
+    rm -f "${found_file}"
+    return 1
+  fi
+  rm -f "${found_file}"
+}
 validate_repo_origin() {
   if [ -d "${HTML_DIR}/.git" ]; then
     local origin
@@ -387,20 +411,32 @@ validate_repo_origin() {
 
 validate_backup_archive() {
   local archive="$1"
-  local list_file
+  local list_file type_file
   list_file="$(mktemp)"
+  type_file="$(mktemp)"
   if ! tar -tzf "${archive}" >"${list_file}"; then
-    rm -f "${list_file}"
+    rm -f "${list_file}" "${type_file}"
     error "备份文件无法读取：${archive}"
     return 1
   fi
   if grep -Eq '(^/|(^|/)\.\.(/|$))' "${list_file}" || grep -Evq '^Epay(/|$)' "${list_file}"; then
     error "备份归档包含异常路径，拒绝恢复：${archive}"
     sed -n '1,80p' "${list_file}"
-    rm -f "${list_file}"
+    rm -f "${list_file}" "${type_file}"
     return 1
   fi
-  rm -f "${list_file}"
+  if ! tar -tvzf "${archive}" >"${type_file}"; then
+    rm -f "${list_file}" "${type_file}"
+    error "备份文件无法读取详细清单：${archive}"
+    return 1
+  fi
+  if awk '{c=substr($1,1,1); if(c!="-" && c!="d") bad=1} END{exit bad?0:1}' "${type_file}"; then
+    error "备份归档包含符号链接、硬链接或特殊文件，拒绝恢复：${archive}"
+    sed -n '1,80p' "${type_file}"
+    rm -f "${list_file}" "${type_file}"
+    return 1
+  fi
+  rm -f "${list_file}" "${type_file}"
 }
 
 verify_epay_security_fixes() {
@@ -816,6 +852,7 @@ update_app() {
   validate_epay_source
   sanitize_epay_source
   clean_epay_residue_files
+  scan_epay_untracked_source_files
   verify_epay_security_fixes
   [ -s "${tmp_config}" ] && cp -a "${tmp_config}" config.php || true
   [ -s "${tmp_lock}" ] && mkdir -p install && cp -a "${tmp_lock}" install/install.lock || true
@@ -952,23 +989,31 @@ restore_app() {
   mkdir -p "$(dirname "${APP_DIR}")"
   ts="$(date +%Y%m%d%H%M%S)"
   old_dir="${APP_DIR}.before_restore_${ts}"
+  local restore_tmp
+  restore_tmp="$(mktemp -d)"
+
+  if ! tar --no-same-owner --no-same-permissions -C "${restore_tmp}" -xzf "${archive}"; then
+    error "解压失败，未替换当前目录。"
+    rm -rf "${restore_tmp}"
+    return 1
+  fi
+  if [ ! -d "${restore_tmp}/Epay" ]; then
+    error "备份结构不正确：归档内未找到 Epay/"
+    rm -rf "${restore_tmp}"
+    return 1
+  fi
+
   if [ -e "${APP_DIR}" ]; then
     mv "${APP_DIR}" "${old_dir}"
   fi
-
-  if tar -C "$(dirname "${APP_DIR}")" -xzf "${archive}"; then
-    if [ ! -d "${APP_DIR}" ]; then
-      error "备份结构不正确：解压后未找到 ${APP_DIR}"
-      rm -rf "${APP_DIR}"
-      [ -d "${old_dir}" ] && mv "${old_dir}" "${APP_DIR}"
-      return 1
-    fi
+  if mv "${restore_tmp}/Epay" "${APP_DIR}"; then
+    rm -rf "${restore_tmp}"
     start_stack
     success "恢复完成，已启动服务"
     [ -d "${old_dir}" ] && warn "旧目录保留在：${old_dir}"
   else
-    error "解压失败，正在回滚..."
-    rm -rf "${APP_DIR}"
+    error "恢复替换失败，正在回滚..."
+    rm -rf "${APP_DIR}" "${restore_tmp}"
     [ -d "${old_dir}" ] && mv "${old_dir}" "${APP_DIR}"
     return 1
   fi
@@ -1016,6 +1061,7 @@ docker_push_app() {
   validate_epay_source
   sanitize_epay_source
   clean_epay_residue_files
+  scan_epay_untracked_source_files
   verify_epay_security_fixes
   scan_epay_sensitive_build_files
   ensure_placeholder_config
