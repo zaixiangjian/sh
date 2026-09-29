@@ -171,6 +171,8 @@ html/install/install.lock
 html/epay_release*
 html/epay_update*
 html/.env
+html/.git/
+html/**/.git/
 html/**/*.env
 html/**/*.zip
 html/**/*.tar
@@ -660,6 +662,8 @@ seed_html_from_image() {
 
   local old_html_dir="${HTML_DIR}"
   HTML_DIR="${new_html}"
+  rm -rf "${HTML_DIR}/.git"
+  find "${HTML_DIR}" -path '*/.git' -type d -prune -exec rm -rf {} + 2>/dev/null || true
   repair_epay_source_layout
   validate_epay_source
   sanitize_epay_source
@@ -1072,6 +1076,8 @@ docker_push_app() {
   cd "${APP_DIR}"
   repair_epay_source_layout
   validate_epay_source
+  rm -rf "${HTML_DIR}/.git"
+  find "${HTML_DIR}" -path '*/.git' -type d -prune -exec rm -rf {} + 2>/dev/null || true
   sanitize_epay_source
   clean_epay_residue_files
   scan_epay_untracked_source_files
@@ -1089,6 +1095,7 @@ docker_push_app() {
     test -f /var/www/html/install/index.php &&
     test ! -f /var/www/html/config.php &&
     test ! -f /var/www/html/install/install.lock &&
+    test ! -d /var/www/html/.git &&
     ! find /var/www/html -type f \( -name "*.bak*" -o -name "*.old*" -o -name "*.orig*" -o -name "*.save*" -o -name "*.swp" -o -name "*.env" -o -name "*.log" -o -name "*.key" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" -o -name "*.rar" -o -name "epay_release*" -o -name "epay_update*" \) | grep -q . &&
     ! find /var/www/html -type f \( -name "*.pem" -o -name "*.crt" \) -print0 | xargs -0 grep -Il "PRIVATE KEY" | grep -q .
   '
