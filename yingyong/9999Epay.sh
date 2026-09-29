@@ -181,9 +181,7 @@ html/**/*.7z
 html/**/*.rar
 html/**/*.log
 html/**/*.ini
-html/**/*.pem
 html/**/*.key
-html/**/*.crt
 html/**/*.bak*
 html/**/*.old*
 html/**/*.orig*
@@ -368,12 +366,18 @@ scan_epay_sensitive_build_files() {
   found_file="$(mktemp)"
   find "${HTML_DIR}" -type f \( \
     -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \
-    -o -name '*.env' -o -name '*.log' -o -name '*.pem' -o -name '*.key' -o -name '*.crt' \
+    -o -name '*.env' -o -name '*.log' -o -name '*.key' \
     -o -name '*.phtml' -o -name '*.phar' -o -name '*.php[0-9]*' \
     -o -name '.env' \
   \) -print >"${found_file}"
   if [ -s "${found_file}" ]; then
     error "检测到不应进入镜像/公网目录的敏感文件："
+    sed -n '1,80p' "${found_file}"
+    rm -f "${found_file}"
+    return 1
+  fi
+  if find "${HTML_DIR}" -type f \( -name '*.pem' -o -name '*.crt' \) -print0 | xargs -0 grep -Il "PRIVATE KEY" >"${found_file}" 2>/dev/null && [ -s "${found_file}" ]; then
+    error "检测到私钥 PEM/CRT 文件，拒绝进入镜像："
     sed -n '1,80p' "${found_file}"
     rm -f "${found_file}"
     return 1
