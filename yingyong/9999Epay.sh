@@ -691,28 +691,32 @@ validate_epay_source() {
   return 0
 }
 
-clean_epay_residue_files() {
-  if [ ! -d "${HTML_DIR}" ]; then
-    return 0
+clean_epay_residue_files() (
+  [ -d "$HTML_DIR" ] || return 0
+  [ ! -L "$HTML_DIR" ] && [ ! -L "$APP_DIR" ] || return 1
+  local private residue_dir file rel dest
+  private="$(dirname "$APP_DIR")/.epay-recovery-$(basename "$APP_DIR")"
+  [ ! -L "$private" ] || return 1
+  mkdir -p -- "$private" || return 1
+  chmod 700 "$private" || return 1
+  [ ! -L "$private/residue.lock" ] || return 1
+  exec 8>"$private/residue.lock" || return 1
+  flock -x 8 || return 1
+  residue_dir="$(mktemp -d "$private/webroot-residue-$(date +%Y%m%d%H%M%S).XXXXXX")" || return 1
+  if ! find "$HTML_DIR" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \) -print0 >"$residue_dir/.files"; then
+    error "扫描失败，保留：$residue_dir"; return 1
   fi
-  local count
-  count="$(find "${HTML_DIR}" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \) | wc -l | tr -d ' ')"
-  if [ "${count}" != "0" ]; then
-    warn "检测到 Web 根目录残留备份文件 ${count} 个，正在移出避免公网泄露..."
-    ensure_epay_backup_dir
-    local residue_dir="${APP_DIR}/security-backups/webroot-residue-$(date +%Y%m%d%H%M%S)"
-    mkdir -p "${residue_dir}"
-    while IFS= read -r file; do
-      local rel dest
-      rel="${file#${HTML_DIR}/}"
-      dest="${residue_dir}/${rel}"
-      mkdir -p "$(dirname "${dest}")"
-      mv "${file}" "${dest}"
-    done < <(find "${HTML_DIR}" -type f \( -name '*.bak*' -o -name '*.old*' -o -name '*.orig*' -o -name '*.save*' -o -name '*.swp' \))
-    success "残留备份文件已移到：${residue_dir}"
-  fi
+  while IFS= read -r -d '' file; do
+    rel="${file#${HTML_DIR}/}"
+    dest="$residue_dir/$rel"
+    mkdir -p -- "$(dirname "$dest")" || { error "隔离失败，保留：$residue_dir"; return 1; }
+    mv -T -- "$file" "$dest" || { error "隔离失败，保留：$residue_dir"; return 1; }
+  done <"$residue_dir/.files"
+  rm -f -- "$residue_dir/.files" || return 1
+  if rmdir -- "$residue_dir" 2>/dev/null; then return 0; fi
+  success "残留备份文件已移到：$residue_dir"
   return 0
-}
+)
 
 scan_epay_sensitive_build_files() {
   if [ ! -d "${HTML_DIR}" ]; then
@@ -1416,42 +1420,35 @@ start_stack() {
   fi
 }
 
-backup_app() {
-  require_root
-  if [ ! -d "${APP_DIR}" ]; then
-    error "未找到安装目录：${APP_DIR}"
-    return 1
-  fi
-
-  mkdir -p "${BACKUP_DIR}"
-  local ts archive was_running=0
-  ts="$(date +%Y%m%d%H%M%S)"
-  archive="${BACKUP_DIR}/${BACKUP_PREFIX}-${ts}.tar.gz"
-
-  warn "备份会包含数据库、.env 密钥、商户/订单和私有回单数据，请妥善保存。"
-
+backup_app() (
+  require_root || return 1
+  [ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || { error "安装目录无效或为符号链接"; return 1; }
+  local ts archive was_running=0 rc=0 private
+  private="$(dirname "$APP_DIR")/.epay-recovery-$(basename "$APP_DIR")"
+  [ ! -L "$private" ] && [ ! -L "$BACKUP_DIR" ] || return 1
+  mkdir -p -- "$private" "$BACKUP_DIR" || return 1
+  chmod 700 "$private" || return 1
+  [ ! -L "$private/operations.lock" ] || return 1
+  exec 9>"$private/operations.lock" || return 1
+  flock -x 9 || return 1
+  ts="$(date +%Y%m%d%H%M%S)" || return 1
+  archive="$(mktemp "$BACKUP_DIR/${BACKUP_PREFIX}-${ts}.XXXXXX.tar.gz")" || return 1
+  warn "备份包含数据库、密钥及私有数据，请妥善保存。"
   if is_stack_running; then
     was_running=1
-    warn "检测到容器运行中，先停止服务以保证 MySQL 数据备份一致性..."
-    stop_stack || return 1
+    stop_stack || { rm -f -- "$archive"; return 1; }
   fi
-
-  provision_private_receipts || { if [ "${was_running}" -eq 1 ]; then start_stack; fi; return 1; }
-  if ! tar --exclude=Epay/.build-context --exclude=Epay/.image-build.* --exclude=Epay/html.before_seed_* -C "$(dirname "${APP_DIR}")" -czf "${archive}" "$(basename "${APP_DIR}")"; then
-    rm -f "${archive}"
-    if [ "${was_running}" -eq 1 ]; then start_stack; fi
-    error "备份失败，未保留不完整归档"
-    return 1
+  provision_private_receipts || rc=1
+  if [ "$rc" -eq 0 ]; then
+    tar --exclude=Epay/.build-context --exclude=Epay/.image-build.* --exclude=Epay/html.before_seed_* -C "$(dirname "$APP_DIR")" -czf "$archive" "$(basename "$APP_DIR")" || rc=1
   fi
-  chmod 600 "${archive}"
-
-  if [ "${was_running}" -eq 1 ]; then
-    warn "备份完成，正在恢复启动服务..."
-    start_stack
-  fi
-
-  success "备份完成：${archive}"
-}
+  if [ "$rc" -eq 0 ]; then chmod 600 "$archive" || rc=1; fi
+  if [ "$rc" -ne 0 ]; then rm -f -- "$archive" || error "不完整归档清理失败：$archive"; fi
+  if [ "$was_running" -eq 1 ]; then start_stack || { error "备份后服务恢复失败"; rc=1; }; fi
+  [ "$rc" -eq 0 ] || { error "备份失败"; return 1; }
+  success "备份完成：$archive"
+  return 0
+)
 
 select_backup() {
   shopt -s nullglob
@@ -1487,98 +1484,85 @@ select_backup() {
   return 1
 }
 
-restore_app() {
+restore_app() (
   local mode="${1:-source}"
-  require_root
-  install_docker
-  local archive ts old_dir
-  ensure_python3
+  require_root || return 1
+  install_docker || return 1
+  ensure_python3 || return 1
+  local archive ts old_dir="" failed_dir="" restore_tmp private was_running=0
   archive="$(select_backup)" || return 1
-  validate_backup_archive "${archive}" || return 1
-
-  warn "即将从备份恢复：${archive}"
-  warn "当前目录会移动为 ${APP_DIR}.before_restore_时间戳"
-  read -r -p "确认恢复？[y/N]: " yn
-  case "${yn:-N}" in
-    y|Y) ;;
-    *) warn "已取消恢复"; return 0 ;;
-  esac
-
-  mkdir -p "$(dirname "${APP_DIR}")"
-  ts="$(date +%Y%m%d%H%M%S)"
-  old_dir="${APP_DIR}.before_restore_${ts}"
-  local restore_tmp
-  restore_tmp="$(mktemp -d "$(dirname "${APP_DIR}")/.epay-restore.XXXXXX")"
-
+  validate_backup_archive "$archive" || return 1
+  warn "即将恢复；旧目录及失败候选保留在站外私有恢复目录。"
+  read -r -p "确认恢复？[y/N]: " yn || return 1
+  case "${yn:-N}" in y|Y) ;; *) warn "已取消恢复"; return 0 ;; esac
+  [ ! -L "$APP_DIR" ] || return 1
+  private="$(dirname "$APP_DIR")/.epay-recovery-$(basename "$APP_DIR")"
+  [ ! -L "$private" ] || return 1
+  mkdir -p -- "$private" || return 1
+  chmod 700 "$private" || return 1
+  [ ! -L "$private/operations.lock" ] || return 1
+  exec 9>"$private/operations.lock" || return 1
+  flock -x 9 || return 1
+  ts="$(date +%Y%m%d%H%M%S)" || return 1
+  restore_tmp="$(mktemp -d "$private/stage.XXXXXX")" || return 1
   if ! cp -- "$archive" "$restore_tmp/archive.tar.gz" || ! validate_backup_archive "$restore_tmp/archive.tar.gz"; then
-    rm -rf "$restore_tmp"; return 1
+    rm -rf -- "$restore_tmp"; return 1
   fi
-  archive="$restore_tmp/archive.tar.gz"
-  if ! tar --exclude=Epay/mysql/mysql.sock --same-owner --same-permissions -C "${restore_tmp}" -xzf "${archive}"; then
-    error "解压失败，未替换当前目录。"
-    rm -rf "${restore_tmp}"
-    return 1
+  if ! tar --exclude=Epay/mysql/mysql.sock --same-owner --same-permissions -C "$restore_tmp" -xzf "$restore_tmp/archive.tar.gz"; then
+    rm -rf -- "$restore_tmp"; return 1
   fi
-  if [ ! -d "${restore_tmp}/Epay" ]; then
-    error "备份结构不正确：归档内未找到 Epay/"
-    rm -rf "${restore_tmp}"
-    return 1
+  if [ ! -d "$restore_tmp/Epay" ] || [ -L "$restore_tmp/Epay" ] || [ ! -f "$restore_tmp/Epay/.env" ]; then
+    rm -rf -- "$restore_tmp"; return 1
   fi
-
-  if ! (HTML_DIR="${restore_tmp}/Epay/html"; validate_epay_source && verify_epay_security_fixes); then
-    rm -rf "${restore_tmp}"
-    return 1
+  if ! (HTML_DIR="$restore_tmp/Epay/html"; validate_epay_source && verify_epay_security_fixes); then
+    rm -rf -- "$restore_tmp"; return 1
   fi
-  if [ ! -f "${restore_tmp}/Epay/.env" ]; then
-    rm -rf "${restore_tmp}"
-    error "备份缺少 .env，拒绝恢复"
-    return 1
-  fi
-  # Normalize only staged source/config, never database numeric ownership.
   if ! (
-    APP_DIR="${restore_tmp}/Epay"
-    HTML_DIR="${APP_DIR}/html"
-    MYSQL_DIR="${APP_DIR}/mysql"
+    APP_DIR="$restore_tmp/Epay"
+    HTML_DIR="$APP_DIR/html"
+    MYSQL_DIR="$APP_DIR/mysql"
     write_dockerfile || exit 1
     write_dockerignore || exit 1
     write_nginx_conf || exit 1
     write_compose "$mode" || exit 1
-    chmod 600 "${APP_DIR}/.env" || exit 1
+    chmod 600 "$APP_DIR/.env" || exit 1
     fix_permissions || exit 1
-  ); then
-    rm -rf "${restore_tmp}"
-    error "恢复预检失败，当前目录未替换"
-    return 1
-  fi
-  local was_running=0
+  ); then rm -rf -- "$restore_tmp"; return 1; fi
+  # Reserve both rollback destinations before stopping or moving data.
+  old_dir="$(mktemp -d "$private/before_restore_${ts}.XXXXXX")" || { rm -rf -- "$restore_tmp"; return 1; }
+  failed_dir="$(mktemp -d "$private/failed_restore_${ts}.XXXXXX")" || { rmdir -- "$old_dir"; rm -rf -- "$restore_tmp"; return 1; }
   if is_stack_running; then was_running=1; fi
-  stop_stack || { rm -rf "${restore_tmp}"; return 1; }
-
-  if [ -e "${APP_DIR}" ]; then
-    mv "${APP_DIR}" "${old_dir}" || { rm -rf "$restore_tmp"; return 1; }
-  fi
-  if mv "${restore_tmp}/Epay" "${APP_DIR}"; then
-    rm -rf "${restore_tmp}"
-    if ! start_stack; then
-      error "恢复启动失败，回滚到旧目录（失败候选保留）"
-      stop_stack || { error "候选仍运行，禁止替换数据目录"; return 1; }
-      mv "$APP_DIR" "${APP_DIR}.failed_restore_${ts}" || return 1
-      if [ -d "$old_dir" ]; then
-        mv "$old_dir" "$APP_DIR" || return 1
-        if [ "$was_running" -eq 1 ]; then restart_previous_stack || error "旧栈启动失败，需人工处理"; fi
-      fi
-      return 1
+  stop_stack || { rmdir -- "$old_dir" "$failed_dir"; rm -rf -- "$restore_tmp"; return 1; }
+  if [ -e "$APP_DIR" ]; then
+    if ! mv -T -- "$APP_DIR" "$old_dir"; then
+      [ "$was_running" -eq 0 ] || restart_previous_stack || error "旧栈恢复启动失败"
+      rm -rf -- "$restore_tmp"; rmdir -- "$old_dir" "$failed_dir"; return 1
     fi
-    success "恢复完成，已启动服务"
-    if [ -d "${old_dir}" ]; then warn "旧目录保留在：${old_dir}"; fi
   else
-    error "恢复替换失败，正在回滚..."
-    rm -rf "${APP_DIR}" "${restore_tmp}"
-    if [ -d "$old_dir" ]; then mv "$old_dir" "$APP_DIR" || return 1; fi
-    if [ "$was_running" -eq 1 ]; then restart_previous_stack || return 1; fi
+    rmdir -- "$old_dir" || return 1
+    old_dir=""
+  fi
+  if ! mv -T -- "$restore_tmp/Epay" "$APP_DIR"; then
+    if [ -n "$old_dir" ]; then mv -T -- "$old_dir" "$APP_DIR" || { error "回滚失败，旧目录：$old_dir；候选：$restore_tmp"; return 1; }; fi
+    [ "$was_running" -eq 0 ] || restart_previous_stack || error "旧栈恢复启动失败"
+    rm -rf -- "$restore_tmp"; rmdir -- "$failed_dir"; return 1
+  fi
+  rm -rf -- "$restore_tmp" || return 1
+  if ! start_stack; then
+    stop_stack || { error "停止失败；禁止移动，旧目录：$old_dir"; return 1; }
+    mv -T -- "$APP_DIR" "$failed_dir" || { error "失败候选保留在：$APP_DIR；旧目录：$old_dir"; return 1; }
+    if [ -n "$old_dir" ]; then
+      mv -T -- "$old_dir" "$APP_DIR" || { error "回滚失败；旧目录：$old_dir；候选：$failed_dir"; return 1; }
+      [ "$was_running" -eq 0 ] || restart_previous_stack || error "旧栈恢复启动失败"
+    fi
+    error "恢复失败；失败候选保留在：$failed_dir"
     return 1
   fi
-}
+  rmdir -- "$failed_dir" || return 1
+  [ -z "$old_dir" ] || warn "旧目录保留在：$old_dir"
+  success "恢复完成，已启动服务"
+  return 0
+)
 
 uninstall_app() {
   local mode="${1:-source}"
