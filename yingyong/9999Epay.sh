@@ -188,37 +188,96 @@ WantedBy=timers.target
 EPAY_TIMER
   cat > "$stage/cron-runner.py" <<'EPAY_RUNNER'
 #!/usr/bin/python3
-"""Epay scheduler: no key in argv, crontab or persistent URL file."""
-import pathlib,subprocess,sys,urllib.request,urllib.parse,fcntl,os
+"""Candidate only. Never retries financial jobs. Logs contain fixed reason codes only."""
+import fcntl
+import os
+import pathlib
+import re
+import subprocess
+import sys
+import syslog
+import urllib.parse
+import urllib.request
+
 os.umask(0o077)
+APP = pathlib.Path('/home/docker/Epay')
+MAX_BODY = 1024 * 1024
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+def alert(action, reason):
+    # Never include exceptions, HTTP bodies, credentials, merchant IDs or URLs.
+    syslog.openlog('epay-cron', syslog.LOG_PID, syslog.LOG_DAEMON)
+    syslog.syslog(syslog.LOG_ERR, 'action='+action+' reason='+reason)
+    print('epay-cron action='+action+' reason='+reason, file=sys.stderr)
+    return 1
+
+def validate_response(action, status, body):
+    if status != 200 or len(body) > MAX_BODY:
+        return False
+    try:
+        text = body.decode('utf-8').strip()
+    except UnicodeDecodeError:
+        return False
+    if any(x in text for x in ('Fatal error', 'Warning:', 'Notice:', '监控密钥', '<html', '<!DOCTYPE', '记录插入失败')):
+        return False
+    if action == 'notify':
+        # Callback failures can coexist with final ok!: warn rather than silently succeeding.
+        return text.endswith('ok!') and '失败' not in text
+    if action == 'order':
+        return bool(re.fullmatch(r'(?:\d{8}订单统计与清理任务执行成功|订单统计与清理任务今日已完成(?:，余额不足提醒已发送给\d+位商户)?)', text))
+    if action == 'settle':
+        return bool(re.fullmatch(r'(?:自动生成结算列表今日已完成|自动生成结算列表成功 allmony=\d+(?:\.\d+)? num=\d+)', text))
+    return False
 
 def main():
-    action=sys.argv[1] if len(sys.argv)==2 else ''
-    if action not in ('notify','order','settle','--check'): return 1
-    if not pathlib.Path('/home/docker/Epay/html/install/install.lock').is_file(): return 0
-    helper=b'<?php\n// CLI only: read the effective cron key without invoking business bootstrap/cron.\ntry {\n    require \'/var/www/html/config.php\';\n    if (!preg_match(\'/^[A-Za-z0-9_]+$/D\', $dbconfig[\'dbqz\'])) exit(1);\n    $db = new PDO(\'mysql:host=\'.$dbconfig[\'host\'].\';port=\'.($dbconfig[\'port\'] ?? 3306).\';dbname=\'.$dbconfig[\'dbname\'].\';charset=utf8mb4\', $dbconfig[\'user\'], $dbconfig[\'pwd\'], [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);\n    $prefix=$dbconfig[\'dbqz\'].\'_\';\n    $cache=$db->query("SELECT v FROM {$prefix}cache WHERE k=\'config\' LIMIT 1")->fetchColumn();\n    $conf=@unserialize($cache ?: \'\', [\'allowed_classes\'=>false]);\n    $key=$db->query("SELECT v FROM {$prefix}config WHERE k=\'cronkey\' LIMIT 1")->fetchColumn();\n    if (is_array($conf) && !empty($conf[\'version\']) && ($conf[\'cronkey\'] ?? \'\') !== $key) exit(2);\n    if (!is_string($key) || strlen($key)<16 || preg_match(\'/[\\r\\n\\x00]/\',$key)) exit(3);\n    echo $key;\n} catch (PDOException $e) { exit(($e->errorInfo[1] ?? 0) == 1146 ? 10 : 1); } catch (Throwable $e) { exit(1); }\n'
-    p=subprocess.run(['docker','exec','-i','epay-php','php','-d','display_errors=0','-d','log_errors=0'],input=helper,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=20)
-    if p.returncode == 10: return 0
-    if p.returncode or not p.stdout or len(p.stdout)>1024:return 1
-    key=p.stdout.decode()
-    if action=='--check': print('cron key/cache synchronized; no task executed');return 0
-    lock=open('/run/lock/epay-cron-'+action+'.lock','w')
-    try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except BlockingIOError:return 0
-    env=pathlib.Path('/home/docker/Epay/.env').read_text().splitlines()
-    port=next(x.split('=',1)[1].strip().strip('"\'') for x in env if x.startswith('APP_PORT='))
-    if not port.isdigit():return 1
-    url='http://127.0.0.1:'+port+'/cron.php?'+urllib.parse.urlencode({'do':action,'key':key})
-    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
-    with opener.open(url,timeout=50) as response: response.read()
-    return 0
+    action = sys.argv[1] if len(sys.argv) == 2 else ''
+    if action not in ('notify', 'order', 'settle', '--check'):
+        return alert('invalid', 'invalid-action')
+    if not (APP/'html/install/install.lock').is_file():
+        return alert(action, 'not-installed')
+    # Lock before reading key; duplicate invocations are benign and do not execute tasks.
+    with open('/run/lock/epay-cron-'+action+'.lock', 'w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return 0
+        helper = KEY_READER
+        p = subprocess.run(['docker', 'exec', '-i', 'epay-php', 'php', '-d', 'display_errors=0', '-d', 'log_errors=0'], input=helper, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20)
+        if p.returncode or not p.stdout or len(p.stdout) > 1024:
+            return alert(action, 'key-or-cache-unavailable')
+        key = p.stdout.decode('utf-8')
+        if len(key) < 16 or any(c in key for c in '\r\n\x00'):
+            return alert(action, 'invalid-key')
+        if action == '--check':
+            print('cron key/cache synchronized; no task executed')
+            return 0
+        env = (APP/'.env').read_text().splitlines()
+        ports = [x.split('=',1)[1].strip().strip('"\'') for x in env if x.startswith('APP_PORT=')]
+        if len(ports) != 1 or not ports[0].isdigit() or not 1 <= int(ports[0]) <= 65535:
+            return alert(action, 'invalid-port')
+        url = 'http://127.0.0.1:'+ports[0]+'/cron.php?'+urllib.parse.urlencode({'do':action,'key':key})
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        # One request only. A timeout may mean money mutation already happened; never retry.
+        with opener.open(url, timeout=50) as response:
+            body = response.read(MAX_BODY+1)
+            if not validate_response(action, response.status, body):
+                return alert(action, 'business-response-rejected')
+        return 0
 
-if __name__=='__main__':
-    try: sys.exit(main())
-    except Exception: sys.exit(1)
+# Filled from the existing installer, which reads config/cache only, not cron bootstrap.
+KEY_READER = b'<?php\n// CLI only: read the effective cron key without invoking business bootstrap/cron.\ntry {\n    require \'/var/www/html/config.php\';\n    if (!preg_match(\'/^[A-Za-z0-9_]+$/D\', $dbconfig[\'dbqz\'])) exit(1);\n    $db = new PDO(\'mysql:host=\'.$dbconfig[\'host\'].\';port=\'.($dbconfig[\'port\'] ?? 3306).\';dbname=\'.$dbconfig[\'dbname\'].\';charset=utf8mb4\', $dbconfig[\'user\'], $dbconfig[\'pwd\'], [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);\n    $prefix=$dbconfig[\'dbqz\'].\'_\';\n    $cache=$db->query("SELECT v FROM {$prefix}cache WHERE k=\'config\' LIMIT 1")->fetchColumn();\n    $conf=@unserialize($cache ?: \'\', [\'allowed_classes\'=>false]);\n    $key=$db->query("SELECT v FROM {$prefix}config WHERE k=\'cronkey\' LIMIT 1")->fetchColumn();\n    if (is_array($conf) && !empty($conf[\'version\']) && ($conf[\'cronkey\'] ?? \'\') !== $key) exit(2);\n    if (!is_string($key) || strlen($key)<16 || preg_match(\'/[\\r\\n\\x00]/\',$key)) exit(3);\n    echo $key;\n} catch (PDOException $e) { exit(($e->errorInfo[1] ?? 0) == 1146 ? 10 : 1); } catch (Throwable $e) { exit(1); }\n'
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        action = sys.argv[1] if len(sys.argv)==2 and sys.argv[1] in ('notify','order','settle','--check') else 'invalid'
+        sys.exit(alert(action, 'transport-or-runtime-failure-no-retry'))
 EPAY_RUNNER
   # APP_DIR is fixed for this manager; no keys are stored in these templates.
   bash -n "$stage/epay-egress"
@@ -355,6 +414,17 @@ EOF
 
 write_dockerignore() {
   cat > "${APP_DIR}/.dockerignore" <<'EOF'
+**
+!Dockerfile
+!html/
+!html/**
+html/private-receipts/
+html/**/private-receipts/
+html/**/private_receipts/
+html/tests/
+html/test/
+html/fixtures/
+html/**/fixtures/
 html/config.php
 html/install/install.lock
 html/admin/@login.lock
@@ -378,8 +448,14 @@ html/**/*.tgz
 html/**/*.7z
 html/**/*.rar
 html/**/*.log
-html/**/*.ini
 html/**/*.key
+html/**/*.sql
+!html/install/*.sql
+html/**/.svn/
+html/**/.hg/
+html/**/*.phtml
+html/**/*.phar
+html/**/*.php[0-9]*
 html/**/*.bak*
 html/**/*.old*
 html/**/*.orig*
@@ -390,6 +466,9 @@ html.new.*/
 *.before_restore_*/
 Epay.before_restore_*/
 security-backups/
+private-receipts/
+**/private-receipts/
+**/private_receipts/
 mysql/
 .env
 .git/
@@ -667,33 +746,21 @@ validate_repo_origin() {
 }
 
 validate_backup_archive() {
-  local archive="$1"
-  local list_file type_file
-  list_file="$(mktemp)"
-  type_file="$(mktemp)"
-  if ! tar -tzf "${archive}" >"${list_file}"; then
-    rm -f "${list_file}" "${type_file}"
-    error "备份文件无法读取：${archive}"
-    return 1
-  fi
-  if grep -Eq '(^/|(^|/)\.\.(/|$))' "${list_file}" || grep -Evq '^Epay(/|$)' "${list_file}"; then
-    error "备份归档包含异常路径，拒绝恢复：${archive}"
-    sed -n '1,80p' "${list_file}"
-    rm -f "${list_file}" "${type_file}"
-    return 1
-  fi
-  if ! tar -tvzf "${archive}" >"${type_file}"; then
-    rm -f "${list_file}" "${type_file}"
-    error "备份文件无法读取详细清单：${archive}"
-    return 1
-  fi
-  if awk '{c=substr($1,1,1); if(c!="-" && c!="d") bad=1} END{exit bad?0:1}' "${type_file}"; then
-    error "备份归档包含符号链接、硬链接或特殊文件，拒绝恢复：${archive}"
-    sed -n '1,80p' "${type_file}"
-    rm -f "${list_file}" "${type_file}"
-    return 1
-  fi
-  rm -f "${list_file}" "${type_file}"
+  python3 - "$1" <<'PYARCH'
+import sys,tarfile
+with tarfile.open(sys.argv[1],'r:gz') as t:
+    seen=set()
+    for m in t:
+        parts=m.name.rstrip('/').split('/')
+        if not parts or parts[0]!='Epay' or any(x in ('','..','.') for x in parts) or m.name.startswith('/'):
+            raise SystemExit('Unsafe archive path')
+        if m.name.rstrip('/') in seen: raise SystemExit('Duplicate archive entry')
+        seen.add(m.name.rstrip('/'))
+        if m.name=='Epay/mysql/mysql.sock' and m.issym() and m.linkname=='/var/run/mysqld/mysqld.sock':
+            continue
+        if not(m.isfile() or m.isdir()): raise SystemExit('Unsafe archive member type')
+        if m.mode & 0o6000: raise SystemExit('Unsafe privileged archive mode')
+PYARCH
 }
 
 verify_epay_security_fixes() {
@@ -771,7 +838,7 @@ PYFIX
   fi
   rm -f "${sanitize_check_file}"
 
-  harden_epay_ssrf
+  harden_epay_ssrf || return 1
 
   if [ "${changed}" -eq 1 ]; then
     success "已清理已知后门特征"
@@ -781,47 +848,63 @@ PYFIX
 
 harden_epay_ssrf() {
   local functions_file="${HTML_DIR}/includes/functions.php"
-  if [ ! -f "${functions_file}" ]; then
-    error "未找到 ${functions_file}，无法应用 SSRF 防护"
-    return 1
-  fi
-
-  python3 - "${functions_file}" <<'PYFIX'
+  [ -f "$functions_file" ] || return 1
+  python3 - "$functions_file" <<'PYFIX' || return 1
 from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-text = path.read_text()
-helper = "function epay_is_public_ip($ip){\n\treturn filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;\n}\n\nfunction epay_is_safe_outbound_url($url, &$reason=null){\n\t$parts = parse_url($url);\n\tif($parts === false || empty($parts['scheme']) || empty($parts['host'])){ $reason = 'URL格式不正确'; return false; }\n\t$scheme = strtolower($parts['scheme']);\n\tif($scheme !== 'http' && $scheme !== 'https'){ $reason = '仅允许 http/https'; return false; }\n\tif(isset($parts['user']) || isset($parts['pass'])){ $reason = 'URL不允许包含用户名或密码'; return false; }\n\t$port = isset($parts['port']) ? intval($parts['port']) : ($scheme === 'https' ? 443 : 80);\n\tif($port !== 80 && $port !== 443){ $reason = '仅允许 80/443 端口'; return false; }\n\t$host = trim($parts['host'], '[]');\n\tif(preg_match('/(^|\\.)localhost$/i', $host)){ $reason = '禁止访问 localhost'; return false; }\n\t$ips = [];\n\tif(filter_var($host, FILTER_VALIDATE_IP)){ $ips[] = $host; }\n\telse { $records = gethostbynamel($host); if($records === false || count($records) === 0){ $reason = '域名解析失败'; return false; } $ips = $records; }\n\tforeach($ips as $ip){ if(!epay_is_public_ip($ip)){ $reason = '禁止访问内网/保留地址：'.$ip; return false; } }\n\treturn true;\n}\n\nfunction epay_assert_safe_outbound_url($url){\n\t$reason = null;\n\tif(!epay_is_safe_outbound_url($url, $reason)){ error_log('Epay blocked unsafe outbound URL: '.$url.' reason: '.$reason); return false; }\n\treturn true;\n}\n\n"
-if 'function epay_is_safe_outbound_url(' not in text:
-    if '<?php\r\n' in text:
-        text = text.replace('<?php\r\n', '<?php\r\n' + helper.replace('\n', '\r\n'), 1)
+import re,sys,os
+path=Path(sys.argv[1]); raw=path.read_bytes()
+nl=b'\r\n' if b'\r\n' in raw else b'\n'
+text=raw.decode().replace('\r\n','\n')
+helper="function epay_ip_in_cidr($ip, $cidr){\n    list($network, $bits) = explode('/', $cidr);\n    $a = @inet_pton($ip); $b = @inet_pton($network); $bits = (int)$bits;\n    if($a === false || $b === false || strlen($a) !== strlen($b)) return false;\n    $bytes = intdiv($bits, 8); $remain = $bits % 8;\n    return substr($a, 0, $bytes) === substr($b, 0, $bytes)\n        && (!$remain || ((ord($a[$bytes]) ^ ord($b[$bytes])) & (255 << (8-$remain))) === 0);\n}\nfunction epay_is_public_ip($ip){\n    if(!is_string($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) return false;\n    if(strpos($ip, ':') !== false){\n        // Fail closed outside native global unicast. Blocks mapped/compatible IPv4,\n        // NAT64, ULA, link/site-local, multicast and unspecified addresses.\n        if(!epay_ip_in_cidr($ip, '2000::/3')) return false;\n        $deny = ['2001::/23','2001:db8::/32','2002::/16','3fff::/20'];\n    }else{\n        $deny = ['0.0.0.0/8','10.0.0.0/8','100.64.0.0/10','127.0.0.0/8',\n            '169.254.0.0/16','172.16.0.0/12','192.0.0.0/24','192.0.2.0/24',\n            '192.88.99.0/24','192.168.0.0/16','198.18.0.0/15','198.51.100.0/24',\n            '203.0.113.0/24','224.0.0.0/4','240.0.0.0/4'];\n    }\n    foreach($deny as $cidr) if(epay_ip_in_cidr($ip, $cidr)) return false;\n    return true;\n}\nfunction epay_resolve_outbound_ips($host, $depth=0){\n    if($depth > 8) return false;\n    $records = @dns_get_record($host, DNS_A | DNS_AAAA | DNS_CNAME);\n    if(!$records) return false;\n    $ips = [];\n    foreach($records as $record){\n        if(isset($record['ip'])) $ips[] = $record['ip'];\n        if(isset($record['ipv6'])) $ips[] = $record['ipv6'];\n        if($record['type'] === 'CNAME'){\n            $next = epay_resolve_outbound_ips($record['target'], $depth+1);\n            if(!$next) return false;\n            $ips = array_merge($ips, $next);\n        }\n    }\n    return array_values(array_unique($ips));\n}\nfunction epay_outbound_target($url, &$reason=null, $resolver=null){\n    $reason = null;\n    if(!is_string($url) || strlen($url)>8192 || preg_match('/[\\x00-\\x20\\x7f\\\\\\\\]/', $url)){\n        $reason='URL contains forbidden characters'; return false;\n    }\n    $p = parse_url($url);\n    if(!$p || !isset($p['scheme'],$p['host']) || !in_array(strtolower($p['scheme']), ['http','https'], true)\n        || isset($p['user']) || isset($p['pass'])){ $reason='Invalid URL'; return false; }\n    $port = $p['port'] ?? (strtolower($p['scheme']) === 'https' ? 443 : 80);\n    if(!in_array($port,[80,443],true)){ $reason='Forbidden port'; return false; }\n    $host = strtolower(trim($p['host'], '[]'));\n    $literal = filter_var($host, FILTER_VALIDATE_IP) !== false;\n    if($literal){ $ips = [$host]; }\n    else{\n        if(strlen($host)>253 || !preg_match('/\\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z][a-z0-9-]{0,62}\\z/', $host)\n            || preg_match('/(^|\\.)(localhost|local|internal|home|lan)$/', $host)){\n            $reason='Invalid/public DNS hostname required'; return false;\n        }\n        $ips = $resolver ? $resolver($host) : epay_resolve_outbound_ips($host);\n    }\n    if(!is_array($ips) || !$ips){ $reason='DNS resolution failed'; return false; }\n    foreach($ips as $ip) if(!epay_is_public_ip($ip)){ $reason='Non-public DNS address'; return false; }\n    return ['host'=>$host, 'port'=>$port, 'ip'=>$ips[0], 'literal'=>$literal];\n}\nfunction epay_is_safe_outbound_url($url, &$reason=null){ return epay_outbound_target($url,$reason) !== false; }\nfunction epay_assert_safe_outbound_url($url){\n    $reason=null;\n    if(!epay_is_safe_outbound_url($url,$reason)){ error_log('Epay blocked outbound request: '.$reason); return false; }\n    return true;\n}\nfunction epay_outbound_curl_options($target, $proxyEnabled=false){\n    // HTTP(S) and SOCKS5h proxies resolve remotely and can bypass CURLOPT_RESOLVE.\n    // Strict centralized fetches reject ALL configured proxies; never silently bypass one.\n    // A future proxy mode requires separate CONNECT/pinned-IP + TLS SNI integration tests.\n    if($proxyEnabled) return false;\n    $opts = [CURLOPT_PROXY=>'', CURLOPT_NOPROXY=>'*', CURLOPT_FOLLOWLOCATION=>false,\n        CURLOPT_MAXREDIRS=>0, CURLOPT_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,\n        CURLOPT_REDIR_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,\n        CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,\n        CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>30];\n    if(!$target['literal']){\n        $address = strpos($target['ip'], ':') === false ? $target['ip'] : '['.$target['ip'].']';\n        $opts[CURLOPT_RESOLVE] = [$target['host'].':'.$target['port'].':'.$address];\n    }\n    return $opts;\n}\nfunction epay_prepare_outbound_curl($ch,$url,$proxyEnabled=false){\n    $reason=null;\n    $target=epay_outbound_target($url,$reason);\n    if($target===false) return false;\n    $options=epay_outbound_curl_options($target,$proxyEnabled);\n    return $options!==false && curl_setopt_array($ch,$options);\n}"
+# Replace only the bounded, known helper block. Unknown structures fail closed.
+first=re.search(r'^function epay_(?:ip_in_cidr|is_public_ip)\(',text,re.M)
+if first:
+    stop=text.find('function curl_get(',first.start())
+    if stop<0: raise SystemExit('Unrecognized outbound helper layout')
+    block=text[first.start():stop]
+    names=re.findall(r'^function (\w+)\(',block,re.M)
+    allowed={'epay_ip_in_cidr','epay_is_public_ip','epay_resolve_outbound_ips','epay_outbound_target','epay_is_safe_outbound_url','epay_assert_safe_outbound_url','epay_outbound_curl_options','epay_prepare_outbound_curl'}
+    if any(n not in allowed for n in names): raise SystemExit('Unknown helper in replacement region')
+    text=text[:first.start()]+helper+'\n\n'+text[stop:]
+else:
+    if not text.startswith('<?php\n'): raise SystemExit('Unexpected PHP opening')
+    text='<?php\n'+helper+'\n\n'+text[6:]
+for name in ['curl_get','get_curl','check_proxy']:
+    pat=r'(^function '+name+r'\([^\n]*\)\s*\{)(.*?)(?=^function |\Z)'
+    matches=list(re.finditer(pat,text,re.M|re.S))
+    if len(matches)!=1: raise SystemExit('Missing/ambiguous '+name)
+    m=matches[0]; block=m.group(0)
+    if name=='check_proxy':
+        # Configured remote DNS proxies cannot preserve direct pinning semantics.
+        block=m.group(1)+'\n    return false; // Proxy mode requires separately audited enforcement.\n}\n\n'
     else:
-        text = text.replace('<?php\n', '<?php\n' + helper, 1)
-repls = {
-    "function curl_get($url)\r\n{\r\n\tglobal $conf;\r\n": "function curl_get($url)\r\n{\r\n\tglobal $conf;\r\n\tif(!epay_assert_safe_outbound_url($url)) return false;\r\n",
-    "function get_curl($url, $post=0, $referer=0, $cookie=0, $header=0, $ua=0, $nobaody=0, $addheader=0, $location=0)\r\n{\r\n": "function get_curl($url, $post=0, $referer=0, $cookie=0, $header=0, $ua=0, $nobaody=0, $addheader=0, $location=0)\r\n{\r\n\tif(!epay_assert_safe_outbound_url($url)) return false;\r\n",
-    "function check_proxy($url)\r\n{\r\n\tglobal $conf;\r\n": "function check_proxy($url)\r\n{\r\n\tglobal $conf;\r\n\tif(!epay_assert_safe_outbound_url($url)) return false;\r\n",
-}
-for a,b in repls.items():
-    if b not in text and a in text:
-        text = text.replace(a,b,1)
-text = text.replace('curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);', 'curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);')
-text = text.replace('curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);', 'curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);')
-text = text.replace('curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);', 'curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);')
-path.write_text(text)
+        # Final options override later legacy proxy/TLS/redirect setters.
+        pat_exec=r'(?m)^([ \t]*)(\$\w+\s*=\s*curl_exec\(\$ch\);)'
+        guard="if(!epay_prepare_outbound_curl($ch,$url"+(", !empty($conf['proxy'])" if name=='curl_get' else '')+")){ curl_close($ch); return false; }"
+        block=re.sub(r'(?m)^[ \t]*if\(!epay_(?:prepare_outbound_curl|assert_safe_outbound_url)\([^\n]*\n','',block)
+        block,n=re.subn(pat_exec,lambda x:x.group(1)+guard+'\n'+x.group(1)+x.group(2),block)
+        if n!=1: raise SystemExit('Unexpected curl execution layout '+name)
+    text=text[:m.start()]+block+text[m.end():]
+# All validation before atomic replacement; retain LF/CRLF convention and mode.
+out=text.replace('\n',nl.decode()).encode(); tmp=path.with_name(path.name+'.ssrf-new')
+try:
+    tmp.write_bytes(out); os.chmod(tmp,path.stat().st_mode & 0o777); tmp.replace(path)
+finally:
+    tmp.unlink(missing_ok=True)
 PYFIX
-  success "已应用 Epay SSRF 防护：禁止内网/localhost/保留地址、禁止非 80/443、禁止跳转、启用 HTTPS 校验"
+  success "SSRF 补丁已验证并原子写入：双栈检查、DNS pinning、禁代理/跳转、TLS 校验"
 }
 
 write_compose() {
   local mode="${1:-source}"
   write_404_page || return 1
+  provision_private_receipts || return 1
   local php_image_block
   if [ "${mode}" = "image" ]; then
     php_image_block="    image: ${CUSTOM_IMAGE}"
   else
     php_image_block="    build:
-      context: .
+      context: .build-context
       dockerfile: Dockerfile"
   fi
 
@@ -846,6 +929,8 @@ services:
 ${php_image_block}
     container_name: epay-php
     restart: unless-stopped
+    environment:
+      EPAY_PRIVATE_RECEIPT_DIR: /var/lib/epay-private-receipts
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -853,6 +938,7 @@ ${php_image_block}
         condition: service_healthy
     volumes:
       - ./html:/var/www/html
+      - ./private-receipts:/var/lib/epay-private-receipts:rw
     networks:
       epay_net:
 
@@ -889,40 +975,87 @@ networks:
 EOF
 }
 
+# 只迁移指定部署 Web 树中的 ZIP；不删除，不扫描旧树/数据库/私有存储。
+quarantine_epay_webroot_zips() {
+  python3 - "${APP_DIR}" "${HTML_DIR}" "$1" <<'PYZIP'
+import os, pathlib, stat, sys, tempfile, datetime
+app, current, root = map(lambda s: pathlib.Path(os.path.abspath(s)), sys.argv[1:])
+excluded = {'.git', 'security-backups', 'private-receipts', 'private_receipts', 'mysql', 'database', 'backup', 'backups'}
+def no_links(p):
+ for n in [p] + list(p.parents):
+  if n.is_symlink(): raise RuntimeError('ZIP path symlink refused: ' + str(n))
+no_links(app); no_links(root)
+if current != app/'html' or not (root == current or (root.parent == app and root.name.startswith('html.new.'))):
+ raise RuntimeError('ZIP migration requires the current deployment webroot')
+if not root.is_dir(): raise RuntimeError('ZIP webroot missing')
+files = []
+def walk_error(e): raise e
+for base, dirs, names in os.walk(root, followlinks=False, onerror=walk_error):
+ dirs[:] = [n for n in dirs if n not in excluded]
+ for name in dirs + names:
+  if name in excluded: continue
+  p = pathlib.Path(base)/name
+  if p.suffix.lower() != '.zip': continue
+  mode = p.lstat().st_mode
+  if not stat.S_ISREG(mode): raise RuntimeError('ZIP link/special object refused: ' + str(p))
+  files.append(p)
+# Validate all candidates before creating a backup or moving any file.
+if files:
+ backup = app/'security-backups'
+ no_links(backup)
+ backup.mkdir(mode=0o700, exist_ok=True)
+ os.chmod(backup, 0o700)
+ dest = pathlib.Path(tempfile.mkdtemp(prefix='webroot-zips-'+datetime.datetime.now().strftime('%Y%m%d%H%M%S')+'-', dir=backup))
+ os.chmod(dest, 0o700)
+ for p in files:
+  no_links(p)
+  if not stat.S_ISREG(p.lstat().st_mode): raise RuntimeError('ZIP object changed before migration')
+  target = dest/p.relative_to(root)
+  target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+  for d in [target.parent]+list(target.parent.parents):
+   if d == backup: break
+   os.chmod(d, 0o700)
+  os.rename(p, target)
+  os.chmod(target, 0o600)
+ print('已将 Web ZIP（含已有上传 ZIP）移出 Web，保留原字节及相对路径：'+str(dest)+'；文件数：'+str(len(files)))
+PYZIP
+}
+
 seed_html_from_image() (
   local cid new_html old_html ts
   mkdir -p "${APP_DIR}"
   warn "正在从镜像 ${CUSTOM_IMAGE} 提取源码到临时目录..."
-  docker pull "${CUSTOM_IMAGE}"
-  new_html="$(mktemp -d "${APP_DIR}/html.new.XXXXXX")"
+  docker pull "${CUSTOM_IMAGE}" || return 1
+  new_html="$(mktemp -d "${APP_DIR}/html.new.XXXXXX")" || return 1
   trap 'if [ -n "${cid:-}" ]; then docker rm "$cid" >/dev/null 2>&1 || true; fi; rm -rf "$new_html"' EXIT
-  cid="$(docker create "${CUSTOM_IMAGE}" sh -c true)"
+  cid="$(docker create "${CUSTOM_IMAGE}" sh -c true)" || return 1
   if ! docker cp "${cid}:/var/www/html/." "${new_html}/"; then
     docker rm "${cid}" >/dev/null 2>&1 || true
     rm -rf "${new_html}"
     error "从镜像提取源码失败，已保留原 ${HTML_DIR}"
     return 1
   fi
-  docker rm "${cid}" >/dev/null
+  docker rm "${cid}" >/dev/null || return 1
 
   local old_html_dir="${HTML_DIR}"
   HTML_DIR="${new_html}"
   rm -rf "${HTML_DIR}/.git"
   find "${HTML_DIR}" -path '*/.git' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-  repair_epay_source_layout
-  validate_epay_source
-  sanitize_epay_source
-  clean_epay_residue_files
-  verify_epay_security_fixes
+  repair_epay_source_layout || return 1
+  validate_epay_source || return 1
+  sanitize_epay_source || return 1
+  clean_epay_residue_files || return 1
+  verify_epay_security_fixes || return 1
   HTML_DIR="${old_html_dir}"
 
-  quiesce_epay_writers
-  preserve_epay_runtime "${HTML_DIR}" "${new_html}"
+  quiesce_epay_writers || return 1
+  preserve_epay_runtime "${HTML_DIR}" "${new_html}" || return 1
+  quarantine_epay_webroot_zips "${new_html}" || return 1
 
   ts="$(date +%Y%m%d%H%M%S)"
   old_html="${HTML_DIR}.before_seed_${ts}"
-  [ -e "${HTML_DIR}" ] && mv "${HTML_DIR}" "${old_html}"
-  mv "${new_html}" "${HTML_DIR}"
+  if [ -e "${HTML_DIR}" ]; then mv "${HTML_DIR}" "${old_html}" || return 1; fi
+  mv "${new_html}" "${HTML_DIR}" || return 1
   if [ -d "${old_html}" ]; then
     warn "旧 html 已保留：${old_html}"
   fi
@@ -969,7 +1102,7 @@ EOF
 }
 
 epay_runtime_paths() {
-  printf '%s\n' config.php install/install.lock assets/img assets/uploads upload uploads plugins/sandpay/logs plugins/kuaiqian/temp plugins/douyinpay/cert admin/@login.lock lakala_log.txt
+  printf '%s\n' private-receipts private_receipts config.php install/install.lock assets/img assets/uploads upload uploads plugins/sandpay/logs plugins/kuaiqian/temp plugins/douyinpay/cert admin/@login.lock lakala_log.txt
 }
 
 preserve_epay_runtime() {
@@ -1000,11 +1133,30 @@ quiesce_epay_writers() {
   # Do not take a live snapshot: stop only this application's writers/ingress.
   local c
   for c in epay-nginx epay-php; do
-    if docker inspect "$c" >/dev/null 2>&1; then docker stop "$c" >/dev/null; fi
+    if docker inspect "$c" >/dev/null 2>&1; then docker stop "$c" >/dev/null || return 1; fi
   done
 }
 
+provision_private_receipts() {
+  python3 - "${APP_DIR}/private-receipts" <<'PRIVATE_RECEIPTS'
+import os,pathlib,stat,sys
+r=pathlib.Path(sys.argv[1])
+# Validate the entire tree before chmod/chown; never follow an archive/runtime link.
+for p in [r]+list(r.parents):
+ if p.is_symlink(): raise SystemExit('Private receipt path symlink refused')
+if not r.exists(): r.mkdir(mode=0o700)
+nodes=[r]+list(r.rglob('*'))
+for p in nodes:
+ mode=p.lstat().st_mode
+ if not(stat.S_ISREG(mode) or stat.S_ISDIR(mode)): raise SystemExit('Unsafe private receipt object')
+for p in nodes:
+ os.chown(p,82,82,follow_symlinks=False)
+ os.chmod(p,0o700 if p.is_dir() else 0o600,follow_symlinks=False)
+PRIVATE_RECEIPTS
+}
+
 fix_permissions() {
+  provision_private_receipts || return 1
   ensure_epay_backup_dir
   mkdir -p "${HTML_DIR}" "${MYSQL_DIR}"
   ensure_placeholder_config
@@ -1063,34 +1215,18 @@ show_status() {
   echo
 }
 
-install_app() {
+install_app_impl() {
   local mode="${1:-source}"
   require_root
-  install_docker
-  ensure_git
-  ensure_python3
+  install_docker || return 1
+  ensure_git || return 1
+  ensure_python3 || return 1
 
-  local port
-  if [ -f "${APP_DIR}/${COMPOSE_FILE}" ]; then
-    warn "检测到 ${APP_DIR} 已存在，安装操作将保留现有源码、数据库和配置并重建/启动服务。"
-    read -r -p "是否继续？[Y/n]: " yn
-    case "${yn:-Y}" in
-      y|Y) ;;
-      *) return 0 ;;
-    esac
-  fi
-
-  read -r -p "请输入公网访问端口 [默认: ${DEFAULT_PORT}]: " port
-  port="${port:-${DEFAULT_PORT}}"
-  if ! [[ "${port}" =~ ^[0-9]+$ ]] || [ "${port}" -lt 1 ] || [ "${port}" -gt 65535 ]; then
-    error "端口无效：${port}"
-    return 1
-  fi
-
+  local port="$EPAY_INSTALL_PORT"
   mkdir -p "${APP_DIR}"
   if [ "${mode}" = "image" ]; then
     # 镜像模式使用镜像内源码作为宿主机 ./html 的种子；否则 ./html 绑定会覆盖镜像内 /var/www/html。
-    seed_html_from_image
+    seed_html_from_image || return 1
   else
     if [ ! -d "${HTML_DIR}/.git" ]; then
       if [ -e "${HTML_DIR}" ] && [ -n "$(ls -A "${HTML_DIR}" 2>/dev/null || true)" ]; then
@@ -1098,34 +1234,36 @@ install_app() {
         return 1
       fi
       rm -rf "${HTML_DIR}"
-      git clone --depth=1 "${REPO_URL}" "${HTML_DIR}"
+      git clone --depth=1 "${REPO_URL}" "${HTML_DIR}" || return 1
     fi
-    validate_repo_origin
-    repair_epay_source_layout
-    validate_epay_source
-    sanitize_epay_source
-    clean_epay_residue_files
-    scan_epay_untracked_source_files
-    verify_epay_security_fixes
+    validate_repo_origin || return 1
+    repair_epay_source_layout || return 1
+    validate_epay_source || return 1
+    sanitize_epay_source || return 1
+    clean_epay_residue_files || return 1
+    scan_epay_untracked_source_files || return 1
+    verify_epay_security_fixes || return 1
+    quarantine_epay_webroot_zips "${HTML_DIR}" || return 1
   fi
 
-  write_env "${port}"
-  write_dockerfile
-  write_dockerignore
-  write_nginx_conf
-  write_compose "${mode}"
-  fix_permissions
+  write_env "${port}" || return 1
+  write_dockerfile || return 1
+  write_dockerignore || return 1
+  write_nginx_conf || return 1
+  write_compose "${mode}" || return 1
+  fix_permissions || return 1
 
   cd "${APP_DIR}"
   local dc
-  dc="$(compose_cmd)"
+  dc="$(compose_cmd)" || return 1
   if [ "${mode}" = "image" ]; then
-    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d
+    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d || return 1
   else
-    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build
+    prepare_epay_clean_build || return 1
+    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build || return 1
   fi
-  write_epay_persistence
-  apply_epay_egress_firewall
+  write_epay_persistence || return 1
+  apply_epay_egress_firewall || return 1
 
   success "Epay 安装/启动完成"
   echo
@@ -1139,29 +1277,29 @@ install_app() {
   echo "数据表前缀：pay"
 }
 
-update_app() {
+update_app_impl() {
   local mode="${1:-source}"
   require_root
-  install_docker
-  ensure_git
-  ensure_python3
+  install_docker || return 1
+  ensure_git || return 1
+  ensure_python3 || return 1
   if [ ! -f "${APP_DIR}/.env" ] || [ ! -f "${APP_DIR}/${COMPOSE_FILE}" ]; then
     error "未找到已安装配置，请先执行安装"
     return 1
   fi
   if [ "${mode}" = "image" ]; then
-    seed_html_from_image
+    seed_html_from_image || return 1
     cd "${APP_DIR}"
-    write_dockerfile
-    write_dockerignore
-    write_nginx_conf
-    write_compose "${mode}"
-    fix_permissions
+    write_dockerfile || return 1
+    write_dockerignore || return 1
+    write_nginx_conf || return 1
+    write_compose "${mode}" || return 1
+    fix_permissions || return 1
     local dc
-    dc="$(compose_cmd)"
-    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d
-    write_epay_persistence
-    apply_epay_egress_firewall
+    dc="$(compose_cmd)" || return 1
+    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d || return 1
+    write_epay_persistence || return 1
+    apply_epay_egress_firewall || return 1
     success "镜像模式更新完成"
     return 0
   fi
@@ -1172,32 +1310,34 @@ update_app() {
 
   cd "${HTML_DIR}"
   local runtime_backup
-  quiesce_epay_writers
+  quiesce_epay_writers || return 1
   ensure_epay_backup_dir
   runtime_backup="$(mktemp -d "${APP_DIR}/security-backups/runtime.XXXXXX")"
-  preserve_epay_runtime "${HTML_DIR}" "$runtime_backup"
-  validate_repo_origin
-  git fetch --depth=1 origin main
-  git reset --hard origin/main
-  repair_epay_source_layout
-  validate_epay_source
-  sanitize_epay_source
-  clean_epay_residue_files
-  scan_epay_untracked_source_files
-  verify_epay_security_fixes
-  preserve_epay_runtime "$runtime_backup" "${HTML_DIR}"
+  preserve_epay_runtime "${HTML_DIR}" "$runtime_backup" || return 1
+  validate_repo_origin || return 1
+  git fetch --depth=1 origin main || return 1
+  git reset --hard origin/main || return 1
+  repair_epay_source_layout || return 1
+  validate_epay_source || return 1
+  sanitize_epay_source || return 1
+  clean_epay_residue_files || return 1
+  scan_epay_untracked_source_files || return 1
+  verify_epay_security_fixes || return 1
+  preserve_epay_runtime "$runtime_backup" "${HTML_DIR}" || return 1
+  quarantine_epay_webroot_zips "${HTML_DIR}" || return 1
 
   cd "${APP_DIR}"
-  write_dockerfile
-  write_dockerignore
-  write_nginx_conf
-  write_compose "${mode}"
-  fix_permissions
+  write_dockerfile || return 1
+  write_dockerignore || return 1
+  write_nginx_conf || return 1
+  write_compose "${mode}" || return 1
+  fix_permissions || return 1
   local dc
-  dc="$(compose_cmd)"
-  ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build
-  write_epay_persistence
-  apply_epay_egress_firewall
+  dc="$(compose_cmd)" || return 1
+  prepare_epay_clean_build || return 1
+  ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build || return 1
+  write_epay_persistence || return 1
+  apply_epay_egress_firewall || return 1
   success "更新完成"
 }
 
@@ -1221,17 +1361,19 @@ stop_stack() {
     if docker inspect "$c" >/dev/null 2>&1; then docker stop "$c" >/dev/null || return 1; fi
   done
   if is_stack_running; then return 1; fi
+  return 0
 }
 
 start_stack() {
   if [ -f "${APP_DIR}/${COMPOSE_FILE}" ]; then
-    install_docker
+    install_docker || return 1
     cd "${APP_DIR}"
     local dc
-    dc="$(compose_cmd)"
-    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build
-    write_epay_persistence
-    apply_epay_egress_firewall
+    dc="$(compose_cmd)" || return 1
+    if grep -q "context: .build-context" "$COMPOSE_FILE"; then prepare_epay_clean_build || return 1; fi
+    ${dc} --env-file .env -f "${COMPOSE_FILE}" up -d --build || return 1
+    write_epay_persistence || return 1
+    apply_epay_egress_firewall || return 1
   fi
 }
 
@@ -1247,7 +1389,7 @@ backup_app() {
   ts="$(date +%Y%m%d%H%M%S)"
   archive="${BACKUP_DIR}/${BACKUP_PREFIX}-${ts}.tar.gz"
 
-  warn "备份会包含数据库、.env 密钥、商户/订单数据，请妥善保存。"
+  warn "备份会包含数据库、.env 密钥、商户/订单和私有回单数据，请妥善保存。"
 
   if is_stack_running; then
     was_running=1
@@ -1255,7 +1397,8 @@ backup_app() {
     stop_stack || return 1
   fi
 
-  if ! tar -C "$(dirname "${APP_DIR}")" -czf "${archive}" "$(basename "${APP_DIR}")"; then
+  provision_private_receipts || { if [ "${was_running}" -eq 1 ]; then start_stack; fi; return 1; }
+  if ! tar --exclude=Epay/.build-context --exclude=Epay/.image-build.* --exclude=Epay/html.before_seed_* -C "$(dirname "${APP_DIR}")" -czf "${archive}" "$(basename "${APP_DIR}")"; then
     rm -f "${archive}"
     if [ "${was_running}" -eq 1 ]; then start_stack; fi
     error "备份失败，未保留不完整归档"
@@ -1328,7 +1471,11 @@ restore_app() {
   local restore_tmp
   restore_tmp="$(mktemp -d "$(dirname "${APP_DIR}")/.epay-restore.XXXXXX")"
 
-  if ! tar --same-owner --same-permissions -C "${restore_tmp}" -xzf "${archive}"; then
+  if ! cp -- "$archive" "$restore_tmp/archive.tar.gz" || ! validate_backup_archive "$restore_tmp/archive.tar.gz"; then
+    rm -rf "$restore_tmp"; return 1
+  fi
+  archive="$restore_tmp/archive.tar.gz"
+  if ! tar --exclude=Epay/mysql/mysql.sock --same-owner --same-permissions -C "${restore_tmp}" -xzf "${archive}"; then
     error "解压失败，未替换当前目录。"
     rm -rf "${restore_tmp}"
     return 1
@@ -1364,20 +1511,32 @@ restore_app() {
     error "恢复预检失败，当前目录未替换"
     return 1
   fi
+  local was_running=0
+  if is_stack_running; then was_running=1; fi
   stop_stack || { rm -rf "${restore_tmp}"; return 1; }
 
   if [ -e "${APP_DIR}" ]; then
-    mv "${APP_DIR}" "${old_dir}"
+    mv "${APP_DIR}" "${old_dir}" || { rm -rf "$restore_tmp"; return 1; }
   fi
   if mv "${restore_tmp}/Epay" "${APP_DIR}"; then
     rm -rf "${restore_tmp}"
-    start_stack
+    if ! start_stack; then
+      error "恢复启动失败，回滚到旧目录（失败候选保留）"
+      stop_stack || { error "候选仍运行，禁止替换数据目录"; return 1; }
+      mv "$APP_DIR" "${APP_DIR}.failed_restore_${ts}" || return 1
+      if [ -d "$old_dir" ]; then
+        mv "$old_dir" "$APP_DIR" || return 1
+        if [ "$was_running" -eq 1 ]; then restart_previous_stack || error "旧栈启动失败，需人工处理"; fi
+      fi
+      return 1
+    fi
     success "恢复完成，已启动服务"
     if [ -d "${old_dir}" ]; then warn "旧目录保留在：${old_dir}"; fi
   else
     error "恢复替换失败，正在回滚..."
     rm -rf "${APP_DIR}" "${restore_tmp}"
-    [ -d "${old_dir}" ] && mv "${old_dir}" "${APP_DIR}"
+    if [ -d "$old_dir" ]; then mv "$old_dir" "$APP_DIR" || return 1; fi
+    if [ "$was_running" -eq 1 ]; then restart_previous_stack || return 1; fi
     return 1
   fi
 }
@@ -1408,8 +1567,8 @@ docker_login_app() {
 
 docker_push_app() (
   require_root
-  install_docker
-  ensure_python3
+  install_docker || return 1
+  ensure_python3 || return 1
   if [ ! -f "${APP_DIR}/Dockerfile" ]; then
     error "未找到 ${APP_DIR}/Dockerfile，请先执行 1 或 11 安装生成构建文件。"
     return 1
@@ -1422,11 +1581,11 @@ docker_push_app() (
     *) warn "已取消推送"; return 0 ;;
   esac
   # Never delete the live Git checkout or bake runtime data into a public image.
-  scan_epay_untracked_source_files
+  scan_epay_untracked_source_files || return 1
   local build_stage
   build_stage="$(mktemp -d "${APP_DIR}/.image-build.XXXXXX")"
   trap 'rm -rf "$build_stage"' EXIT
-  cp -a "${HTML_DIR}" "$build_stage/html"
+  cp -a "${HTML_DIR}" "$build_stage/html" || return 1
   APP_DIR="$build_stage"
   HTML_DIR="$build_stage/html"
   MYSQL_DIR="$build_stage/mysql"
@@ -1435,18 +1594,19 @@ docker_push_app() (
     # assets/img contains shipped application graphics: preserve defaults.
     [ "$rel" = assets/img ] || rm -rf "${HTML_DIR:?}/$rel"
   done < <(epay_runtime_paths)
-  repair_epay_source_layout
-  validate_epay_source
+  repair_epay_source_layout || return 1
+  validate_epay_source || return 1
   rm -rf "${HTML_DIR}/.git"
   find "${HTML_DIR}" -path '*/.git' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-  sanitize_epay_source
-  clean_epay_residue_files
-  scan_epay_untracked_source_files
-  verify_epay_security_fixes
-  scan_epay_sensitive_build_files
-  write_dockerfile
-  write_dockerignore
-  docker build --no-cache -t "${CUSTOM_IMAGE}" -f Dockerfile .
+  sanitize_epay_source || return 1
+  clean_epay_residue_files || return 1
+  scan_epay_untracked_source_files || return 1
+  verify_epay_security_fixes || return 1
+  prune_epay_build_context || return 1
+  scan_epay_sensitive_build_files || return 1
+  write_dockerfile || return 1
+  write_dockerignore || return 1
+  docker build --no-cache -t "${CUSTOM_IMAGE}" -f Dockerfile . || return 1
   docker run --rm --entrypoint sh "${CUSTOM_IMAGE}" -lc '
     test -f /var/www/html/index.php &&
     test -f /var/www/html/includes/common.php &&
@@ -1456,16 +1616,147 @@ docker_push_app() (
     test ! -f /var/www/html/config.php &&
     test ! -f /var/www/html/install/install.lock &&
     test ! -d /var/www/html/.git &&
+    ! find /var/www/html -type d \( -name "private-receipts" -o -name "private_receipts" -o -name "fixtures" \) | grep -q . &&
     ! find /var/www/html -type f \( -name "*.bak*" -o -name "*.old*" -o -name "*.orig*" -o -name "*.save*" -o -name "*.swp" -o -name "*.env" -o -name "*.log" -o -name "*.key" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" -o -name "*.rar" -o -name "epay_release*" -o -name "epay_update*" \) | grep -q . &&
     ! find /var/www/html -type f \( -name "*.pem" -o -name "*.crt" \) -print0 | xargs -0 grep -Il "PRIVATE KEY" | grep -q .
-  '
-  docker push "${CUSTOM_IMAGE}"
-  success "推送完成：${CUSTOM_IMAGE}"
+  ' || return 1
+  docker push "${CUSTOM_IMAGE}" || return 1
+  verify_remote_image_digest "$CUSTOM_IMAGE" || return 1
+  success "推送完成且远端 config digest 与本地 image ID 一致：${CUSTOM_IMAGE}"
 )
 
 restore_custom_app() {
   local mode="${1:-source}"
   restore_app "$mode"
+}
+
+
+prepare_epay_clean_build() (
+  local stage
+  stage="$(mktemp -d "$APP_DIR/.clean-build.XXXXXX")" || return 1
+  trap 'rm -rf "$stage"' EXIT
+  cp -a "$HTML_DIR" "$stage/html" || return 1
+  local target="$APP_DIR/.build-context"
+  APP_DIR="$stage" HTML_DIR="$stage/html" MYSQL_DIR="$stage/mysql"
+  while IFS= read -r rel; do
+    [ "$rel" = assets/img ] || rm -rf "$HTML_DIR/$rel" || return 1
+  done < <(epay_runtime_paths)
+  prune_epay_build_context || return 1
+  scan_epay_sensitive_build_files || return 1
+  validate_epay_source || return 1
+  write_dockerfile || return 1
+  write_dockerignore || return 1
+  rm -rf "$target" || return 1
+  mv "$stage" "$target" || return 1
+)
+
+restart_previous_stack() (
+  cd "$APP_DIR" || return 1
+  local dc
+  dc="$(compose_cmd)" || return 1
+  ${dc} --env-file .env -f "$COMPOSE_FILE" up -d --no-build --pull never || return 1
+)
+
+# Whole-tree snapshot includes MySQL numeric ownership; take only while stopped.
+# On rollback never rebuild, fetch, or call financial tasks.
+app_transaction() (
+  local operation="$1" mode="$2" parent snapshot existed=0 running=0 rc=0
+  parent="$(dirname "$APP_DIR")"
+  mkdir -p "$parent" || return 1
+  snapshot="$(mktemp -d "$parent/.epay-rollback.XXXXXX")" || return 1
+  chmod 700 "$snapshot" || return 1
+  if is_stack_running; then running=1; fi
+  if [ -d "$APP_DIR" ]; then
+    existed=1
+    stop_stack || { rm -rf "$snapshot"; return 1; }
+    cp -a "$APP_DIR" "$snapshot/Epay" || {
+      if [ "$running" -eq 1 ]; then restart_previous_stack || true; fi
+      rm -rf "$snapshot"; return 1;
+    }
+  fi
+  if "${operation}_app_impl" "$mode"; then
+    rm -rf "$snapshot"
+    return 0
+  else rc=$?; fi
+  # Returning failure must not leave a partly replaced stack using new data.
+  stop_stack || { error "无法停止失败候选，快照保留：$snapshot"; return 1; }
+  if [ -e "$APP_DIR" ]; then
+    mv "$APP_DIR" "$snapshot/failed-candidate" || return 1
+  fi
+  if [ "$existed" -eq 1 ]; then
+    mv "$snapshot/Epay" "$APP_DIR" || return 1
+    if [ "$running" -eq 1 ]; then restart_previous_stack || error "旧栈恢复启动失败"; fi
+  fi
+  error "操作失败已回滚；失败候选保留在私有目录 $snapshot"
+  return "$rc"
+)
+
+install_app() {
+  local mode="${1:-source}"
+  require_root || return 1
+  local port
+  if [ -f "${APP_DIR}/${COMPOSE_FILE}" ]; then
+    warn "检测到 ${APP_DIR} 已存在，安装操作将保留现有源码、数据库和配置并重建/启动服务。"
+    read -r -p "是否继续？[Y/n]: " yn
+    case "${yn:-Y}" in
+      y|Y) ;;
+      *) return 0 ;;
+    esac
+  fi
+
+  read -r -p "请输入公网访问端口 [默认: ${DEFAULT_PORT}]: " port
+  port="${port:-${DEFAULT_PORT}}"
+  if ! [[ "${port}" =~ ^[0-9]+$ ]] || [ "${port}" -lt 1 ] || [ "${port}" -gt 65535 ]; then
+    error "端口无效：${port}"
+    return 1
+  fi
+
+
+  EPAY_INSTALL_PORT="$port" app_transaction install "$mode"
+}
+
+update_app() {
+  app_transaction update "${1:-source}"
+}
+
+prune_epay_build_context() {
+  python3 - "$HTML_DIR" <<'PYPRUNE'
+import pathlib,shutil,re,sys
+r=pathlib.Path(sys.argv[1])
+for p in sorted(r.rglob('*'),key=lambda x:len(x.parts),reverse=True):
+    rel=p.relative_to(r)
+    if p.is_symlink(): raise SystemExit('Build context symlink requires review')
+    remove=any(x in ('.git','.svn','.hg','private-receipts','private_receipts','tests','test','fixtures','fixture','__pycache__') for x in rel.parts)
+    remove=remove or bool(re.search(r'\.(env|zip|tar|gz|tgz|7z|rar|log|key|bak[^/]*|old[^/]*|orig[^/]*|save[^/]*|swp|phtml|phar|php[0-9]+)$',p.name,re.I))
+    remove=remove or (p.suffix.lower()=='.sql' and not(rel.parent==pathlib.Path('install')))
+    remove=remove or p.name.startswith(('epay_release','epay_update'))
+    if remove:
+        if p.is_dir(): shutil.rmtree(p)
+        else: p.unlink()
+PYPRUNE
+}
+
+verify_remote_image_digest() {
+  local image="$1" id remote
+  id="$(docker image inspect "$image" --format '{{.Id}}')" || return 1
+  remote="$(mktemp)" || return 1
+  if ! docker manifest inspect --verbose "$image" >"$remote"; then rm -f "$remote"; return 1; fi
+  python3 - "$remote" "$id" <<'PYDIGEST'
+import json,sys
+obj=json.load(open(sys.argv[1])); rows=obj if isinstance(obj,list) else [obj]
+def configs(x):
+    if isinstance(x,dict):
+        if isinstance(x.get('config'),dict) and 'digest' in x['config']: yield x['config']['digest']
+        for v in x.values(): yield from configs(v)
+    elif isinstance(x,list):
+        for v in x: yield from configs(v)
+values=set(configs(rows))
+if sys.argv[2] not in values: raise SystemExit('Remote config digest mismatch; push NOT verified')
+print('Remote immutable config digest matches local image ID')
+PYDIGEST
+  local rc=$?
+  rm -f "$remote"
+  return "$rc"
 }
 
 main_menu() {
