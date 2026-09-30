@@ -490,6 +490,8 @@ write_404_page() {
 <script>document.getElementById('back').addEventListener('click',function(){if(document.referrer){try{var previous=new URL(document.referrer);if(previous.origin===location.origin&&previous.href!==location.href){location.assign(previous.href);return}}catch(e){}}location.assign('/')});</script>
 </body></html>
 EOF
+  # Public static error page: nginx workers must read it even under umask 077.
+  chmod 0644 "${APP_DIR}/404.html" || return 1
 }
 
 write_nginx_conf() {
