@@ -567,11 +567,31 @@ server {
     location = /lakala_log.txt { deny all; }
     location = /admin/@login.lock { deny all; }
     location = /config.php { deny all; }
-    location ^~ /plugins { deny all; }
+    # Reject multiply encoded path metacharacters/backslashes, not query strings.
+    if ($request_uri ~* "^[^?]*(%25(?:25)*(?:2e|2f|5c|00)|%5c|%00)") { return 404; }
+    location /plugins { deny all; }
     location ^~ /includes { deny all; }
+    location ^~ /vendor { deny all; }
+    location = /plugins/baofu/cert/baofu.cer { try_files $uri =404; }
+    location = /plugins/ysepay/cert/businessgate.cer { try_files $uri =404; }
+    location = /plugins/sandpay/cert/sand.cer { try_files $uri =404; }
+    location = /plugins/jdpay/inc/cert/wy_rsa_public_key.pem { try_files $uri =404; }
+    location = /plugins/hnapay/cert/hnapaypay.pem { try_files $uri =404; }
+    location = /plugins/hnapay/cert/hnapay.pem { try_files $uri =404; }
+    location = /plugins/lakala/cert/lkl-apigw-v1.cer { try_files $uri =404; }
+    location = /plugins/lakala/cert/lkl-apigw-v2.cer { try_files $uri =404; }
+    location = /plugins/yseqt/cert/businessgate.cer { try_files $uri =404; }
+    location = /plugins/yinyingtong/cert/M2.cer { try_files $uri =404; }
+    location ~* ^/plugins(?:/|$) { deny all; }
+    # Include-only PHP is private; browser template assets remain public.
+    location ~* ^/template/.*\.(php[0-9]*|phtml|phar)(/|$) { return 404; }
+    location ~* \.(tpl|inc|php[0-9]+|phtml|phar|key|p12|pfx|jks|keystore|log|sqlite[0-9]*|db|ini|conf|ya?ml|sh|sql|dump|tar|bz2|xz|zst|tgz|gz|zip|7z|rar|bak|old|orig|save|swp|swo)([./~_-]|$) { deny all; }
+    location ~* (^|/)(Dockerfile|docker-compose[^/]*|compose[^/]*\.ya?ml|Makefile|nginx\.txt|IIS\.txt|README[^/]*|CHANGELOG[^/]*|LICENSE[^/]*|install\.lock|.*~)$ { deny all; }
+    location ~* \.php/ { return 404; }
+    location ~* ^/(assets|upload|uploads|static)/.*\.(php[0-9]*|phtml|phar)([./~_-]|$) { deny all; }
 
     # 禁止访问 config.php / .git / .env / composer.* / 备份包 / 隐藏文件，防止源码与敏感文件泄露。
-    location ~ /\.(?!well-known).* {
+    location ~ /\.(?!well-known(?:/|$)).* {
         deny all;
     }
     location ~* (^|/)(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|\.env|\.git|\.svn|\.hg)(/|$) {
@@ -648,6 +668,7 @@ validate_epay_source() {
   for path in \
     "index.php" \
     "includes/common.php" \
+    "includes/functions.php" \
     "includes/lib/Template.php" \
     "includes/vendor/composer/autoload_real.php" \
     "install/install.sql" \
@@ -846,53 +867,51 @@ PYFIX
   return 0
 }
 
+# Modern outbound code is a release prerequisite, not a patch insertion point.
+# Legacy layouts must be upgraded/reviewed outside this packager; never silently rewrite.
 harden_epay_ssrf() {
-  local functions_file="${HTML_DIR}/includes/functions.php"
-  [ -f "$functions_file" ] || return 1
-  python3 - "$functions_file" <<'PYFIX' || return 1
-from pathlib import Path
-import re,sys,os
-path=Path(sys.argv[1]); raw=path.read_bytes()
-nl=b'\r\n' if b'\r\n' in raw else b'\n'
-text=raw.decode().replace('\r\n','\n')
-helper="function epay_ip_in_cidr($ip, $cidr){\n    list($network, $bits) = explode('/', $cidr);\n    $a = @inet_pton($ip); $b = @inet_pton($network); $bits = (int)$bits;\n    if($a === false || $b === false || strlen($a) !== strlen($b)) return false;\n    $bytes = intdiv($bits, 8); $remain = $bits % 8;\n    return substr($a, 0, $bytes) === substr($b, 0, $bytes)\n        && (!$remain || ((ord($a[$bytes]) ^ ord($b[$bytes])) & (255 << (8-$remain))) === 0);\n}\nfunction epay_is_public_ip($ip){\n    if(!is_string($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) return false;\n    if(strpos($ip, ':') !== false){\n        // Fail closed outside native global unicast. Blocks mapped/compatible IPv4,\n        // NAT64, ULA, link/site-local, multicast and unspecified addresses.\n        if(!epay_ip_in_cidr($ip, '2000::/3')) return false;\n        $deny = ['2001::/23','2001:db8::/32','2002::/16','3fff::/20'];\n    }else{\n        $deny = ['0.0.0.0/8','10.0.0.0/8','100.64.0.0/10','127.0.0.0/8',\n            '169.254.0.0/16','172.16.0.0/12','192.0.0.0/24','192.0.2.0/24',\n            '192.88.99.0/24','192.168.0.0/16','198.18.0.0/15','198.51.100.0/24',\n            '203.0.113.0/24','224.0.0.0/4','240.0.0.0/4'];\n    }\n    foreach($deny as $cidr) if(epay_ip_in_cidr($ip, $cidr)) return false;\n    return true;\n}\nfunction epay_resolve_outbound_ips($host, $depth=0){\n    if($depth > 8) return false;\n    $records = @dns_get_record($host, DNS_A | DNS_AAAA | DNS_CNAME);\n    if(!$records) return false;\n    $ips = [];\n    foreach($records as $record){\n        if(isset($record['ip'])) $ips[] = $record['ip'];\n        if(isset($record['ipv6'])) $ips[] = $record['ipv6'];\n        if($record['type'] === 'CNAME'){\n            $next = epay_resolve_outbound_ips($record['target'], $depth+1);\n            if(!$next) return false;\n            $ips = array_merge($ips, $next);\n        }\n    }\n    return array_values(array_unique($ips));\n}\nfunction epay_outbound_target($url, &$reason=null, $resolver=null){\n    $reason = null;\n    if(!is_string($url) || strlen($url)>8192 || preg_match('/[\\x00-\\x20\\x7f\\\\\\\\]/', $url)){\n        $reason='URL contains forbidden characters'; return false;\n    }\n    $p = parse_url($url);\n    if(!$p || !isset($p['scheme'],$p['host']) || !in_array(strtolower($p['scheme']), ['http','https'], true)\n        || isset($p['user']) || isset($p['pass'])){ $reason='Invalid URL'; return false; }\n    $port = $p['port'] ?? (strtolower($p['scheme']) === 'https' ? 443 : 80);\n    if(!in_array($port,[80,443],true)){ $reason='Forbidden port'; return false; }\n    $host = strtolower(trim($p['host'], '[]'));\n    $literal = filter_var($host, FILTER_VALIDATE_IP) !== false;\n    if($literal){ $ips = [$host]; }\n    else{\n        if(strlen($host)>253 || !preg_match('/\\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z][a-z0-9-]{0,62}\\z/', $host)\n            || preg_match('/(^|\\.)(localhost|local|internal|home|lan)$/', $host)){\n            $reason='Invalid/public DNS hostname required'; return false;\n        }\n        $ips = $resolver ? $resolver($host) : epay_resolve_outbound_ips($host);\n    }\n    if(!is_array($ips) || !$ips){ $reason='DNS resolution failed'; return false; }\n    foreach($ips as $ip) if(!epay_is_public_ip($ip)){ $reason='Non-public DNS address'; return false; }\n    return ['host'=>$host, 'port'=>$port, 'ip'=>$ips[0], 'literal'=>$literal];\n}\nfunction epay_is_safe_outbound_url($url, &$reason=null){ return epay_outbound_target($url,$reason) !== false; }\nfunction epay_assert_safe_outbound_url($url){\n    $reason=null;\n    if(!epay_is_safe_outbound_url($url,$reason)){ error_log('Epay blocked outbound request: '.$reason); return false; }\n    return true;\n}\nfunction epay_outbound_curl_options($target, $proxyEnabled=false){\n    // HTTP(S) and SOCKS5h proxies resolve remotely and can bypass CURLOPT_RESOLVE.\n    // Strict centralized fetches reject ALL configured proxies; never silently bypass one.\n    // A future proxy mode requires separate CONNECT/pinned-IP + TLS SNI integration tests.\n    if($proxyEnabled) return false;\n    $opts = [CURLOPT_PROXY=>'', CURLOPT_NOPROXY=>'*', CURLOPT_FOLLOWLOCATION=>false,\n        CURLOPT_MAXREDIRS=>0, CURLOPT_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,\n        CURLOPT_REDIR_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,\n        CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,\n        CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>30];\n    if(!$target['literal']){\n        $address = strpos($target['ip'], ':') === false ? $target['ip'] : '['.$target['ip'].']';\n        $opts[CURLOPT_RESOLVE] = [$target['host'].':'.$target['port'].':'.$address];\n    }\n    return $opts;\n}\nfunction epay_prepare_outbound_curl($ch,$url,$proxyEnabled=false){\n    $reason=null;\n    $target=epay_outbound_target($url,$reason);\n    if($target===false) return false;\n    $options=epay_outbound_curl_options($target,$proxyEnabled);\n    return $options!==false && curl_setopt_array($ch,$options);\n}"
-# Replace only the bounded, known helper block. Unknown structures fail closed.
-first=re.search(r'^function epay_(?:ip_in_cidr|is_public_ip)\(',text,re.M)
-if first:
-    stop=text.find('function curl_get(',first.start())
-    if stop<0: raise SystemExit('Unrecognized outbound helper layout')
-    block=text[first.start():stop]
-    names=re.findall(r'^function (\w+)\(',block,re.M)
-    allowed={'epay_ip_in_cidr','epay_is_public_ip','epay_resolve_outbound_ips','epay_outbound_target','epay_is_safe_outbound_url','epay_assert_safe_outbound_url','epay_outbound_curl_options','epay_prepare_outbound_curl'}
-    if any(n not in allowed for n in names): raise SystemExit('Unknown helper in replacement region')
-    text=text[:first.start()]+helper+'\n\n'+text[stop:]
-else:
-    if not text.startswith('<?php\n'): raise SystemExit('Unexpected PHP opening')
-    text='<?php\n'+helper+'\n\n'+text[6:]
-for name in ['curl_get','get_curl','check_proxy']:
-    pat=r'(^function '+name+r'\([^\n]*\)\s*\{)(.*?)(?=^function |\Z)'
-    matches=list(re.finditer(pat,text,re.M|re.S))
-    if len(matches)!=1: raise SystemExit('Missing/ambiguous '+name)
-    m=matches[0]; block=m.group(0)
-    if name=='check_proxy':
-        # Configured remote DNS proxies cannot preserve direct pinning semantics.
-        block=m.group(1)+'\n    return false; // Proxy mode requires separately audited enforcement.\n}\n\n'
-    else:
-        # Final options override later legacy proxy/TLS/redirect setters.
-        pat_exec=r'(?m)^([ \t]*)(\$\w+\s*=\s*curl_exec\(\$ch\);)'
-        guard="if(!epay_prepare_outbound_curl($ch,$url"+(", !empty($conf['proxy'])" if name=='curl_get' else '')+")){ curl_close($ch); return false; }"
-        block=re.sub(r'(?m)^[ \t]*if\(!epay_(?:prepare_outbound_curl|assert_safe_outbound_url)\([^\n]*\n','',block)
-        block,n=re.subn(pat_exec,lambda x:x.group(1)+guard+'\n'+x.group(1)+x.group(2),block)
-        if n!=1: raise SystemExit('Unexpected curl execution layout '+name)
-    text=text[:m.start()]+block+text[m.end():]
-# All validation before atomic replacement; retain LF/CRLF convention and mode.
-out=text.replace('\n',nl.decode()).encode(); tmp=path.with_name(path.name+'.ssrf-new')
-try:
-    tmp.write_bytes(out); os.chmod(tmp,path.stat().st_mode & 0o777); tmp.replace(path)
-finally:
-    tmp.unlink(missing_ok=True)
-PYFIX
-  success "SSRF 补丁已验证并原子写入：双栈检查、DNS pinning、禁代理/跳转、TLS 校验"
+  python3 - "${HTML_DIR}/includes/functions.php" <<'PYSSRF' || return 1
+import pathlib,re,sys
+p=pathlib.Path(sys.argv[1])
+if p.is_symlink() or not p.is_file(): raise SystemExit('Missing/unsafe outbound source')
+t=p.read_text()
+# Ignore comments: guard names in a comment are not evidence of executable guards.
+t=re.sub(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|/\*.*?\*/|//[^\n]*|#[^\n]*", lambda m: '' if m.group(0).startswith(('/*','//','#')) else m.group(0), t, flags=re.S)
+def block(name):
+    matches=list(re.finditer(r'^function\s+'+name+r'\s*\(',t,re.M))
+    if len(matches)!=1: raise SystemExit('Missing/ambiguous outbound function: '+name)
+    start=matches[0].start()
+    nxt=re.search(r'^function\s+',t[matches[0].end():],re.M)
+    return t[start:matches[0].end()+nxt.start()] if nxt else t[start:]
+def require(b,patterns):
+    for pat in patterns:
+        if not re.search(pat,b,re.S): raise SystemExit('Outbound security contract missing; source unchanged')
+for name in ('epay_ip_in_cidr','epay_is_public_ip','epay_resolve_outbound_ips','epay_is_safe_outbound_url','epay_assert_safe_outbound_url'):
+    block(name)
+require(block('epay_is_public_ip'),[r"2000::/3",r"100\.64\.0\.0/10",r"127\.0\.0\.0/8",r"169\.254\.0\.0/16",r"epay_ip_in_cidr"])
+require(block('epay_resolve_outbound_ips'),[r'DNS_A\s*\|\s*DNS_AAAA\s*\|\s*DNS_CNAME',r'epay_resolve_outbound_ips\('])
+require(block('epay_outbound_target'),[r"\['http',\s*'https'\]",r"isset\(\$p\['user'\]\)",r"isset\(\$p\['pass'\]\)",r'in_array\(\$port,\s*\[80,443\],\s*true\)',r'foreach\(\$ips as \$ip\) if\(!epay_is_public_ip\(\$ip\)\)',r'epay_resolve_outbound_ips\(\$host\)'])
+require(block('epay_outbound_curl_options'),[r'if\(\$proxyEnabled\) return false;',r"CURLOPT_PROXY\s*=>\s*''",r"CURLOPT_NOPROXY\s*=>\s*'\*'",r'CURLOPT_FOLLOWLOCATION\s*=>\s*false',r'CURLOPT_MAXREDIRS\s*=>\s*0',r'CURLOPT_SSL_VERIFYPEER\s*=>\s*true',r'CURLOPT_SSL_VERIFYHOST\s*=>\s*2',r'CURLOPT_RESOLVE',r'CURLOPT_PROTOCOLS\s*=>\s*CURLPROTO_HTTP\s*\|\s*CURLPROTO_HTTPS',r'CURLOPT_REDIR_PROTOCOLS\s*=>\s*CURLPROTO_HTTP\s*\|\s*CURLPROTO_HTTPS'])
+require(block('epay_prepare_outbound_curl'),[r'epay_outbound_target\(\$url,\$reason\)',r'if\(\$target===false\) return false;',r'epay_outbound_curl_options\(\$target,\$proxyEnabled\)',r'return \$options!==false && curl_setopt_array\(\$ch,\$options\);'])
+for name in ('curl_get','get_curl','check_proxy'):
+    b=block(name)
+    # A disabled diagnostic must throw; returning false can be reported as success by callers.
+    if name=='check_proxy' and re.fullmatch(r'function\s+check_proxy\([^)]*\)\s*\{\s*throw new Exception\([^;]*\);\s*\}\s*',b,re.S): continue
+    proxy=r",\s*!empty\(\$conf\['proxy'\]\)" if name=='curl_get' else (r',\s*true' if name=='check_proxy' else '')
+    guard=r'if\(!epay_prepare_outbound_curl\(\$ch,\s*\$url'+proxy+r'\)\)\s*\{\s*curl_close\(\$ch\);\s*'+(r'throw new Exception\([^;]*\);' if name=='check_proxy' else r'return false;')+r'\s*\}'
+    require(b,[guard,r'curl_exec\(\$ch\)'])
+    g=re.search(guard,b,re.S)
+    if g.end()>b.index('curl_exec('): raise SystemExit('Outbound guard must precede execution')
+    # No setter can undo pinning/proxy rejection/protocol/TLS/redirect restrictions.
+    setters=re.findall(r'curl_setopt\(\$ch,\s*(CURLOPT_\w+),\s*([^;]+)\);',b)
+    safe={'CURLOPT_SSL_VERIFYPEER':'true','CURLOPT_SSL_VERIFYHOST':'2','CURLOPT_FOLLOWLOCATION':'false','CURLOPT_PROTOCOLS':'CURLPROTO_HTTP|CURLPROTO_HTTPS','CURLOPT_REDIR_PROTOCOLS':'CURLPROTO_HTTP|CURLPROTO_HTTPS'}
+    for opt,val in setters:
+        if opt in safe and re.sub(r'\s+','',val)!=safe[opt]: raise SystemExit('Unsafe outbound option override')
+        if opt in ('CURLOPT_PROXY','CURLOPT_PROXYPORT','CURLOPT_PROXYTYPE','CURLOPT_RESOLVE','CURLOPT_CONNECT_TO'):
+            raise SystemExit('Unreviewed outbound routing override')
+    if 'curl_setopt_array(' in b: raise SystemExit('Unreviewed outbound option array')
+print('Modern outbound security contract verified; functions.php bytes preserved')
+PYSSRF
 }
 
 write_compose() {
@@ -1581,6 +1600,84 @@ docker_login_app() {
   docker login
 }
 
+# Refuse links/special objects before copying or removing runtime paths.
+epay_validate_build_paths() {
+  python3 - "$1" <<'PYPATHS' || return 1
+import pathlib,stat,os,sys
+r=pathlib.Path(os.path.abspath(sys.argv[1]))
+for p in [r]+list(r.parents):
+    if p.is_symlink(): raise SystemExit('Build path symlink refused')
+if not r.is_dir(): raise SystemExit('Build tree missing')
+def failed(e): raise e
+for base,dirs,files in os.walk(r,followlinks=False,onerror=failed):
+    for n in dirs+files:
+        mode=(pathlib.Path(base)/n).lstat().st_mode
+        if not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
+            raise SystemExit('Build tree link/special object refused')
+PYPATHS
+}
+
+# Manifest contains EVERY file and directory, not a critical-file presence checklist.
+# JSON paths avoid ambiguity from spaces/newlines. No exclusions on the image side.
+epay_build_manifest() {
+  epay_validate_build_paths "$1" || return 1
+  python3 - "$1" "$2" <<'PYMANIFEST' || return 1
+import hashlib,json,os,pathlib,stat,sys
+r=pathlib.Path(sys.argv[1]); rows={}
+def failed(e): raise e
+for base,dirs,files in os.walk(r,followlinks=False,onerror=failed):
+    for n in dirs+files:
+        p=pathlib.Path(base)/n; mode=p.lstat().st_mode
+        rel=p.relative_to(r).as_posix()
+        if stat.S_ISDIR(mode): rows[rel]={'type':'dir'}
+        elif stat.S_ISREG(mode):
+            h=hashlib.sha256()
+            with p.open('rb') as f:
+                for data in iter(lambda:f.read(1024*1024),b''): h.update(data)
+            rows[rel]={'type':'file','sha256':h.hexdigest()}
+        else: raise SystemExit('Unsafe artifact object')
+if 'includes/functions.php' not in rows: raise SystemExit('Missing functions.php in artifact')
+with open(sys.argv[2],'x') as f: json.dump(rows,f,sort_keys=True)
+PYMANIFEST
+}
+
+verify_epay_image_manifest() (
+  local image_id="$1" expected="$2" verify_stage cid=''
+  verify_stage="$(mktemp -d "$APP_DIR/.image-verify.XXXXXX")" || return 1
+  # Never start an application container or attach production volumes/network.
+  trap 'if [ -n "$cid" ]; then docker rm "$cid" >/dev/null 2>&1 || true; fi; rm -rf "$verify_stage"' EXIT
+  cid="$(docker create --network none --entrypoint /bin/true "$image_id")" || return 1
+  docker inspect "$cid" > "$verify_stage/container.json" || return 1
+  python3 - "$verify_stage/container.json" "$image_id" <<'PYCONTAINER' || return 1
+import json,sys
+rows=json.load(open(sys.argv[1]))
+if len(rows)!=1: raise SystemExit('Image inspection failed')
+c=rows[0]
+if c.get('Image')!=sys.argv[2] or c.get('State',{}).get('Status')!='created' or c.get('State',{}).get('Running') is not False:
+    raise SystemExit('Unexpected verification container state/image')
+if c.get('HostConfig',{}).get('NetworkMode')!='none' or c.get('Mounts')!=[]:
+    raise SystemExit('Verification container must have no network/mounts')
+PYCONTAINER
+  mkdir "$verify_stage/html" || return 1
+  docker cp "$cid:/var/www/html/." "$verify_stage/html/" || return 1
+  docker rm "$cid" >/dev/null || return 1
+  cid=''
+  epay_build_manifest "$verify_stage/html" "$verify_stage/actual.json" || return 1
+  # Rehash staging too: build hooks or concurrent modifications must not change it.
+  epay_build_manifest "$HTML_DIR" "$verify_stage/stage-now.json" || return 1
+  python3 - "$expected" "$verify_stage/actual.json" "$verify_stage/stage-now.json" <<'PYCOMPARE' || return 1
+import json,sys
+expected,actual,current=[json.load(open(p)) for p in sys.argv[1:]]
+if current!=expected: raise SystemExit('Clean staging changed during build; refusing push')
+missing=set(expected)-set(actual); extra=set(actual)-set(expected)
+changed={p for p in expected.keys() & actual.keys() if expected[p]!=actual[p]}
+if missing or extra or changed:
+    # Do not print runtime values or hashes, even on unexpected image contents.
+    raise SystemExit('Image manifest mismatch: missing=%d extra=%d changed=%d; refusing push' % (len(missing),len(extra),len(changed)))
+print('Image manifest verified: %d files, %d directories; all paths/SHA-256 match clean staging' % (sum(x['type']=='file' for x in actual.values()),sum(x['type']=='dir' for x in actual.values())))
+PYCOMPARE
+)
+
 docker_push_app() (
   require_root
   install_docker || return 1
@@ -1601,6 +1698,7 @@ docker_push_app() (
   local build_stage
   build_stage="$(mktemp -d "${APP_DIR}/.image-build.XXXXXX")"
   trap 'rm -rf "$build_stage"' EXIT
+  epay_validate_build_paths "$HTML_DIR" || return 1
   cp -a "${HTML_DIR}" "$build_stage/html" || return 1
   APP_DIR="$build_stage"
   HTML_DIR="$build_stage/html"
@@ -1614,7 +1712,11 @@ docker_push_app() (
   validate_epay_source || return 1
   rm -rf "${HTML_DIR}/.git"
   find "${HTML_DIR}" -path '*/.git' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+  local functions_hash
+  functions_hash="$(sha256sum "$HTML_DIR/includes/functions.php")" || return 1
   sanitize_epay_source || return 1
+  # Even a future sanitizer must not silently rewrite reviewed outbound code.
+  [ "$(sha256sum "$HTML_DIR/includes/functions.php")" = "$functions_hash" ] || return 1
   clean_epay_residue_files || return 1
   scan_epay_untracked_source_files || return 1
   verify_epay_security_fixes || return 1
@@ -1622,20 +1724,14 @@ docker_push_app() (
   scan_epay_sensitive_build_files || return 1
   write_dockerfile || return 1
   write_dockerignore || return 1
-  docker build --no-cache -t "${CUSTOM_IMAGE}" -f Dockerfile . || return 1
-  docker run --rm --entrypoint sh "${CUSTOM_IMAGE}" -lc '
-    test -f /var/www/html/index.php &&
-    test -f /var/www/html/includes/common.php &&
-    test -f /var/www/html/includes/lib/Template.php &&
-    test -f /var/www/html/install/index.php &&
-    test -f /var/www/html/install/install.sql &&
-    test ! -f /var/www/html/config.php &&
-    test ! -f /var/www/html/install/install.lock &&
-    test ! -d /var/www/html/.git &&
-    ! find /var/www/html -type d \( -name "private-receipts" -o -name "private_receipts" -o -name "fixtures" \) | grep -q . &&
-    ! find /var/www/html -type f \( -name "*.bak*" -o -name "*.old*" -o -name "*.orig*" -o -name "*.save*" -o -name "*.swp" -o -name "*.env" -o -name "*.log" -o -name "*.key" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" -o -name "*.tgz" -o -name "*.rar" -o -name "epay_release*" -o -name "epay_update*" \) | grep -q . &&
-    ! find /var/www/html -type f \( -name "*.pem" -o -name "*.crt" \) -print0 | xargs -0 grep -Il "PRIVATE KEY" | grep -q .
-  ' || return 1
+  local image_id
+  epay_build_manifest "$HTML_DIR" "$build_stage/expected.json" || return 1
+  docker build --no-cache --iidfile "$build_stage/image.id" -t "${CUSTOM_IMAGE}" -f Dockerfile . || return 1
+  image_id="$(cat "$build_stage/image.id")" || return 1
+  [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || return 1
+  verify_epay_image_manifest "$image_id" "$build_stage/expected.json" || return 1
+  # Verify immutable content, then assert the publication tag still names that content.
+  [ "$(docker image inspect "$CUSTOM_IMAGE" --format '{{.Id}}')" = "$image_id" ] || return 1
   docker push "${CUSTOM_IMAGE}" || return 1
   verify_remote_image_digest "$CUSTOM_IMAGE" || return 1
   success "推送完成且远端 config digest 与本地 image ID 一致：${CUSTOM_IMAGE}"
