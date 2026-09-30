@@ -314,16 +314,18 @@ if p.returncode and 'no crontab for' not in p.stderr.lower():
     raise SystemExit('Cannot safely read crontab; unchanged')
 rows=[]
 for line in p.stdout.splitlines():
-    if line == '# Epay managed cron (no credentials)': continue
+    if line in ('# Epay managed cron (no credentials)', '# Epay 托管式 Cron（无需凭证）'): continue
     try: parts=shlex.split(line)
     except ValueError: parts=[]
     if runner in parts and any(a in parts for a in ('notify','order','settle')): continue
     rows.append(line)
 if mode == 'install':
-    rows.append('# Epay managed cron (no credentials)')
+    rows.append('# Epay 托管式 Cron（无需凭证）')
     for schedule,action in [('* * * * *','notify'),('10 0 * * *','order'),('20 0 * * *','settle')]:
         rows.append(f'{schedule} /usr/bin/python3 {shlex.quote(runner)} {action} >/dev/null 2>&1')
-subprocess.run(['crontab','-'],input='\n'.join(rows)+'\n',text=True,check=True)
+content='\n'.join(rows)+'\n'
+if content != p.stdout:
+    subprocess.run(['crontab','-'],input=content,text=True,check=True)
 EPAY_CRON
 )
 
@@ -1873,7 +1875,27 @@ PYDIGEST
   return "$rc"
 }
 
+ensure_installed_epay_cron() {
+  # A downloaded manager/source directory alone is not an installed application.
+  [ -f "${APP_DIR}/${COMPOSE_FILE}" ] || return 0
+  [ -f "${HTML_DIR}/index.php" ] || return 0
+  [ -f "${HTML_DIR}/config.php" ] || return 0
+  [ -f "${HTML_DIR}/install/install.lock" ] || return 0
+  if [ ! -f "${APP_DIR}/ops/cron-runner.py" ]; then
+    warn "检测到 Epay 已安装，但定时任务执行器缺失，请先执行安装/更新修复；未添加无效任务。"
+    return 0
+  fi
+  if ! command -v crontab >/dev/null || [ ! -x /usr/bin/python3 ]; then
+    warn "Epay 定时任务检查失败：缺少 crontab 或 /usr/bin/python3，未修改定时任务。"
+    return 0
+  fi
+  update_epay_crontab install || warn "Epay 定时任务补全失败，原有其他任务未主动删除。"
+  return 0
+}
+
 main_menu() {
+  require_root || return 1
+  ensure_installed_epay_cron
   while true; do
     clear 2>/dev/null || true
     show_status
