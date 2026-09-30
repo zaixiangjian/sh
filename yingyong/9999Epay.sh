@@ -1053,9 +1053,25 @@ seed_html_from_image() (
   quarantine_epay_webroot_zips "${new_html}" || return 1
 
   ts="$(date +%Y%m%d%H%M%S)"
-  old_html="${HTML_DIR}.before_seed_${ts}"
-  if [ -e "${HTML_DIR}" ]; then mv "${HTML_DIR}" "${old_html}" || return 1; fi
-  mv "${new_html}" "${HTML_DIR}" || return 1
+  old_html=""
+  if [ -e "${HTML_DIR}" ]; then
+    # 原子预留唯一名称；-T 禁止把 html 嵌套移动进已有备份目录。
+    old_html="$(mktemp -d "${HTML_DIR}.before_seed_${ts}.XXXXXX")" || return 1
+    if ! mv -T "${HTML_DIR}" "${old_html}"; then
+      rmdir "${old_html}" 2>/dev/null || true
+      return 1
+    fi
+  fi
+  if ! mv -T "${new_html}" "${HTML_DIR}"; then
+    if [ -n "${old_html}" ] && [ -d "${old_html}" ]; then
+      if ! mv -T "${old_html}" "${HTML_DIR}"; then
+        error "新源码切换失败，自动回滚失败；旧源码保留：${old_html}"
+      else
+        error "新源码切换失败，已恢复旧 html"
+      fi
+    fi
+    return 1
+  fi
   if [ -d "${old_html}" ]; then
     warn "旧 html 已保留：${old_html}"
   fi
