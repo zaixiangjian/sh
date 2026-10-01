@@ -1428,40 +1428,43 @@ start_stack() {
 }
 
 backup_app() {
-  require_root
-  if [ ! -d "${APP_DIR}" ]; then
-    error "未找到安装目录：${APP_DIR}"
-    return 1
-  fi
-
-  mkdir -p "${BACKUP_DIR}"
-  local ts archive was_running=0
-  ts="$(date +%Y%m%d%H%M%S)"
-  archive="${BACKUP_DIR}/${BACKUP_PREFIX}-${ts}.tar.gz"
-
-  warn "备份会包含数据库、.env 密钥、商户/订单和私有回单数据，请妥善保存。"
-
+  require_root || return 1
+  [ -d "$APP_DIR" ] && [ ! -L "$APP_DIR" ] || { error "安装目录无效"; return 1; }
+  [ ! -L "$BACKUP_DIR" ] || { error "备份目录不可为链接"; return 1; }
+  mkdir -p "$BACKUP_DIR" || return 1
+  local ts archive bundle was_running=0 rc=0
+  ts="$(date +%Y%m%d%H%M%S)" || return 1
+  bundle="$(mktemp -d "$BACKUP_DIR/.epay-backup-${ts}.XXXXXX")" || return 1
+  chmod 700 "$bundle" || { error "私有备份目录权限失败：$bundle"; return 1; }
+  archive="$(mktemp "$BACKUP_DIR/$BACKUP_PREFIX-${ts}.XXXXXX.tar.gz")" || return 1
+  chmod 600 "$archive" || { rm -f -- "$archive"; return 1; }
+  warn "备份含数据库、密钥和私有回单，请妥善保存。"
   if is_stack_running; then
     was_running=1
-    warn "检测到容器运行中，先停止服务以保证 MySQL 数据备份一致性..."
-    stop_stack || return 1
+    if ! stop_stack; then
+      rm -f -- "$archive"
+      restart_previous_stack || error "停止失败后旧服务恢复失败，需人工检查"
+      return 1
+    fi
   fi
-
-  provision_private_receipts || { if [ "${was_running}" -eq 1 ]; then start_stack; fi; return 1; }
-  if ! tar --exclude=Epay/.build-context --exclude=Epay/.image-build.* --exclude=Epay/html.before_seed_* -C "$(dirname "${APP_DIR}")" -czf "${archive}" "$(basename "${APP_DIR}")"; then
-    rm -f "${archive}"
-    if [ "${was_running}" -eq 1 ]; then start_stack; fi
-    error "备份失败，未保留不完整归档"
+  provision_private_receipts || rc=1
+  if [ "$rc" -eq 0 ]; then
+    tar --exclude=Epay/.build-context --exclude=Epay/.image-build.* --exclude=Epay/html.before_seed_* -C "$(dirname "$APP_DIR")" -czf "$bundle/archive.tar.gz" "$(basename "$APP_DIR")" || rc=1
+  fi
+  if [ "$rc" -eq 0 ]; then chmod 600 "$bundle/archive.tar.gz" || rc=1; fi
+  if [ "$rc" -eq 0 ]; then mv -T -- "$bundle/archive.tar.gz" "$archive" || rc=1; fi
+  if [ "$rc" -eq 0 ]; then chmod 600 "$archive" || rc=1; fi
+  if [ "$was_running" -eq 1 ]; then
+    restart_previous_stack || { error "旧服务恢复启动失败"; rc=1; }
+  fi
+  if [ "$rc" -ne 0 ]; then
+    if [ ! -s "$archive" ]; then rm -f -- "$archive" || error "空归档清理失败"; fi
+    error "备份失败；私有暂存保留：$bundle；已分配归档：$archive"
     return 1
   fi
-  chmod 600 "${archive}"
-
-  if [ "${was_running}" -eq 1 ]; then
-    warn "备份完成，正在恢复启动服务..."
-    start_stack
-  fi
-
-  success "备份完成：${archive}"
+  rmdir -- "$bundle" || { error "暂存清理失败：$bundle"; return 1; }
+  success "备份完成：$archive"
+  return 0
 }
 
 select_backup() {
