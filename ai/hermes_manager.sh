@@ -813,9 +813,9 @@ get_version() {
     update_line="$(echo "$hv" | sed -n '/Update available/p' | sed -n '1p')"
     if [ -n "$first_line" ]; then
         if [ -n "$update_line" ]; then
-            echo "$first_line  |  $update_line"
+            echo -e "$first_line ${RED}有更新可用 —— 请运行 hermes update${NC}"
         else
-            echo "$first_line"
+            echo -e "$first_line ${GREEN}已是最新${NC}"
         fi
         return
     fi
@@ -830,7 +830,7 @@ get_version() {
                 [ -r "$metadata" ] || continue
                 version="$(sed -n 's/^Version: //p' "$metadata" 2>/dev/null | sed -n '1p')"
                 if [ -n "$version" ]; then
-                    echo "Hermes Agent v${version#v}"
+                    echo -e "Hermes Agent v${version#v} ${YELLOW}检测异常${NC}"
                     return
                 fi
             done
