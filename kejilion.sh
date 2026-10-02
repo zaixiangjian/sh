@@ -1,6 +1,7 @@
 #!/bin/bash
 sh_v="0.0.11"
 
+
 bai='\033[0m'
 hui='\e[37m'
 
@@ -14383,55 +14384,47 @@ EOF
 
 
 kejilion_update() {
-
-	send_stats "脚本更新"
-	cd ~
-	clear
-	echo "更新日志"
-	echo "------------------------"
-	echo "全部日志: ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion_sh_log.txt"
-	echo "------------------------"
-
-	curl -s ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion_sh_log.txt | tail -n 35
-	sh_v_new=$(curl -s ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh | grep -o 'sh_v="[0-9.]*"' | cut -d '"' -f 2)
-
-	if [ "$sh_v" = "$sh_v_new" ]; then
-		echo -e "${gl_lv}你已经是最新版本！${gl_huang}v$sh_v${gl_bai}"
-		send_stats "脚本已经最新了，无需更新"
-	else
-		echo "发现新版本！"
-		echo -e "当前版本 v$sh_v        最新版本 ${gl_huang}v$sh_v_new${gl_bai}"
-		echo "------------------------"
-		read -e -p "确定更新脚本吗？(Y/N): " choice
-		case "$choice" in
-			[Yy])
-				clear
-				country=$(curl -s ipinfo.io/country)
-				if [ "$country" = "CN" ]; then
-					curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/cn/kejilion.sh && chmod +x kejilion.sh
-				else
-					curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh && chmod +x kejilion.sh
-				fi
-				if declare -F yinsiyuanquan2 >/dev/null 2>&1; then
-					yinsiyuanquan2
-				fi
-				cp -f ./kejilion.sh /usr/local/bin/k > /dev/null 2>&1
-				echo -e "${gl_lv}脚本已更新到最新版本！${gl_huang}v$sh_v_new${gl_bai}"
-				send_stats "脚本已经最新$sh_v_new"
-				break_end
-				./kejilion.sh
-				exit
-				;;
-			[Nn])
-				echo "已取消"
-				;;
-			*)
-				;;
-		esac
-	fi
-
-
+    local url="${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh"
+    local target="${BASH_SOURCE[0]}" staged remote_version choice backup_dir
+    target="$(readlink -f "$target")" || return 1
+    staged="$(mktemp "$(dirname "$target")/.kejilion.update.XXXXXX")" || return 1
+    if ! curl -fsSL --connect-timeout 5 --max-time 30 "$url" -o "$staged" ||        ! grep -qE '^[[:space:]]*sh_v="[^"]+"' "$staged" || ! bash -n "$staged"; then
+        rm -f "$staged"
+        echo "❌ 下载或语法检查失败，未修改本地脚本"
+        return 1
+    fi
+    if cmp -s "$target" "$staged"; then
+        rm -f "$staged"
+        echo "你已经是最新版本，文件内容与 GitHub 完全一致。"
+        return 0
+    fi
+    remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$staged")"
+    echo "发现 GitHub 内容差异（不依赖版本号）：$remote_version"
+    echo "注意：更新会覆盖本地自定义修改；确认后先备份，再替换主脚本和 /usr/local/bin/k。"
+    read -r -p "确定更新脚本吗？(Y/N): " choice
+    case "$choice" in
+        [Yy]) ;;
+        *) rm -f "$staged"; echo "已取消"; return 0 ;;
+    esac
+    backup_dir="$(mktemp -d /root/script-backups/kejilion-before-update.XXXXXX)" || { rm -f "$staged"; return 1; }
+    if ! cp -p "$target" "$backup_dir/kejilion.sh" ||        { [ -e /usr/local/bin/k ] && ! cp -p /usr/local/bin/k "$backup_dir/k"; }; then
+        rm -f "$staged"
+        echo "❌ 原文件备份失败，未更新"
+        return 1
+    fi
+    chmod --reference="$target" "$staged" && mv -f "$staged" "$target" || {
+        rm -f "$staged"; echo "❌ 主脚本替换失败，备份：$backup_dir"; return 1;
+    }
+    if ! cp -f "$target" /usr/local/bin/k || ! chmod +x /usr/local/bin/k || ! cmp -s "$target" /usr/local/bin/k; then
+        cp -p "$backup_dir/kejilion.sh" "$target"
+        if [ -f "$backup_dir/k" ]; then cp -p "$backup_dir/k" /usr/local/bin/k; fi
+        echo "❌ k 同步失败，已尝试回滚；备份：$backup_dir"
+        return 1
+    fi
+    echo "✅ 脚本内容更新完成。备份：$backup_dir"
+    echo "请退出后重新打开脚本，使新版本生效。"
 }
+
 
 
 
