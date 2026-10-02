@@ -222,6 +222,13 @@ update_app() {
 # ==============================
 
 uninstall_app() {
+    local confirm
+    echo "⚠️ 卸载将删除 Sub2API 容器、数据卷、镜像及安装目录，数据库等数据将丢失。"
+    read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
+    if [ "$confirm" != "yes" ]; then
+        echo "已取消卸载"
+        return 0
+    fi
     cd "$APP_DIR" || exit
     docker compose down -v --rmi all 2>/dev/null || docker-compose down -v --rmi all
     rm -rf "$APP_DIR"
@@ -462,21 +469,21 @@ while true; do
     echo "================================="
     echo "        Sub2API 管理脚本"
     echo "================================="
-    echo "1) 安装 Sub2API"
-    echo "2) 更新 Sub2API"
-    echo "3) 卸载 Sub2API"
-    echo "11) 备份 Sub2API"
-    echo "12) 恢复 Sub2API"
-    echo "0) 退出"
+    echo "1. 安装 Sub2API"
+    echo "2. 更新 Sub2API"
+    echo "3. 备份 Sub2API"
+    echo "4. 恢复 Sub2API"
+    echo "9. 卸载 Sub2API"
+    echo "0. 退出"
     echo "================================="
     read -p "请选择: " choice
 
     case $choice in
         1) install_app; pause ;;
         2) update_app; pause ;;
-        3) uninstall_app; pause ;;
-        11) backup_app; pause ;;
-        12) restore_app; pause ;;
+        3) backup_app; pause ;;
+        4) restore_app; pause ;;
+        9) uninstall_app; pause ;;
         0) exit 0 ;;
         *) echo "无效选项"; pause ;;
     esac
