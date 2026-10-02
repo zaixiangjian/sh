@@ -6,11 +6,11 @@
 : "${ENABLE_STATS:=false}"
 : "${sh_v:=unknown}"
 : "${gh_proxy:=}"
-: "${gl_bai:=}"
-: "${gl_hui:=}"
-: "${gl_lv:=}"
-: "${gl_huang:=}"
-: "${gl_hong:=}"
+: "${gl_bai:=$'\033[0m'}"
+: "${gl_hui:=$'\033[90m'}"
+: "${gl_lv:=$'\033[32m'}"
+: "${gl_huang:=$'\033[33m'}"
+: "${gl_hong:=$'\033[31m'}"
 : "${gl_kjlan:=}"
 : "${gl_zi:=}"
 
@@ -85,27 +85,29 @@ openclaw_ensure_runtime_deps
 # ===== end compatibility/bootstrap helpers =====
 
 check_openclaw_update() {
+		local local_version remote_version newest_version
 		if ! command -v npm >/dev/null 2>&1; then
+			printf '%s\n' "${gl_huang}检测异常${gl_bai}"
 			return 1
 		fi
 
-		# 加上 --no-update-notifier，并确保错误重定向位置正确
 		local_version=$(npm list -g openclaw --depth=0 --no-update-notifier 2>/dev/null | grep openclaw | awk '{print $NF}' | sed 's/^.*@//')
-
-		if [ -z "$local_version" ]; then
+		if [[ ! "$local_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]; then
+			printf '%s\n' "当前版本:未知  ${gl_huang}检测异常${gl_bai}"
 			return 1
 		fi
 
-		remote_version=$(npm view openclaw version --no-update-notifier 2>/dev/null)
-
-		if [ -z "$remote_version" ]; then
+		remote_version=$(npm view openclaw version --no-update-notifier --fetch-timeout=10000 --fetch-retries=0 2>/dev/null)
+		if [[ ! "$remote_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]; then
+			printf '%s\n' "当前版本:$local_version  ${gl_huang}检测异常${gl_bai}"
 			return 1
 		fi
 
-		if [ "$local_version" != "$remote_version" ]; then
-			echo "${gl_huang}检测到新版本:$remote_version${gl_bai}"
+		newest_version=$(printf '%s\n' "$local_version" "$remote_version" | sort -V | tail -n 1)
+		if [ "$local_version" != "$remote_version" ] && [ "$newest_version" = "$remote_version" ]; then
+			printf '%s\n' "当前版本:$local_version  ${gl_hong}新版本${gl_bai}$remote_version"
 		else
-			echo "${gl_lv}当前版本已是最新:$local_version${gl_bai}"
+			printf '%s\n' "当前版本:$local_version  ${gl_lv}已是最新${gl_bai}"
 		fi
 	}
 
@@ -118,11 +120,11 @@ check_openclaw_update() {
 		fi
 	}
 
-	get_running_status() {		
-		if pgrep -f "openclaw.*gateway" >/dev/null 2>&1; then
-			echo "${gl_lv}运行中${gl_bai}"
+	get_running_status() {
+		if systemctl --user is-active --quiet openclaw-gateway.service 2>/dev/null; then
+			printf '%s\n' "${gl_lv}运行中${gl_bai}"
 		else
-			echo "${gl_hui}未运行${gl_bai}"
+			printf '%s\n' "${gl_hong}停止${gl_bai}"
 		fi
 	}
 
@@ -201,16 +203,44 @@ check_openclaw_update() {
 		fi
 		rm -f "$install_log"
 
-		# install 通常会直接启动；这里再用 systemctl 兜底启动。
-		systemctl --user start openclaw-gateway.service >/dev/null 2>&1 || true
-		sleep 10
-		if timeout 25 openclaw gateway status 2>/dev/null | grep -q "Connectivity probe: ok"; then
-			echo "✅ OpenClaw Gateway 已启动并连通。"
-			return 0
+		# restart 同时支持停止状态启动和运行状态重启，确保重新加载配置。
+		if ! systemctl --user enable openclaw-gateway.service >/dev/null 2>&1; then
+			echo "❌ 无法启用 Gateway 服务。"
+			return 1
+		fi
+		echo "正在启动/重启 Gateway（关闭旧进程最多等待 360 秒）..."
+		if ! timeout 360 systemctl --user restart openclaw-gateway.service; then
+			echo "❌ Gateway 启动/重启失败。"
+			journalctl --user -u openclaw-gateway.service -n 40 --no-pager
+			return 1
 		fi
 
-		echo "⚠️ Gateway 服务已安装，但暂未探测到连通，当前状态如下："
-		openclaw gateway status 2>&1 | sed -n '1,100p'
+		local deadline=$((SECONDS + 180)) probe_log probe_rc remaining
+		probe_log=$(mktemp) || return 1
+		echo "等待 Gateway 就绪，最多 180 秒；首次启动可能需要一分钟以上..."
+		while (( SECONDS < deadline )); do
+			if systemctl --user is-failed --quiet openclaw-gateway.service; then
+				echo "❌ Gateway 服务已进入失败状态。"
+				break
+			fi
+			remaining=$((deadline - SECONDS))
+			(( remaining > 25 )) && remaining=25
+			timeout "$remaining" openclaw gateway status >"$probe_log" 2>&1
+			probe_rc=$?
+			if [ "$probe_rc" -eq 0 ] && grep -q "Connectivity probe: ok" "$probe_log"; then
+				rm -f "$probe_log"
+				echo "✅ OpenClaw Gateway 已启动并连通。"
+				return 0
+			fi
+			(( SECONDS >= deadline )) && break
+			echo "Gateway 正在初始化，继续等待..."
+			sleep 3
+		done
+
+		echo "❌ Gateway 未能在等待期限内就绪，诊断信息如下："
+		cat "$probe_log"
+		rm -f "$probe_log"
+		journalctl --user -u openclaw-gateway.service -n 40 --no-pager
 		return 1
 	}
 
@@ -5475,21 +5505,9 @@ openclaw_backup_restore_menu() {
 	}
 
 	openclaw_custom_start_after_restore() {
-		if command -v openclaw >/dev/null 2>&1; then
-			echo "正在启动 OpenClaw Gateway..."
-			# 不再执行 openclaw onboard --install-daemon，避免恢复后卡在交互式 onboard。
-			# 这里只做非交互启动，并加 timeout 防止长时间无输出卡住菜单。
-			timeout 30 openclaw gateway stop >/dev/null 2>&1 || true
-			if timeout 90 openclaw gateway start; then
-				add_app_id
-				return 0
-			else
-				echo "⚠️ OpenClaw Gateway 启动命令超时或失败，请回主菜单用 2 号手动启动/查看日志。"
-				return 1
-			fi
-		fi
-		echo "❌ 未检测到 openclaw 命令，无法启动 Gateway。"
-		return 1
+		start_gateway || return 1
+		add_app_id
+		return 0
 	}
 
 	openclaw_custom_backup_full() {
@@ -5614,7 +5632,7 @@ openclaw_backup_restore_menu() {
 
 		echo "将从以下备份还原：$archive"
 		echo "警告：当前 $data_dir 会被移动为 .before_restore 备份，然后替换为所选备份。"
-		echo "还原前会停止 OpenClaw；如果新机器没安装 OpenClaw，会自动安装/更新最新版，启动请回主菜单手动执行 2 号。"
+		echo "还原前会停止 OpenClaw；如果新机器没安装 OpenClaw，会自动安装/更新最新版，还原后自动启动并检测连通。"
 		read -e -p "确认还原？(y/N): " confirm
 		if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 			echo "已取消。"
@@ -5653,11 +5671,11 @@ openclaw_backup_restore_menu() {
 			echo "❌ OpenClaw 安装/更新失败。数据已还原，但程序可能未安装成功。"
 			return 1
 		}
-		if command -v openclaw >/dev/null 2>&1; then
-			echo "正在安装/修复 OpenClaw Gateway systemd 服务..."
-			timeout 60 openclaw gateway install || echo "⚠️ Gateway 服务安装失败，请回主菜单手动执行 2 号启动。"
+		if ! start_gateway; then
+			echo "⚠️ 数据已还原，但 Gateway 未就绪；请根据上面的日志排查，修复后执行主菜单 2 号。"
+			return 1
 		fi
-		echo "✅ 还原完成。OpenClaw Gateway 服务已尝试安装/修复；如未运行，请回主菜单手动执行 2 号启动。"
+		echo "✅ 还原完成，OpenClaw Gateway 已启动并验证连通。"
 	}
 
 	openclaw_custom_backup_restore_menu() {
@@ -5671,7 +5689,7 @@ openclaw_backup_restore_menu() {
 			echo "数据目录：$(openclaw_custom_data_dir)"
 			echo "---------------------------------------"
 			echo "1. 备份 OpenClaw 自制全量"
-			echo "2. 还原 OpenClaw 自制全量（自动安装/更新，手动启动）"
+			echo "2. 还原 OpenClaw 自制全量（自动安装/更新并启动）"
 			echo "0. 返回上一级"
 			echo "---------------------------------------"
 			read -e -p "请输入你的选择: " custom_choice
