@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.10"
+sh_v="0.0.11"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6186,7 +6186,18 @@ linux_panel() {
     check_docker "98" "chromium"
     check_path "99" "/root/.hermes"
     check_docker "100" "lobehub"
-    check_path "101" "/root/agent-ai.sh"
+    # agent-ai 是备份工具：仅下载脚本不算安装，至少配置一个远程目标才标记。
+    if [ -f "/root/agent-ai.d/agent-ai.sh" ]; then
+        local agent_ai_config
+        for agent_ai_config in /root/agent-ai.d/*.conf; do
+            [ -f "$agent_ai_config" ] || continue
+            if grep -Eq "^REMOTE_HOST=['\"]?[^'\"[:space:]]+" "$agent_ai_config" && \
+               grep -Eq "^REMOTE_USER=['\"]?[^'\"[:space:]]+" "$agent_ai_config"; then
+                installed_items+=("101")
+                break
+            fi
+        done
+    fi
     check_docker "102" "epusdt"
     if { [ -n "$docker_container_list" ] && echo "$docker_container_list" | grep -Eq '^(epay-nginx|epay-php|epay-mysql)$'; }; then
         installed_items+=("103")
@@ -11756,10 +11767,8 @@ done
         ;;
 
       101)
-        clear
-        echo "▶️ 安装agent-ai备份..."
-		curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh -o /root/agent-ai.sh && chmod +x /root/agent-ai.sh && /root/agent-ai.sh
-        echo "✅ agent-ai备份安装成功..."
+        run_local_first_app_script "▶️ 正在启动agent-ai备份管理脚本..." "/root/agent-ai.d/agent-ai.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh"
+        echo "✅ agent-ai备份管理脚本执行完成..."
         ;;
 
       102)
