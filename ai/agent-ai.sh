@@ -623,8 +623,8 @@ EOF
 backup_hermes() {
     ensure_enabled_configs_or_configure || return 1
     local backup_file keep output rc
-    if output=$(run_hermes_manager_backup 2>&1); then rc=0; else rc=$?; fi
-    printf '%s\n' "$output"
+    echo -e "${CYAN}正在执行 Hermes 备份，下面实时显示进度（最长等待 900 秒）...${NC}"
+    if output=$(run_hermes_manager_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
     [ "$rc" -eq 0 ] || return "$rc"
     backup_file=$(extract_backup_path_from_output "$output" "$HERMES_BACKUP_DIR" 'hermes_memory_full_[0-9_]+\.tar\.gz')
     [ -f "$backup_file" ] || { echo -e "${RED}❌ Hermes 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
@@ -637,8 +637,8 @@ backup_hermes() {
 backup_openclaw() {
     ensure_enabled_configs_or_configure || return 1
     local backup_file keep output rc
-    if output=$(run_openclaw_custom_backup 2>&1); then rc=0; else rc=$?; fi
-    printf '%s\n' "$output"
+    echo -e "${CYAN}正在执行 OpenClaw 备份，下面实时显示进度（最长等待 900 秒）...${NC}"
+    if output=$(run_openclaw_custom_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
     [ "$rc" -eq 0 ] || return "$rc"
     backup_file=$(extract_backup_path_from_output "$output" "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_[0-9_]+\.tar\.gz')
     [ -f "$backup_file" ] || { echo -e "${RED}❌ OpenClaw 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
@@ -648,11 +648,32 @@ backup_openclaw() {
     echo -e "${GREEN}✅ OpenClaw 备份完成：已上传到所有启用配置，本地保留 $keep 个。${NC}"
 }
 
+hermes_data_installed() {
+    local data_home="${HERMES_HOME:-$HOME/.hermes}"
+    [ -d "$data_home" ] && { [ -f "$data_home/config.yaml" ] || [ -f "$data_home/state.db" ]; }
+}
+
+openclaw_data_installed() {
+    local data_home="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+    [ -d "$data_home" ] && [ -f "$data_home/openclaw.json" ]
+}
+
 backup_all() {
-    local failed=0
-    backup_hermes || failed=1
+    local failed=0 found=0
+    if hermes_data_installed; then
+        found=1
+        backup_hermes || failed=1
+    else
+        echo "未检测到 Hermes 配置/数据，跳过。"
+    fi
     echo ""
-    backup_openclaw || failed=1
+    if openclaw_data_installed; then
+        found=1
+        backup_openclaw || failed=1
+    else
+        echo "未检测到 OpenClaw 配置/数据，跳过。"
+    fi
+    [ "$found" -eq 1 ] || echo "没有已配置的 Hermes/OpenClaw，无需备份。"
     return "$failed"
 }
 
@@ -699,7 +720,7 @@ show_cron_jobs() {
     ensure_cron_available || return 1
     echo -e "${CYAN}Agent AI 当前定时任务：${NC}"
     local jobs
-    jobs="$(crontab -l 2>/dev/null | grep '# agent-ai-' || true)"
+    jobs="$(crontab -l 2>/dev/null | grep -E '# agent-ai-|/bin/bash /root/agent-ai.d/agent-ai.sh --backup-all' | grep -v '^[[:space:]]*#' || true)"
     if [ -z "$jobs" ]; then
         echo "暂无 Agent AI 定时任务。"
     else
@@ -756,7 +777,7 @@ add_or_update_cron_job() {
     cmd="$(cron_cmd_for_type "$type")" || return 1
     mkdir -p "$CONFIG_DIR"
     # cron 的 */N 是按每月日期步进；适合“每 N 天某个时间”这类轻量定时备份。
-    cron_line="$minute $hour */$days * * $cmd # $tag every-${days}-days-at-${hour}:${minute}"
+    cron_line="$minute $hour */$days * * $cmd >/dev/null 2>&1 # $tag every-${days}-days-at-${hour}:${minute}"
 
     tmp=$(mktemp)
     crontab -l 2>/dev/null | grep -v "# $tag" > "$tmp" || true
@@ -774,7 +795,7 @@ cron_menu() {
         echo -e "${CYAN}=======================================${NC}"
         echo "1. 设置 Hermes 定时备份"
         echo "2. 设置 OpenClaw 定时备份"
-        echo "3. 设置全部定时备份（Hermes + OpenClaw）"
+        echo "3. 设置自动检测定时备份（仅备份已配置的 Hermes/OpenClaw）"
         echo "4. 查看当前定时任务"
         echo "5. 删除 Hermes 定时任务"
         echo "6. 删除 OpenClaw 定时任务"
@@ -827,7 +848,7 @@ cron_human_desc() {
 show_cron_summary_on_main() {
     command -v crontab >/dev/null 2>&1 || return 0
     local jobs line minute hour dom type label desc shown=0
-    jobs="$(crontab -l 2>/dev/null | grep '# agent-ai-' || true)"
+    jobs="$(crontab -l 2>/dev/null | grep -E '# agent-ai-|/bin/bash /root/agent-ai.d/agent-ai.sh --backup-all' | grep -v '^[[:space:]]*#' || true)"
     [ -z "$jobs" ] && return 0
 
     while IFS= read -r line; do
@@ -835,7 +856,7 @@ show_cron_summary_on_main() {
         case "$line" in
             *"# agent-ai-hermes"*) type="hermes"; label="Hermes定时任务" ;;
             *"# agent-ai-openclaw"*) type="openclaw"; label="OpenClaw定时任务" ;;
-            *"# agent-ai-all"*) type="all"; label="全部备份定时任务" ;;
+            *"# agent-ai-all"*|*"/bin/bash /root/agent-ai.d/agent-ai.sh --backup-all"*) type="all"; label="全部备份定时任务" ;;
             *) continue ;;
         esac
         minute="$(printf '%s\n' "$line" | awk '{print $1}')"
@@ -881,8 +902,38 @@ show_menu() {
     echo -e "${CYAN}=======================================${NC}"
 }
 
+ensure_default_agent_ai_cron() (
+    command -v crontab >/dev/null 2>&1 || { echo "❌ 未安装 crontab，无法补全定时任务" >&2; return 1; }
+    exec 9>"$CONFIG_DIR/.cron-reconcile.lock" || return 1
+    flock -x 9 || return 1
+    python3 - <<'PY'
+import subprocess, re, sys
+r = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+if r.returncode and 'no crontab for' not in r.stderr.lower():
+    print('❌ 读取 crontab 失败，未修改定时任务', file=sys.stderr)
+    sys.exit(1)
+old = r.stdout if r.returncode == 0 else ''
+rows = []
+for line in old.splitlines():
+    if re.fullmatch(r'\s*(?:#\s*)+agent-ai-all(?:\s+.*)?', line):
+        continue
+    if re.match(r'^\s*(?:\S+\s+){5}/bin/bash\s+/root/agent-ai(?:\.d/agent-ai)?\.sh\s+--backup-all(?:\s|$)', line):
+        continue
+    rows.append(line)
+rows += ['# # agent-ai-all 每隔两天 6:00 执行', '00 6 */2 * * /bin/bash /root/agent-ai.d/agent-ai.sh --backup-all >/dev/null 2>&1']
+new = '\n'.join(rows) + '\n'
+if new != old:
+    subprocess.run(['crontab', '-'], input=new, text=True, check=True)
+    check = subprocess.run(['crontab', '-l'], capture_output=True, text=True, check=True)
+    if check.stdout != new:
+        raise RuntimeError('定时任务写入后核对失败')
+    print('✅ 已补全自动检测备份定时任务：每隔两天 6:00')
+PY
+)
+
 main() {
     ensure_config_dir
+    ensure_default_agent_ai_cron || echo "⚠️ 定时任务补全失败，请检查 crontab/Python/flock" >&2
     migrate_agent_ai_cron_no_logs
     while true; do
         show_menu
