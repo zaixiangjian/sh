@@ -1,6 +1,5 @@
 #!/bin/bash
-sh_v="0.0.11"
-
+sh_v="0.0.10"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -14415,7 +14414,9 @@ kejilion_update() {
     chmod --reference="$target" "$staged" && mv -f "$staged" "$target" || {
         rm -f "$staged"; echo "❌ 主脚本替换失败，备份：$backup_dir"; return 1;
     }
-    if ! cp -f "$target" /usr/local/bin/k || ! chmod +x /usr/local/bin/k || ! cmp -s "$target" /usr/local/bin/k; then
+    # k 可能是指向主脚本的符号链接或同一文件；这种情况无需复制。
+    if { [ ! "$target" -ef /usr/local/bin/k ] && ! cp -f "$target" /usr/local/bin/k; } || \
+       ! chmod +x /usr/local/bin/k || ! cmp -s "$target" /usr/local/bin/k; then
         cp -p "$backup_dir/kejilion.sh" "$target"
         if [ -f "$backup_dir/k" ]; then cp -p "$backup_dir/k" /usr/local/bin/k; fi
         echo "❌ k 同步失败，已尝试回滚；备份：$backup_dir"
