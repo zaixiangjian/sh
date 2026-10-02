@@ -6019,32 +6019,41 @@ run_local_first_app_script() {
 
 show_kejilion_update_status() {
   local github_script="${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/kejilion.sh"
-  local tmp_script remote_version
+  local tmp_script local_script
 
   echo -e "${gl_kjlan}------------------------${gl_bai}"
   echo "GitHub是否有更新"
 
+  local_script="${BASH_SOURCE[0]}"
+  if [ ! -f "$local_script" ] || [ ! -r "$local_script" ]; then
+    echo -e "${gl_hong}无法读取本地主脚本，更新检测失败${gl_bai}"
+    return 1
+  fi
   tmp_script="$(mktemp)" || {
     echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
     return 1
   }
 
-  if ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script"; then
+  if ! curl -fsSL --connect-timeout 3 --max-time 6 "$github_script" -o "$tmp_script" 2>/dev/null; then
     rm -f "$tmp_script"
     echo -e "${gl_hong}GitHub更新检测失败${gl_bai}"
     return 1
   fi
-
-  remote_version="$(grep -m1 -E '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" 2>/dev/null | sed -E 's/^[[:space:]]*sh_v="([^"]+)".*/\1/')"
-  rm -f "$tmp_script"
-
-  if [ -n "$remote_version" ] && [ "$remote_version" != "$sh_v" ]; then
-    echo -e "${gl_hong}有新内容 请使用 00 更新${gl_bai}"
-    return 0
+  if ! grep -qE '^[[:space:]]*sh_v="[^"]+"' "$tmp_script" || ! bash -n "$tmp_script" 2>/dev/null; then
+    rm -f "$tmp_script"
+    echo -e "${gl_hong}GitHub脚本内容异常，更新检测失败${gl_bai}"
+    return 1
   fi
 
-  echo -e "${gl_lv}已是最新${gl_bai}"
-  return 1
+  # 对比完整文件内容，不依赖版本号；本地自定义也会显示差异。
+  if cmp -s "$local_script" "$tmp_script"; then
+    rm -f "$tmp_script"
+    echo -e "${gl_lv}已是最新${gl_bai}"
+    return 1
+  fi
+  rm -f "$tmp_script"
+  echo -e "${gl_hong}与GitHub有内容差异 请使用 00 更新${gl_bai}"
+  return 0
 }
 # ===== kejilion 主脚本更新检测逻辑 结束 =====
 
