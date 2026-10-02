@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 # Agent AI 远程备份上传工具
-# 用途：调用 /root/hermes_manager.sh 的 18→1 备份包、/root/Openclaw.sh 的 188→1 备份包，上传到一个或多个远程服务器。
+# 用途：调用 /root/yingyong/hermes_manager.sh 的 18→1 备份包、/root/yingyong/Openclaw.sh 的 188→1 备份包，上传到一个或多个远程服务器。
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -12,8 +12,8 @@ NC='\033[0m'
 
 CONFIG_DIR='/root/agent-ai.d'
 LEGACY_CONFIG_FILE='/root/agent-ai.conf'
-HERMES_SCRIPT='/root/hermes_manager.sh'
-OPENCLAW_SCRIPT='/root/Openclaw.sh'
+HERMES_SCRIPT='/root/yingyong/hermes_manager.sh'
+OPENCLAW_SCRIPT='/root/yingyong/Openclaw.sh'
 HERMES_BACKUP_DIR="${HOME}/hermes_memory_backups"
 OPENCLAW_BACKUP_DIR="${HOME}/openclaw_custom_backups"
 LOCAL_KEEP_DEFAULT=3
@@ -623,13 +623,12 @@ EOF
 backup_hermes() {
     ensure_enabled_configs_or_configure || return 1
     local backup_file keep output rc
-    output=$(run_hermes_manager_backup 2>&1)
-    rc=$?
+    if output=$(run_hermes_manager_backup 2>&1); then rc=0; else rc=$?; fi
     printf '%s\n' "$output"
     [ "$rc" -eq 0 ] || return "$rc"
     backup_file=$(extract_backup_path_from_output "$output" "$HERMES_BACKUP_DIR" 'hermes_memory_full_[0-9_]+\.tar\.gz')
     [ -f "$backup_file" ] || { echo -e "${RED}❌ Hermes 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
-    upload_backup_to_all_enabled "$backup_file" 'hermes' 'hermes_memory_full_*.tar.gz'
+    upload_backup_to_all_enabled "$backup_file" 'hermes' 'hermes_memory_full_*.tar.gz' || return 1
     keep="$(get_effective_local_keep)"
     prune_local_backups "$HERMES_BACKUP_DIR" 'hermes_memory_full_*.tar.gz' "$keep"
     echo -e "${GREEN}✅ Hermes 备份完成：已上传到所有启用配置，本地保留 $keep 个。${NC}"
@@ -638,13 +637,12 @@ backup_hermes() {
 backup_openclaw() {
     ensure_enabled_configs_or_configure || return 1
     local backup_file keep output rc
-    output=$(run_openclaw_custom_backup 2>&1)
-    rc=$?
+    if output=$(run_openclaw_custom_backup 2>&1); then rc=0; else rc=$?; fi
     printf '%s\n' "$output"
     [ "$rc" -eq 0 ] || return "$rc"
     backup_file=$(extract_backup_path_from_output "$output" "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_[0-9_]+\.tar\.gz')
     [ -f "$backup_file" ] || { echo -e "${RED}❌ OpenClaw 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
-    upload_backup_to_all_enabled "$backup_file" 'openclaw' 'openclaw_custom_full_*.tar.gz'
+    upload_backup_to_all_enabled "$backup_file" 'openclaw' 'openclaw_custom_full_*.tar.gz' || return 1
     keep="$(get_effective_local_keep)"
     prune_local_backups "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_*.tar.gz' "$keep"
     echo -e "${GREEN}✅ OpenClaw 备份完成：已上传到所有启用配置，本地保留 $keep 个。${NC}"
@@ -690,9 +688,9 @@ cron_tag_for_type() {
 
 cron_cmd_for_type() {
     case "$1" in
-        hermes) echo "/bin/bash /root/agent-ai.sh --backup-hermes" ;;
-        openclaw) echo "/bin/bash /root/agent-ai.sh --backup-openclaw" ;;
-        all) echo "/bin/bash /root/agent-ai.sh --backup-all" ;;
+        hermes) echo "/bin/bash /root/agent-ai.d/agent-ai.sh --backup-hermes" ;;
+        openclaw) echo "/bin/bash /root/agent-ai.d/agent-ai.sh --backup-openclaw" ;;
+        all) echo "/bin/bash /root/agent-ai.d/agent-ai.sh --backup-all" ;;
         *) return 1 ;;
     esac
 }
@@ -925,7 +923,7 @@ case "${1:-}" in
         exit $?
         ;;
     --help|-h)
-        echo "用法: /root/agent-ai.sh [--backup-hermes|--backup-openclaw|--backup-all|--cron-list]"
+        echo "用法: /root/agent-ai.d/agent-ai.sh [--backup-hermes|--backup-openclaw|--backup-all|--cron-list]"
         exit 0
         ;;
 esac
