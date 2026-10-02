@@ -124,6 +124,8 @@ load_target_config() {
     ENABLED="${ENABLED:-1}"
     REMOTE_PORT="${REMOTE_PORT:-22}"
     REMOTE_DIR="${REMOTE_DIR:-/root/agent-ai-backups}"
+    # 拼接子目录前移除末尾斜杠；根目录 / 保留为可拼接的空前缀。
+    while [[ "$REMOTE_DIR" == */ ]]; do REMOTE_DIR="${REMOTE_DIR%/}"; done
     REMOTE_KEEP="${REMOTE_KEEP:-$REMOTE_KEEP_DEFAULT}"
     AUTH_METHOD="${AUTH_METHOD:-key}"
     SSH_KEY="${SSH_KEY:-}"
@@ -317,6 +319,9 @@ edit_config_raw() {
 config_menu() {
     ensure_config_dir
     while true; do
+        if [ -t 1 ] && [ -n "${TERM:-}" ]; then
+            clear || true
+        fi
         echo -e "${CYAN}=======================================${NC}"
         echo -e "${YELLOW}        Agent AI 远程配置管理${NC}"
         echo -e "${CYAN}=======================================${NC}"
@@ -730,26 +735,41 @@ show_cron_jobs() {
 
 remove_cron_job() {
     ensure_cron_available || return 1
-    local type="$1" tag tmp
-    tmp=$(mktemp)
-    crontab -l 2>/dev/null > "$tmp" || true
-    case "$type" in
-        hermes|openclaw|all)
-            tag="$(cron_tag_for_type "$type")"
-            grep -v "# $tag" "$tmp" > "${tmp}.new" || true
-            ;;
-        every)
-            grep -v '# agent-ai-' "$tmp" > "${tmp}.new" || true
-            ;;
-        *)
-            rm -f "$tmp" "${tmp}.new"
-            return 1
-            ;;
-    esac
-    crontab "${tmp}.new"
-    rm -f "$tmp" "${tmp}.new"
-    echo -e "${GREEN}✅ 已删除定时任务：$type${NC}"
+    local type="$1"
+    case "$type" in hermes|openclaw|all|every) ;; *) return 1 ;; esac
+    if [ "$type" = all ] || [ "$type" = every ]; then
+        # 用户主动删除后，后续打开菜单不再自动补回。
+        touch "$CONFIG_DIR/.auto-cron-disabled" || return 1
+    fi
+    python3 - "$type" <<'PY'
+import subprocess, re, sys
+kind = sys.argv[1]
+r = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+if r.returncode and 'no crontab for' not in r.stderr.lower():
+    print('❌ 读取定时任务失败，未执行删除', file=sys.stderr)
+    sys.exit(1)
+old = r.stdout if r.returncode == 0 else ''
+rows = []
+for line in old.splitlines():
+    comment = re.fullmatch(r'\s*(?:#\s*)+agent-ai-(hermes|openclaw|all)(?:\s+.*)?', line)
+    command = re.match(r'^\s*(?:\S+\s+){5}/bin/bash\s+/root/agent-ai(?:\.d/agent-ai)?\.sh\s+--backup-(hermes|openclaw|all)(?:\s|$)', line)
+    owned = comment or command
+    if owned and (kind == 'every' or owned.group(1) == kind):
+        continue
+    rows.append(line)
+new = '\n'.join(rows) + ('\n' if rows else '')
+if new != old:
+    subprocess.run(['crontab', '-'], input=new, text=True, check=True)
+check = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+actual = check.stdout if check.returncode == 0 else ''
+if check.returncode and 'no crontab for' not in check.stderr.lower():
+    raise RuntimeError('删除后读取失败')
+if actual != new:
+    raise RuntimeError('删除后核对失败')
+print('✅ 已删除并核对指定 Agent AI 定时任务')
+PY
 }
+
 
 add_or_update_cron_job() {
     ensure_cron_available || return 1
@@ -782,14 +802,19 @@ add_or_update_cron_job() {
     tmp=$(mktemp)
     crontab -l 2>/dev/null | grep -v "# $tag" > "$tmp" || true
     echo "$cron_line" >> "$tmp"
-    crontab "$tmp"
+    crontab "$tmp" || { rm -f "$tmp"; return 1; }
     rm -f "$tmp"
+    # 手动设置计划后保留用户选择，不再用默认计划覆盖。
+    touch "$CONFIG_DIR/.auto-cron-disabled" || return 1
     echo -e "${GREEN}✅ 已设置 $label 定时任务：每 $days 天 ${hour}:$(printf '%02d' "$minute") 运行一次。${NC}"
     echo "$cron_line"
 }
 
 cron_menu() {
     while true; do
+        if [ -t 1 ] && [ -n "${TERM:-}" ]; then
+            clear || true
+        fi
         echo -e "${CYAN}=======================================${NC}"
         echo -e "${YELLOW}        Agent AI 定时任务管理${NC}"
         echo -e "${CYAN}=======================================${NC}"
@@ -819,6 +844,9 @@ cron_menu() {
 }
 
 show_status() {
+    if [ -t 1 ] && [ -n "${TERM:-}" ]; then
+        clear || true
+    fi
     ensure_config_dir
     echo -e "${CYAN}当前状态${NC}"
     echo "配置目录：$CONFIG_DIR"
@@ -846,31 +874,42 @@ cron_human_desc() {
 }
 
 show_cron_summary_on_main() {
-    command -v crontab >/dev/null 2>&1 || return 0
-    local jobs line minute hour dom type label desc shown=0
-    jobs="$(crontab -l 2>/dev/null | grep -E '# agent-ai-|/bin/bash /root/agent-ai.d/agent-ai.sh --backup-all' | grep -v '^[[:space:]]*#' || true)"
-    [ -z "$jobs" ] && return 0
-
-    while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        case "$line" in
-            *"# agent-ai-hermes"*) type="hermes"; label="Hermes定时任务" ;;
-            *"# agent-ai-openclaw"*) type="openclaw"; label="OpenClaw定时任务" ;;
-            *"# agent-ai-all"*|*"/bin/bash /root/agent-ai.d/agent-ai.sh --backup-all"*) type="all"; label="全部备份定时任务" ;;
-            *) continue ;;
+    local jobs='' type label line found minute hour dom cfg has_config=0
+    if command -v crontab >/dev/null 2>&1; then
+        jobs="$(crontab -l 2>/dev/null || true)"
+    fi
+    for type in hermes openclaw all; do
+        case "$type" in
+            hermes) label="Hermes 备份" ;;
+            openclaw) label="OpenClaw 备份" ;;
+            all) label="全部备份定时任务" ;;
         esac
-        minute="$(printf '%s\n' "$line" | awk '{print $1}')"
-        hour="$(printf '%s\n' "$line" | awk '{print $2}')"
-        dom="$(printf '%s\n' "$line" | awk '{print $3}')"
-        desc="$(cron_human_desc "$minute" "$hour" "$dom")"
-        echo -e "${gl_kjlan:-$CYAN}${label}${NC}"
-        echo -e "${gl_lv:-$GREEN}${desc}${NC}"
-        echo "$line"
-        echo -e "${CYAN}=======================================${NC}"
-        shown=1
-    done <<< "$jobs"
-    [ "$shown" -eq 1 ] && return 0
+        echo -e "${CYAN}${label}${NC}"
+        found=0
+        while IFS= read -r line; do
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            # 按实际命令分类，不把全部备份冒充两个单独的计划。
+            if [[ "$line" =~ ^[[:space:]]*([^[:space:]]+[[:space:]]+){5}/bin/bash[[:space:]]+/root/agent-ai(\.d/agent-ai)?\.sh[[:space:]]+--backup-${type}([[:space:]]|$) ]]; then
+                read -r minute hour dom _ <<< "$line"
+                echo -e "${GREEN}$(cron_human_desc "$minute" "$hour" "$dom")${NC}"
+                echo "$line"
+                found=1
+            fi
+        done <<< "$jobs"
+        [ "$found" -eq 1 ] || echo -e "${RED}暂无定时任务${NC}"
+        echo "---------------------------------------"
+    done
+    echo -e "${CYAN}远程配置${NC}"
+    while IFS= read -r cfg; do
+        [ -f "$cfg" ] || continue
+        echo "$cfg"
+        has_config=1
+    done < <(config_files_enabled)
+    [ "$has_config" -eq 1 ] || echo -e "${RED}暂无启用的远程配置${NC}"
+    echo "---------------------------------------"
+    return 0
 }
+
 
 migrate_agent_ai_cron_no_logs() {
     command -v crontab >/dev/null 2>&1 || return 0
@@ -903,6 +942,7 @@ show_menu() {
 }
 
 ensure_default_agent_ai_cron() (
+    [ ! -f "$CONFIG_DIR/.auto-cron-disabled" ] || return 0
     command -v crontab >/dev/null 2>&1 || { echo "❌ 未安装 crontab，无法补全定时任务" >&2; return 1; }
     exec 9>"$CONFIG_DIR/.cron-reconcile.lock" || return 1
     flock -x 9 || return 1
