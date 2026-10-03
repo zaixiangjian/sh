@@ -1760,6 +1760,61 @@ done
 
 
 
+# 手动校时，不改变时区或覆盖已有 NTP 配置。开始
+correct_system_time() {
+    local confirm tracking synced attempt
+    echo "当前时间：$(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo "警告：校时可能使时间向前或向后跳跃，影响定时任务和运行中的服务。"
+    read -r -p "确认立即校正系统时间？[y/N]: " confirm
+    case "$confirm" in y|Y) ;; *) echo "已取消校时。"; return 0 ;; esac
+    if command -v chronyc >/dev/null 2>&1; then
+        echo "使用现有 Chrony 配置校时，最多等待约 60 秒..."
+        # 不安装第二套 NTP，也不覆盖现有配置。
+        if command -v systemctl >/dev/null 2>&1; then
+            if systemctl cat chrony.service >/dev/null 2>&1; then
+                systemctl start chrony.service || return 1
+            elif systemctl cat chronyd.service >/dev/null 2>&1; then
+                systemctl start chronyd.service || return 1
+            fi
+        elif command -v rc-service >/dev/null 2>&1; then
+            rc-service chronyd start || return 1
+        fi
+        chronyc online || return 1
+        chronyc burst 4/4 || return 1
+        # 先确认有有效时间源，避免仅凭 makestep 返回成功就误报。
+        if ! chronyc waitsync 15 0 0 2; then
+            echo "校时失败：未取得有效 NTP 时间源，请检查配置、DNS 和 UDP 123。"
+            return 1
+        fi
+        chronyc makestep || return 1
+        if ! chronyc waitsync 15 0.1 0 2; then
+            echo "未确认校时完成：时钟仍未同步到 0.1 秒以内。"
+            return 1
+        fi
+        chronyc tracking
+    elif command -v timedatectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && systemctl cat systemd-timesyncd.service >/dev/null 2>&1; then
+        echo "使用 systemd-timesyncd 校时，最多等待约 60 秒..."
+        timedatectl set-ntp true || return 1
+        systemctl restart systemd-timesyncd.service || return 1
+        synced=no
+        for attempt in {1..30}; do
+            synced=$(timedatectl show -p NTPSynchronized --value 2>/dev/null)
+            [ "$synced" = yes ] && break
+            sleep 2
+        done
+        if [ "$synced" != yes ]; then
+            echo "未确认校时完成，请检查 NTP 时间源和网络。"
+            return 1
+        fi
+    else
+        echo "未检测到可用的 Chrony 或 systemd-timesyncd。请先配置 NTP 服务，未修改系统时间。"
+        return 1
+    fi
+    echo "校时验证通过，当前时间：$(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo "时区保持不变。若之前 APT 签名尚未生效，请重新运行 apt update 验证。"
+}
+# 手动校时，不改变时区或覆盖已有 NTP 配置。结束
+
 current_timezone() {
 	if grep -q 'Alpine' /etc/issue; then
 	   date +"%Z %z"
@@ -12535,7 +12590,7 @@ linux_Settings() {
 	  # send_stats "系统工具"
 	  echo -e "▶ 系统工具"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}1.   ${gl_bai}设置脚本启动快捷键                 ${gl_kjlan}2.   ${gl_bai}修改登录密码"
+	  echo -e "${gl_kjlan}1.   ${gl_bai}设置脚本启动快捷键                 ${gl_kjlan}2.   ${gl_bai}修改登录密码 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}ROOT密码登录模式                   ${gl_kjlan}4.   ${gl_bai}安装Python指定版本"
 	  echo -e "${gl_kjlan}5.   ${gl_bai}开放所有端口                       ${gl_kjlan}6.   ${gl_bai}修改SSH连接端口"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}优化DNS地址                        ${gl_kjlan}8.   ${gl_bai}一键重装系统 ${gl_huang}★${gl_bai}"
@@ -12543,7 +12598,7 @@ linux_Settings() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}11.  ${gl_bai}查看端口占用状态                   ${gl_kjlan}12.  ${gl_bai}修改虚拟内存大小"
 	  echo -e "${gl_kjlan}13.  ${gl_bai}用户管理                           ${gl_kjlan}14.  ${gl_bai}用户/密码生成器"
-	  echo -e "${gl_kjlan}15.  ${gl_bai}系统时区调整                       ${gl_kjlan}16.  ${gl_bai}设置BBR3加速"
+	  echo -e "${gl_kjlan}15.  ${gl_bai}系统时区调整 ${gl_huang}★${gl_bai}                       ${gl_kjlan}16.  ${gl_bai}设置BBR3加速"
 	  echo -e "${gl_kjlan}17.  ${gl_bai}防火墙高级管理器                   ${gl_kjlan}18.  ${gl_bai}修改主机名"
 	  echo -e "${gl_kjlan}19.  ${gl_bai}切换系统更新源                     ${gl_kjlan}20.  ${gl_bai}定时任务管理"
 	  echo -e "${gl_kjlan}------------------------"
@@ -13076,6 +13131,8 @@ EOF
 				echo "23. 加拿大时间               24. 墨西哥时间"
 				echo "25. 巴西时间                 26. 阿根廷时间"
 				echo "------------------------"
+				echo "999. 校正系统时间"
+				echo "------------------------"
 				echo "0. 返回上一级选单"
 				echo "------------------------"
 				read -e -p "请输入你的选择: " sub_choice
@@ -13103,6 +13160,7 @@ EOF
 					24) set_timedate America/Mexico_City ;;
 					25) set_timedate America/Sao_Paulo ;;
 					26) set_timedate America/Argentina/Buenos_Aires ;;
+					999) correct_system_time; break_end ;;
 					0) break ;; # 跳出循环，退出菜单
 					*) break ;; # 跳出循环，退出菜单
 				esac
