@@ -795,7 +795,63 @@ check_installed() {
     if command -v hermes >/dev/null 2>&1; then return 0; else return 1; fi
 }
 
-# 获取版本号；优先使用 hermes --version，因为它能显示 git 安装的 upstream 提交与 behind 状态。
+# 只读核对官方 main：不使用 Hermes 的缓存更新提示，也不 fetch/reset。
+# 返回：0=一致，1=不同，2=无法确认，3=非官方 main。
+verify_official_main() {
+    local version_text="$1" install_dir method branch remote local_sha remote_output remote_sha
+    HERMES_MAIN_STATUS="无法确认是否最新"
+    HERMES_LOCAL_SHA=""
+    HERMES_REMOTE_SHA=""
+    install_dir=$(printf '%s\n' "$version_text" | sed -n 's/^Install directory: //p' | head -n 1)
+    method=$(printf '%s\n' "$version_text" | sed -n 's/^Install method: //p' | head -n 1)
+    if [ "$method" != git ] || [ -z "$install_dir" ] || ! command -v git >/dev/null 2>&1; then
+        HERMES_MAIN_STATUS="无法确认是否最新（安装信息不完整或非 Git 安装）"
+        return 2
+    fi
+    branch=$(git -C "$install_dir" symbolic-ref --quiet --short HEAD 2>/dev/null) || branch=""
+    remote=$(git -C "$install_dir" remote get-url origin 2>/dev/null) || remote=""
+    case "$remote" in
+        https://github.com/NousResearch/hermes-agent|https://github.com/NousResearch/hermes-agent.git|git@github.com:NousResearch/hermes-agent.git|ssh://git@github.com/NousResearch/hermes-agent.git) ;;
+        *) HERMES_MAIN_STATUS="非官方 main（安装源不同）"; return 3 ;;
+    esac
+    if [ "$branch" != main ]; then
+        HERMES_MAIN_STATUS="非官方 main（当前分支：${branch:-分离 HEAD}）"
+        return 3
+    fi
+    local_sha=$(git -C "$install_dir" rev-parse --verify HEAD 2>/dev/null) || return 2
+    if ! command -v timeout >/dev/null 2>&1; then
+        HERMES_MAIN_STATUS="无法确认是否最新（缺少 timeout）"
+        return 2
+    fi
+    # API 仅返回 SHA，比 Git 协议查询更轻；失败再短时尝试 Git。
+    remote_sha=""
+    if command -v curl >/dev/null 2>&1; then
+        remote_sha=$(curl -fsSL --connect-timeout 2 --max-time 4 \
+            -H 'Accept: application/vnd.github.sha' -H 'Cache-Control: no-cache' \
+            https://api.github.com/repos/NousResearch/hermes-agent/commits/main 2>/dev/null) || remote_sha=""
+    fi
+    if [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        remote_output=$(GIT_TERMINAL_PROMPT=0 timeout 3 git -c credential.helper= ls-remote --exit-code https://github.com/NousResearch/hermes-agent.git refs/heads/main 2>/dev/null) || {
+            HERMES_MAIN_STATUS="无法确认是否最新（查询失败；更新请运行 hermes update）"
+            return 2
+        }
+        remote_sha=$(printf '%s\n' "$remote_output" | awk '$2 == "refs/heads/main" {print $1}')
+    fi
+    if [[ ! "$local_sha" =~ ^[0-9a-f]{40}$ ]] || [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        HERMES_MAIN_STATUS="无法确认是否最新（提交信息异常）"
+        return 2
+    fi
+    HERMES_LOCAL_SHA="$local_sha"
+    HERMES_REMOTE_SHA="$remote_sha"
+    if [ "$local_sha" = "$remote_sha" ]; then
+        HERMES_MAIN_STATUS="已是最新（已实时核对官方 main）"
+        return 0
+    fi
+    HERMES_MAIN_STATUS="与官方 main 不一致（远端 ${remote_sha:0:7}；更新：hermes update 或菜单 7）"
+    return 1
+}
+
+# 版本行用于展示；是否最新必须实时核对官方 main。
 get_version() {
     if ! check_installed; then
         return
@@ -804,19 +860,43 @@ get_version() {
     local hv first_line update_line hermes_bin python_bin venv_dir metadata version
 
     if command -v timeout >/dev/null 2>&1; then
-        hv="$(timeout 8 hermes --version 2>/dev/null || true)"
+        # 使用官方运行时输出本地版本信息，关闭其缓存/联网更新检查。
+        # 旧版不支持运行时查询时，短时回退到 --version。
+        hv="$(timeout 3 python3 - <<'PY_VERSION' 2>/dev/null
+import json, subprocess
+cmd = json.loads(subprocess.check_output(['hermes', '--print-runtime-command'], text=True, timeout=2))
+if not isinstance(cmd, list) or len(cmd) < 3 or cmd[-2] != '-c':
+    raise SystemExit(1)
+old = "runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if old not in cmd[-1]:
+    raise SystemExit(1)
+cmd[-1] = cmd[-1].replace(old, 'from hermes_cli._startup_fast import print_fast_version_info; print_fast_version_info(check_updates=False)')
+subprocess.run(cmd, check=True, timeout=2)
+PY_VERSION
+        )" || hv=""
+        [ -n "$hv" ] || hv="$(timeout 3 hermes --version 2>/dev/null || true)"
     else
         hv="$(hermes --version 2>/dev/null || true)"
     fi
 
     first_line="$(echo "$hv" | sed -n '1p')"
-    update_line="$(echo "$hv" | sed -n '/Update available/p' | sed -n '1p')"
     if [ -n "$first_line" ]; then
-        if [ -n "$update_line" ]; then
-            echo -e "$first_line ${RED}有更新可用 —— 请运行 hermes update${NC}"
-        else
-            echo -e "$first_line ${GREEN}已是最新${NC}"
-        fi
+        local verify_rc display_version display_local
+        verify_official_main "$hv"
+        verify_rc=$?
+        display_version="$(printf '%s\n' "$first_line" | sed -E 's/ · upstream .*//; s/\+([0-9]+)\.g[0-9a-f]+/\+\1个 Git 提交/; s/ \(/(/')"
+        display_local="$(printf '%s\n' "$first_line" | sed -nE 's/.*\.g([0-9a-f]+).*/\1/p')"
+        [ -n "$HERMES_LOCAL_SHA" ] && display_local="$HERMES_LOCAL_SHA"
+        printf '%s\n' "$display_version"
+        display_local="${display_local:0:7}"
+        local display_remote="${HERMES_REMOTE_SHA:0:7}"
+        printf '当前版本 : %s\n' "${display_local:-未知}"
+        printf '最新版本 : %s\n' "${display_remote:-未获取}"
+        case "$verify_rc" in
+            0) echo -e "${GREEN}已是最新版本${NC}" ;;
+            1) echo -e "${RED}与官方 main 不一致（使用菜单 7 号更新）或\nhermes update${NC}" ;;
+            *) echo -e "${YELLOW}${HERMES_MAIN_STATUS}${NC}" ;;
+        esac
         return
     fi
 
@@ -1212,16 +1292,22 @@ hermes_update_robust() {
     refresh_hermes_path
     hash -r 2>/dev/null || true
 
-    version_text="$(hermes --version 2>&1)"
-    if [ "$update_rc" -eq 0 ] && ! echo "$version_text" | grep -qi "Update available"; then
-        echo -e "${GREEN}✅ 官方更新完成。${NC}"
-        echo "$version_text" | sed -n '1,8p'
+    version_text="$(timeout 8 hermes --version 2>&1)"
+    local verify_rc
+    verify_official_main "$version_text"
+    verify_rc=$?
+    echo "$version_text" | sed -n '1,8p'
+    if [ "$update_rc" -eq 0 ] && [ "$verify_rc" -eq 0 ]; then
+        echo -e "${GREEN}✅ 官方更新完成，${HERMES_MAIN_STATUS}。${NC}"
         add_app_id
         return 0
     fi
-
-    echo -e "${RED}❌ 官方更新未完成，或更新后仍显示有可用更新。${NC}"
-    echo "$version_text" | sed -n '1,12p'
+    if [ "$update_rc" -ne 0 ]; then
+        echo -e "${RED}❌ 官方更新命令失败（退出码 $update_rc）。${NC}"
+    else
+        echo -e "${YELLOW}⚠ 官方更新命令已结束，但未通过实时最新版本验证。${NC}"
+    fi
+    echo -e "${YELLOW}${HERMES_MAIN_STATUS}${NC}"
     echo ""
     echo -e "${YELLOW}为降低供应链风险，脚本不会执行 git fetch/reset 等强制兜底更新。${NC}"
     echo -e "${YELLOW}请检查上方 hermes update 输出、服务器网络、GitHub 访问或稍后重试。${NC}"
@@ -1263,8 +1349,8 @@ show_menu() {
     echo -e "${CYAN}=================================================${NC}"
     echo -e "${YELLOW}           Hermes Agent 终端管理工具             ${NC}"
     echo -e "${CYAN}=================================================${NC}"
-    echo -e " 运行状态 : $(get_gateway_status)"
-    echo -e " 当前版本 : $(get_version)"
+    echo -e "运行状态 : $(get_gateway_status)"
+    echo -e "当前版本 : $(get_version)"
     echo -e "${CYAN}-------------------------------------------------${NC}"
     echo -e "${GREEN}1.${NC} 安装 Hermes Agent"
     echo -e "${GREEN}2.${NC} 启动 Gateway (消息网关/后台服务)"
