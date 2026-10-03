@@ -91,13 +91,36 @@ check_openclaw_update() {
 			return 1
 		fi
 
-		local_version=$(npm list -g openclaw --depth=0 --no-update-notifier 2>/dev/null | grep openclaw | awk '{print $NF}' | sed 's/^.*@//')
+		local openclaw_bin package_dir package_version
+		local_version=""
+		openclaw_bin=$(command -v openclaw 2>/dev/null)
+		if [ -n "$openclaw_bin" ]; then
+			openclaw_bin=$(readlink -f "$openclaw_bin" 2>/dev/null)
+			package_dir=$(dirname "$openclaw_bin")
+			# 沿实际启动文件向上查找包，避免误读另一个 Node/npm 环境。
+			while [ -n "$package_dir" ] && [ "$package_dir" != / ] && [ "$package_dir" != . ]; do
+				if [ -r "$package_dir/package.json" ]; then
+					package_version=$(jq -er 'select(.name == "openclaw") | .version | select(type == "string")' "$package_dir/package.json" 2>/dev/null) || package_version=""
+					if [ -n "$package_version" ]; then
+						local_version="$package_version"
+						break
+					fi
+				fi
+				package_dir=$(dirname "$package_dir")
+			done
+		fi
+		if [[ ! "$local_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]; then
+			local_version=$(npm list -g openclaw --depth=0 --no-update-notifier 2>/dev/null | grep openclaw | awk '{print $NF}' | sed 's/^.*@//')
+		fi
 		if [[ ! "$local_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]; then
 			printf '%s\n' "当前版本:未知  ${gl_huang}检测异常${gl_bai}"
 			return 1
 		fi
 
-		remote_version=$(npm view openclaw version --no-update-notifier --fetch-timeout=10000 --fetch-retries=0 2>/dev/null)
+		# 与 npm view 的默认目标一致：官方 latest 标签，保留 10 秒等待。
+		local remote_json
+		remote_json=$(curl -fsSL --max-time 10 https://registry.npmjs.org/-/package/openclaw/dist-tags 2>/dev/null) || remote_json=""
+		remote_version=$(printf '%s' "$remote_json" | jq -er '.latest | select(type == "string")' 2>/dev/null) || remote_version=""
 		if [[ ! "$remote_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]; then
 			printf '%s\n' "当前版本:$local_version  ${gl_huang}检测异常${gl_bai}"
 			return 1
