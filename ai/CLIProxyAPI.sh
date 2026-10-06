@@ -125,7 +125,7 @@ restore_app() {
 
     echo
 
-    read -p "输入备份文件名（直接回车恢复最新）: " FILE
+    read -r -p "输入备份文件名（直接回车恢复最新）: " FILE || { echo "已取消恢复"; return 0; }
 
     if [ -z "$FILE" ]; then
         FILE=$(ls -1t ${BACKUP_DIR}/CPA-*.tar.gz 2>/dev/null | head -n 1)
@@ -138,6 +138,16 @@ restore_app() {
         echo "备份文件不存在"
         echo
         return
+    fi
+
+    local confirm
+    echo "备份文件: $FILE"
+    echo "恢复目标: $APP_DIR"
+    echo "恢复会替换当前配置、认证数据及安装目录，并重新启动容器。"
+    IFS= read -r -p "确认恢复请输入 yes（其他输入取消）: " confirm || { echo "已取消恢复"; return 0; }
+    if [ "$confirm" != "yes" ]; then
+        echo "已取消恢复"
+        return 0
     fi
 
     echo
@@ -192,7 +202,7 @@ restore_app() {
 uninstall_app() {
     local confirm
     echo "⚠️ 卸载将删除 ${APP_NAME} 容器、镜像、数据卷及安装目录，配置和认证数据将丢失。"
-    read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
+    IFS= read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
     if [ "$confirm" != "yes" ]; then
         echo "已取消卸载"
         return 0
@@ -227,12 +237,22 @@ uninstall_app() {
 
 show_menu() {
 
-    clear
+    if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "$TERM" != "dumb" ]; then
+        clear
+    fi
 
     echo "=================================="
-    echo "     CLIProxyAPI 管理脚本"
+    echo "        CLIProxyAPI 管理脚本"
+    echo "开源 AI API 代理，将 CLI 账号接入 OpenAI、Gemini、Claude 兼容接口"
+    echo "部署组件：CLIProxyAPI（Docker）"
+    echo "开源地址："
+    echo "https://github.com/router-for-me/CLIProxyAPI"
     echo "=================================="
     echo
+    echo "------------------------"
+    echo "默认访问端口：${PORT}"
+    echo "管理页面：http://你的IP:${PORT}/management.html"
+    echo "------------------------"
     echo "1. 安装"
     echo "2. 更新"
     echo "3. 备份（home目录）"
@@ -246,7 +266,7 @@ while true; do
 
     show_menu
 
-    read -p "请输入选项: " CHOICE
+    read -r -p "请输入选项: " CHOICE || { echo "已退出"; exit 0; }
 
     case $CHOICE in
 
