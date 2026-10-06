@@ -117,27 +117,39 @@ backup_app() {
 
 restore_app() {
 
-    echo
-    echo "当前备份文件:"
-    echo
+    local backups selected index FILE
+    mapfile -t backups < <(
+        find "$BACKUP_DIR" -maxdepth 1 -type f -name 'CPA-*.tar.gz' -printf '%f\n' 2>/dev/null | LC_ALL=C sort -r
+    )
 
-    ls -1t ${BACKUP_DIR}/CPA-*.tar.gz 2>/dev/null || true
-
-    echo
-
-    read -r -p "输入备份文件名（直接回车恢复最新）: " FILE || { echo "已取消恢复"; return 0; }
-
-    if [ -z "$FILE" ]; then
-        FILE=$(ls -1t ${BACKUP_DIR}/CPA-*.tar.gz 2>/dev/null | head -n 1)
-    else
-        FILE="${BACKUP_DIR}/${FILE}"
+    if [ "${#backups[@]}" -eq 0 ]; then
+        echo "未在 $BACKUP_DIR 找到备份文件: CPA-*.tar.gz"
+        return 0
     fi
 
+    echo
+    echo "检测到以下备份文件："
+    for index in "${!backups[@]}"; do
+        echo "$((index + 1)). ${backups[$index]}"
+    done
+    echo
+
+    IFS= read -r -p "请选择要恢复的备份编号（回车恢复最新备份，0取消）: " selected || { echo "已取消恢复"; return 0; }
+    if [ "$selected" = "0" ]; then
+        echo "已取消恢复"
+        return 0
+    fi
+    selected="${selected:-1}"
+    local backup_count="${#backups[@]}"
+    if ! [[ "$selected" =~ ^[1-9][0-9]*$ ]] || [ "${#selected}" -gt "${#backup_count}" ] || [ "$selected" -gt "$backup_count" ]; then
+        echo "无效备份编号"
+        return 0
+    fi
+    FILE="${BACKUP_DIR}/${backups[$((selected - 1))]}"
+
     if [ ! -f "$FILE" ]; then
-        echo
         echo "备份文件不存在"
-        echo
-        return
+        return 0
     fi
 
     local confirm
