@@ -348,16 +348,21 @@ restore_app() {
     echo "检测到以下备份文件："
     index=1
     for backup_file in "${backups[@]}"; do
-        echo "$index) $(basename "$backup_file")"
+        echo "$index. $(basename "$backup_file")"
         index=$((index + 1))
     done
 
     echo ""
-    read -r -p "请选择要恢复的备份编号，直接回车恢复最新备份 [$(basename "$latest")]: " selected || { echo "已取消恢复"; return 0; }
+    IFS= read -r -p "请选择要恢复的备份编号（回车恢复最新备份，0取消）: " selected || { echo "已取消恢复"; return 0; }
+
+    if [ "$selected" = "0" ]; then
+        echo "已取消恢复"
+        return 0
+    fi
 
     if [ -z "$selected" ]; then
         backup_file="$latest"
-    elif [[ "$selected" =~ ^[0-9]+$ ]] && [ "$selected" -ge 1 ] && [ "$selected" -le "${#backups[@]}" ]; then
+    elif [[ "$selected" =~ ^[1-9][0-9]*$ ]] && [ "${#selected}" -le 18 ] && [ "$selected" -le "${#backups[@]}" ]; then
         backup_file="${backups[$((selected - 1))]}"
     else
         echo "无效选择"
