@@ -465,18 +465,28 @@ restore_app() {
 # ==============================
 
 while true; do
-    clear
-    echo "================================="
+    if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "$TERM" != "dumb" ]; then
+        clear
+    fi
+    echo "=================================="
     echo "        Sub2API 管理脚本"
-    echo "================================="
-    echo "1. 安装 Sub2API"
-    echo "2. 更新 Sub2API"
-    echo "3. 备份 Sub2API"
-    echo "4. 恢复 Sub2API"
-    echo "9. 卸载 Sub2API"
+    echo "开源 AI API 中转平台，支持多账号管理、配额分发与请求转发"
+    echo "部署组件：Sub2API + PostgreSQL + Redis"
+    echo "开源地址："
+    echo "https://github.com/Wei-Shaw/sub2api"
+    echo "=================================="
+    echo
+    echo "------------------------"
+    echo "默认访问端口：${APP_PORT}，容器内部端口：8080"
+    echo "------------------------"
+    echo "1. 安装"
+    echo "2. 更新"
+    echo "3. 备份（home目录）"
+    echo "4. 恢复（从home/目录获取）"
+    echo "9. 卸载"
     echo "0. 退出"
-    echo "================================="
-    read -p "请选择: " choice
+    echo
+    read -r -p "请输入选项: " choice || { echo "已退出"; exit 0; }
 
     case $choice in
         1) install_app; pause ;;
@@ -484,7 +494,7 @@ while true; do
         3) backup_app; pause ;;
         4) restore_app; pause ;;
         9) uninstall_app; pause ;;
-        0) exit 0 ;;
+        0) echo "已退出"; exit 0 ;;
         *) echo "无效选项"; pause ;;
     esac
 done
