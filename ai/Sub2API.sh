@@ -224,7 +224,7 @@ update_app() {
 uninstall_app() {
     local confirm
     echo "⚠️ 卸载将删除 Sub2API 容器、数据卷、镜像及安装目录，数据库等数据将丢失。"
-    read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
+    IFS= read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
     if [ "$confirm" != "yes" ]; then
         echo "已取消卸载"
         return 0
@@ -353,7 +353,7 @@ restore_app() {
     done
 
     echo ""
-    read -p "请选择要恢复的备份编号，直接回车恢复最新备份 [$(basename "$latest")]: " selected
+    read -r -p "请选择要恢复的备份编号，直接回车恢复最新备份 [$(basename "$latest")]: " selected || { echo "已取消恢复"; return 0; }
 
     if [ -z "$selected" ]; then
         backup_file="$latest"
@@ -364,12 +364,15 @@ restore_app() {
         return 1
     fi
 
+    local confirm
     echo "将恢复备份: $backup_file"
-    read -p "恢复会覆盖当前 Sub2API 数据，确认继续？[y/N]: " confirm
-    case "$confirm" in
-        y|Y|yes|YES) ;;
-        *) echo "已取消恢复"; return 0 ;;
-    esac
+    echo "恢复目标: $APP_DIR"
+    echo "恢复会覆盖当前 Sub2API 配置及数据卷（包括数据库）。"
+    IFS= read -r -p "确认恢复请输入 yes（其他输入取消）: " confirm || { echo "已取消恢复"; return 0; }
+    if [ "$confirm" != "yes" ]; then
+        echo "已取消恢复"
+        return 0
+    fi
 
     tmp_dir=$(mktemp -d)
     tar xzf "$backup_file" -C "$tmp_dir" || {
