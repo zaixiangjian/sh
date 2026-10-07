@@ -396,7 +396,7 @@ def run(name):
             source_endpoint=source_endpoint or 'http://127.0.0.1:'+str(c['source_port'])
             destination_endpoint=c['destination_endpoint'] if direct else 'http://127.0.0.1:'+str(c['tunnel_port'])
             for section,prefix,endpoint in [('source','source',source_endpoint),('destination','destination',destination_endpoint)]:
-                text+='['+section+']\ntype = s3\nprovider = Other\nenv_auth = false\naccess_key_id = '+c[prefix+'_access']+'\nsecret_access_key = '+c[prefix+'_secret']+'\nendpoint = '+endpoint+'\nregion = us-east-1\nforce_path_style = true\n\n'
+                text+='['+section+']\ntype = s3\nprovider = Other\nenv_auth = false\naccess_key_id = '+c[prefix+'_access']+'\nsecret_access_key = '+c[prefix+'_secret']+'\nendpoint = '+endpoint+'\nregion = us-east-1\nforce_path_style = true\nsign_accept_encoding = false\n\n'
             conf.write_text(text); os.chmod(conf,0o600)
             def sync_bucket():
                 base=['rclone','--config',str(conf)]
