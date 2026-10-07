@@ -457,7 +457,7 @@ def check_tunnel_port(value):
     return value
 
 def local_api_default():
-    fallback={'rustfs':'9101','seaweedfs':'9201','minio':'9000'}[appname]
+    fallback={'rustfs':'9100','seaweedfs':'9200','minio':'9000'}[appname]
     try:
         container_port='8333/tcp' if appname=='seaweedfs' else '9000/tcp'
         p=subprocess.run(['docker','port',appname,container_port],capture_output=True,text=True,timeout=10)
@@ -527,7 +527,7 @@ def add(mode,connection='ssh'):
             if not c['source_endpoint']: c['source_port']=int(source_default)
             c['destination_endpoint']=ask('目标 HTTPS S3 API URL（必填）：')
         else:
-            default={'rustfs':'9101','seaweedfs':'9201','minio':'9000'}[appname]
+            default={'rustfs':'9100','seaweedfs':'9200','minio':'9000'}[appname]
             tunnel_port_default=tunnel_default()
             print('本地 API 默认值按当前容器映射读取；远端端口请按远端实际部署确认。')
             c.update(source_port=ask('本地回环 S3 API 端口（回车默认 '+source_default+'）：',default=source_default),remote_port=ask('远端回环 S3 API 端口（回车默认 '+default+'）：',default=default),tunnel_port=ask('本地隧道空闲端口（自动检测，回车默认 '+tunnel_port_default+'，可手动指定）：',default=tunnel_port_default))
