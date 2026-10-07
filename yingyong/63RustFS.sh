@@ -61,8 +61,8 @@ install() {
         echo "目录或同名容器已存在，不覆盖。已有安装请选更新。"; return 1
     fi
     local api console bind access secret
-    console=$(port_input "网页端口" 9100) || return 1
-    api=$(port_input "API 端口" 9101) || return 1
+    console=$(port_input "网页端口" 9101) || return 1
+    api=$(port_input "API 端口" 9100) || return 1
     [ "$api" != "$console" ] || { echo "两个端口不能相同"; return 1; }
     read -r -p "绑定 IPv4（回车 127.0.0.1，仅本机；公网访问填 0.0.0.0）：" bind || return 1
     bind=${bind:-127.0.0.1}
@@ -102,6 +102,83 @@ EOF
     echo "管理员密码：$secret"
     addresses
 }
+install_custom_image() {
+    # Bash 动态作用域仅对这次 install 生效，不改变官方入口和已安装配置。
+    local IMAGE="zaixiangjian/rustfs:latest"
+    install
+}
+update_custom_image() {
+    installed || { echo "尚未安装，请先使用 1 或 21 号安装。"; return 1; }
+    require_docker || return 1
+    local target="zaixiangjian/rustfs:latest" saved
+    echo "将从 $target 更新当前 rustfs 实例，保留端口、账号密码和数据。"
+    echo "更新前请自行制作一致性快照。"
+    confirm || { echo "已取消"; return 0; }
+    # 先拉取成功再更改镜像来源，避免仓库不存在时影响现有配置。
+    docker pull "$target" || return 1
+    saved=$(mktemp "$APP_DIR/compose.before-image.XXXXXX") || return 1
+    cp -p "$APP_DIR/compose.yaml" "$saved" || return 1
+    if ! python3 - "$APP_DIR/compose.yaml" "$target" <<'PYIMAGE'
+from pathlib import Path
+import re,sys
+p=Path(sys.argv[1]);text=p.read_text()
+text,n=re.subn(r'(?m)^    image:.*$', '    image: '+sys.argv[2],text)
+if n!=1: raise ValueError('必须只有一处服务镜像配置，拒绝修改')
+p.write_text(text)
+PYIMAGE
+    then echo "配置未修改成功，原配置备份：$saved"; return 1; fi
+    if ! compose config --quiet; then
+        cp -p "$saved" "$APP_DIR/compose.yaml"
+        echo "配置校验失败，已恢复原配置。"; return 1
+    fi
+    if compose up -d && healthy; then
+        rm -f -- "$saved"
+        echo "自定义镜像更新完成；后续 2 号更新也沿用此镜像。"
+        addresses
+    else
+        echo "更新启动未验证通过，原配置保留：$saved；数据未删除。"
+        return 1
+    fi
+}
+
+login_docker_hub() {
+    require_docker || return 1
+    docker login
+}
+push_custom_image() {
+    require_docker || return 1
+    local target="zaixiangjian/rustfs:latest" source local_id
+    # 优先使用实际运行/已创建容器的不可变镜像ID，不误推送另一个 latest。
+    source=$(docker inspect -f '{{.Image}}' "$NAME" 2>/dev/null)
+    if [ -z "$source" ]; then
+        source="$IMAGE"
+        if ! docker image inspect "$source" >/dev/null 2>&1; then
+            echo "本机没有源镜像，请先使用 1 号安装或拉取官方镜像；不拉取目标仓库。"
+            return 1
+        fi
+    fi
+    local_id=$(docker image inspect "$source" -f '{{.Id}}') || return 1
+    echo "源镜像：$local_id"
+    echo "将打标签并推送到：$target（不修改运行中的容器）"
+    docker tag "$source" "$target" && docker push "$target" || return 1
+    # 远程 config digest 与本地 image ID 对照；不 pull 覆盖本地标签。
+    if ! docker manifest inspect --verbose "$target" | python3 -c '
+import json,sys
+items=json.load(sys.stdin)
+if not isinstance(items,list): items=[items]
+digests=[]
+for item in items:
+    m=item.get("SchemaV2Manifest", item.get("OCIManifest",{}))
+    digest=m.get("config",{}).get("digest")
+    if digest: digests.append(digest)
+if sys.argv[1] not in digests:
+    sys.exit("远端镜像摘要未匹配，不能确认推送结果；请检查 Docker Hub。")
+print("远端镜像配置摘要与本地一致，推送验证通过。")
+' "$local_id"; then
+        echo "推送后的远端校验未通过，请检查网络和仓库。"; return 1
+    fi
+}
+
 update() {
     installed || { echo "尚未安装"; return 1; }
     require_docker || return 1
@@ -483,7 +560,7 @@ def check_tunnel_port(value):
     return value
 
 def local_api_default():
-    fallback={'rustfs':'9101','seaweedfs':'9201','minio':'9000'}[appname]
+    fallback={'rustfs':'9100','seaweedfs':'9200','minio':'9000'}[appname]
     try:
         container_port='8333/tcp' if appname=='seaweedfs' else '9000/tcp'
         p=subprocess.run(['docker','port',appname,container_port],capture_output=True,text=True,timeout=10)
@@ -553,7 +630,7 @@ def add(mode,connection='ssh'):
             if not c['source_endpoint']: c['source_port']=int(source_default)
             c['destination_endpoint']=ask('目标 HTTPS S3 API URL（必填）：')
         else:
-            default={'rustfs':'9101','seaweedfs':'9201','minio':'9000'}[appname]
+            default={'rustfs':'9100','seaweedfs':'9200','minio':'9000'}[appname]
             tunnel_port_default=tunnel_default()
             print('本地 API 默认值按当前容器映射读取；远端端口请按远端实际部署确认。')
             c.update(source_port=ask('本地回环 S3 API 端口（回车默认 '+source_default+'）：',default=source_default),remote_port=ask('远端回环 S3 API 端口（回车默认 '+default+'）：',default=default),tunnel_port=ask('本地隧道空闲端口（自动检测，回车默认 '+tunnel_port_default+'，可手动指定）：',default=tunnel_port_default))
@@ -712,6 +789,7 @@ uninstall() {
     if find_replication_tasks; then
         echo "请先在同步子菜单删除全部任务，以移除对应 cron，再卸载。"; return 1
     fi
+    echo "支持卸载 1 号官方镜像或 21 号自定义镜像安装的 RustFS（按实际 Compose 配置）。"
     echo "将删除 RustFS 容器和 $APP_DIR 全部数据；保留 /home 备份及 Docker。"
     confirm || { echo "已取消"; return 0; }
     compose down || return 1
@@ -731,13 +809,17 @@ main() {
         echo "https://github.com/rustfs/rustfs"
         echo "=================================="
         replication list
-        echo "1. 安装（默认端口 网页9100/API9101）"
+        echo "1. 安装（默认端口 网页9101/API9100）"
         echo "2. 更新"
         echo "3. SSH/rsync 镜像传送"
         echo "4. S3 API 异步同步"
         echo "5. 状态与地址"
         echo "6. 查看日志"
         echo "9. 卸载"
+        echo "21. 自己安装zaixiangjian/rustfs:latest"
+        echo "22. 从zaixiangjian更新"
+        echo "23. 登录 Docker Hub"
+        echo "24. 打上标签推送到zaixiangjian/rustfs:latest"
         echo "0. 退出"
         read -r -p "请输入选项：" choice || break
         case "$choice" in
@@ -748,6 +830,10 @@ main() {
             5) docker ps -a --filter name='^/rustfs$'; addresses ;;
             6) docker logs --tail 100 "$NAME" ;;
             9) uninstall ;;
+            21) install_custom_image ;;
+            22) update_custom_image ;;
+            23) login_docker_hub ;;
+            24) push_custom_image ;;
             0) echo "已退出"; return 0 ;;
             *) echo "无效选项" ;;
         esac
