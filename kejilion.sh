@@ -6276,7 +6276,7 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 51 "${gl_kjlan}51. ${gl_bai}极光面板" "51. 极光面板")\033[48G$(panel_menu_item_green_if_installed 52 "${gl_kjlan}52. ${gl_bai}emby安装" "52. emby安装")"
     echo -e "$(panel_menu_item_green_if_installed 53 "${gl_kjlan}53. ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}" "53. NextermSSH链接 48 79★")\033[48G$(panel_menu_item_green_if_installed 54 "${gl_kjlan}54. ${gl_bai}webssh ${gl_huang}★${gl_bai}" "54. webssh ★")"
-    echo -e "$(panel_menu_item_green_if_installed 55 "${gl_kjlan}55. ${gl_bai}openlist4.0.8 ${gl_huang}★${gl_bai}" "55. openlist4.0.8 ★")\033[48G$(panel_menu_item_green_if_installed 56 "${gl_kjlan}56. ${gl_bai}umami网站流量统计系统" "56. umami网站流量统计系统")"
+    echo -e "$(panel_menu_item_green_if_installed 55 "${gl_kjlan}55. ${gl_bai}安装包openlist4.0.8 ${gl_huang}★${gl_bai}" "55. 安装包openlist4.0.8 ★")\033[48G$(panel_menu_item_green_if_installed 56 "${gl_kjlan}56. ${gl_bai}umami网站流量统计系统" "56. umami网站流量统计系统")"
     echo -e "$(panel_menu_item_green_if_installed 57 "${gl_kjlan}57. ${gl_bai}dify安装 ${gl_huang}★${gl_bai}" "57. dify安装 ★")\033[48G$(panel_menu_item_green_if_installed 58 "${gl_kjlan}58. ${gl_bai}安装caddy" "58. 安装caddy")"
     echo -e "$(panel_menu_item_green_if_installed 59 "${gl_kjlan}59. ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}" "59. docker安装rustdesk服务端 ★")\033[48G$(panel_menu_item_green_if_installed 60 "${gl_kjlan}60. ${gl_bai}docker安装rustdesk中继端" "60. docker安装rustdesk中继端")"
     echo -e "${gl_kjlan}------------------------"
@@ -9197,40 +9197,10 @@ rm -rf /etc/x-ui"
         echo "✅ Mattermost安装成功..."
         ;;
 
-
-75)
-    docker_name="openlist"
-    docker_img="openlistteam/openlist:v4.1.9"
-    docker_port=5244
-    docker_describe="OpenList：Alist 分支的开源网盘聚合程序（支持多存储）"
-    docker_url="官网介绍: https://github.com/OpenListTeam/OpenList
-
-查看密码使用
-在本机输入代码
-
-docker logs openlist
-"
-    install_dir="/home/docker/openlist"
-    mkdir -p "$install_dir/data"
-    chown -R 1000:1000 "$install_dir/data"
-    chmod -R 755 "$install_dir/data"
-
-    docker_rum="mkdir -p $install_dir/data && chown -R 1000:1000 $install_dir/data && chmod -R 755 $install_dir/data && docker run -d \\
-      --name openlist \\
-      --restart always \\
-      -p ${docker_port}:5244 \\
-      -v $install_dir/data:/opt/openlist/data \\
-      --user 1000:1000 \\
-      ${docker_img}"
-
-    docker_use="echo -e '\033[32m访问地址：http://服务器IP:${docker_port}\033[0m'"
-    docker_passwd="echo '首次启动后使用：docker logs openlist 查看管理员密码'"
-    docker_app
-;;
-
-
-
-
+      75)
+        run_local_first_app_script "▶️ 安装openliat..." "/root/yingyong/75openliat.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/75openliat.sh"
+        echo "✅ openliat安装成功..."
+        ;;
 
 
 76)
