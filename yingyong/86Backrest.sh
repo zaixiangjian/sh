@@ -27,13 +27,23 @@ br_ready() {
 br_run() {
     local image=$1
     mkdir -p "$app_base_dir"/{data,config,cache,tmp,rclone} || return 1
-    sudo docker run -d --name "$docker_name" --hostname "$docker_name" --restart unless-stopped \
-        -v "$app_base_dir/data:/data" -v "$app_base_dir/config:/config" \
-        -v "$app_base_dir/cache:/cache" -v "$app_base_dir/tmp:/tmp" \
-        -v "$app_base_dir/rclone:/root/.config/rclone" -v /home:/userdata/home \
-        -e BACKREST_DATA=/data -e BACKREST_CONFIG=/config/config.json \
-        -e XDG_CACHE_HOME=/cache -e TMPDIR=/tmp -e "TZ=$host_tz" \
-        -p "$host_port:$container_port" "$image" >/dev/null && br_ready
+    sudo docker run -d \
+        --name "$docker_name" \
+        --hostname "$docker_name" \
+        --restart unless-stopped \
+        -v "$app_base_dir/data:/data" \
+        -v "$app_base_dir/config:/config" \
+        -v "$app_base_dir/cache:/cache" \
+        -v "$app_base_dir/tmp:/tmp" \
+        -v "$app_base_dir/rclone:/root/.config/rclone" \
+        -v /home:/userdata/home \
+        -e BACKREST_DATA=/data \
+        -e BACKREST_CONFIG=/config/config.json \
+        -e XDG_CACHE_HOME=/cache \
+        -e TMPDIR=/tmp \
+        -e "TZ=$host_tz" \
+        -p "$host_port:$container_port" \
+        "$image" >/dev/null && br_ready
 }
 br_install() {
     local image=$1
