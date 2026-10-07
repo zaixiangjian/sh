@@ -26,8 +26,6 @@ jobs:
             "zaixiangjian/aurora-frontend"
             "zaixiangjian/aurora-worker"
             "zaixiangjian/aurora-backend"
-            "zaixiangjian/minio"
-            "zaixiangjian/backrest"
             "zaixiangjian/certimate"
             "zaixiangjian/openlist"
             "zaixiangjian/hitokoto-api"
@@ -48,7 +46,10 @@ jobs:
             "zaixiangjian/bepusdt"
             "zaixiangjian/epusdt"
             "zaixiangjian/epay"
-
+            "zaixiangjian/rustfs"
+            "zaixiangjian/seaweedfs"
+            "zaixiangjian/minio"
+            "zaixiangjian/backrest"
           )
 
           echo "Processing ${#IMAGES[@]} images..."
