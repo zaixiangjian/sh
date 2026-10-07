@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.13"
+sh_v="0.0.14"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -11772,28 +11772,28 @@ done
         ;;
 
       102)
-        run_local_first_app_script "▶️ 正在启动加密支付GMPay 又名 epusdt管理脚本..." "/root/yingyong/9999GMPay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999GMPay.sh"
+        run_local_first_app_script "▶️ 正在启动加密支付GMPay 又名 epusdt管理脚本..." "/root/yingyong/102GMPay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/102GMPay.sh"
         echo "✅ 加密支付GMPay 又名 epusdt管理脚本执行完成..."
         ;;
 
 
       103)
-        run_local_first_app_script "▶️ 正在启动易支付Epay管理脚本..." "/root/yingyong/9999Epay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999Epay.sh"
+        run_local_first_app_script "▶️ 正在启动易支付Epay管理脚本..." "/root/yingyong/103Epay.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/103Epay.sh"
         echo "✅ 易支付Epay管理脚本执行完成..."
         ;;
 
       104)
-        run_local_first_app_script "▶️ 正在启动异次元发卡管理脚本..." "/root/yingyong/9999acg-faka.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999acg-faka.sh"
+        run_local_first_app_script "▶️ 正在启动异次元发卡管理脚本..." "/root/yingyong/104acg-faka.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/104acg-faka.sh"
         echo "✅ 异次元发卡管理脚本执行完成..."
         ;;
 
       105)
-        run_local_first_app_script "▶️ 正在启动独角兽发卡管理脚本..." "/root/yingyong/9999dujiao-next.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999dujiao-next.sh"
+        run_local_first_app_script "▶️ 正在启动独角兽发卡管理脚本..." "/root/yingyong/105dujiao-next.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/105dujiao-next.sh"
         echo "✅ 独角兽发卡管理脚本执行完成..."
         ;;
 
       106)
-        run_local_first_app_script "▶️ 正在启动加密支付bepusdt管理脚本..." "/root/yingyong/9999bepusdt.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/9999bepusdt.sh"
+        run_local_first_app_script "▶️ 正在启动加密支付bepusdt管理脚本..." "/root/yingyong/106bepusdt.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/106bepusdt.sh"
         echo "✅ 加密支付bepusdt管理脚本执行完成..."
         ;;
 
