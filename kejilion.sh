@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.12"
+sh_v="0.0.13"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6161,7 +6161,12 @@ linux_panel() {
     check_docker "72" "discourse"
     check_docker "73" "minio"
     check_docker "75" "openlist"
-    check_docker "78" "mailcow"
+    # 77/78 共用 Mailcow 部署；兼容 Compose v1/v2 容器名及已停止的安装。
+    # 只下载源码/管理脚本不算安装，目录回退必须同时具备 Compose 和 mailcow.conf。
+    if { [ -n "$docker_container_list" ] && printf '%s\n' "$docker_container_list" | grep -Eq '^(mailcow|(((mailcow-dockerized|mailcowdockerized)[-_])?((nginx|postfix|dovecot|sogo|mysql|redis|rspamd|acme|php-fpm|watchdog|unbound|clamd|olefy|memcached|netfilter|dockerapi)-mailcow))([-_][0-9]+)?)$'; } || \
+       { [ -f "/home/docker/mailcow-dockerized/docker-compose.yml" ] && [ -s "/home/docker/mailcow-dockerized/mailcow.conf" ]; }; then
+        installed_items+=("77" "78")
+    fi
     check_docker "84" "hitokoto"
     check_docker "86" "backrest"
     check_docker "87" "certimate"
