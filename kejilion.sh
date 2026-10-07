@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.14"
+sh_v="0.0.15"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6151,15 +6151,16 @@ linux_panel() {
     check_docker "59" "hbbs"
     check_docker "60" "hbbr"
     check_path "62" "/usr/local/x-ui"
-    check_cmd "63" "rclone"
-    check_docker "64" "r2beifen"
+    check_docker "63" "rustfs"
+    check_docker "64" "seaweedfs"
     check_docker "67" "owncloud"
     check_docker "68" "m38u8"
     check_docker "69" "it-tools"
     check_docker "70" "pansou"
     check_docker "71" "zfile"
     check_docker "72" "discourse"
-    check_docker "73" "minio"
+    check_docker "73" "synapse"
+    check_docker "74" "mattermost-team-edition"
     check_docker "75" "openlist"
     # 77/78 共用 Mailcow 部署；兼容 Compose v1/v2 容器名及已停止的安装。
     # 只下载源码/管理脚本不算安装，目录回退必须同时具备 Compose 和 mailcow.conf。
@@ -6170,6 +6171,7 @@ linux_panel() {
     check_docker "84" "hitokoto"
     check_docker "86" "backrest"
     check_docker "87" "certimate"
+    check_docker "88" "minio"
     check_docker "89" "nezha-dashboard"
     check_docker "90" "btc"
     check_docker "91" "chrome"
@@ -6279,13 +6281,13 @@ linux_panel() {
     echo -e "$(panel_menu_item_green_if_installed 59 "${gl_kjlan}59. ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}" "59. docker安装rustdesk服务端 ★")\033[48G$(panel_menu_item_green_if_installed 60 "${gl_kjlan}60. ${gl_bai}docker安装rustdesk中继端" "60. docker安装rustdesk中继端")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 61 "${gl_kjlan}61. ${gl_bai}安装rustdesk远程桌面 ${gl_huang}★${gl_bai}" "61. 安装rustdesk远程桌面 ★")\033[48G$(panel_menu_item_green_if_installed 62 "${gl_kjlan}62. ${gl_bai}安装x-ui" "62. 安装x-ui")"
-    echo -e "$(panel_menu_item_green_if_installed 63 "${gl_kjlan}63. ${gl_bai}安装rclone搭配64使用（82.86） ${gl_huang}★${gl_bai}" "63. 安装rclone搭配64使用（82.86） ★")\033[48G$(panel_menu_item_green_if_installed 64 "${gl_kjlan}64. ${gl_bai}安装r2beifen备份（82.86）" "64. 安装r2beifen备份（82.86）")"
+    echo -e "$(panel_menu_item_green_if_installed 63 "${gl_kjlan}63. ${gl_bai}安装rustfs对象存储推荐 ${gl_huang}★${gl_bai}" "63. 安装rustfs对象存储推荐 ★")\033[48G$(panel_menu_item_green_if_installed 64 "${gl_kjlan}64. ${gl_bai}安装seaweedfs对象存储" "64. 安装seaweedfs对象存储")"
     echo -e "$(panel_menu_item_green_if_installed 65 "${gl_kjlan}65. ${gl_bai}安装caddy DNS版使用66配置反代 ${gl_huang}★${gl_bai}" "65. 安装caddy DNS版使用66配置反代 ★")\033[48G$(panel_menu_item_green_if_installed 66 "${gl_kjlan}66. ${gl_bai}安装65caddy DNS配置版" "66. 安装65caddy DNS配置版")"
     echo -e "$(panel_menu_item_green_if_installed 67 "${gl_kjlan}67. ${gl_bai}ownCloud网盘安装 ${gl_huang}★${gl_bai}" "67. ownCloud网盘安装 ★")\033[48G$(panel_menu_item_green_if_installed 68 "${gl_kjlan}68. ${gl_bai}安装M38u8安装完成使用58添加反代" "68. 安装M38u8安装完成使用58添加反代")"
     echo -e "$(panel_menu_item_green_if_installed 69 "${gl_kjlan}69. ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}" "69. it-tools工具箱 ★")\033[48G$(panel_menu_item_green_if_installed 70 "${gl_kjlan}70. ${gl_bai}安装盘搜" "70. 安装盘搜")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 71 "${gl_kjlan}71. ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}" "71. 安装zfile网盘 ★")\033[48G$(panel_menu_item_green_if_installed 72 "${gl_kjlan}72. ${gl_bai}安装Discourse论坛" "72. 安装Discourse论坛")"
-    echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装minio对象存储（74.88） ${gl_huang}★${gl_bai}" "73. 安装minio对象存储（74.88） ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}添加对象存储api（73.88）" "74. 添加对象存储api（73.88）")"
+    echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天（74.88） ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天（74.88） ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Matrixnginx团队协作聊天" "74. Matrixnginx团队协作聊天")"
     echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}" "75. docker安装openliat ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
     echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
     echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
@@ -9045,198 +9047,15 @@ rm -rf /etc/x-ui"
         done
         ;;
 
-63)
-    # =======================
-    # Rclone 管理脚本
-    # =======================
-    # 显示当前 Rclone 定时任务
-    show_cron_jobs() {
-        echo "======================================"
-        echo "Rclone 定时任务："
-        crontab -l 2>/dev/null | grep "s3beifen" >/dev/null
-        if [[ $? -ne 0 ]]; then
-            echo "无"
-        else
-            crontab -l | grep "s3beifen"
-        fi
-        echo "======================================"
-    }
+      63)
+        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/63RustFS.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/63RustFS.sh"
+        echo "✅ RustFS安装成功..."
+        ;;
 
-    # 创建备份任务（5/6/7通用）
-    create_backup_job() {
-        script_name="$1"
-        echo "======== 添加 Rclone 备份任务 ($script_name) ========"
-        read -p "请输入要备份的目录名（默认：home）: " in_dir
-        if [[ -z "$in_dir" ]]; then
-            in_dir="home"
-        fi
-        local_dir="/${in_dir%/}/"
-        if [[ "$local_dir" == "/" ]]; then
-            echo "❌ 不允许备份系统根目录 /"
-            return
-        fi
-        dir_name="${in_dir}"
-        echo "目录名称成功识别：$dir_name"
-        echo
-        echo "当前 Rclone 远程："
-        rclone listremotes
-        echo
-        read -p "Rclone名称输入上方已连接名称: " remote_name
-        read -p "请输入存储桶名称（S3或者R2起的名称）: " bucket_name
-        backup_cmd="rclone copy ${local_dir} ${remote_name}:${bucket_name}/服务器备份/${dir_name}"
-        echo
-        echo "生成的命令："
-        echo "$backup_cmd"
-        echo
-        echo "#!/bin/bash" > /root/${script_name}
-        echo "$backup_cmd" >> /root/${script_name}
-        chmod +x /root/${script_name}
-        echo "备份脚本已创建：/root/${script_name}"
-        echo "先执行一次备份……"
-        bash /root/${script_name}
-        echo
-        echo "======== 设置定时任务 ========"
-        read -p "每几天运行一次（0 = 每小时模式）: " period
-        if [[ "$period" == "0" ]]; then
-            read -p "每几小时运行一次（例如 4）: " hours
-            read -p "几分执行（0-59）: " minute
-            cron_rule="$minute */$hours * * * /bin/bash /root/${script_name}"
-        else
-            read -p "几点执行（0-23）: " hour
-            read -p "几分执行（0-59）: " minute
-            cron_rule="$minute $hour */$period * * /bin/bash /root/${script_name}"
-        fi
-        (crontab -l 2>/dev/null | grep -v "/root/${script_name}"; echo "$cron_rule") | crontab -
-        echo
-        echo "定时任务已添加："
-        echo "$cron_rule"
-        echo
-    }
-
-    # 删除定时任务
-    delete_backup_jobs() {
-        echo "======= 当前 Rclone 定时任务 ======="
-        crontab -l | grep "s3beifen"
-        echo "===================================="
-        read -p "是否删除所有 s3beifen 相关任务？(y/n): " confirm
-        if [[ "$confirm" == "y" ]]; then
-            crontab -l | grep -v "s3beifen" | crontab -
-            echo "定时任务已删除。"
-        else
-            echo "取消删除。"
-        fi
-    }
-
-    # 主菜单循环
-    while true; do
-        clear
-        show_cron_jobs
-        echo "官网: https://rclone.org/"
-        echo
-        echo "1. 安装 Rclone"
-        echo "2. 获取配置文件路径"
-        echo "3号配置填写如下r2为名称"
-        echo "[r2]
-type = s3
-provider = Cloudflare
-access_key_id =密钥id
-secret_access_key =密钥
-endpoint =存储桶访问地址"
-
-
-        echo "3. 修改配置文件"
-        echo "4. 查看已添加的 Rclone 远程"
-        echo "5. 添加目录备份任务 (生成 s3beifen.sh)"
-        echo "6. 添加目录备份任务 (生成 s3beifen1.sh)"
-        echo "7. 添加目录备份任务 (生成 s3beifen2.sh)"
-        echo "8. 删除定时任务"
-        echo "9. 卸载 Rclone"
-        echo "0. 返回上一级菜单"
-        echo
-        read -p "请输入操作编号: " choice
-        case $choice in
-            1)
-                sudo -v
-                curl https://rclone.org/install.sh | sudo bash
-                ;;
-            2)
-                rclone config file
-                ;;
-            3)
-                nano /root/.config/rclone/rclone.conf
-                ;;
-            4)
-                rclone listremotes
-                ;;
-            5)
-                create_backup_job "s3beifen.sh"
-                ;;
-            6)
-                create_backup_job "s3beifen1.sh"
-                ;;
-            7)
-                create_backup_job "s3beifen2.sh"
-                ;;
-            8)
-                delete_backup_jobs
-                ;;
-            9)
-                sudo rm -f /usr/bin/rclone
-                sudo rm -rf /root/.config/rclone
-                echo "Rclone 已卸载"
-                ;;
-            0)
-                break
-                ;;
-            *)
-                echo "无效输入"
-                ;;
-        esac
-        read -p "按回车键继续……"
-    done
-    ;;
-
-
-64)
-    docker_name="r2beifen"
-    docker_img="garethgeorge/backrest:latest"
-    docker_port=9898
-
-    # 获取宿主机时区
-    if [ -f /etc/timezone ]; then
-        host_tz=$(cat /etc/timezone)
-    else
-        host_tz=$(timedatectl show --property=Timezone --value)
-    fi
-
-    docker_rum="docker run -d \
-        --name $docker_name \
-        --hostname $docker_name \
-        --restart unless-stopped \
-        -v /root/backrest/data:/data \
-        -v /root/backrest/config:/config \
-        -v /root/backrest/cache:/cache \
-        -v /root/backrest/tmp:/tmp \
-        -v /root/.config/rclone:/root/.config/rclone \
-        -v /home:/userdata/home \
-        -e BACKREST_DATA=/data \
-        -e BACKREST_CONFIG=/config/config.json \
-        -e XDG_CACHE_HOME=/cache \
-        -e TMPDIR=/tmp \
-        -e TZ=$host_tz \
-        -p $docker_port:$docker_port \
-        $docker_img"
-
-    docker_describe="BackRest 数据备份容器，支持用户 home 目录挂载，自动跟随宿主机时区"
-    docker_url="项目地址: https://hub.docker.com/r/garethgeorge/backrest
-  添加仓库Repository URI具体如下
-  rclone:添加的名称:存储桶名称
-  rclone:r2:beifen"
-
-    docker_use=""
-    docker_passwd=""
-    docker_app
-;;
+      64)
+        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/64SeaweedFS.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/64SeaweedFS.sh"
+        echo "✅ SeaweedFS安装成功..."
+        ;;
 
       65)
         clear
@@ -9368,43 +9187,15 @@ endpoint =存储桶访问地址"
         echo "✅ 安装discourse论坛 。"
         ;;
 
-
-73)
-    docker_name="minio"
-    docker_img="minio/minio:latest"
-    docker_port=9000
-    docker_console_port=9001
-    # 自动生成 20 位随机强密码（只包含大小写字母和数字）
-    MINIO_ROOT_USER=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
-    MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
-    
-    docker_rum="docker run -d \
-                    --name ${docker_name} \
-                    --restart always \
-                    -p 127.0.0.1:${docker_port}:9000 \
-                    -p 127.0.0.1:${docker_console_port}:9001 \
-                    -v /home/docker/minio/data:/data \
-                    -e MINIO_ROOT_USER=${MINIO_ROOT_USER} \
-                    -e MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} \
-                    ${docker_img} server /data --console-address :${docker_console_port}"
-    
-    docker_describe="MinIO 是一个高性能的分布式对象存储服务，兼容 S3 API，适合个人或团队使用。"
-    docker_url="官网介绍: https://min.io"
-    docker_use=""
-    docker_passwd="${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}"
-    docker_app
-;;
-
-
-      74)
-        clear
-        echo "▶️ 安装minio..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/minlo.sh)
-        echo "✅ 安装minio..."
+      73)
+        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/73Matrix.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/73Matrix.sh"
+        echo "✅ Matrix安装成功..."
         ;;
 
-
-
+      74)
+        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/74Mattermost.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/74Mattermost.sh"
+        echo "✅ Mattermost安装成功..."
+        ;;
 
 
 75)
@@ -11330,180 +11121,10 @@ while true; do
     done
     ;;
 
-88)
-while true; do
-    clear
-    echo "------------------------------------------------"
-    echo "      MinIO 自编译管理脚本 (自动下载二进制)"
-    echo "------------------------------------------------"
-    echo "【源码与镜像管理】"
-    echo "1) 安装环境并修复 Docker"
-    echo "2) 一键克隆源码并准备 Docker 镜像"
-    echo "3) 登录 Docker Hub"
-    echo "4) 推送镜像到 Docker Hub"
-    echo "------------------------------------------------"
-    echo "【容器部署管理】"
-    echo "11) 部署/启动 MinIO (/home/docker/minio)"
-    echo "12) 更新镜像到最新版本"
-    echo "13) 卸载 MinIO"
-    echo "0) 返回主菜单"
-    echo "------------------------------------------------"
-    read -p "请输入操作编号: " ct_choice
-
-    build_dir="/home/docker/build"
-    install_dir="/home/docker/minio"
-    my_github_url="https://github.com/zaixiangjian/minio.git"
-    my_docker_img="zaixiangjian/minio:latest"
-    TARGETARCH=amd64
-    RELEASE=latest
-
-    case $ct_choice in
-        1)
-            echo -e "\n--- [1/3] 修复系统基础环境 ---"
-            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
-            sudo dpkg --configure -a
-            sudo apt --fix-broken install -y
-
-            echo -e "\n--- [2/3] 安装基础工具 ---"
-            sudo apt update
-            sudo apt install -y git curl ca-certificates build-essential make golang
-
-            echo -e "\n--- [3/3] 检查并启动 Docker ---"
-            if ! command -v docker &> /dev/null; then
-                curl -fsSL https://get.docker.com | bash -
-            fi
-            sudo systemctl enable --now docker
-            sudo chmod 666 /var/run/docker.sock
-            echo -e "\n✅ 环境准备就绪！"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        2)
-            echo -e "\n--- 正在同步 MinIO 源码 ---"
-            mkdir -p "$build_dir" && cd "$build_dir"
-            [ -d "minio" ] && rm -rf minio
-            git clone --depth 1 "$my_github_url"
-            cd minio
-
-            echo "--- 准备 MinIO 二进制文件 ---"
-            # 检查是否存在二进制文件，如果没有则从官方 release 下载
-            if [ ! -f "minio-${TARGETARCH}.${RELEASE}" ]; then
-                echo "--- 从官方 MinIO 下载二进制文件 ---"
-                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio -o minio-${TARGETARCH}.${RELEASE}
-                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio.minisig -o minio-${TARGETARCH}.${RELEASE}.minisig
-                curl -L https://dl.min.io/server/minio/release/linux-amd64/minio.sha256sum -o minio-${TARGETARCH}.${RELEASE}.sha256sum
-                chmod +x minio-${TARGETARCH}.${RELEASE}
-            fi
-
-            echo "--- 开始 Docker 构建镜像 ---"
-            sudo docker build --build-arg TARGETARCH=$TARGETARCH --build-arg RELEASE=$RELEASE -t "$my_docker_img" .
-
-            if [ $? -eq 0 ]; then
-                echo -e "\n✅ MinIO 镜像构建成功！"
-            else
-                echo -e "\n❌ Docker 构建失败，请检查二进制文件或 Dockerfile"
-            fi
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        3)
-            sudo docker login
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        4)
-            echo "正在推送镜像到 Docker Hub..."
-            sudo docker push "$my_docker_img"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-11)
-            echo "--- 部署/启动 MinIO ---"
-            
-            # 1. 交互式获取账号
-            read -p "请输入 MinIO 管理员账号 (直接回车将随机生成): " input_user
-            if [ -z "$input_user" ]; then
-                MINIO_ROOT_USER=$(tr -dc 'A-Z0-9' </dev/urandom | head -c 20)
-                echo "-> 使用随机账号: $MINIO_ROOT_USER"
-            else
-                MINIO_ROOT_USER=$input_user
-            fi
-
-            # 2. 交互式获取密码
-            read -p "请输入 MinIO 管理员密码 (直接回车将随机生成): " input_pass
-            if [ -z "$input_pass" ]; then
-                MINIO_ROOT_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
-                echo "-> 使用随机密码: $MINIO_ROOT_PASSWORD"
-            else
-                MINIO_ROOT_PASSWORD=$input_pass
-            fi
-
-            # 3. 执行部署
-            sudo docker rm -f minio &>/dev/null
-            mkdir -p "$install_dir/data"
-            sudo chmod -R 777 "$install_dir/data"
-
-            sudo docker run -d \
-                --name minio \
-                --restart unless-stopped \
-                -p 9000:9000 \
-                -p 9001:9001 \
-                -v "$install_dir/data:/data" \
-                -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
-                -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
-                "$my_docker_img" server /data --console-address ":9001"
-
-            if [ $? -eq 0 ]; then
-                loc_v4=$(hostname -I | awk '{print $1}')
-                echo "------------------------------------------------"
-                echo "✅ 启动成功！"
-                echo "管理界面: http://$loc_v4:9001"
-                echo "API 地址: http://$loc_v4:9000"
-                echo "管理员账号: $MINIO_ROOT_USER"
-                echo "管理员密码: $MINIO_ROOT_PASSWORD"
-                echo "------------------------------------------------"
-                echo "请务必妥善保存上述信息！"
-            else
-                echo "❌ 启动失败，请检查 Docker 日志"
-            fi
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        12)
-            echo "--- 拉取最新镜像 ---"
-            sudo docker pull "$my_docker_img"
-            echo "✅ 镜像已更新"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        13)
-            echo "--- 卸载 MinIO（删除容器与镜像，保留本地数据）---"
-
-            # 删除容器（如果存在）
-            if sudo docker ps -a --format '{{.Names}}' | grep -q '^minio$'; then
-                sudo docker rm -f minio
-                echo "✅ 容器已删除"
-            else
-                echo "ℹ️ 容器不存在"
-            fi
-
-            # 删除镜像（如果存在）
-            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^$my_docker_img$"; then
-                sudo docker rmi "$my_docker_img"
-                echo "✅ 镜像已删除"
-            else
-                echo "ℹ️ 镜像不存在"
-            fi
-
-            echo "📦 本地数据目录已保留：$install_dir"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        0) break ;;
-        *) echo "无效选择"; sleep 1 ;;
-    esac
-done
-;;
+      88)
+        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/88minio.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/88minio.sh"
+        echo "✅ minio安装成功..."
+        ;;
 
 
 89)
