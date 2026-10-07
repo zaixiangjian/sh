@@ -6159,8 +6159,8 @@ linux_panel() {
     check_docker "70" "pansou"
     check_docker "71" "zfile"
     check_docker "72" "discourse"
-    check_docker "73" "synapse"
-    check_docker "74" "mattermost-team-edition"
+    check_docker "73" "matrix-synapse-1"
+    check_docker "74" "mattermost-mattermost-1"
     check_docker "75" "openlist"
     # 77/78 共用 Mailcow 部署；兼容 Compose v1/v2 容器名及已停止的安装。
     # 只下载源码/管理脚本不算安装，目录回退必须同时具备 Compose 和 mailcow.conf。
@@ -6287,7 +6287,7 @@ linux_panel() {
     echo -e "$(panel_menu_item_green_if_installed 69 "${gl_kjlan}69. ${gl_bai}it-tools工具箱 ${gl_huang}★${gl_bai}" "69. it-tools工具箱 ★")\033[48G$(panel_menu_item_green_if_installed 70 "${gl_kjlan}70. ${gl_bai}安装盘搜" "70. 安装盘搜")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 71 "${gl_kjlan}71. ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}" "71. 安装zfile网盘 ★")\033[48G$(panel_menu_item_green_if_installed 72 "${gl_kjlan}72. ${gl_bai}安装Discourse论坛" "72. 安装Discourse论坛")"
-    echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天（74.88） ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天（74.88） ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Matrixnginx团队协作聊天" "74. Matrixnginx团队协作聊天")"
+    echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天（74.88） ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天（74.88） ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Mattermost团队协作聊天" "74. Mattermost团队协作聊天")"
     echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}" "75. docker安装openliat ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
     echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
     echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
@@ -9048,12 +9048,12 @@ rm -rf /etc/x-ui"
         ;;
 
       63)
-        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/63RustFS.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/63RustFS.sh"
+        run_local_first_app_script "▶️ 安装RustFS..." "/root/yingyong/63RustFS.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/63RustFS.sh"
         echo "✅ RustFS安装成功..."
         ;;
 
       64)
-        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/64SeaweedFS.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/64SeaweedFS.sh"
+        run_local_first_app_script "▶️ 安装SeaweedFS..." "/root/yingyong/64SeaweedFS.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/64SeaweedFS.sh"
         echo "✅ SeaweedFS安装成功..."
         ;;
 
@@ -9188,12 +9188,12 @@ rm -rf /etc/x-ui"
         ;;
 
       73)
-        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/73Matrix.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/73Matrix.sh"
+        run_local_first_app_script "▶️ 安装Matrix..." "/root/yingyong/73Matrix.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/73Matrix.sh"
         echo "✅ Matrix安装成功..."
         ;;
 
       74)
-        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/74Mattermost.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/74Mattermost.sh"
+        run_local_first_app_script "▶️ 安装Mattermost..." "/root/yingyong/74Mattermost.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/74Mattermost.sh"
         echo "✅ Mattermost安装成功..."
         ;;
 
@@ -11122,7 +11122,7 @@ while true; do
     ;;
 
       88)
-        run_local_first_app_script "▶️ 安装hermes-agent..." "/root/yingyong/88minio.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/88minio.sh"
+        run_local_first_app_script "▶️ 安装MinIO..." "/root/yingyong/88minio.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/88minio.sh"
         echo "✅ minio安装成功..."
         ;;
 
