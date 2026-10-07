@@ -300,7 +300,6 @@ def run_number(mode,connection=None):
     value=ask('请输入任务序号（0取消，回车全部执行）：')
     if value=='0': print('已取消'); return
     if value=='':
-        if not yes('将依次执行当前列表全部任务，包括各任务已配置的远端镜像删除'): print('已取消'); return
         selected=[name for name,kind,method in rows]
         failed=False
         for name in selected:
@@ -321,7 +320,6 @@ def run_number(mode,connection=None):
         return
     if not re.fullmatch(r'[1-9][0-9]*',value) or int(value)>len(rows): fail('序号无效，未执行。')
     name=rows[int(value)-1][0]
-    if not yes('将立即执行任务 '+name+'，包括已配置的远端镜像删除'): print('已取消'); return
     run(name)
 
 def acquire(name=None):
