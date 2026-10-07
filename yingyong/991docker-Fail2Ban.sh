@@ -821,19 +821,20 @@ EOF
 
                 echo "▶️ SSH 登录成功来源统计 TOP 50"
                 echo "说明: 只统计最近${stat_days}天 SSH 登录成功来源 IP，成功次数多的优先显示。"
+                echo "最后成功登录时间取自所选范围内的日志，统一显示北京时间。"
                 echo "------------------------"
 
                 tmp_ssh_stats=$(mktemp)
                 tmp_ssh_table=$(mktemp)
 
                 if command -v journalctl &>/dev/null; then
-                    journalctl -u ssh --since "${stat_days} days ago" --no-pager 2>/dev/null \
+                    TZ=Asia/Shanghai journalctl -u ssh --since "${stat_days} days ago" --no-pager --output=short-iso 2>/dev/null \
                         | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
                         > "$tmp_ssh_stats"
                 fi
 
                 if [ ! -s "$tmp_ssh_stats" ] && command -v journalctl &>/dev/null; then
-                    journalctl -u sshd --since "${stat_days} days ago" --no-pager 2>/dev/null \
+                    TZ=Asia/Shanghai journalctl -u sshd --since "${stat_days} days ago" --no-pager --output=short-iso 2>/dev/null \
                         | grep -E 'sshd.*(Accepted|Failed password|Invalid user|authentication failure)' \
                         > "$tmp_ssh_stats"
                 fi
@@ -868,13 +869,20 @@ EOF
                     }
                     if (ip != "") {
                         gsub(/[^0-9A-Fa-f:.]/, "", ip)
-                        if (type == "ok") success[ip]++
+                        if (type == "ok") {
+                            success[ip]++
+                            # short-iso 已按北京时间输出；同一遍扫描保留每个 IP 的最新时间。
+                            if ($1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9][+]08:00$/) {
+                                timestamp=substr($1, 1, 19)
+                                if (timestamp > last_success[ip]) last_success[ip]=timestamp
+                            }
+                        }
                         else if (type == "fail") failed[ip]++
                     }
                 }
                 END {
                     for (ip in success) {
-                        if (success[ip] > 0) printf "%s %d %d %d\n", ip, success[ip]+0, failed[ip]+0, success[ip]+failed[ip]
+                        if (success[ip] > 0) printf "%s %d %d %d %s\n", ip, success[ip]+0, failed[ip]+0, success[ip]+failed[ip], (last_success[ip] != "" ? last_success[ip] : "-")
                     }
                 }' "$tmp_ssh_stats" | sort -k2,2nr -k4,4nr | head -50 > "$tmp_ssh_table"
 
@@ -884,7 +892,7 @@ EOF
                 if [ ! -s "$tmp_ssh_table" ]; then
                     echo -e "${gl_huang}最近${stat_days}天没有统计到 SSH 成功登录记录。${gl_bai}"
                 else
-                    while read -r stat_ip stat_ok stat_fail stat_total; do
+                    while read -r stat_ip stat_ok stat_fail stat_total stat_last_success; do
                         if echo " $whitelist " | grep -Fqw -- "$stat_ip"; then
                             stat_status_plain="白名单"
                             stat_status="${gl_lv}白名单${gl_bai}"
@@ -897,6 +905,14 @@ EOF
                         fi
                         read -r stat_ban_time stat_unban_time < <(fail2ban_get_ip_ban_times "$stat_ip" "$stat_status_plain" "$tmp_ban_events")
                         printf "%-20s %-8s %-8s %-8s %-18b %-15s %-15s\n" "$stat_ip" "${stat_ok}次" "${stat_fail}次" "${stat_total}次" "$stat_status" "$stat_ban_time" "$stat_unban_time"
+                        if [ -n "$stat_last_success" ] && [ "$stat_last_success" != "-" ]; then
+                            stat_last_display=${stat_last_success:0:16}
+                            stat_last_display=${stat_last_display//-/\/}
+                            stat_last_display=${stat_last_display/T/ }
+                            printf '最后成功登录：\033[38;2;102;217;239m%s%b（北京时间）\n' "$stat_last_display" "$gl_bai"
+                        else
+                            printf '最后成功登录：未知（北京时间）\n'
+                        fi
                     done < "$tmp_ssh_table"
                 fi
 
