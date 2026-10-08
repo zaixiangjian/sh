@@ -354,6 +354,384 @@ PYSCOPE
     remove_owned_aria2 "$aria_id" || return 1
     echo "Cloudreve 容器已卸载；如有已验证的旧独立 aria2 也已移除。全部数据保留。"
 }
+# 每个任务独立 watcher/transfer 锁；配置位于应用目录外，不随网盘复制。
+TRANSFER_ROOT=/home/docker/wangpan-transfer
+TRANSFER_UNITS=/etc/systemd/system
+transfer_engine() {
+    python3 /dev/fd/3 "$APP" "$TRANSFER_ROOT" "$TRANSFER_UNITS" "$(readlink -f "${BASH_SOURCE[0]}")" "$@" 3<<'PYTRANSFER'
+import contextlib,fcntl,getpass,hashlib,json,os,re,shlex,shutil,signal,stat,subprocess,sys,tempfile,time
+from pathlib import Path
+APP,ROOT,UNITS,SCRIPT=map(Path,sys.argv[1:5]); args=sys.argv[5:]
+HEADER='# wangpan 传送任务'; END='# /wangpan 传送任务'
+NAME=re.compile(r'[a-z][a-z0-9_-]{0,31}')
+os.umask(0o077)
+def interrupted(signum,frame):
+    # systemd stop / SIGTERM 必须解开临时目录上下文，删除 /run 密码副本。
+    raise KeyboardInterrupt
+signal.signal(signal.SIGTERM,interrupted)
+def call(cmd,**kw):
+    return subprocess.run(cmd,stdin=kw.pop('stdin',subprocess.DEVNULL),stdout=subprocess.PIPE,stderr=subprocess.PIPE,**kw)
+def safe(p):
+    p=Path(p)
+    if not p.is_absolute() or any(x.is_symlink() for x in (p,*p.parents)): raise ValueError('拒绝符号链接或非绝对路径')
+    return p
+def private(p,directory=False):
+    safe(p); s=p.stat()
+    if s.st_uid!=os.geteuid() or stat.S_IMODE(s.st_mode)!=(0o700 if directory else 0o600): raise ValueError('任务文件权限/所有者不安全')
+    if not (stat.S_ISDIR(s.st_mode) if directory else stat.S_ISREG(s.st_mode)): raise ValueError('任务文件类型不安全')
+def prepare():
+    safe(ROOT); safe(APP)
+    if ROOT==APP or ROOT.is_relative_to(APP): raise ValueError('任务目录不得位于网盘内')
+    if ROOT.exists(): private(ROOT,True)
+    else: ROOT.mkdir(mode=0o700,parents=True)
+def taskpath(name):
+    if not NAME.fullmatch(name): raise ValueError('任务名仅限小写字母开头及字母数字 _ -，最多32字符')
+    return safe(ROOT/name)
+def destination(value):
+    value=value.rstrip('/')
+    if not re.fullmatch(r'/(?:home|srv|mnt|opt|data|backup)/(?:[A-Za-z0-9_.-]+/){1,}[A-Za-z0-9_.-]+',value): raise ValueError('目标需为专用绝对目录，至少三级，无空格')
+    if any(x in ('.','..') for x in value.split('/')): raise ValueError('拒绝危险目标路径')
+    return value
+def validate(c,name):
+    if c.get('name')!=name or c.get('source')!=str(APP) or c.get('version')!=1: raise ValueError('任务配置不匹配')
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.:-]{0,252}',c['host']): raise ValueError('SSH 主机无效')
+    if not re.fullmatch(r'[a-zA-Z_][a-zA-Z0-9_-]{0,31}',c['user']): raise ValueError('SSH 用户无效')
+    if type(c['port'])!=int or not 1<=c['port']<=65535: raise ValueError('SSH 端口无效')
+    destination(c['dest'])
+    if c['auth'] not in ('key','password') or type(c['delete'])!=bool: raise ValueError('任务配置无效')
+    if c.get('debounce')!=10 or c.get('poll')!=2: raise ValueError('任务时序无效')
+    return c
+def load(name):
+    prepare(); p=taskpath(name); private(p,True); private(p/'config.json')
+    c=validate(json.loads((p/'config.json').read_text()),name)
+    for f in ('known_hosts','identity' if c['auth']=='key' else 'password'): private(p/f)
+    return c
+@contextlib.contextmanager
+def lock(p,blocking=False):
+    safe(p)
+    fd=os.open(p,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+    try:
+        if os.fstat(fd).st_uid!=os.geteuid() or not stat.S_ISREG(os.fstat(fd).st_mode): raise ValueError('锁文件不安全')
+        try: fcntl.flock(fd,fcntl.LOCK_EX|(0 if blocking else fcntl.LOCK_NB))
+        except BlockingIOError: yield False
+        else: yield True
+    finally: os.close(fd)
+def atomic(p,obj):
+    safe(p)
+    fd,tmp=tempfile.mkstemp(prefix='.state-',dir=p.parent)
+    try:
+        with os.fdopen(fd,'w') as f: json.dump(obj,f,ensure_ascii=True); f.write('\n')
+        os.replace(tmp,p)
+    finally:
+        if os.path.exists(tmp): os.unlink(tmp)
+def fingerprint():
+    safe(APP)
+    if not APP.is_dir(): raise ValueError('网盘目录不存在；不传送空目录')
+    h=hashlib.sha256()
+    def scan(p):
+        s=p.lstat(); h.update(os.fsencode(str(p.relative_to(APP))))
+        h.update(repr((s.st_mode,s.st_size,s.st_mtime_ns,s.st_ctime_ns,s.st_ino)).encode())
+        if stat.S_ISDIR(s.st_mode):
+            with os.scandir(p) as it: entries=sorted(it,key=lambda x:os.fsencode(x.name))
+            for e in entries: scan(Path(e.path))
+    scan(APP); return h.hexdigest()
+# 每次传送仅检查目标绝对路径、目录类型及符号链接，不创建远端标记文件。
+REMOTE='''import sys
+from pathlib import Path
+p=Path(sys.argv[1]); create=sys.argv[2]=='create'
+if any(x.is_symlink() for x in (p,*p.parents)): sys.exit('unsafe destination symlink')
+if p.exists() and not p.is_dir(): sys.exit('destination is not a directory')
+if create: p.mkdir(parents=True,exist_ok=True,mode=0o700)
+if not p.is_dir(): sys.exit('destination directory missing')
+'''
+def remote(c,create=False):
+    return 'python3 -c '+shlex.quote(REMOTE)+' '+shlex.quote(c['dest'])+' '+('create' if create else 'check')
+@contextlib.contextmanager
+def transport(c):
+    p=taskpath(c['name'])
+    # 密码只通过 sshpass -f 读取，短期副本位于 /run，退出时清理。
+    with tempfile.TemporaryDirectory(prefix='wangpan-ssh-',dir='/run') as d:
+        opts=['ssh','-F','/dev/null','-p',str(c['port']),'-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+str(p/'known_hosts'),'-o','GlobalKnownHostsFile=/dev/null','-o','ConnectTimeout=10','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=2','-o','LogLevel=ERROR']
+        if c['auth']=='password':
+            f=Path(d)/'password'; shutil.copyfile(p/'password',f); f.chmod(0o600)
+            opts=['sshpass','-f',str(f)]+opts+['-o','PubkeyAuthentication=no','-o','PreferredAuthentications=password','-o','NumberOfPasswordPrompts=1']
+        else: opts+=['-i',str(p/'identity'),'-o','IdentitiesOnly=yes','-o','BatchMode=yes']
+        yield opts
+
+def run_task(name):
+    c=load(name); p=taskpath(name)
+    with lock(p/'transfer.lock') as owned:
+        if not owned: return 75
+        c=load(name)  # 删除任务与等待锁之间可能已撤销配置，必须重新确认。
+        try:
+            before=fingerprint()
+            with transport(c) as ssh:
+                probe=call(ssh+[c['user']+'@'+c['host'],remote(c)+' && command -v rsync >/dev/null'],timeout=40)
+                if probe.returncode:
+                    raise ValueError('远端预检失败（代码 '+str(probe.returncode)+'）：检查SSH、rsync、目录权限或符号链接')
+                host='['+c['host']+']' if ':' in c['host'] else c['host']
+                cmd=['rsync','-a','--checksum','--protect-args','--timeout=90','-e',shlex.join(ssh),'--rsync-path='+remote(c)+' && exec rsync']
+                if c['delete']: cmd.append('--delete-delay')
+                result=call(cmd+['--',str(APP)+'/',c['user']+'@'+host+':'+c['dest']+'/'],timeout=3600)
+                if result.returncode: raise ValueError('rsync 失败，代码 '+str(result.returncode))
+            after=fingerprint()
+            atomic(p/'state.json',{'time':int(time.time()),'ok':True,'result':'已传送（热镜像，非一致性备份）','fingerprint':before,'dirty':before!=after})
+            return 0
+        except (ValueError,OSError,subprocess.TimeoutExpired) as e:
+            atomic(p/'state.json',{'time':int(time.time()),'ok':False,'dirty':True,'result':str(e)})
+            print(str(e),file=sys.stderr); return 1
+class Debounce:
+    def __init__(self): self.last=None; self.changed=None
+    def observe(self,value,now):
+        if value!=self.last: self.last=value; self.changed=now
+        return self.changed is not None and now-self.changed>=10
+    def completed(self,ok):
+        if ok: self.changed=None
+
+def watch_task(name):
+    load(name); p=taskpath(name)
+    with lock(p/'watcher.lock') as owned:
+        if not owned: return 75
+        debounce=Debounce()
+        while True:
+            load(name)
+            try:
+                value=fingerprint(); now=time.monotonic()
+                if debounce.observe(value,now):
+                    try: state=json.loads((p/'state.json').read_text())
+                    except (OSError,ValueError): state={}
+                    if state.get('ok') and not state.get('dirty') and state.get('fingerprint')==value: debounce.completed(True)
+                    else: debounce.completed(run_task(name)==0)
+            except (OSError,ValueError): pass
+            time.sleep(2)
+
+def names():
+    if not ROOT.exists(): return []
+    prepare(); out=[]
+    for p in sorted(ROOT.iterdir()):
+        if NAME.fullmatch(p.name) and p.is_dir():
+            try: load(p.name); out.append(p.name)
+            except (ValueError,OSError,KeyError): print('忽略不安全/无效任务：'+p.name,file=sys.stderr)
+    return out
+
+def cron_rewrite(text,tasks):
+    # 精确识别本脚本 CLI 的行。已有其他 cron 标题及其内容绝不消费。
+    pattern=re.compile(r'^\*/2 \* \* \* \* '+re.escape(shlex.quote(str(SCRIPT)))+r' --run-task [a-z][a-z0-9_-]{0,31} >/dev/null 2>&1$')
+    kept=[]
+    for line in text.splitlines():
+        if line.strip() in (HEADER,END) or pattern.fullmatch(line): continue
+        kept.append(line)
+    block=[HEADER]+['*/2 * * * * '+shlex.quote(str(SCRIPT))+' --run-task '+n+' >/dev/null 2>&1' for n in tasks]+[END]
+    if tasks:
+        if kept and kept[-1]!='': kept.append('')
+        kept+=block
+    return '\n'.join(kept)+ ('\n' if kept else '')
+def repair_cron():
+    prepare()
+    with lock(ROOT/'.cron.lock',True):
+        old=call(['crontab','-l'],text=True)
+        if old.returncode and 'no crontab' not in old.stderr.lower(): raise ValueError('无法读取 crontab，未覆盖')
+        text=old.stdout if old.returncode==0 else ''; new=cron_rewrite(text,names())
+        if new!=text:
+            written=call(['crontab','-'],input=new,text=True,stdin=None)
+            if written.returncode: raise ValueError('crontab 写入失败')
+            verify=call(['crontab','-l'],text=True)
+            if verify.returncode or verify.stdout!=new: raise ValueError('crontab 回读不匹配')
+def unitname(name):
+    taskpath(name); return 'wangpan-transfer-'+name+'.service'
+def unittext(name):
+    # 固定命令、严格任务名，不从配置拼接 shell 命令；路径含空格也正确转义。
+    escaped=str(SCRIPT).replace('\\','\\\\').replace('"','\\"').replace('%','%%')
+    return '[Unit]\nDescription=Wangpan transfer watcher '+name+'\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nUMask=0077\nExecStart=/bin/bash "'+escaped+'" --watch-task '+name+'\nRestart=always\nRestartSec=5\nStandardOutput=null\nStandardError=null\n\n[Install]\nWantedBy=multi-user.target\n'
+def systemctl(*a):
+    r=call(['systemctl',*a])
+    if r.returncode: raise ValueError('systemd 操作失败：'+' '.join(a))
+def install_unit(name):
+    safe(UNITS); p=safe(UNITS/unitname(name)); body=unittext(name)
+    if p.exists() and p.read_text()!=body: raise ValueError('已有同名非本脚本服务，未覆盖')
+    if not p.exists():
+        with p.open('x') as f: f.write(body)
+        p.chmod(0o600)
+    if p.read_text()!=body: raise ValueError('服务文件回读失败')
+    systemctl('daemon-reload'); systemctl('enable','--now',p.name)
+    systemctl('is-enabled',p.name); systemctl('is-active',p.name)
+def remove_task(name):
+    load(name); p=taskpath(name); unit=safe(UNITS/unitname(name))
+    if unit.exists():
+        if unit.read_text()!=unittext(name): raise ValueError('拒绝删除非本脚本服务')
+        systemctl('disable','--now',unit.name)
+        r=call(['systemctl','is-active',unit.name])
+        if r.returncode==0: raise ValueError('watcher 未停止，不删除配置')
+        unit.unlink(); systemctl('daemon-reload')
+    with lock(p/'transfer.lock') as owned:
+        if not owned: raise ValueError('任务仍在传送，稍后重试；未删除配置')
+        # 先移除配置，使新进程无法启动，然后仅删除已验证任务目录。
+        (p/'config.json').unlink(); repair_cron(); shutil.rmtree(p)
+    if p.exists(): raise ValueError('删除验证失败')
+def ask(prompt): return input(prompt)
+def yes(prompt): return ask(prompt)=='yes'
+def dependencies():
+    for tool in ('ssh','ssh-keyscan','ssh-keygen','systemctl','crontab'):
+        if not shutil.which(tool): raise ValueError('缺少依赖 '+tool+'；请先自行安装，不自动安装')
+    if not Path('/run/systemd/system').is_dir(): raise ValueError('需要运行中的 systemd 来保证连续监测')
+INSTALL_RSYNC = """set -eu
+if command -v rsync >/dev/null 2>&1; then exit 0; fi
+if [ "$(id -u)" != 0 ]; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        exec sudo -n sh -c 'SCRIPT_BODY'
+    fi
+    echo '需要 root 或无密码 sudo 安装 rsync' >&2; exit 77
+fi
+if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y --no-install-recommends rsync
+elif command -v dnf >/dev/null 2>&1; then dnf install -y rsync
+elif command -v yum >/dev/null 2>&1; then yum install -y rsync
+elif command -v apk >/dev/null 2>&1; then apk add rsync
+else echo '不支持的包管理器，请手动安装 rsync' >&2; exit 78
+fi
+command -v rsync >/dev/null
+"""
+# sudo 子命令只包含固定安装逻辑，避免递归提权。
+INSTALL_RSYNC=INSTALL_RSYNC.replace("exec sudo -n sh -c 'SCRIPT_BODY'", "exec sudo -n sh -c "+shlex.quote('if command -v apt-get'+INSTALL_RSYNC.split('if command -v apt-get',1)[1]))
+def ensure_local_rsync():
+    if shutil.which('rsync'): return
+    print('本机缺少 rsync，正在使用系统包管理器安装。')
+    r=call(['sh','-c',INSTALL_RSYNC],timeout=900)
+    if r.returncode or not shutil.which('rsync'): raise ValueError('本机 rsync 自动安装失败，请检查包管理器/权限/网络')
+    print('本机 rsync 已安装并验证。')
+
+def add_task():
+    dependencies(); ensure_local_rsync(); prepare()
+    print('不停服复制整个 wangpan：SQLite/DB/WAL/SHM 可能不一致，不是可靠备份。变化静默10秒传送，持续变化由每2分钟兜底。')
+    if not yes('接受热镜像风险请输入精确 yes：'): return
+    name=ask('任务名（小写字母开头）：'); p=taskpath(name)
+    if p.exists(): raise ValueError('任务已存在')
+    c={'version':1,'name':name,'source':str(APP),'host':ask('SSH 主机/IP：'),'port':int(ask('SSH 端口（22）：') or '22'),'user':ask('SSH 用户（root）：') or 'root','dest':destination(ask('远端目录（回车默认 /home/docker/wangpan/）：') or '/home/docker/wangpan/'),'debounce':10,'poll':2,'delete':False}
+    auth=ask('认证 1.密钥 2.密码（1）：') or '1'
+    if auth not in ('1','2'): raise ValueError('认证选项无效')
+    c['auth']='key' if auth=='1' else 'password'; validate(c,name)
+    if c['auth']=='password' and not shutil.which('sshpass'): raise ValueError('密码认证需要 sshpass，请自行安装')
+    print('允许目标已有部署或文件，会覆盖同路径文件；请先停止远端 Cloudreve，运行中接收数据库会损坏数据。')
+    if not yes('确认目标目录及覆盖范围，远端服务已停止；请输入精确 yes：'): return
+    mode=ask('删除远端多余文件？1.不删除（默认） 2.镜像删除：') or '1'
+    if mode not in ('1','2'): raise ValueError('删除选项无效')
+    if mode=='2':
+        print('仅对专用目标 '+c['dest']+' 使用 --delete，删除无法恢复。')
+        if not yes('明确同意删除请输入精确 yes：'): return
+        c['delete']=True
+    # 在认证前展示未信任主机的全部 SHA256 指纹，独立确认。禁止 accept-new/自动 yes。
+    scan=call(['ssh-keyscan','-T','10','-p',str(c['port']),c['host']],timeout=35)
+    if scan.returncode or not scan.stdout.strip(): raise ValueError('目标离线或无法获取主机密钥；未添加')
+    with tempfile.TemporaryDirectory(prefix='wangpan-ssh-',dir='/run') as d:
+        kh=Path(d)/'known_hosts'; kh.write_bytes(scan.stdout); kh.chmod(0o600)
+        fp=call(['ssh-keygen','-lf',str(kh),'-E','sha256'],text=True)
+        if fp.returncode: raise ValueError('主机密钥格式错误')
+        print('请通过独立可信渠道核对主机指纹，扫描本身不证明身份：\n'+fp.stdout)
+        if not yes('已独立核对上述指纹，信任此主机请输入精确 yes：'): return
+        p.mkdir(mode=0o700)
+        try:
+            shutil.copyfile(kh,p/'known_hosts'); (p/'known_hosts').chmod(0o600)
+            if c['auth']=='key':
+                key=safe(Path(ask('SSH 私钥绝对路径（需无口令专用密钥）：')))
+                if key.is_relative_to(APP) or not key.is_file(): raise ValueError('私钥不得来自网盘目录')
+                shutil.copyfile(key,p/'identity'); (p/'identity').chmod(0o600)
+            else:
+                # getpass 无控制终端时会退回可能回显的 stdin；拒绝该降级。
+                tty_fd=os.open('/dev/tty',os.O_RDWR|os.O_NOCTTY)
+                try:
+                    if not os.isatty(tty_fd): raise ValueError('密码认证需要交互终端')
+                    # 不以 r+ 包装终端：Python 会要求流可 seek，TTY 不支持。
+                    with os.fdopen(os.dup(tty_fd),'w',encoding='utf-8') as tty_out:
+                        password=getpass.getpass('SSH 密码（不回显）：',stream=tty_out)
+                finally:
+                    os.close(tty_fd)
+                if not password or '\n' in password or '\x00' in password: raise ValueError('密码无效')
+                (p/'password').write_text(password+'\n'); (p/'password').chmod(0o600); del password
+            atomic(p/'config.json',c)
+            with transport(c) as ssh:
+                target=c['user']+'@'+c['host']
+                r=call(ssh+[target,'true'],timeout=40)
+                if r.returncode: raise ValueError('SSH 登录失败：请检查密码、SSH端口及认证权限（退出码 '+str(r.returncode)+'）')
+                r=call(ssh+[target,'command -v python3 >/dev/null'],timeout=40)
+                if r.returncode: raise ValueError('远端缺少 python3，需先安装以校验目录归属')
+                r=call(ssh+[target,'command -v rsync >/dev/null'],timeout=40)
+                if r.returncode:
+                    print('远端缺少 rsync，正在通过 SSH 自动安装（需要 root 或无密码 sudo）。')
+                    r=call(ssh+[target,'sh -c '+shlex.quote(INSTALL_RSYNC)],timeout=900)
+                    if r.returncode: raise ValueError('远端 rsync 安装失败，请检查 root/sudo、包管理器和网络（退出码 '+str(r.returncode)+'）')
+                    print('远端 rsync 安装完成。')
+                r=call(ssh+[target,'command -v rsync >/dev/null && '+remote(c,True)],timeout=40)
+                if r.returncode:
+                    detail=(r.stderr or b'').decode('utf-8',errors='replace').strip()
+                    allowed=('destination already owned by another task','destination ownership mismatch','unsafe destination symlink','destination is not a directory','unsafe owner marker')
+                    reason=next((x for x in allowed if x in detail),'远端目录权限不足或归属校验未通过')
+                    raise ValueError('SSH 登录成功，但目标目录检查失败：'+reason)
+        except Exception:
+            shutil.rmtree(p); raise
+    # 不自动传送；只在用户添加成功后启用 watcher。失败时保留任务方便重试/删除。
+    repair_cron(); install_unit(name)
+    print('已启用 '+name+'：2秒轮询、静默10秒传送、每2分钟兜底；凭据仅位于 '+str(p))
+def list_tasks():
+    tasks=names()
+    for i,n in enumerate(tasks,1):
+        try: state=json.loads((taskpath(n)/'state.json').read_text())
+        except (OSError,ValueError): state={}
+        active=call(['systemctl','is-active',unitname(n)],text=True).stdout.strip()=='active'
+        bad=not active or state.get('ok') is False
+        print('\033[32m'+str(i)+'. '+n+'\033[0m'+(' \033[33m异常\033[0m' if bad else ''))
+    if not tasks: print('\033[31m暂无\033[0m')
+    return tasks
+def menu():
+    dependencies()
+    if ROOT.exists(): repair_cron()
+    while True:
+        if sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb':
+            subprocess.run(['clear'],check=False)
+        print('==================================')
+        print('        定时传送任务')
+        print('检测变化静默10秒传送，每2分钟保底；非一致性备份')
+        print('------------------------')
+        list_tasks()
+        print('------------------------')
+        print('1. 添加任务\n2. 删除任务\n3. 查看任务\n4. 手动传送\n5. 重试启用 watcher\n0. 返回')
+        choice=ask('选择：')
+        if choice=='0': return 0
+        try:
+            if choice=='1': add_task()
+            elif choice=='3': list_tasks()
+            elif choice in ('2','4','5'):
+                tasks=list_tasks()
+                if not tasks: continue
+                selected=ask('任务编号'+('（回车全部）' if choice=='4' else '')+'：')
+                if selected=='' and choice=='4': selected_tasks=tasks
+                elif selected.isdecimal() and 1<=int(selected)<=len(tasks): selected_tasks=[tasks[int(selected)-1]]
+                else: raise ValueError('编号无效')
+                if choice=='2':
+                    if yes('只删除任务配置、cron、所属 watcher，不删除远端/网盘数据；确认精确 yes：'): remove_task(selected_tasks[0]); print('已删除任务')
+                elif choice=='5': install_unit(selected_tasks[0]); repair_cron(); print('watcher 已启用并验证')
+                else:
+                    for n in selected_tasks:
+                        code=run_task(n); print(n+('：已传送' if code==0 else '：已有传送正在进行' if code==75 else '：失败，参见任务状态'))
+            else: print('选项无效')
+        except (ValueError,OSError,KeyError,subprocess.TimeoutExpired) as e: print('操作失败：'+str(e))
+        ask('按回车继续...')
+try:
+    action=args[0] if args else 'menu'
+    if action=='run': sys.exit(run_task(args[1]))
+    elif action=='watch': sys.exit(watch_task(args[1]))
+    elif action=='repair': repair_cron()
+    elif action=='summary':
+        print('定时传送任务')
+        list_tasks()
+    elif action=='menu': sys.exit(menu())
+    else: raise ValueError('未知任务操作')
+except (EOFError,KeyboardInterrupt): sys.exit(1)
+except (ValueError,OSError,KeyError,IndexError,subprocess.TimeoutExpired) as e:
+    print('传送任务失败：'+str(e),file=sys.stderr); sys.exit(1)
+PYTRANSFER
+}
+transfer_menu() { transfer_engine menu; }
 main() {
     local choice
     while true; do
@@ -372,10 +750,13 @@ main() {
             echo "安装状态：未安装"
         fi
         echo "------------------------"
+        transfer_engine summary
+        echo "------------------------"
         echo "1. 自己安装 $CUSTOM_IMAGE"
         echo "2. 从zaixiangjian更新"
         echo "3. 登录DockerHub"
         echo "4. 打上标签推送到$CUSTOM_IMAGE"
+        echo "5. 自动传送任务"
         echo "------------------------"
         echo "9. 卸载（需 yes 确认，保留数据）"
         echo "------------------------"
@@ -390,6 +771,7 @@ main() {
             2) update_app "$CUSTOM_IMAGE" ;;
             3) login_dockerhub ;;
             4) push_custom_image ;;
+            5) transfer_menu ;;
             11) install_app "$IMAGE" ;;
             12) update_app "$IMAGE" ;;
             9) uninstall_app ;;
@@ -399,4 +781,13 @@ main() {
         IFS= read -r -p "按回车继续..." _ || break
     done
 }
-[[ "${BASH_SOURCE[0]}" != "$0" ]] || main
+if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
+    case "${1:-}" in
+        --run-task|--watch-task)
+            [ "$#" = 2 ] || exit 2
+            if [ "$1" = --run-task ]; then transfer_engine run "$2"; else transfer_engine watch "$2"; fi ;;
+        --repair-transfer-cron) transfer_engine repair ;;
+        "") main ;;
+        *) echo "参数无效" >&2; exit 2 ;;
+    esac
+fi
