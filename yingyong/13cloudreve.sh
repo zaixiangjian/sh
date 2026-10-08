@@ -67,7 +67,7 @@ check_layout() {
         echo "未找到安全的现有 Compose 配置。"; return 1;
     }
     owned_aria2 >/dev/null || return 1
-    python3 - "$COMPOSE" "$APP" <<'PY'
+    python3 - "$COMPOSE" "$APP" "${1:-update}" <<'PY'
 import configparser, json, re, subprocess, sys
 from pathlib import Path
 def accepted_image(ref):
@@ -161,7 +161,16 @@ try:
     expected_ports={}
     for p in s.get('ports',[]):
         expected_ports.setdefault(str(p['target'])+'/'+p.get('protocol','tcp'),[]).append({'HostIp':p.get('host_ip',''),'HostPort':str(p['published'])})
-    assert ports==expected_ports, '运行端口与 Compose 不一致'
+    def normalize_ports(value):
+        out=[]
+        for key,bindings in value.items():
+            for binding in bindings or []:
+                ip=binding.get('HostIp','')
+                ip='0.0.0.0' if ip=='' else ip
+                out.append((key,ip,str(binding['HostPort'])))
+        return set(out)
+    if sys.argv[3]!='uninstall':
+        assert normalize_ports(ports)==normalize_ports(expected_ports), '运行端口与 Compose 不一致（请核对实际绑定与配置）'
 except (AssertionError,KeyError,ValueError,OSError,configparser.Error,subprocess.CalledProcessError) as e:
     print('拒绝操作：旧版/匿名卷布局或实际配置不匹配，需要先人工迁移并备份。',str(e),file=sys.stderr)
     sys.exit(1)
@@ -331,7 +340,7 @@ PYPUSH
     echo "推送完成，已验证远端 config digest：$source_id"
 }
 uninstall_app() {
-    require_docker && check_layout || return 1
+    require_docker && check_layout uninstall || return 1
     python3 - "$COMPOSE" <<'PYSCOPE'
 import json,subprocess,sys
 cfg=json.loads(subprocess.check_output(['docker','compose','-f',sys.argv[1],'config','--format','json']))
@@ -344,8 +353,8 @@ PYSCOPE
     [ -z "$aria_id" ] || echo "检测到已验证归属的旧独立 aria2，将一并移除其容器；下载文件保留。"
     IFS= read -r -p "确认请输入精确小写 yes：" answer || { echo "已取消"; return; }
     [ "$answer" = yes ] || { echo "已取消"; return; }
-    # 再次检查，避免确认期间容器/挂载变化；不执行整项目 down 或 remove-orphans。
-    check_layout || return 1
+    # 再次检查，避免确认期间容器/挂载变化；卸载不要求端口与 Compose 一致。
+    check_layout uninstall || return 1
     cloud_id=$(docker inspect cloudreve --format '{{.Id}}') || cloud_id=
     if [ -n "$cloud_id" ]; then
         docker rm -f "$cloud_id" || return 1
