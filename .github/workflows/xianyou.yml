@@ -28,6 +28,7 @@ jobs:
             "zaixiangjian/aurora-backend"
             "zaixiangjian/certimate"
             "zaixiangjian/openlist"
+            "zaixiangjian/openlist-api-server"
             "zaixiangjian/hitokoto-api"
             "zaixiangjian/caddy"
             "zaixiangjian/nexterm"
@@ -51,7 +52,6 @@ jobs:
             "zaixiangjian/minio"
             "zaixiangjian/backrest"
             "zaixiangjian/cloudreve"
-            "zaixiangjian/openlist-api-server"
           )
 
           echo "Processing ${#IMAGES[@]} images..."
