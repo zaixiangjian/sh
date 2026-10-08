@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.16"
+sh_v="0.0.17"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6161,7 +6161,7 @@ linux_panel() {
     check_docker "72" "discourse"
     check_docker "73" "matrix-synapse-1"
     check_docker "74" "mattermost-mattermost-1"
-    check_docker "75" "openlist"
+    check_docker "75" "certimate"
     # 77/78 共用 Mailcow 部署；兼容 Compose v1/v2 容器名及已停止的安装。
     # 只下载源码/管理脚本不算安装，目录回退必须同时具备 Compose 和 mailcow.conf。
     if { [ -n "$docker_container_list" ] && printf '%s\n' "$docker_container_list" | grep -Eq '^(mailcow|(((mailcow-dockerized|mailcowdockerized)[-_])?((nginx|postfix|dovecot|sogo|mysql|redis|rspamd|acme|php-fpm|watchdog|unbound|clamd|olefy|memcached|netfilter|dockerapi)-mailcow))([-_][0-9]+)?)$'; } || \
@@ -6169,8 +6169,9 @@ linux_panel() {
         installed_items+=("77" "78")
     fi
     check_docker "84" "hitokoto"
+    check_docker "85" "openlist-api-server"
     check_docker "86" "backrest"
-    check_docker "87" "certimate"
+    check_docker "87" "openlist"
     check_docker "88" "minio"
     check_docker "89" "nezha-dashboard"
     check_docker "90" "btc"
@@ -6288,14 +6289,14 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 71 "${gl_kjlan}71. ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}" "71. 安装zfile网盘 ★")\033[48G$(panel_menu_item_green_if_installed 72 "${gl_kjlan}72. ${gl_bai}安装Discourse论坛" "72. 安装Discourse论坛")"
     echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天 ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天 ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Mattermost团队协作聊天" "74. Mattermost团队协作聊天")"
-    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}docker安装openlist ${gl_huang}★${gl_bai}" "75. docker安装openlist ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}87. ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}" "75. Certimate 证书管理 ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
     echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
     echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 81 "${gl_kjlan}81. ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}" "81. Sun-Panel压缩包安装33docker ★")\033[48G$(panel_menu_item_green_if_installed 82 "${gl_kjlan}82. ${gl_bai}Backrest安装包 86 docker安装 ${gl_huang}★${gl_bai}" "82. Backrest安装包 86 docker安装 ★")"
     echo -e "$(panel_menu_item_green_if_installed 83 "${gl_kjlan}83. ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}" "83. 自编译caddy-dns ★")\033[48G$(panel_menu_item_green_if_installed 84 "${gl_kjlan}84. ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}" "84. Hitokoto API (一言)  ★")"
-    echo -e "$(panel_menu_item_green_if_installed 85 "${gl_kjlan}85. ${gl_bai}自编译openlist ${gl_huang}★${gl_bai}" "85. 自编译openlist ★")\033[48G$(panel_menu_item_green_if_installed 86 "${gl_kjlan}86. ${gl_bai}docker安装Backrest 资源备份 ${gl_huang}★${gl_bai}" "86. docker安装Backrest 资源备份 ★")"
-    echo -e "$(panel_menu_item_green_if_installed 87 "${gl_kjlan}87. ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}" "87. Certimate 证书管理 ★")\033[48G$(panel_menu_item_green_if_installed 88 "${gl_kjlan}88. ${gl_bai}自编译minio ${gl_huang}★${gl_bai}" "88. 自编译minio ★")"
+    echo -e "$(panel_menu_item_green_if_installed 85 "${gl_kjlan}85. ${gl_bai}OpenList网盘授权 ${gl_huang}★${gl_bai}" "85. OpenList网盘授权 ★")\033[48G$(panel_menu_item_green_if_installed 86 "${gl_kjlan}86. ${gl_bai}docker安装Backrest 资源备份 ${gl_huang}★${gl_bai}" "86. docker安装Backrest 资源备份 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 87 "${gl_kjlan}75. ${gl_bai}docker安装openlist ${gl_huang}★${gl_bai}" "87. docker安装openlist ★")\033[48G$(panel_menu_item_green_if_installed 88 "${gl_kjlan}88. ${gl_bai}自编译minio ${gl_huang}★${gl_bai}" "88. 自编译minio ★")"
     echo -e "$(panel_menu_item_green_if_installed 89 "${gl_kjlan}89. ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}" "89. 自编译docker安装哪吒v2官方7号 ★")\033[48G$(panel_menu_item_green_if_installed 90 "${gl_kjlan}90. ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}" "90. BTC安装 ★")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 91 "${gl_kjlan}91. ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}" "91. 自动进行谷歌浏览 ★")\033[48G$(panel_menu_item_green_if_installed 92 "${gl_kjlan}92. ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}" "92. CLIProxyAPI ★")"
@@ -9124,10 +9125,130 @@ rm -rf /etc/x-ui"
         echo "✅ Mattermost安装成功..."
         ;;
 
-      75)
-        run_local_first_app_script "▶️ 安装openlist..." "/root/yingyong/75openlist.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/75openlist.sh"
-        echo "✅ openlist安装成功..."
-        ;;
+75)
+while true; do
+    clear
+    echo "------------------------------------------------"
+    echo "      Certimate SSL 证书管理工具 编译脚本"
+    echo "------------------------------------------------"
+    echo "【源码与镜像管理】"
+    echo "1) 安装环境并修复 Docker"
+    echo "2) 一键克隆源码并构建镜像"
+    echo "3) 登录 Docker Hub"
+    echo "4) 推送镜像到 Docker Hub"
+    echo "------------------------------------------------"
+    echo "【容器部署管理】"
+    echo "11) 部署/启动 Certimate (/home/docker/certimate)"
+    echo "12) 更新镜像到最新版本"
+    echo "13) 卸载 Certimate"
+    echo "0) 返回主菜单"
+    echo "------------------------------------------------"
+    read -p "请输入操作编号: " ct_choice
+
+    # 核心变量配置
+    my_github_url="https://github.com/zaixiangjian/certimate.git"
+    my_docker_img="zaixiangjian/certimate:latest"
+
+
+    case $ct_choice in
+            1)
+                echo -e "\n--- [1/3] 正在修复系统基础环境 ---"
+                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
+                sudo dpkg --configure -a
+                sudo apt --fix-broken install -y
+                
+                echo -e "\n--- [2/3] 更新基础工具 ---"
+                sudo apt update && sudo apt install -y git curl ca-certificates
+                
+                echo -e "\n--- [3/3] 检查并启动 Docker ---"
+                if ! command -v docker &> /dev/null; then
+                    curl -fsSL https://get.docker.com | bash -
+                fi
+                sudo systemctl enable --now docker
+                sudo chmod 666 /var/run/docker.sock
+                echo -e "\n✅ 环境准备就绪！"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            2)
+                echo -e "\n--- 正在同步 Certimate 最新源码 ---"
+                mkdir -p "$build_dir" && cd "$build_dir"
+                [ -d "certimate" ] && rm -rf certimate
+                
+                git clone --depth 1 "$my_github_url"
+                cd certimate
+                
+                echo -e "\n--- 开始执行 Docker 编译 (使用项目默认配置) ---"
+                # 直接使用源码中的 Dockerfile 进行构建
+                sudo docker build -t "$my_docker_img" .
+                
+                if [ $? -eq 0 ]; then
+                    echo -e "\n✅ Certimate 镜像构建成功！"
+                else
+                    echo -e "\n❌ 编译失败，请检查 Dockerfile 内容或网络环境。"
+                fi
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            3)
+                sudo docker login
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+            4)
+                echo "正在推送镜像到 Docker Hub..."
+                sudo docker push "$my_docker_img"
+                read -n1 -r -p "回车继续..." key
+                ;;
+
+        11)
+            echo "--- 部署/启动 Certimate ---"
+            sudo docker rm -f certimate &>/dev/null
+            mkdir -p "$install_dir/data"
+            sudo chmod -R 777 "$install_dir/data"
+            sudo docker run -d \
+                --name certimate \
+                --restart unless-stopped \
+                -p 8090:8090 \
+                -v /etc/localtime:/etc/localtime:ro \
+                -v /etc/timezone:/etc/timezone:ro \
+                -v "$install_dir/data:/app/pb_data" \
+                "$my_docker_img"
+            if [ $? -eq 0 ]; then
+                loc_v4=$(hostname -I | awk '{print $1}')
+                echo "✅ 启动成功！访问 http://$loc_v4:8090"
+            else
+                echo "❌ 启动失败"
+            fi
+                echo "账号"
+                echo "admin@certimate.fun"
+                echo "密码"
+                echo "1234567890"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+        12)
+            echo "--- 拉取最新镜像 ---"
+            sudo docker pull "$my_docker_img"
+            echo "✅ 镜像已更新"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+
+        13)
+            echo "--- 卸载 Certimate ---"
+            sudo docker rm -f certimate &>/dev/null
+            sudo docker rmi "$my_docker_img" &>/dev/null
+            sudo rm -rf "$install_dir"
+            echo "✅ 已卸载完成"
+            read -n1 -r -p "回车继续..." key
+            ;;
+
+            0) break ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+    ;;
 
 
 76)
@@ -10119,7 +10240,6 @@ EOF
         done
         ;;
 
-
 83)
     while true; do
         clear
@@ -10288,9 +10408,6 @@ EOF
         esac
     done
     ;;
-
-
-
 
 84)
         while true; do
@@ -10469,302 +10586,21 @@ EOF
         done
         ;;
 
-85)
-    while true; do
-        clear
-        echo -e "------------------------------------------------"
-        echo -e "      OpenList 最新版 (AList Fork) 编译工具"
-        echo -e "------------------------------------------------"
-        echo -e "【源码与镜像管理】"
-        echo -e "1)  安装环境并修复 Docker (解决 Dpkg/Sock 错误)"
-        echo -e "2)  一键克隆源码并开始 Docker 编译 (本地构建)"
-        echo -e "3)  登录 Docker Hub"
-        echo -e "4)  推送镜像到 Docker Hub"
-        echo -e "------------------------------------------------"
-        echo -e "【容器部署管理】"
-        echo -e "11) 部署/启动 容器 (使用本地最新镜像)"
-        echo -e "12) 查看运行日志 (获取初始密码)"
-        echo -e "13) 停止并彻底卸载 OpenList"
-        echo -e "------------------------------------------------"
-        echo -e "0)  返回主菜单"
-        echo -e "------------------------------------------------"
-        read -p "请输入操作编号: " ol_choice
 
-        # 核心变量配置 - 已更新为最新版 OpenList 地址
-        my_github_url="https://github.com/zaixiangjian/OpenList.git"
-        my_docker_img="zaixiangjian/openlist:latest"
-        build_dir="/home/docker/openlist_latest"
-
-        case $ol_choice in
-            1)
-                echo -e "\n--- [1/3] 正在强制修复系统基础环境 ---"
-                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
-                sudo dpkg --configure -a
-                sudo apt --fix-broken install -y
-                
-                echo -e "\n--- [2/3] 更新基础工具 ---"
-                sudo apt update && sudo apt install -y git curl ca-certificates gnupg
-                
-                echo -e "\n--- [3/3] 修复 Docker 服务权限 ---"
-                if ! command -v docker &> /dev/null; then
-                    curl -fsSL https://get.docker.com | bash -
-                fi
-                sudo systemctl enable --now docker
-                sudo systemctl start docker
-                sudo chmod 666 /var/run/docker.sock
-                echo -e "\n✅ 环境修复完成！"
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            2)
-                echo -e "\n--- 正在同步 OpenList 最新源码 ---"
-                mkdir -p "$build_dir" && cd "$build_dir"
-                [ -d "OpenList" ] && rm -rf OpenList
-                
-                git clone --depth 1 "$my_github_url"
-                cd OpenList
-
-                # 核心修复：针对 BASE_IMAGE_TAG 报错的暴力替换
-                echo "正在优化 Dockerfile 变量兼容性..."
-                sed -i 's/${BASE_IMAGE_TAG}/base/g' Dockerfile
-                
-                echo -e "\n--- 开始执行 Docker 多阶段编译 ---"
-                # 显式传入 build-arg 以防万一
-                sudo docker build --pull \
-                    --build-arg BASE_IMAGE_TAG=base \
-                    -t "$my_docker_img" .
-                
-                if [ $? -eq 0 ]; then
-                    echo -e "\n✅ OpenList 编译成功！"
-                else
-                    echo -e "\n❌ 编译失败，请检查上方日志。"
-                fi
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            3)
-                sudo docker login
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            4)
-                echo "正在推送镜像到 Docker Hub..."
-                sudo docker push "$my_docker_img"
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            11)
-                [ "$ol_choice" == "12" ] && echo -e "\n--- 正在尝试拉取远程镜像 ---" && sudo docker pull "$my_docker_img"
-                
-                echo -e "\n--- 正在清理旧容器并优化启动环境 ---"
-                sudo docker rm -f openlist &>/dev/null
-                
-                # 确保数据目录存在并权限正确
-                mkdir -p "$build_dir/data"
-                sudo chmod -R 777 "$build_dir/data"
-                
-                echo "正在启动 OpenList 容器 (端口 5244)..."
-                sudo docker run -d \
-                    --name openlist \
-                    -p 5244:5244 \
-                    -v "$build_dir/data:/opt/openlist/data" \
-                    --restart always \
-                    "$my_docker_img"
-                
-                if [ $? -eq 0 ]; then
-                    echo -e "\n✅ 启动成功！"
-                    echo "------------------------------------------------"
-                    echo "🔗 访问地址 (根据网络环境选择):"
-                    
-                    # 获取公网 IPv4
-                    pub_v4=$(curl -s4 --connect-timeout 2 ifconfig.me)
-                    [ -n "$pub_v4" ] && echo -e "   - 公网访问: \033[36mhttp://$pub_v4:5244\033[0m"
-                    
-                    # 获取内网 IPv4
-                    loc_v4=$(hostname -I | awk '{print $1}')
-                    echo -e "   - 局域网访问: \033[36mhttp://$loc_v4:5244\033[0m"
-                    
-                    # 获取全局 IPv6 (过滤 fe80)
-                    loc_v6=$(ip -6 addr show | grep -E 'inet6 [23]' | awk '{print $2}' | cut -d'/' -f1 | head -n 1)
-                    if [ -n "$loc_v6" ]; then
-                        echo -e "   - IPv6 访问: \033[36mhttp:[$loc_v6]:5244\033[0m"
-                    fi
-                    
-                    echo "------------------------------------------------"
-                    echo "正在提取管理员凭据..."
-                    sleep 5  # 等待容器内服务启动
-                    
-                    # 尝试从两个途径获取密码
-                    # 途径1: 容器日志
-                    password=$(sudo docker logs openlist 2>&1 | grep -E "password is:|Successfully generated password:" | awk -F': ' '{print $2}' | xargs)
-                    
-                    # 途径2: 如果日志没有，直接执行内部命令查询
-                    if [ -z "$password" ]; then
-                        password=$(sudo docker exec openlist ./alist admin 2>&1 | grep "admin password:" | awk -F': ' '{print $2}' | xargs)
-                    fi
-
-                    if [ -n "$password" ]; then
-                        echo -e "👤 默认账号: admin"
-                        echo -e "🔑 初始密码: \033[32m$password\033[0m"
-                    else
-                        echo -e "⚠️  提示: 未能自动抓取密码。可能已手动修改或数据库已存在。"
-                        echo -e "请执行选项 14 或输入 \033[33mdocker exec openlist ./alist admin\033[0m 查看。"
-                    fi
-                    echo "------------------------------------------------"
-                else
-                    echo -e "\n❌ 启动失败，请检查 Docker 环境。"
-                fi
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            12)
-                echo -e "--- 容器运行日志 (Ctrl+C 退出) ---"
-                sudo docker logs -f --tail 100 openlist
-                ;;
-
-            13)
-                echo "正在停止并移除 OpenList 相关资源..."
-                sudo docker rm -f openlist &>/dev/null
-                sudo docker rmi "$my_docker_img" &>/dev/null
-                echo "✅ 已清理完成。"
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            0) break ;;
-            *) echo "无效选择"; sleep 1 ;;
-        esac
-    done
-    ;;
+      85)
+        run_local_first_app_script "▶️ 安装OpenList网盘授权..." "/root/yingyong/85openlist-api-server.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/85openlist-api-server.sh"
+        echo "✅ OpenList网盘授权安装成功..."
+        ;;
 
       86)
         run_local_first_app_script "▶️ 安装Backrest..." "/root/yingyong/86Backrest.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/86Backrest.sh"
         echo "✅ Backrest安装成功..."
         ;;
 
-87)
-while true; do
-    clear
-    echo "------------------------------------------------"
-    echo "      Certimate SSL 证书管理工具 编译脚本"
-    echo "------------------------------------------------"
-    echo "【源码与镜像管理】"
-    echo "1) 安装环境并修复 Docker"
-    echo "2) 一键克隆源码并构建镜像"
-    echo "3) 登录 Docker Hub"
-    echo "4) 推送镜像到 Docker Hub"
-    echo "------------------------------------------------"
-    echo "【容器部署管理】"
-    echo "11) 部署/启动 Certimate (/home/docker/certimate)"
-    echo "12) 更新镜像到最新版本"
-    echo "13) 卸载 Certimate"
-    echo "0) 返回主菜单"
-    echo "------------------------------------------------"
-    read -p "请输入操作编号: " ct_choice
-
-    # 核心变量配置
-    my_github_url="https://github.com/zaixiangjian/certimate.git"
-    my_docker_img="zaixiangjian/certimate:latest"
-
-
-    case $ct_choice in
-            1)
-                echo -e "\n--- [1/3] 正在修复系统基础环境 ---"
-                sudo rm /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock &>/dev/null
-                sudo dpkg --configure -a
-                sudo apt --fix-broken install -y
-                
-                echo -e "\n--- [2/3] 更新基础工具 ---"
-                sudo apt update && sudo apt install -y git curl ca-certificates
-                
-                echo -e "\n--- [3/3] 检查并启动 Docker ---"
-                if ! command -v docker &> /dev/null; then
-                    curl -fsSL https://get.docker.com | bash -
-                fi
-                sudo systemctl enable --now docker
-                sudo chmod 666 /var/run/docker.sock
-                echo -e "\n✅ 环境准备就绪！"
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            2)
-                echo -e "\n--- 正在同步 Certimate 最新源码 ---"
-                mkdir -p "$build_dir" && cd "$build_dir"
-                [ -d "certimate" ] && rm -rf certimate
-                
-                git clone --depth 1 "$my_github_url"
-                cd certimate
-                
-                echo -e "\n--- 开始执行 Docker 编译 (使用项目默认配置) ---"
-                # 直接使用源码中的 Dockerfile 进行构建
-                sudo docker build -t "$my_docker_img" .
-                
-                if [ $? -eq 0 ]; then
-                    echo -e "\n✅ Certimate 镜像构建成功！"
-                else
-                    echo -e "\n❌ 编译失败，请检查 Dockerfile 内容或网络环境。"
-                fi
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            3)
-                sudo docker login
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-            4)
-                echo "正在推送镜像到 Docker Hub..."
-                sudo docker push "$my_docker_img"
-                read -n1 -r -p "回车继续..." key
-                ;;
-
-        11)
-            echo "--- 部署/启动 Certimate ---"
-            sudo docker rm -f certimate &>/dev/null
-            mkdir -p "$install_dir/data"
-            sudo chmod -R 777 "$install_dir/data"
-            sudo docker run -d \
-                --name certimate \
-                --restart unless-stopped \
-                -p 8090:8090 \
-                -v /etc/localtime:/etc/localtime:ro \
-                -v /etc/timezone:/etc/timezone:ro \
-                -v "$install_dir/data:/app/pb_data" \
-                "$my_docker_img"
-            if [ $? -eq 0 ]; then
-                loc_v4=$(hostname -I | awk '{print $1}')
-                echo "✅ 启动成功！访问 http://$loc_v4:8090"
-            else
-                echo "❌ 启动失败"
-            fi
-                echo "账号"
-                echo "admin@certimate.fun"
-                echo "密码"
-                echo "1234567890"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-        12)
-            echo "--- 拉取最新镜像 ---"
-            sudo docker pull "$my_docker_img"
-            echo "✅ 镜像已更新"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-
-        13)
-            echo "--- 卸载 Certimate ---"
-            sudo docker rm -f certimate &>/dev/null
-            sudo docker rmi "$my_docker_img" &>/dev/null
-            sudo rm -rf "$install_dir"
-            echo "✅ 已卸载完成"
-            read -n1 -r -p "回车继续..." key
-            ;;
-
-            0) break ;;
-            *) echo "无效选择"; sleep 1 ;;
-        esac
-    done
-    ;;
+      87)
+        run_local_first_app_script "▶️ 安装openlist..." "/root/yingyong/87openlist.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/87openlist.sh"
+        echo "✅ openlist安装成功..."
+        ;;
 
       88)
         run_local_first_app_script "▶️ 安装MinIO..." "/root/yingyong/88minio.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/88minio.sh"
