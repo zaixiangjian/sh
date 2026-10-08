@@ -6276,7 +6276,7 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 51 "${gl_kjlan}51. ${gl_bai}极光面板" "51. 极光面板")\033[48G$(panel_menu_item_green_if_installed 52 "${gl_kjlan}52. ${gl_bai}emby安装" "52. emby安装")"
     echo -e "$(panel_menu_item_green_if_installed 53 "${gl_kjlan}53. ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}" "53. NextermSSH链接 48 79★")\033[48G$(panel_menu_item_green_if_installed 54 "${gl_kjlan}54. ${gl_bai}webssh ${gl_huang}★${gl_bai}" "54. webssh ★")"
-    echo -e "$(panel_menu_item_green_if_installed 55 "${gl_kjlan}55. ${gl_bai}安装包openlist4.0.8 13 号" "55. 安装包openlist4.0.8 ★")\033[48G$(panel_menu_item_green_if_installed 56 "${gl_kjlan}56. ${gl_bai}umami网站流量统计系统" "56. umami网站流量统计系统")"
+    echo -e "$(panel_menu_item_green_if_installed 55 "${gl_kjlan}55. ${gl_bai}安装包openlist4.0.8 75 号" "55. 安装包openlist4.0.8 ★")\033[48G$(panel_menu_item_green_if_installed 56 "${gl_kjlan}56. ${gl_bai}umami网站流量统计系统" "56. umami网站流量统计系统")"
     echo -e "$(panel_menu_item_green_if_installed 57 "${gl_kjlan}57. ${gl_bai}dify安装 ${gl_huang}★${gl_bai}" "57. dify安装 ★")\033[48G$(panel_menu_item_green_if_installed 58 "${gl_kjlan}58. ${gl_bai}安装caddy" "58. 安装caddy")"
     echo -e "$(panel_menu_item_green_if_installed 59 "${gl_kjlan}59. ${gl_bai}docker安装rustdesk服务端 ${gl_huang}★${gl_bai}" "59. docker安装rustdesk服务端 ★")\033[48G$(panel_menu_item_green_if_installed 60 "${gl_kjlan}60. ${gl_bai}docker安装rustdesk中继端" "60. docker安装rustdesk中继端")"
     echo -e "${gl_kjlan}------------------------"
