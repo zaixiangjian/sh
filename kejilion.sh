@@ -6288,7 +6288,7 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 71 "${gl_kjlan}71. ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}" "71. 安装zfile网盘 ★")\033[48G$(panel_menu_item_green_if_installed 72 "${gl_kjlan}72. ${gl_bai}安装Discourse论坛" "72. 安装Discourse论坛")"
     echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天 ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天 ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Mattermost团队协作聊天" "74. Mattermost团队协作聊天")"
-    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}docker安装openliat ${gl_huang}★${gl_bai}" "75. docker安装openliat ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}docker安装openlist ${gl_huang}★${gl_bai}" "75. docker安装openlist ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
     echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
     echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
     echo -e "${gl_kjlan}------------------------"
@@ -9198,8 +9198,8 @@ rm -rf /etc/x-ui"
         ;;
 
       75)
-        run_local_first_app_script "▶️ 安装openliat..." "/root/yingyong/75openliat.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/75openliat.sh"
-        echo "✅ openliat安装成功..."
+        run_local_first_app_script "▶️ 安装openlist..." "/root/yingyong/75openlist.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/75openlist.sh"
+        echo "✅ openlist安装成功..."
         ;;
 
 
