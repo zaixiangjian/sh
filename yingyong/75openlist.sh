@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# OpenList 管理脚本；官方镜像固定版本，自定义镜像保留用户指定拼写。
-# 文件名按用户要求保留 openliat；应用实际名称为 OpenList。
+# OpenList 管理脚本；官方镜像固定版本，自定义镜像使用 zaixiangjian/openlist。
+# OpenList 官方及自定义镜像管理。
 set -o pipefail
 APP_DIR=/home/docker/openlist
 NAME=openlist
@@ -103,7 +103,7 @@ def validate(x, image_id=None):
     hc, cfg, mounts = x['HostConfig'], x['Config'], x['Mounts']
     if len(mounts) != 1 or mounts[0].get('Type') != 'bind' or mounts[0].get('Source') != str(root / 'data') or mounts[0].get('Destination') != '/opt/openlist/data' or not mounts[0].get('RW') or mounts[0].get('Propagation', 'rprivate') != 'rprivate':
         raise RuntimeError('挂载与本管理器不符，拒绝自动重建')
-    if not (cfg['Image'].startswith(('openlistteam/openlist:', 'zaixiangjian/openliat:')) or cfg['Image'] == image_id) or cfg.get('User') != '1000:1000':
+    if not (cfg['Image'].startswith(('openlistteam/openlist:', 'zaixiangjian/openlist:', 'zaixiangjian/openliat:')) or cfg['Image'] == image_id) or cfg.get('User') != '1000:1000':
         raise RuntimeError('非受支持的镜像/用户，拒绝自动重建')
     # Fail closed: every nonempty HostConfig field must be represented or an explicit Docker default.
     preserved = {'Binds', 'PortBindings', 'RestartPolicy', 'NetworkMode', 'LogConfig'}
@@ -260,7 +260,7 @@ def uninstall():
                 and x['Mounts'][0].get('Type') == 'bind'
                 and x['Mounts'][0].get('Source') == str(root / 'data')
                 and x['Mounts'][0].get('Destination') == '/opt/openlist/data'
-                and x.get('Config', {}).get('Image', '').startswith(('openlistteam/openlist:', 'zaixiangjian/openliat:'))):
+                and x.get('Config', {}).get('Image', '').startswith(('openlistteam/openlist:', 'zaixiangjian/openlist:', 'zaixiangjian/openliat:'))):
             owned = True
         if is_current:
             # 卸载仅核实应用挂载归属，不套用用于重建的镜像标签/用户/运行参数限制。
@@ -358,11 +358,11 @@ PYPATH
     show_initial_password
 }
 install_custom() {
-    local IMAGE=zaixiangjian/openliat:latest
+    local IMAGE=zaixiangjian/openlist:latest
     install_official
 }
 update_custom() {
-    local IMAGE=zaixiangjian/openliat:latest
+    local IMAGE=zaixiangjian/openlist:latest
     update_official
 }
 login_docker() {
@@ -371,7 +371,7 @@ login_docker() {
 }
 push_custom() {
     require_docker || return 1
-    local source target=zaixiangjian/openliat:latest local_id
+    local source target=zaixiangjian/openlist:latest local_id
     source=$(docker inspect -f '{{.Image}}' "$NAME" 2>/dev/null) || { echo "没有当前实例，拒绝猜测推送源镜像。"; return 1; }
     [ -n "$source" ] || return 1
     local_id=$(docker image inspect "$source" -f '{{.Id}}' 2>/dev/null) || { echo "没有可用源镜像，请先安装。"; return 1; }
@@ -413,12 +413,12 @@ main() {
         echo "开源网盘聚合程序，支持多种存储"
         echo "开源地址："
         echo "https://github.com/OpenListTeam/OpenList"
-        echo "官方镜像：$IMAGE"
+        echo -e "官方镜像：$IMAGE \033[33m（手动指定）\033[0m"
         echo "=================================="
-        echo "1. 自己安装zaixiangjian/openliat:latest"
+        echo "1. 自己安装zaixiangjian/openlist:latest"
         echo "2. 从zaixiangjian更新"
         echo "3. 登录 Docker Hub"
-        echo "4. 打上标签推送到zaixiangjian/openliat:latest"
+        echo "4. 打上标签推送到zaixiangjian/openlist:latest"
         echo "-----------------------------------"
         echo "9. 卸载（需 yes 确认）"
         echo "-----------------------------------"
