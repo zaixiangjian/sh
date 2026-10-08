@@ -51,7 +51,7 @@ jobs:
             "zaixiangjian/minio"
             "zaixiangjian/backrest"
             "zaixiangjian/cloudreve"
-            "zaixiangjian/openlist_api_server"
+            "zaixiangjian/openlist-api-server"
           )
 
           echo "Processing ${#IMAGES[@]} images..."
