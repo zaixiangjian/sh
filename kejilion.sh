@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.17"
+sh_v="0.0.16"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6289,14 +6289,14 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 71 "${gl_kjlan}71. ${gl_bai}安装zfile网盘 ${gl_huang}★${gl_bai}" "71. 安装zfile网盘 ★")\033[48G$(panel_menu_item_green_if_installed 72 "${gl_kjlan}72. ${gl_bai}安装Discourse论坛" "72. 安装Discourse论坛")"
     echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天 ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天 ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Mattermost团队协作聊天" "74. Mattermost团队协作聊天")"
-    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}87. ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}" "75. Certimate 证书管理 ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
+    echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}" "75. Certimate 证书管理 ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
     echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
     echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 81 "${gl_kjlan}81. ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}" "81. Sun-Panel压缩包安装33docker ★")\033[48G$(panel_menu_item_green_if_installed 82 "${gl_kjlan}82. ${gl_bai}Backrest安装包 86 docker安装 ${gl_huang}★${gl_bai}" "82. Backrest安装包 86 docker安装 ★")"
     echo -e "$(panel_menu_item_green_if_installed 83 "${gl_kjlan}83. ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}" "83. 自编译caddy-dns ★")\033[48G$(panel_menu_item_green_if_installed 84 "${gl_kjlan}84. ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}" "84. Hitokoto API (一言)  ★")"
     echo -e "$(panel_menu_item_green_if_installed 85 "${gl_kjlan}85. ${gl_bai}OpenList网盘授权 ${gl_huang}★${gl_bai}" "85. OpenList网盘授权 ★")\033[48G$(panel_menu_item_green_if_installed 86 "${gl_kjlan}86. ${gl_bai}docker安装Backrest 资源备份 ${gl_huang}★${gl_bai}" "86. docker安装Backrest 资源备份 ★")"
-    echo -e "$(panel_menu_item_green_if_installed 87 "${gl_kjlan}75. ${gl_bai}docker安装openlist ${gl_huang}★${gl_bai}" "87. docker安装openlist ★")\033[48G$(panel_menu_item_green_if_installed 88 "${gl_kjlan}88. ${gl_bai}自编译minio ${gl_huang}★${gl_bai}" "88. 自编译minio ★")"
+    echo -e "$(panel_menu_item_green_if_installed 87 "${gl_kjlan}87. ${gl_bai}docker安装openlist ${gl_huang}★${gl_bai}" "87. docker安装openlist ★")\033[48G$(panel_menu_item_green_if_installed 88 "${gl_kjlan}88. ${gl_bai}自编译minio ${gl_huang}★${gl_bai}" "88. 自编译minio ★")"
     echo -e "$(panel_menu_item_green_if_installed 89 "${gl_kjlan}89. ${gl_bai}自编译docker安装哪吒v2官方7号 ${gl_huang}★${gl_bai}" "89. 自编译docker安装哪吒v2官方7号 ★")\033[48G$(panel_menu_item_green_if_installed 90 "${gl_kjlan}90. ${gl_bai}BTC安装 ${gl_huang}★${gl_bai}" "90. BTC安装 ★")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 91 "${gl_kjlan}91. ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}" "91. 自动进行谷歌浏览 ★")\033[48G$(panel_menu_item_green_if_installed 92 "${gl_kjlan}92. ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}" "92. CLIProxyAPI ★")"
