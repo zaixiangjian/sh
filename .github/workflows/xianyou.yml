@@ -50,6 +50,7 @@ jobs:
             "zaixiangjian/seaweedfs"
             "zaixiangjian/minio"
             "zaixiangjian/backrest"
+            "zaixiangjian/cloudreve"
           )
 
           echo "Processing ${#IMAGES[@]} images..."
