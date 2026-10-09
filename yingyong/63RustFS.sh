@@ -857,11 +857,10 @@ uninstall() {
         echo "请先在同步子菜单删除全部任务，以移除对应 cron，再卸载。"; return 1
     fi
     echo "支持卸载 1 号官方镜像或 21 号自定义镜像安装的 RustFS（按实际 Compose 配置）。"
-    echo "将删除 RustFS 容器和 $APP_DIR 全部数据；保留 /home 备份及 Docker。"
+    echo "将删除 RustFS 容器及 Compose 管理的网络；保留 $APP_DIR 本地数据和配置、/home 备份及 Docker。"
     confirm || { echo "已取消"; return 0; }
     compose down || return 1
-    rm -rf -- "$APP_DIR"
-    echo "已卸载，备份保留。"
+    echo "已卸载，本地数据和配置目录已保留：$APP_DIR；备份保留。"
 }
 main() {
     [ "$(id -u)" -eq 0 ] || { echo "请以 root 运行"; return 1; }
