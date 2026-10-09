@@ -202,7 +202,7 @@ replication() {
     python3 - "$APP_DIR" "$(readlink -f "${BASH_SOURCE[0]}")" "$NAME" "$@" <<'PY'
 import os, sys, json, re, stat, subprocess, pathlib, tempfile, fcntl, shlex, getpass, time, socket, signal
 from urllib.parse import urlsplit, unquote
-import ipaddress
+import ipaddress, datetime
 # 终端 locale 或 PYTHONIOENCODING 可能为 latin-1；中文交互统一 UTF-8，不改系统环境。
 for stream in (sys.stdout, sys.stderr):
     if hasattr(stream, 'reconfigure'):
@@ -265,8 +265,46 @@ def https_url(value):
             fail('S3 端点路径无效。')
     except ValueError: fail('S3 端点 URL 或端口无效。')
     return value
+def destination_url_input():
+    value=ask('目标 S3 API 不是网页管理域名（例如https://example.com）：')
+    # 仅为新输入的裸域名补 HTTPS；不修改已有任务或放宽 URL 校验。
+    if value and '://' not in value:
+        candidate='https://'+value
+        https_url(candidate)
+        value=candidate
+        print('已自动添加 https://：'+value)
+    return https_url(value)
+INTERVALS=('1m','2m','5m','10m','15m','30m','1h','2h','4h','6h','12h','1d','3d','5d','7d')
+def interval_value(c):
+    value=c.get('interval','2m')
+    if not isinstance(value,str) or value not in INTERVALS: fail('任务间隔无效。')
+    return value
+def interval_label(c):
+    value=interval_value(c)
+    return value[:-1]+{'m':'分','h':'小时','d':'天'}[value[-1]]
+def interval_cron(c):
+    value=interval_value(c); n=int(value[:-1])
+    if value.endswith('m'): return ('*' if n==1 else '*/'+str(n))+' * * * *'
+    if value.endswith('h'): return '0 '+('*' if n==1 else '*/'+str(n))+' * * *'
+    return '0 0 * * *'
+def interval_input():
+    print('支持：1m/2m/5m/10m/15m/30m、1h/2h/4h/6h/12h、1d/3d/5d/7d')
+    while True:
+        value=ask('定时任务间隔，例如 2m/1h/1d [回车默认: 2m]: ',default='2m')
+        if value in INTERVALS: return value
+        print('输入无效：必须输入支持的间隔并带 m/h/d 单位，不能只输入数字，请重新输入。')
+def scheduled_due(c,today=None):
+    value=interval_value(c)
+    if not value.endswith('d') or value=='1d': return True
+    today=today or datetime.date.today()
+    try: anchor=datetime.date.fromisoformat(c['schedule_anchor'])
+    except (KeyError,TypeError,ValueError): fail('多日任务缺少有效的起始日期。')
+    days=(today-anchor).days
+    return days>=0 and days%int(value[:-1])==0
 def validate(c):
     if c.get('version')!=1 or c.get('mode') not in ('rsync','s3'): fail('任务配置无效。')
+    interval_value(c)
+    if interval_value(c) in ('3d','5d','7d'): scheduled_due(c)
     connection=c.get('connection','ssh') if c['mode']=='s3' else 'ssh'
     if connection not in ('https','ssh'): fail('S3 连接方式无效。')
     if connection=='ssh':
@@ -315,8 +353,9 @@ def load(name):
 def tasks():
     if not root.is_dir(): return []
     return sorted(p.name for p in root.iterdir() if valid_name(p.name) and p.is_dir() and not p.is_symlink() and (p/marker).is_file() and not (p/marker).is_symlink() and (p/marker).read_text()==appname+' replication v1\n')
-def cron_line(name):
-    return '*/2 * * * * /bin/bash '+shlex.quote(script)+' --task '+name+' >/dev/null 2>&1'
+def cron_line(name,c=None):
+    c=load(name) if c is None else c
+    return interval_cron(c)+' /bin/bash '+shlex.quote(script)+' --task '+name+' --scheduled >/dev/null 2>&1'
 def cron_read():
     need('crontab')
     p=subprocess.run(['crontab','-l'],capture_output=True,text=True,env={**os.environ,'LC_ALL':'C'})
@@ -328,26 +367,33 @@ def cron_set(old,name=None,add=None):
     cronfd=os.open('/run/lock/object-replication-cron.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
     fcntl.flock(cronfd,fcntl.LOCK_EX)
     old=cron_read()
-    display={'rustfs':'RustFS','seaweedfs':'SeaweedFS','minio':'minio'}[appname]
-    header='# '+display+' 2分钟复制（勿删）'
+    display={'rustfs':'RustFS','seaweedfs':'SeaweedFS','minio':'MinIO'}[appname]
+    header='# '+display+' 远程复制任务（勿删）'
     configs={}
     for task in tasks():
         c=load(task)
-        configs[task]=c['mode']
+        configs[task]=c
     if add is False: configs.pop(name,None)
     owned_names=set(configs)
     if name is not None: owned_names.add(name)
     rows=old.splitlines()
     indices=[]
     legacy_display='MinIO' if appname=='minio' else display
-    header_variants={header,'# '+display+' 2分钟传送（勿删）','# '+legacy_display+' 2分钟传送（勿删）'}
+    header_variants={header,'# '+display+' 定时复制（勿删）','# minio 定时复制（勿删）' if appname=='minio' else header,'# minio 2分钟复制（勿删）' if appname=='minio' else header,'# '+display+' 2分钟复制（勿删）','# '+display+' 2分钟传送（勿删）','# '+legacy_display+' 2分钟传送（勿删）'}
     header_variants.update('# '+legacy_display+' '+kind+' 2分钟传送'+suffix for kind in ('s3','rsync') for suffix in ('','（勿删）'))
     kept=[]
     for line in rows:
-        owned=line in header_variants or any(line in (cron_line(task),cron_line(task)+' # '+appname+':replication:'+task) for task in owned_names)
+        def owned_row(task):
+            command='/bin/bash '+shlex.quote(script)+' --task '+task
+            for interval in INTERVALS:
+                for suffix in ('',' --scheduled'):
+                    candidate=interval_cron({'interval':interval})+' '+command+suffix+' >/dev/null 2>&1'
+                    if line in (candidate,candidate+' # '+appname+':replication:'+task): return True
+            return False
+        owned=line in header_variants or any(owned_row(task) for task in owned_names)
         if owned: indices.append(len(kept))
         else: kept.append(line)
-    block=([header]+[cron_line(task) for task in sorted(configs)]) if configs else []
+    block=([header]+[cron_line(task,configs[task]) for task in sorted(configs)]) if configs else []
     # 在原有托管块位置插入，不把任务散落到其他说明下。
     position=indices[0] if indices else len(kept)
     kept[position:position]=block
@@ -377,19 +423,26 @@ def task_rows(mode=None,connection=None):
     return sorted(rows,key=lambda row: (0 if row[1]=='s3' and row[2]=='https' else 1 if row[1]=='s3' else 2,row[0]))
 
 def listing(mode=None,connection=None):
-    print('已配置同步任务（本机 cron 时区，每2分钟；每个任务独立非阻塞锁）：')
+    print('已配置同步任务（本机 cron 时区，每个任务独立非阻塞锁）：')
     rows=task_rows(mode,connection)
     number=0
     def section(label,group):
         nonlocal number
-        print('------------------------')
+        print('==================================' if mode is not None else '------------------------')
         print(label)
+        print('存储桶   远程节点  方式')
         if not group: print('暂无')
         for name,kind,method in group:
             number+=1
-            print(str(number)+'. '+name+' | '+method+' | */2 * * * * | '+str(root/name)+'/')
+            bucket='配置损坏'
+            try:
+                c=json.loads((root/name/'task.json').read_text())
+                bucket=str(c.get('source_bucket','未配置')) if kind=='s3' else '整个实例目录'
+                timing=interval_label(c)+' | '+interval_cron(c)
+            except (OSError,ValueError,TypeError,AttributeError,SystemExit): timing='配置损坏 | -'
+            print(str(number)+'. '+bucket+' | '+name+' | '+method+' | '+timing+' | '+str(root/name)+'/')
     if mode=='rsync':
-        section('SSH/rsync 镜像传送',rows)
+        section('SSH 隧道连接',rows)
     else:
         for method,label in (('https','HTTPS S3 域名直连'),('ssh','SSH 隧道连接')):
             if connection is None or connection==method:
@@ -462,12 +515,14 @@ def checked(cmd,**kw):
     # 第三方错误输出可能含端点/凭证，故不转发；只报告状态。
     p=subprocess.run(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,pass_fds=(active_lock,) if active_lock is not None else (),**kw)
     if p.returncode: fail('传送命令失败（退出码 '+str(p.returncode)+'），未宣称成功；检查依赖/信任/端点/权限。')
-def run(name):
+def run(name,scheduled=False):
     global active_lock
     taskpath(name)
     guard=acquire()
     try:
-        fd=acquire(name); active_lock=fd; c=load(name); need('flock')
+        fd=acquire(name); active_lock=fd; c=load(name)
+        if scheduled and not scheduled_due(c): return
+        need('flock')
     finally: os.close(guard)
     direct=c['mode']=='s3' and c.get('connection','ssh')=='https'
     if not direct:
@@ -616,7 +671,10 @@ def add(mode,connection='ssh'):
     old=cron_read()
     name=ask('任务名称（小写安全名称）：'); p=taskpath(name)
     if p.exists(): fail('同名目录已存在，拒绝覆盖。')
-    c={'version':1,'mode':mode}
+    c={'version':1,'mode':mode,'interval':interval_input()}
+    if c['interval'] in ('3d','5d','7d'):
+        c['schedule_anchor']=datetime.date.today().isoformat()
+        print('多日任务按本机日期每'+interval_label(c)+'零点触发，以今天为周期基准。')
     if mode=='s3': c['connection']=connection
     if not direct:
         print('严格校验 SSH 主机密钥；首次连接会显示指纹供独立核验确认。')
@@ -638,7 +696,7 @@ def add(mode,connection='ssh'):
             print('请输入 S3 API HTTPS 地址，不是管理控制台；保留证书校验。源端回车使用当前本地容器 API。')
             c['source_endpoint']=ask('源 HTTPS S3 API URL（可选，回车本地 http://127.0.0.1:'+source_default+'）：')
             if not c['source_endpoint']: c['source_port']=int(source_default)
-            c['destination_endpoint']=ask('目标 HTTPS S3 API URL（必填）：')
+            c['destination_endpoint']=destination_url_input()
         else:
             default={'rustfs':'9100','seaweedfs':'9200','minio':'9000'}[appname]
             tunnel_port_default=tunnel_default()
@@ -657,7 +715,7 @@ def add(mode,connection='ssh'):
         print('将结果与接下来显示的指纹核对；已有信任时直接检查登录。')
         ask('按回车继续核验 SSH 主机指纹与认证：')
         verify_ssh(c)
-    if not yes('确认远端删除范围与权限（rsync 目标必须离线），注册每2分钟任务'): print('已取消'); return
+    if not yes('确认远端删除范围与权限（rsync 目标必须离线），注册每'+interval_label(c)+'任务'): print('已取消'); return
     os.mkdir(p,0o700)
     try:
         for filename,content in [(marker,appname+' replication v1\n'),('task.json',json.dumps(c,ensure_ascii=False)+'\n')]:
@@ -667,7 +725,7 @@ def add(mode,connection='ssh'):
     except BaseException:
         # 写 cron 后回读失败时保留配置，避免产生无配置的已注册任务。
         print('注册未完全验证，配置保留供检查：'+str(p),file=sys.stderr); raise
-    print('任务已注册并回读验证：'+name+'（每2分钟；本次不执行同步）')
+    print('任务已注册并回读验证：'+name+'（每'+interval_label(c)+'；本次不执行同步）')
     print('不保存传送日志；可在子菜单选择立即运行，查看现场成功或错误提示。')
 def delete(name,locked=False):
     fd=None if locked else acquire()
@@ -685,8 +743,8 @@ if action=='has-tasks': sys.exit(0 if tasks() else 1)
 elif action=='list': listing(args[0] if args else None,args[1] if len(args)>1 else None)
 elif action=='reconcile': reconcile_cron()
 elif action=='run':
-    if len(args)!=1: fail('用法：--task 名称')
-    run(args[0])
+    if len(args) not in (1,2) or (len(args)==2 and args[1]!='--scheduled'): fail('用法：--task 名称 [--scheduled]')
+    run(args[0],scheduled=len(args)==2)
 elif action=='add': add(args[0],args[1]) if len(args)>1 else add(args[0])
 elif action=='delete': delete(args[0])
 elif action=='delete-number': delete_number(args[0],args[1]) if len(args)>1 else delete_number(args[0])
@@ -737,56 +795,36 @@ uninstall_rclone() {
     echo "rclone 已卸载，任务与数据保留。"
 }
 
-s3_connection_menu() {
-    local choice
-    while true; do
-        [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && clear
-        echo "=================================="
-        echo "S3 API 异步同步（单桶映射）"
-        replication list s3 || return 1
-        echo "1. HTTPS S3 域名直连"
-        echo "2. SSH 隧道连接"
-        echo "8. 安装 rclone"
-        echo "9. 卸载 rclone（需 yes 确认）"
-        echo "0. 返回"
-        IFS= read -r -p "请选择连接方式：" choice || return 0
-        case "$choice" in
-            1|2)
-                if ! command -v rclone >/dev/null 2>&1; then
-                    echo "未安装 rclone，请使用本菜单 8 号安装后再进入。"
-                    pause || return 0
-                    continue
-                fi
-                if [ "$choice" = 1 ]; then replication_menu s3 https
-                else replication_menu s3 ssh; fi
-                ;;
-            8) install_rclone; pause || return 0 ;;
-            9) uninstall_rclone; pause || return 0 ;;
-            0) return 0 ;;
-            *) echo "无效选项"; pause || return 0 ;;
-        esac
-    done
-}
-
 replication_menu() {
     local mode="$1" connection="${2:-}" choice task
-    if [ "$mode" = s3 ] && [ -z "$connection" ]; then s3_connection_menu; return $?; fi
+    if [ "$mode" = s3 ] && [ -z "$connection" ]; then connection=https; fi
     while true; do
         [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && clear
         echo "=================================="
         if [ "$mode" = rsync ]; then echo "SSH/rsync 镜像传送"; else echo "S3 API 异步同步（单桶映射）"; fi
         replication list "$mode" ${connection:+"$connection"} || return 1
-        echo "1. 添加任务（每2分钟）"
+        if [ "$mode" = rsync ]; then
+            echo "1. 添加 SSH 隧道 任务"
+        else
+            echo "1. 添加 S3 API 任务"
+        fi
         echo "2. 删除任务（仅配置/cron）"
         echo "3. 列出任务"
         echo "4. 立即运行已有任务"
+        echo "8. 安装 rclone"
+        echo "9. 卸载 rclone（需 yes 确认）"
         echo "0. 返回"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
-            1) replication add "$mode" ${connection:+"$connection"} 3<&0 ;;
+            1)
+                if [ "$mode" = s3 ]; then replication add s3 https 3<&0
+                else replication add "$mode" ${connection:+"$connection"} 3<&0; fi
+                ;;
             2) replication delete-number "$mode" ${connection:+"$connection"} 3<&0 ;;
             3) replication list "$mode" ${connection:+"$connection"} ;;
             4) replication run-number "$mode" ${connection:+"$connection"} 3<&0 ;;
+            8) install_rclone ;;
+            9) uninstall_rclone ;;
             0) return 0 ;;
             *) echo "无效选项" ;;
         esac
@@ -852,7 +890,7 @@ main() {
 }
 if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
     case "${1:-}" in
-        --task) [ "$#" -eq 2 ] && replication run "$2" ;;
+        --task) if [ "$#" -eq 2 ]; then replication run "$2"; elif [ "$#" -eq 3 ] && [ "$3" = --scheduled ]; then replication run "$2" --scheduled; else exit 1; fi ;;
         --list-safe) [ "$#" -eq 1 ] && replication list ;;
         "") main ;;
         *) echo "用法：$0 [--task 名称 | --list-safe]" >&2; exit 1 ;;
