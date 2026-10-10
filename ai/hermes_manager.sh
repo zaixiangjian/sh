@@ -851,6 +851,108 @@ verify_official_main() {
     return 1
 }
 
+# 使用执行中的 Hermes 运行时及官方通道解析器，只读核对更新目标。
+verify_update_channel() {
+    local version_text="$1" result channel local_sha target_sha state
+    HERMES_LOCAL_SHA=""; HERMES_REMOTE_SHA=""
+    HERMES_MAIN_STATUS="无法检测当前更新通道"
+    result="$(timeout 15 python3 - <<'PY_CHANNEL' 2>/dev/null
+import json, subprocess
+cmd=json.loads(subprocess.check_output(['hermes','--print-runtime-command'],text=True,timeout=2))
+old="runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if not isinstance(cmd,list) or len(cmd)<3 or cmd[-2]!='-c' or old not in cmd[-1]:
+    raise SystemExit(1)
+code='''
+from pathlib import Path
+import subprocess
+from hermes_cli.config import load_config
+from hermes_cli.update_channel import resolve_update_channel, channel_record, rides_default_channel
+from hermes_cli.source_releases import resolve_source_target
+root=Path(__import__('hermes_cli').__file__).resolve().parent.parent
+config=load_config()
+channel=resolve_update_channel(config,root)
+head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True,timeout=2).strip()
+if channel=='main':
+    print('main|'+head+'||main')
+else:
+    try:
+        target=resolve_source_target(channel,['git'],str(root),forward_only=rides_default_channel(channel_record(config,root),channel,root))
+    except Exception:
+        if channel!='stable':
+            raise
+        # GitHub API 限流时，直接使用官方发布页重定向及官方标签。
+        import re, urllib.request
+        from types import SimpleNamespace
+        with urllib.request.urlopen('https://github.com/NousResearch/hermes-agent/releases/latest',timeout=4) as response:
+            url=response.url
+        match=re.fullmatch(r'https://github.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)',url)
+        if not match:
+            raise ValueError('invalid official release redirect')
+        tag=match[1]
+        remote=subprocess.check_output(['git','-c','credential.helper=','ls-remote','--exit-code','https://github.com/NousResearch/hermes-agent.git','refs/tags/'+tag,'refs/tags/'+tag+'^{}'],text=True,timeout=4)
+        refs=dict(line.split()[::-1] for line in remote.splitlines())
+        sha=refs.get('refs/tags/'+tag+'^{}',refs.get('refs/tags/'+tag,''))
+        if not re.fullmatch(r'[0-9a-f]{40}',sha):
+            raise ValueError('invalid official release SHA')
+        ahead=False
+        if head!=sha and rides_default_channel(channel_record(config,root),channel,root):
+            ancestry=subprocess.run(['git','-C',str(root),'merge-base','--is-ancestor',sha,head],capture_output=True,timeout=2)
+            if ancestry.returncode not in (0,1):
+                raise ValueError('cannot verify release ancestry')
+            ahead=ancestry.returncode==0
+        target=SimpleNamespace(commit=head if ahead else sha,ahead=ahead)
+    if not target.commit:
+        raise ValueError('unsupported branch delivery')
+    state='ahead' if target.ahead else ('equal' if head==target.commit else 'different')
+    print(channel+'|'+head+'|'+target.commit+'|'+state)
+'''
+cmd[-1]=cmd[-1].replace(old,code)
+subprocess.run(cmd,check=True,timeout=12)
+PY_CHANNEL
+    )" || return 2
+    IFS='|' read -r channel local_sha target_sha state <<< "$result"
+    if [ "$channel" = main ] && [ "$state" = main ]; then
+        verify_official_main "$version_text"
+        return $?
+    fi
+    [[ "$local_sha" =~ ^[0-9a-f]{40}$ ]] && [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]] || return 2
+    HERMES_LOCAL_SHA="$local_sha"; HERMES_REMOTE_SHA="$target_sha"
+    case "$state" in
+        equal) HERMES_MAIN_STATUS="已是最新（已核对 ${channel} 更新目标）"; return 0 ;;
+        ahead) HERMES_MAIN_STATUS="已是最新（本地代码领先 ${channel} 发布版，等待下一次发布）"; return 0 ;;
+        different) HERMES_MAIN_STATUS="${channel} 通道有更新（使用菜单 7 或 hermes update）"; return 1 ;;
+        *) return 2 ;;
+    esac
+}
+
+# 仅显示官方稳定发布版本号；不使用 PyPI 或本地缓存代替官方查询。
+get_official_release_version() {
+    local release url
+    command -v curl >/dev/null 2>&1 || return 1
+    release="$(curl -fsSL --connect-timeout 2 --max-time 4 \
+        -H 'Accept: application/vnd.github+json' -H 'Cache-Control: no-cache' \
+        https://api.github.com/repos/NousResearch/hermes-agent/releases/latest 2>/dev/null |
+        python3 -c 'import json,re,sys
+try:
+    data=json.load(sys.stdin)
+    tag=data.get("tag_name", "")
+    if data.get("draft") or data.get("prerelease") or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+        raise ValueError("invalid stable release")
+    print(tag)
+except (ValueError, TypeError, AttributeError):
+    sys.exit(1)' 2>/dev/null)"
+    if [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        printf '%s\n' "$release"; return 0
+    fi
+    url="$(curl -fsSL --connect-timeout 2 --max-time 5 -o /dev/null -w '%{url_effective}' \
+        https://github.com/NousResearch/hermes-agent/releases/latest 2>/dev/null)" || return 1
+    if [[ "$url" =~ ^https://github\.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+}
+
 # 版本行用于展示；是否最新必须实时核对官方 main。
 get_version() {
     if ! check_installed; then
@@ -881,22 +983,36 @@ PY_VERSION
 
     first_line="$(echo "$hv" | sed -n '1p')"
     if [ -n "$first_line" ]; then
-        local verify_rc display_version display_local
-        verify_official_main "$hv"
+        local verify_rc display_version official_version local_base
+        verify_update_channel "$hv"
         verify_rc=$?
-        display_version="$(printf '%s\n' "$first_line" | sed -E 's/ · upstream .*//; s/\+([0-9]+)\.g[0-9a-f]+/\+\1个 Git 提交/; s/ \(/(/')"
+        # 仅保留版本及提交数，不展示日期、分支或本地/远端 SHA。
+        display_version="$(printf '%s\n' "$first_line" | sed -E 's/^Hermes Agent //; s/[[:space:]]*\(.*//; s/[[:space:]]*·.*//; s/\+([0-9]+)\.g[0-9a-f]+(\.dirty)?/\+\1个 Git 提交/')"
+        # 上方仅比较稳定发布版本号；与下面的 main 提交核对独立。
+        official_version="$(get_official_release_version)"
+        local_base="$(extract_semver "$display_version")"
+        if [ -z "$official_version" ] || [ -z "$local_base" ]; then
+            printf '%s %b无法检测%b\n' "$display_version" "$YELLOW" "$NC"
+        elif [ "${local_base#v}" = "${official_version#v}" ]; then
+            printf '%s %b最新版本%b\n' "$display_version" "$GREEN" "$NC"
+        elif version_lt "${local_base#v}" "${official_version#v}"; then
+            printf '%s %b新版本 %s%b\n' "$display_version" "$RED" "$official_version" "$NC"
+        else
+            printf '%s 官方版本%s %b本地版本较新%b\n' "$display_version" "$official_version" "$YELLOW" "$NC"
+        fi
+        local display_local display_remote
         display_local="$(printf '%s\n' "$first_line" | sed -nE 's/.*\.g([0-9a-f]+).*/\1/p')"
         [ -n "$HERMES_LOCAL_SHA" ] && display_local="$HERMES_LOCAL_SHA"
-        printf '%s\n' "$display_version"
-        display_local="${display_local:0:7}"
-        local display_remote="${HERMES_REMOTE_SHA:0:7}"
-        printf '当前版本 : %s\n' "${display_local:-未知}"
-        printf '最新版本 : %s\n' "${display_remote:-未获取}"
+        display_remote="${HERMES_REMOTE_SHA:0:7}"
+        printf '当前版本 : %s\n' "${display_local:0:7}"
+        printf '更新目标 : %s\n' "${display_remote:-未获取}"
         case "$verify_rc" in
-            0) echo -e "${GREEN}已是最新版本${NC}" ;;
-            1) echo -e "${RED}与官方 main 不一致（使用菜单 7 号更新）或\nhermes update${NC}" ;;
-            *) echo -e "${YELLOW}${HERMES_MAIN_STATUS}${NC}" ;;
+            0) printf '%b%s%b\n' "$GREEN" "$HERMES_MAIN_STATUS" "$NC" ;;
+            1) printf '%b%s%b\n' "$RED" "$HERMES_MAIN_STATUS" "$NC" ;;
+            *) printf '%b%s%b\n' "$YELLOW" "$HERMES_MAIN_STATUS" "$NC" ;;
         esac
+        printf '%b使用下方代码只在这一次更新最新提交 main 谨慎使用%b\n' "$YELLOW" "$NC"
+        printf '%s\n' 'hermes update --channel main'
         return
     fi
 
@@ -910,7 +1026,7 @@ PY_VERSION
                 [ -r "$metadata" ] || continue
                 version="$(sed -n 's/^Version: //p' "$metadata" 2>/dev/null | sed -n '1p')"
                 if [ -n "$version" ]; then
-                    echo -e "Hermes Agent v${version#v} ${YELLOW}检测异常${NC}"
+                    printf 'v%s %b无法检测%b\n' "${version#v}" "$YELLOW" "$NC"
                     return
                 fi
             done
@@ -1294,7 +1410,7 @@ hermes_update_robust() {
 
     version_text="$(timeout 8 hermes --version 2>&1)"
     local verify_rc
-    verify_official_main "$version_text"
+    verify_update_channel "$version_text"
     verify_rc=$?
     echo "$version_text" | sed -n '1,8p'
     if [ "$update_rc" -eq 0 ] && [ "$verify_rc" -eq 0 ]; then
@@ -1310,7 +1426,7 @@ hermes_update_robust() {
     echo -e "${YELLOW}${HERMES_MAIN_STATUS}${NC}"
     echo ""
     echo -e "${YELLOW}为降低供应链风险，脚本不会执行 git fetch/reset 等强制兜底更新。${NC}"
-    echo -e "${YELLOW}请检查上方 hermes update 输出、服务器网络、GitHub 访问或稍后重试。${NC}"
+    echo -e "${YELLOW}请检查上方 hermes update 输出及当前更新通道；查询失败时检查网络或稍后重试。${NC}"
     return 1
 }
 
