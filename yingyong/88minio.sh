@@ -152,6 +152,16 @@ def https_url(value):
             fail('S3 端点路径无效。')
     except ValueError: fail('S3 端点 URL 或端口无效。')
     return value
+def destination_path_input():
+    # 仅处理新输入，不规范化已有 task.json；保留至少三级目录的限制。
+    default=str(root)
+    while True:
+        value=ask('远端目录（回车默认与本机一致 '+default+'）：',default=default)
+        if value.endswith('/'):
+            value=value[:-1]
+        if re.fullmatch(r'(?:/[a-zA-Z0-9_-]+){3,}',value):
+            return value
+        print('目录错误重新输入')
 def destination_url_input():
     value=ask('目标 S3 API 不是网页管理域名（例如https://example.com）：')
     # 仅为新输入的裸域名补 HTTPS；不修改已有任务或放宽 URL 校验。
@@ -418,10 +428,18 @@ def run(name,scheduled=False):
     if c['mode']=='rsync':
         need('rsync')
         dest=pathlib.PurePosixPath(c['destination'])
-        tests=['test -d '+shlex.quote(str(dest)), 'test "$(stat -c %a '+shlex.quote(str(dest))+')" = 700']
-        tests += ['test ! -L '+shlex.quote(str(p)) for p in [dest,*dest.parents] if str(p)!='/']
-        # 必须预先创建离线专用目录；禁止目标及其父目录为符号链接。
-        checked(options+[target,' && '.join(tests)])
+        # 先逐级拒绝符号链接/非目录；只创建缺失目录，不更改已有目录权限。
+        ancestors=[p for p in reversed([dest,*dest.parents]) if str(p)!='/']
+        checks=[]
+        for path in ancestors:
+            quoted=shlex.quote(str(path))
+            checks += ['test ! -L '+quoted, '( test ! -e '+quoted+' || test -d '+quoted+' )']
+        quoted=shlex.quote(str(dest))
+        create='( umask 077; mkdir -p -- '+quoted+' )'
+        final=['test -d '+quoted, 'test -w '+quoted, 'test -x '+quoted]
+        final += ['test ! -L '+shlex.quote(str(p)) for p in ancestors]
+        # 两端允许运行；新目录默认700，已有目录保留权限但必须可写/可进入。
+        checked(options+[target,' && '.join(checks+[create]+final)])
         exclusions=['--exclude=/runtime.env.replication','--exclude=**/.ssh/***','--exclude=**/id_*','--exclude=*.key','--exclude=*.pem','--exclude=*.p12','--exclude=*.pfx','--exclude=**/credentials*','--exclude=**/task.json','--exclude=**/'+marker,'--exclude=*.lock','--exclude=*.tmp','--exclude=/.replication-*/***']
         exclusions += ['--exclude=/'+n+'/***' for n in tasks()]
         exclusions += ['--exclude=**/.replication-*/***','--exclude=**/*.tmp/***','--exclude=**/.staging*/***','--exclude=**/tmp/***','--exclude=**/temp/***']
@@ -556,7 +574,7 @@ def add(mode,connection='ssh'):
     fcntl.flock(allocation_fd,fcntl.LOCK_EX)
     if not root.is_dir(): fail('应用目录不存在，请先安装。')
     old=cron_read()
-    name=ask('任务名称（小写安全名称）：'); p=taskpath(name)
+    name=ask('任务名称（英文小写安全名称）：' if mode=='rsync' else '任务名称（小写安全名称）：'); p=taskpath(name)
     if p.exists(): fail('同名目录已存在，拒绝覆盖。')
     c={'version':1,'mode':mode,'interval':interval_input()}
     if c['interval'] in ('3d','5d','7d'):
@@ -565,18 +583,17 @@ def add(mode,connection='ssh'):
     if mode=='s3': c['connection']=connection
     if not direct:
         print('严格校验 SSH 主机密钥；首次连接会显示指纹供独立核验确认。')
-        c.update(host=ask('远端 SSH 主机：'),user=ask('SSH 用户（回车默认 root）：',default='root'),port=ask('SSH 端口（回车默认 22）：',default='22'))
+        c.update(host=ask('远端 SSH 主机 IP (例如：1.1.1.1)：' if mode=='rsync' else '远端 SSH 主机：'),user=ask('SSH 用户（回车默认 root）：',default='root'),port=ask('SSH 端口（回车默认 22）：',default='22'))
         auth=ask('SSH 认证：1. 密钥  2. 密码（回车 1）：',default='1')
         if auth=='1':
             c['auth']='key'; c['key']=ask('本机私钥绝对路径（600，应用目录外）：')
         elif auth=='2':
             need('sshpass')
             c['auth']='password'; c['ssh_password']=ask('SSH 密码（隐藏输入）：',True)
-            print('密码认证需在本机任务配置中保存密码（权限600）；任务目录不会通过 rsync 传送。')
+            print('密码认证需在本机保存密码（权限600）；任务目录不会传送。' if mode=='rsync' else '密码认证需在本机任务配置中保存密码（权限600）；任务目录不会通过 rsync 传送。')
         else: fail('认证选项无效。')
     if mode=='rsync':
-        c['destination']=ask('远端专用实例目录（例如 /home/docker/'+appname+'-mirror）：')
-        print('警告：复制运行中的完整目录可能不一致，不是原子快照；远端实例必须离线。包含 runtime.env/compose.yaml 和应用凭证；目标目录须预先创建为 700 且父路径无符号链接，并预先配置远端凭证。排除同步任务、密钥、锁与临时文件。--delete 会删除目标中源端不存在的非排除文件。')
+        c['destination']=destination_path_input()
     else:
         source_default=local_api_default()
         if direct:
@@ -596,13 +613,13 @@ def add(mode,connection='ssh'):
         print('范围：仅此源桶 → 此目标桶，目标桶内多余对象会删除；不删除其他桶。不复制完整 IAM、历史版本或服务器配置。HTTPS 直连保持证书校验；SSH 模式经回环隧道；异步同步并非实时/原子备份。')
     validate(c)
     if not direct:
-        print('密码认证不代表自动信任远端；SSH 主机指纹必须核验。')
+        if mode!='rsync': print('密码认证不代表自动信任远端；SSH 主机指纹必须核验。')
         print('请在远端服务器控制台执行：')
         print('for key in /etc/ssh/ssh_host_*_key.pub; do [ -f "$key" ] && ssh-keygen -lf "$key"; done')
         print('将结果与接下来显示的指纹核对；已有信任时直接检查登录。')
         ask('按回车继续核验 SSH 主机指纹与认证：')
         verify_ssh(c)
-    if not yes('确认远端删除范围与权限（rsync 目标必须离线），注册每'+interval_label(c)+'任务'): print('已取消'); return
+    if not yes(('确认远端删除范围、权限及在线覆盖风险' if mode=='rsync' else '确认远端删除范围与权限')+'，注册每'+interval_label(c)+'任务'): print('已取消'); return
     os.mkdir(p,0o700)
     try:
         for filename,content in [(marker,appname+' replication v1\n'),('task.json',json.dumps(c,ensure_ascii=False)+'\n')]:
