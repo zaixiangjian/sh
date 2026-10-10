@@ -1,0 +1,1548 @@
+#!/bin/bash
+# Hermes Agent 终端管理脚本 (轻量版)
+# 设计哲学：极简、直观、调用原生功能
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# 确保 hermes 命令可用 (处理环境变量未加载的情况)
+if ! command -v hermes >/dev/null 2>&1; then
+    if [ -d "$HOME/.hermes/hermes-agent/venv/bin" ]; then
+        export PATH="$HOME/.hermes/hermes-agent/venv/bin:$PATH"
+    fi
+fi
+
+# 检查是否安装
+
+# --- 科技lion 增强版 API 管理核心 ---
+CONFIG_FILE="$HOME/.hermes/config.yaml"
+
+config_tool() {
+    # 自动适配 CONFIG_FILE 路径
+    if [ ! -f "$CONFIG_FILE" ]; then
+        local p
+        for p in "/root/.hermes/config.yaml" /home/*/.hermes/config.yaml; do
+            if [ -f "$p" ]; then
+                CONFIG_FILE="$p"
+                break
+            fi
+        done
+    fi
+
+    # 寻找可用的 Python 解释器，优先使用带有 pyyaml (yaml) 的环境
+    local python_bin=""
+
+    # 1. 尝试从 command -v hermes 指向的文件的 shebang/内容中提取 python 路径
+    local hermes_cmd
+    hermes_cmd=$(command -v hermes)
+    if [ -n "$hermes_cmd" ] && [ -f "$hermes_cmd" ]; then
+        # A. 检查第一行是否是 shebang
+        local shebang
+        shebang=$(head -n 1 "$hermes_cmd" 2>/dev/null)
+        if [[ "$shebang" =~ ^#\! ]]; then
+            local potential_py="${shebang#\#!}"
+            if [ -f "$potential_py" ]; then
+                if "$potential_py" -c "import yaml" >/dev/null 2>&1; then
+                    python_bin="$potential_py"
+                fi
+            fi
+        fi
+        # B. 检查是否是 Bash wrapper，追踪其实际指向的 bin 并提取 python3
+        if [ -z "$python_bin" ]; then
+            local wrapped_bin
+            wrapped_bin=$(grep -Eo '"/[^"]+/venv/bin/hermes"' "$hermes_cmd" | tr -d '"' | head -n 1)
+            if [ -z "$wrapped_bin" ]; then
+                wrapped_bin=$(grep -Eo '/[a-zA-Z0-9_\.\-]+/hermes-agent/venv/bin/hermes' "$hermes_cmd" | head -n 1)
+            fi
+            if [ -n "$wrapped_bin" ] && [ -f "$wrapped_bin" ]; then
+                local wrapped_shebang
+                wrapped_shebang=$(head -n 1 "$wrapped_bin" 2>/dev/null)
+                if [[ "$wrapped_shebang" =~ ^#\! ]]; then
+                    local potential_py="${wrapped_shebang#\#!}"
+                    if [ -f "$potential_py" ] && "$potential_py" -c "import yaml" >/dev/null 2>&1; then
+                        python_bin="$potential_py"
+                    fi
+                fi
+                if [ -z "$python_bin" ]; then
+                    local potential_py="${wrapped_bin%/hermes}/python3"
+                    if [ -f "$potential_py" ] && "$potential_py" -c "import yaml" >/dev/null 2>&1; then
+                        python_bin="$potential_py"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # 2. 尝试从常见绝对路径查找
+    if [ -z "$python_bin" ]; then
+        local paths=(
+            "$HOME/.hermes/hermes-agent/venv/bin/python3"
+            "$HOME/.hermes/hermes-agent/venv/bin/python"
+            "/root/.hermes/hermes-agent/venv/bin/python3"
+            "/root/.hermes/hermes-agent/venv/bin/python"
+            "/usr/local/lib/hermes-agent/venv/bin/python3"
+            "/usr/local/lib/hermes-agent/venv/bin/python"
+            "/usr/lib/hermes-agent/venv/bin/python3"
+            "/usr/lib/hermes-agent/venv/bin/python"
+            "$HOME/.hermes/hermes-agent/.venv/bin/python3"
+            "/root/.hermes/hermes-agent/.venv/bin/python3"
+            "/usr/local/lib/hermes-agent/.venv/bin/python3"
+            "/usr/lib/hermes-agent/.venv/bin/python3"
+            /home/*/.hermes/hermes-agent/venv/bin/python3
+            /home/*/.hermes/hermes-agent/venv/bin/python
+            /home/*/.hermes/hermes-agent/.venv/bin/python3
+        )
+        local p
+        for p in "${paths[@]}"; do
+            if [ -f "$p" ]; then
+                if "$p" -c "import yaml" >/dev/null 2>&1; then
+                    python_bin="$p"
+                    break
+                fi
+            fi
+        done
+    fi
+
+    # 3. 兜底退回到系统全局 python3 或 python
+    if [ -z "$python_bin" ]; then
+        if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+        else
+            python_bin="python"
+        fi
+    fi
+
+    $python_bin - "$CONFIG_FILE" "$@" <<'EOF'
+import sys, yaml, json, os
+
+path = sys.argv[1]
+action = sys.argv[2]
+
+def load():
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f) or {}
+    except:
+        return {}
+
+def save(d):
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.dump(d, f, sort_keys=False, allow_unicode=True)
+
+try:
+    data = load()
+    if action == "get_info":
+        m = data.get('model', {})
+        res = {"m": m.get('default', '-'), "p": m.get('provider', '-'), "u": m.get('base_url', '-')}
+        print(json.dumps(res))
+    
+    elif action == "list_p":
+        print(json.dumps(data.get('custom_providers', [])))
+    
+    elif action == "add_p":
+        n, u, k, m = sys.argv[3:7]
+        ps = data.get('custom_providers', [])
+        if not isinstance(ps, list): ps = []
+        ps = [p for p in ps if p.get('name') != n]
+        ps.append({"name": n, "base_url": u, "api_key": k, "model": m})
+        data['custom_providers'] = ps
+        save(data)
+    
+    elif action == "bulk_add":
+        n_base, u, k, models_json = sys.argv[3:7]
+        new_m_ids = json.loads(models_json)
+        ps = data.get('custom_providers', [])
+        if not isinstance(ps, list): ps = []
+        # 移除旧的同前缀条目
+        ps = [p for p in ps if not (isinstance(p, dict) and p.get('name', '').startswith(n_base + "/"))]
+        # 移除可能存在的同名根条目
+        ps = [p for p in ps if p.get('name') != n_base]
+        for m_id in new_m_ids:
+            ps.append({"name": f"{n_base}/{m_id}", "base_url": u, "api_key": k, "model": m_id})
+        data['custom_providers'] = ps
+        save(data)
+    
+    elif action == "del_p":
+        n = sys.argv[3]
+        ps = data.get('custom_providers', [])
+        if isinstance(ps, list):
+            data['custom_providers'] = [p for p in ps if p.get('name') != n and not p.get('name', '').startswith(n + "/")]
+            save(data)
+
+    elif action == "list_groups":
+        ps = data.get('custom_providers', [])
+        groups = []
+        seen = set()
+        for p in (ps if isinstance(ps, list) else []):
+            name = p.get('name', '')
+            g = name.split('/')[0] if '/' in name else name
+            if g and g not in seen:
+                seen.add(g)
+                cnt = sum(1 for x in ps if x.get('name', '') == g or x.get('name', '').startswith(g + '/'))
+                groups.append({"name": g, "count": cnt})
+        print(json.dumps(groups))
+    
+    elif action == "list_groups_latency":
+        import threading, urllib.request, time
+        ps = data.get('custom_providers', [])
+        groups = {}
+        for p in (ps if isinstance(ps, list) else []):
+            name = p.get('name', '')
+            g = name.split('/')[0] if '/' in name else name
+            if g not in groups:
+                groups[g] = {'name': g, 'base_url': p.get('base_url', ''), 'api_key': p.get('api_key', ''), 'count': 0}
+            groups[g]['count'] += 1
+        results = {}
+        def worker(g, url, key):
+            if not url or not (url.startswith('http://') or url.startswith('https://')):
+                results[g] = "N/A"
+                return
+            start = time.time()
+            try:
+                url = url.rstrip('/') + '/models'
+                req = urllib.request.Request(url, headers={'Authorization': f'Bearer {key}'} if key else {})
+                with urllib.request.urlopen(req, timeout=1.5) as r:
+                    r.read()
+                results[g] = f"{int((time.time() - start) * 1000)}ms"
+            except urllib.error.HTTPError:
+                results[g] = f"{int((time.time() - start) * 1000)}ms"
+            except Exception:
+                results[g] = "timeout"
+        threads = []
+        for g, info in groups.items():
+            t = threading.Thread(target=worker, args=(g, info['base_url'], info['api_key']))
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+        out = []
+        for g, info in groups.items():
+            out.append({'name': g, 'base_url': info['base_url'], 'count': info['count'], 'latency': results.get(g, 'N/A')})
+        print(json.dumps(out))
+    elif action == "switch":
+        n, u, k, m = sys.argv[3:7]
+        data['model'] = {"default": m, "provider": "custom", "base_url": u, "api_key": k}
+        save(data)
+
+except Exception as e:
+    # 确保出错时返回合法的 JSON 避免 Bash 报错
+    print(json.dumps([]))
+    sys.exit(1)
+EOF
+}
+
+install_gum() {
+    if command -v gum >/dev/null 2>&1; then
+        return 0
+    fi
+    echo -e "${YELLOW}正在安装 gum (交互式选择器)...${NC}"
+    if command -v apt >/dev/null 2>&1; then
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://repo.charm.sh/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/charm.gpg 2>/dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | tee /etc/apt/sources.list.d/charm.list > /dev/null
+        apt update -qq && apt install -y -qq gum
+    elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+        cat > /etc/yum.repos.d/charm.repo <<'REPO'
+[charm]
+name=Charm
+baseurl=https://repo.charm.sh/yum/
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.charm.sh/yum/gpg.key
+REPO
+        rpm --import https://repo.charm.sh/yum/gpg.key
+        if command -v dnf >/dev/null 2>&1; then dnf install -y gum; else yum install -y gum; fi
+    elif command -v zypper >/dev/null 2>&1; then
+        zypper --non-interactive install gum
+    fi
+}
+
+install_jq() {
+    if command -v jq >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}检测到 jq 未安装，正在自动安装 jq...${NC}"
+
+    if command -v apt >/dev/null 2>&1; then
+        apt update -qq && apt install -y -qq jq
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y jq
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y jq
+    elif command -v zypper >/dev/null 2>&1; then
+        zypper --non-interactive install jq
+    else
+        echo -e "${RED}无法自动安装 jq：未识别的包管理器，请手动安装 jq。${NC}"
+        return 1
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "${RED}jq 安装失败，请手动安装后重试。${NC}"
+        return 1
+    fi
+}
+
+hermes_model_probe() {
+    local target_model="$1"
+    local ps_json="$2"
+    local probe_timeout=15
+    local provider_name request_model base_url api_key
+
+    # 从 custom_providers 中查找对应条目
+    provider_name="$target_model"
+    local entry=$(echo "$ps_json" | jq -c --arg n "$provider_name" '.[] | select(.name == $n)' 2>/dev/null)
+    if [ -z "$entry" ]; then
+        HERMES_PROBE_STATUS="ERROR"
+        HERMES_PROBE_MESSAGE="未找到模型配置"
+        HERMES_PROBE_LATENCY="-"
+        HERMES_PROBE_REPLY="-"
+        return 1
+    fi
+
+    base_url=$(echo "$entry" | jq -r .base_url)
+    api_key=$(echo "$entry" | jq -r .api_key)
+    request_model=$(echo "$entry" | jq -r .model)
+    base_url="${base_url%/}"
+
+    local tmp_response
+    tmp_response=$(mktemp)
+
+    # 使用 Python 探测，精确计时
+    local probe_result
+    probe_result=$(python3 - "$base_url" "$api_key" "$request_model" "$tmp_response" "$probe_timeout" <<'PYEOF'
+import sys, time, json
+try:
+    import urllib.request, urllib.error
+except ImportError:
+    print("1|0|0")
+    sys.exit(0)
+
+base_url, api_key, model, resp_path, timeout = sys.argv[1:6]
+timeout = int(timeout)
+url = base_url + "/chat/completions"
+payload = json.dumps({"model": model, "messages": [{"role": "user", "content": "hi"}], "temperature": 0, "max_tokens": 16}).encode()
+req = urllib.request.Request(url, data=payload, headers={
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {api_key}",
+}, method="POST")
+
+start = time.time()
+body = b""
+status = 0
+exit_code = 0
+try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        status = getattr(resp, "status", 200)
+        body = resp.read()
+except urllib.error.HTTPError as e:
+    status = getattr(e, "code", 0) or 0
+    body = e.read()
+    exit_code = 22
+except Exception as e:
+    body = str(e).encode("utf-8", errors="replace")
+    exit_code = 1
+
+elapsed = int((time.time() - start) * 1000)
+with open(resp_path, "wb") as f:
+    f.write(body)
+print(f"{exit_code}|{status}|{elapsed}")
+PYEOF
+)
+
+    local p_exit p_http p_latency
+    p_exit=${probe_result%%|*}
+    p_http=${probe_result#*|}
+    p_http=${p_http%%|*}
+    p_latency=${probe_result##*|}
+
+    # 提取回复摘要
+    local reply_preview
+    reply_preview=$(python3 - "$tmp_response" <<'PYEOF'
+import json, sys
+from pathlib import Path
+raw = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").strip()
+reply = ""
+if raw:
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            choices = data.get("choices") or []
+            if choices and isinstance(choices[0], dict):
+                msg = choices[0].get("message") or {}
+                if isinstance(msg, dict):
+                    reply = msg.get("content") or ""
+            if not reply:
+                for key in ("error", "message", "detail"):
+                    v = data.get(key)
+                    if isinstance(v, str) and v.strip():
+                        reply = v.strip(); break
+                    if isinstance(v, dict):
+                        n = v.get("message")
+                        if isinstance(n, str) and n.strip():
+                            reply = n.strip(); break
+    except:
+        reply = raw
+reply = " ".join(str(reply).split())[:120]
+print(reply if reply else "(空返回)")
+PYEOF
+)
+    rm -f "$tmp_response"
+
+    if [ "$p_exit" = "0" ] && [ "$p_http" -ge 200 ] 2>/dev/null && [ "$p_http" -lt 300 ] 2>/dev/null; then
+        HERMES_PROBE_STATUS="OK"
+        HERMES_PROBE_MESSAGE="HTTP ${p_http}"
+        HERMES_PROBE_LATENCY="${p_latency}ms"
+        HERMES_PROBE_REPLY="$reply_preview"
+        return 0
+    else
+        HERMES_PROBE_STATUS="FAIL"
+        HERMES_PROBE_MESSAGE="HTTP ${p_http:-0} / exit ${p_exit:-1}"
+        HERMES_PROBE_LATENCY="${p_latency:-?}ms"
+        HERMES_PROBE_REPLY="$reply_preview"
+        return 1
+    fi
+}
+
+hermes_probe_status_line() {
+    local status_text="$1"
+    local color_ok='\033[32m' color_fail='\033[31m' reset='\033[0m'
+    if [ "$status_text" = "可用" ]; then
+        printf "%b最小检测结果：%s%b\n" "$color_ok" "$status_text" "$reset"
+    else
+        printf "%b最小检测结果：%s%b\n" "$color_fail" "$status_text" "$reset"
+    fi
+}
+
+sync_single_api_provider_models() {
+    local provider_name="$1"
+    local ps_json="$2"
+
+    local entry base_url api_key m_json m_list_str old_list added_list deleted_list
+    entry=$(echo "$ps_json" | jq -c --arg n "$provider_name" '[.[] | select(.name == $n or (.name | startswith($n + "/")))] | .[0] // empty' 2>/dev/null)
+    if [ -z "$entry" ] || [ "$entry" = "null" ]; then
+        echo -e "${RED}❌ $provider_name: 未找到供应商配置${NC}"
+        return 1
+    fi
+
+    base_url=$(echo "$entry" | jq -r '.base_url // empty')
+    api_key=$(echo "$entry" | jq -r '.api_key // empty')
+    base_url="${base_url%/}"
+    if [ -z "$base_url" ]; then
+        echo -e "${RED}❌ $provider_name: Base URL 为空${NC}"
+        return 1
+    fi
+
+    m_json=$(curl -s -m 20 -H "Authorization: Bearer ${api_key}" "$base_url/models")
+    m_list_str=$(echo "$m_json" | jq -r '.data[]?.id' 2>/dev/null | sed '/^$/d' | sort -u)
+    if [ -z "$m_list_str" ]; then
+        echo -e "${RED}❌ $provider_name: 无法获取模型列表${NC}"
+        return 1
+    fi
+
+    old_list=$(echo "$ps_json" | jq -r --arg n "$provider_name" '
+        .[]
+        | select(.name == $n or (.name | startswith($n + "/")))
+        | if .name == $n then (.model // empty) else ((.name | sub("^" + $n + "/"; "")) // .model // empty) end
+    ' 2>/dev/null | sed '/^$/d' | sort -u)
+
+    added_list=$(comm -13 <(printf '%s\n' "$old_list") <(printf '%s\n' "$m_list_str"))
+    deleted_list=$(comm -23 <(printf '%s\n' "$old_list") <(printf '%s\n' "$m_list_str"))
+
+    local added_count deleted_count current_count m_json_list
+    added_count=$(printf '%s\n' "$added_list" | sed '/^$/d' | wc -l | tr -d ' ')
+    deleted_count=$(printf '%s\n' "$deleted_list" | sed '/^$/d' | wc -l | tr -d ' ')
+    current_count=$(printf '%s\n' "$m_list_str" | sed '/^$/d' | wc -l | tr -d ' ')
+
+    m_json_list=$(printf '%s\n' "$m_list_str" | jq -R . | jq -s -c .)
+    config_tool bulk_add "$provider_name" "$base_url" "$api_key" "$m_json_list"
+
+    echo -e "${GREEN}✅ $provider_name: 新增 $added_count 个，删除 $deleted_count 个，当前 $current_count 个${NC}"
+    if [ "$added_count" -gt 0 ]; then
+        echo -e "${GREEN}＋ 新增模型($added_count):${NC}"
+        printf '%s\n' "$added_list" | sed '/^$/d' | sed 's/^/  + /'
+    fi
+    if [ "$deleted_count" -gt 0 ]; then
+        echo -e "${YELLOW}－ 删除模型($deleted_count):${NC}"
+        printf '%s\n' "$deleted_list" | sed '/^$/d' | sed 's/^/  - /'
+    fi
+    return 0
+}
+
+sync_api_provider_models() {
+    local target_provider="$1"
+    local ps_json groups_json g_count synced_count failed_count provider_name
+
+    ps_json=$(config_tool list_p)
+    if [ "$(echo "$ps_json" | jq '. | length' 2>/dev/null)" -eq 0 ] 2>/dev/null; then
+        echo -e "${RED}无 API 配置! 请先添加供应商。${NC}"
+        return 1
+    fi
+
+    groups_json=$(config_tool list_groups)
+    g_count=$(echo "$groups_json" | jq '. | length' 2>/dev/null)
+    if [ "$g_count" -eq 0 ] 2>/dev/null || [ -z "$g_count" ]; then
+        echo -e "${RED}无 API 供应商分组可同步。${NC}"
+        return 1
+    fi
+
+    synced_count=0
+    failed_count=0
+    if [ -n "$target_provider" ]; then
+        if sync_single_api_provider_models "$target_provider" "$ps_json"; then
+            synced_count=$((synced_count + 1))
+        else
+            failed_count=$((failed_count + 1))
+        fi
+    else
+        while read -r provider_name; do
+            [ -z "$provider_name" ] && continue
+            ps_json=$(config_tool list_p)
+            if sync_single_api_provider_models "$provider_name" "$ps_json"; then
+                synced_count=$((synced_count + 1))
+            else
+                failed_count=$((failed_count + 1))
+            fi
+        done < <(echo "$groups_json" | jq -r '.[].name')
+    fi
+
+    if [ "$failed_count" -eq 0 ]; then
+        echo -e "${GREEN}✅ API 供应商模型列表同步完成并已写入配置${NC}"
+    else
+        echo -e "${YELLOW}⚠️ API 供应商模型列表同步完成：成功 $synced_count 个，失败 $failed_count 个${NC}"
+    fi
+}
+
+api_management_submenu() {
+    while true; do
+        clear
+        info=$(config_tool get_info)
+        echo -e "${BLUE}=======================================${NC}"
+        echo -e "      ${PURPLE}API & 模型管理 (OpenClaw 风格)${NC}"
+        echo -e "${BLUE}=======================================${NC}"
+        echo -e "${CYAN}当前激活模型:${NC} ${GREEN}$(echo $info | jq -r .m)${NC}"
+        echo -e "---------------------------------------"
+        echo -e "${CYAN}已配置 API 列表:${NC}"
+        local groups_lat_json
+        groups_lat_json=$(config_tool list_groups_latency)
+        if [ "$(echo "$groups_lat_json" | jq '. | length' 2>/dev/null)" -eq 0 ] 2>/dev/null || [ -z "$groups_lat_json" ]; then
+            echo -e "  ${YELLOW}(暂无配置)${NC}"
+        else
+            while read -r row; do
+                local g_name g_url g_count g_latency lat_color lat_num
+                g_name=$(echo "$row" | jq -r .name)
+                g_url=$(echo "$row" | jq -r .base_url)
+                g_count=$(echo "$row" | jq -r .count)
+                g_latency=$(echo "$row" | jq -r .latency)
+                lat_color="${GREEN}"
+                if [ "$g_latency" = "timeout" ] || [ "$g_latency" = "N/A" ]; then
+                    lat_color="${RED}"
+                elif [[ "$g_latency" =~ ^[0-9]+ms$ ]]; then
+                    lat_num=$(echo "$g_latency" | tr -d 'ms')
+                    if [ "$lat_num" -gt 800 ]; then
+                        lat_color="${RED}"
+                    elif [ "$lat_num" -gt 300 ]; then
+                        lat_color="${YELLOW}"
+                    fi
+                fi
+                echo -e "  ● [${g_name}] (${g_count} 个模型) | 延迟: ${lat_color}${g_latency}${NC} | ${g_url}"
+            done < <(echo "$groups_lat_json" | jq -c '.[]')
+        fi
+        echo -e "---------------------------------------"
+        echo -e "1. ${YELLOW}切换模型 (带测速)${NC}"
+        echo -e "2. 添加 API 供应商 (自动同步)${NC}"
+        echo -e "3. ${YELLOW}同步 API 供应商模型列表${NC}"
+        echo -e "4. 删除 API 供应商"
+        echo -e "0. 返回主菜单"
+        echo -e "---------------------------------------"
+        read -p "选择序号: " sub_choice
+        case "$sub_choice" in
+            1)
+                local orange="#FF8C00"
+                local ps_json models_list model_count default_model selected_model confirm_switch
+
+                ps_json=$(config_tool list_p)
+                model_count=$(echo "$ps_json" | jq '. | length')
+
+                if [ "$model_count" -eq 0 ] 2>/dev/null || [ -z "$model_count" ]; then
+                    echo -e "${RED}无 API 配置! 请先添加供应商。${NC}"
+                    sleep 1
+                    continue
+                fi
+
+                # 构建带编号的模型列表
+                models_list=$(echo "$ps_json" | jq -r '.[].name' | awk '{print "(" NR ") " $0}')
+                default_model=$(config_tool get_info | jq -r .m)
+
+                while true; do
+                    clear
+                    install_gum
+
+                    # 若 gum 不可用，降级为手动输入
+                    if ! command -v gum >/dev/null 2>&1; then
+                        echo "--- 模型管理 ---"
+                        echo "当前可用模型："
+                        echo "$models_list"
+                        echo "当前默认：${default_model}"
+                        echo "----------------"
+                        read -e -p "请输入模型编号或名称 (输入 0 退出): " selected_model
+
+                        if [ "$selected_model" = "0" ]; then
+                            break
+                        fi
+                        if [ -z "$selected_model" ]; then
+                            echo "错误：不能为空，请重试。"
+                            sleep 1
+                            continue
+                        fi
+                        # 如果输入的是纯数字，从列表中取名称
+                        if [[ "$selected_model" =~ ^[0-9]+$ ]]; then
+                            selected_model=$(echo "$ps_json" | jq -r --argjson i "$((selected_model-1))" '.[$i].name // empty')
+                            if [ -z "$selected_model" ]; then
+                                echo "序号无效，请重试。"
+                                sleep 1
+                                continue
+                            fi
+                        fi
+                    else
+                        # gum 模式 — 完全复刻 openclaw 风格
+                        gum style --foreground "$orange" --bold "模型管理"
+                        gum style --foreground "$orange" "可用模型：${model_count}"
+                        gum style --foreground "$orange" "当前默认：${default_model}"
+                        echo ""
+                        gum style --faint "↑↓ 选择 / 输入搜索 / Enter 测试 / Esc 退出"
+                        echo ""
+
+                        selected_model=$(echo "$models_list" | gum filter \
+                            --placeholder "搜索模型（如 cli-api/gpt-4o）" \
+                            --prompt "选择模型 > " \
+                            --indicator "➜ " \
+                            --prompt.foreground "$orange" \
+                            --indicator.foreground "$orange" \
+                            --cursor-text.foreground "$orange" \
+                            --match.foreground "$orange" \
+                            --header "" \
+                            --height 35)
+
+                        if [ -z "$selected_model" ] || echo "$selected_model" | head -n 1 | grep -iqE '^(error|usage|gum:)'; then
+                            echo "操作已取消，正在退出..."
+                            break
+                        fi
+                    fi
+
+                    # 去掉编号前缀 "(N) "
+                    selected_model=$(echo "$selected_model" | sed -E 's/^\([0-9]+\)[[:space:]]+//')
+
+                    echo ""
+                    echo "正在检测模型: $selected_model"
+                    if hermes_model_probe "$selected_model" "$ps_json"; then
+                        hermes_probe_status_line "可用"
+                    else
+                        hermes_probe_status_line "不可用"
+                    fi
+                    echo "状态：$HERMES_PROBE_MESSAGE"
+                    echo "延迟：$HERMES_PROBE_LATENCY"
+                    echo "摘要：$HERMES_PROBE_REPLY"
+                    echo ""
+
+                    printf "是否切换到该模型？[y/N，Esc 返回列表]: "
+                    IFS= read -rsn1 confirm_switch
+                    echo ""
+                    if [ "$confirm_switch" = $'\x1b' ]; then
+                        confirm_switch="no"
+                    else
+                        case "$confirm_switch" in
+                            [yY])
+                                IFS= read -rsn1 -t 5 _enter_key
+                                confirm_switch="yes"
+                                ;;
+                            *) confirm_switch="no" ;;
+                        esac
+                    fi
+
+                    if [ "$confirm_switch" != "yes" ]; then
+                        echo "已返回模型选择列表。"
+                        sleep 1
+                        continue
+                    fi
+
+                    # 执行切换
+                    local entry_data
+                    entry_data=$(echo "$ps_json" | jq -c --arg n "$selected_model" '.[] | select(.name == $n)')
+                    local sw_u sw_k sw_m
+                    sw_u=$(echo "$entry_data" | jq -r .base_url)
+                    sw_k=$(echo "$entry_data" | jq -r .api_key)
+                    sw_m=$(echo "$entry_data" | jq -r .model)
+
+                    echo "正在切换模型为: $selected_model ..."
+                    config_tool switch "$selected_model" "$sw_u" "$sw_k" "$sw_m"
+
+                    # 重启 gateway
+                    echo -e "${YELLOW}正在重启 Gateway...${NC}"
+                    hermes gateway stop >/dev/null 2>&1
+                    hermes gateway start >/dev/null 2>&1
+                    echo -e "${GREEN}✅ 模型已切换为: $sw_m${NC}"
+                    sleep 2
+                    break
+                done
+                ;;
+            2)
+                echo -e "${CYAN}--- 添加新 API 供应商 ---${NC}"
+                read -p "请输入供应商名称 (如: DeepSeek): " n
+                [ -z "$n" ] && continue
+                read -p "请输入 Base URL (如: https://api.deepseek.com/v1): " u
+                [ -z "$u" ] && continue
+                u="${u%/}"
+                echo -ne "${YELLOW}请输入 API Key (输入隐藏): ${NC}"
+                read -s k
+                echo ""
+                [ -z "$k" ] && continue
+                
+                echo -e "${YELLOW}🔍 正在获取完整模型列表...${NC}"
+                m_json=$(curl -s -m 10 -H "Authorization: Bearer $k" "$u/models")
+                # 提取所有 ID
+                m_list_str=$(echo "$m_json" | jq -r '.data[].id' 2>/dev/null | sort)
+                
+                if [ -n "$m_list_str" ]; then
+                    # 转换为数组
+                    m_array=()
+                    while read -r line; do m_array+=("$line"); done <<< "$m_list_str"
+                    m_count=${#m_array[@]}
+                    
+                    echo -e "${GREEN}✅ 发现 $m_count 个模型。请选择一个作为当前默认：${NC}"
+                    PS3="请输入序号: "
+                    select m_default in "${m_array[@]}"; do
+                        [ -n "$m_default" ] && break
+                    done
+                    
+                    echo -e "---------------------------------------"
+                    read -p "是否同时添加该供应商的所有 $m_count 个模型？(y/N): " bulk_confirm
+                    if [[ "$bulk_confirm" =~ ^[Yy]$ ]]; then
+                        # 转换数组为 JSON
+                        m_json_list=$(echo "$m_list_str" | jq -R . | jq -s -c .)
+                        config_tool bulk_add "$n" "$u" "$k" "$m_json_list"
+                        config_tool switch "$n/$m_default" "$u" "$k" "$m_default"
+                        echo -e "${GREEN}✅ 已全量导入 $m_count 个模型。${NC}"
+                    else
+                        config_tool add_p "$n" "$u" "$k" "$m_default"
+                        echo -e "${GREEN}✅ 已添加单个模型: $m_default${NC}"
+                    fi
+                else
+                    echo -e "${RED}❌ 无法获取列表。${NC}"
+                    read -p "请手动输入模型 ID: " m_manual
+                    [ -n "$m_manual" ] && config_tool add_p "$n" "$u" "$k" "$m_manual"
+                fi
+                sleep 2
+                ;;
+            3)
+                echo -e "${CYAN}--- 同步 API 供应商模型列表 ---${NC}"
+                echo -e "${CYAN}已配置的供应商分组:${NC}"
+                groups_json=$(config_tool list_groups)
+                g_count=$(echo "$groups_json" | jq '. | length' 2>/dev/null)
+                if [ "$g_count" -eq 0 ] 2>/dev/null || [ -z "$g_count" ]; then
+                    echo -e "  ${YELLOW}(暂无配置)${NC}"
+                    sleep 1
+                    continue
+                fi
+                echo "$groups_json" | jq -r '.[] | "  ● \(.name) (\(.count) 个模型)"'
+                echo ""
+                read -p "请输入要同步的 API 名称(provider)，直接回车同步全部: " sync_provider
+                sync_api_provider_models "$sync_provider"
+                echo ""
+                read -p "按回车键继续..."
+                ;;
+            4)
+                echo -e "${CYAN}已配置的供应商分组:${NC}"
+                groups_json=$(config_tool list_groups)
+                g_count=$(echo "$groups_json" | jq '. | length')
+                if [ "$g_count" -eq 0 ]; then
+                    echo -e "  ${YELLOW}(暂无配置)${NC}"
+                    sleep 1
+                    continue
+                fi
+                # 列出供应商分组
+                g_names=()
+                while read -r row; do
+                    g_name=$(echo "$row" | jq -r .name)
+                    g_cnt=$(echo "$row" | jq -r .count)
+                    g_names+=("$g_name")
+                    echo -e "  ${GREEN}${#g_names[@]}.${NC} $g_name (${g_cnt} 个模型)"
+                done < <(echo "$groups_json" | jq -c '.[]')
+                echo -e "  ${GREEN}0.${NC} 取消"
+                read -p "选择要删除的供应商序号: " d_idx
+                if [ "$d_idx" == "0" ] || [ -z "$d_idx" ]; then continue; fi
+                d_name="${g_names[$((d_idx-1))]}"
+                if [ -n "$d_name" ]; then
+                    read -p "确认删除 [$d_name] 及其所有模型? (y/N): " del_confirm
+                    if [[ "$del_confirm" =~ ^[Yy]$ ]]; then
+                        config_tool del_p "$d_name"
+                        echo -e "${RED}🗑️ 已删除 $d_name${NC}"
+                        sleep 1
+                    fi
+                fi
+                ;;
+            0) break ;;
+        esac
+    done
+}
+check_installed() {
+    if command -v hermes >/dev/null 2>&1; then return 0; else return 1; fi
+}
+
+# 只读核对官方 main：不使用 Hermes 的缓存更新提示，也不 fetch/reset。
+# 返回：0=一致，1=不同，2=无法确认，3=非官方 main。
+verify_official_main() {
+    local version_text="$1" install_dir method branch remote local_sha remote_output remote_sha
+    HERMES_MAIN_STATUS="无法确认是否最新"
+    HERMES_LOCAL_SHA=""
+    HERMES_REMOTE_SHA=""
+    install_dir=$(printf '%s\n' "$version_text" | sed -n 's/^Install directory: //p' | head -n 1)
+    method=$(printf '%s\n' "$version_text" | sed -n 's/^Install method: //p' | head -n 1)
+    if [ "$method" != git ] || [ -z "$install_dir" ] || ! command -v git >/dev/null 2>&1; then
+        HERMES_MAIN_STATUS="无法确认是否最新（安装信息不完整或非 Git 安装）"
+        return 2
+    fi
+    branch=$(git -C "$install_dir" symbolic-ref --quiet --short HEAD 2>/dev/null) || branch=""
+    remote=$(git -C "$install_dir" remote get-url origin 2>/dev/null) || remote=""
+    case "$remote" in
+        https://github.com/NousResearch/hermes-agent|https://github.com/NousResearch/hermes-agent.git|git@github.com:NousResearch/hermes-agent.git|ssh://git@github.com/NousResearch/hermes-agent.git) ;;
+        *) HERMES_MAIN_STATUS="非官方 main（安装源不同）"; return 3 ;;
+    esac
+    if [ "$branch" != main ]; then
+        HERMES_MAIN_STATUS="非官方 main（当前分支：${branch:-分离 HEAD}）"
+        return 3
+    fi
+    local_sha=$(git -C "$install_dir" rev-parse --verify HEAD 2>/dev/null) || return 2
+    if ! command -v timeout >/dev/null 2>&1; then
+        HERMES_MAIN_STATUS="无法确认是否最新（缺少 timeout）"
+        return 2
+    fi
+    # API 仅返回 SHA，比 Git 协议查询更轻；失败再短时尝试 Git。
+    remote_sha=""
+    if command -v curl >/dev/null 2>&1; then
+        remote_sha=$(curl -fsSL --connect-timeout 2 --max-time 4 \
+            -H 'Accept: application/vnd.github.sha' -H 'Cache-Control: no-cache' \
+            https://api.github.com/repos/NousResearch/hermes-agent/commits/main 2>/dev/null) || remote_sha=""
+    fi
+    if [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        remote_output=$(GIT_TERMINAL_PROMPT=0 timeout 3 git -c credential.helper= ls-remote --exit-code https://github.com/NousResearch/hermes-agent.git refs/heads/main 2>/dev/null) || {
+            HERMES_MAIN_STATUS="无法确认是否最新（查询失败；更新请运行 hermes update）"
+            return 2
+        }
+        remote_sha=$(printf '%s\n' "$remote_output" | awk '$2 == "refs/heads/main" {print $1}')
+    fi
+    if [[ ! "$local_sha" =~ ^[0-9a-f]{40}$ ]] || [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        HERMES_MAIN_STATUS="无法确认是否最新（提交信息异常）"
+        return 2
+    fi
+    HERMES_LOCAL_SHA="$local_sha"
+    HERMES_REMOTE_SHA="$remote_sha"
+    if [ "$local_sha" = "$remote_sha" ]; then
+        HERMES_MAIN_STATUS="已是最新（已实时核对官方 main）"
+        return 0
+    fi
+    HERMES_MAIN_STATUS="与官方 main 不一致（远端 ${remote_sha:0:7}；更新：hermes update 或菜单 7）"
+    return 1
+}
+
+# 使用执行中的 Hermes 运行时及官方通道解析器，只读核对更新目标。
+verify_update_channel() {
+    local version_text="$1" result channel local_sha target_sha state
+    HERMES_LOCAL_SHA=""; HERMES_REMOTE_SHA=""
+    HERMES_MAIN_STATUS="无法检测当前更新通道"
+    result="$(timeout 15 python3 - <<'PY_CHANNEL' 2>/dev/null
+import json, subprocess
+cmd=json.loads(subprocess.check_output(['hermes','--print-runtime-command'],text=True,timeout=2))
+old="runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if not isinstance(cmd,list) or len(cmd)<3 or cmd[-2]!='-c' or old not in cmd[-1]:
+    raise SystemExit(1)
+code='''
+from pathlib import Path
+import subprocess
+from hermes_cli.config import load_config
+from hermes_cli.update_channel import resolve_update_channel, channel_record, rides_default_channel
+from hermes_cli.source_releases import resolve_source_target
+root=Path(__import__('hermes_cli').__file__).resolve().parent.parent
+config=load_config()
+channel=resolve_update_channel(config,root)
+head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True,timeout=2).strip()
+if channel=='main':
+    print('main|'+head+'||main')
+else:
+    try:
+        target=resolve_source_target(channel,['git'],str(root),forward_only=rides_default_channel(channel_record(config,root),channel,root))
+    except Exception:
+        if channel!='stable':
+            raise
+        # GitHub API 限流时，直接使用官方发布页重定向及官方标签。
+        import re, urllib.request
+        from types import SimpleNamespace
+        with urllib.request.urlopen('https://github.com/NousResearch/hermes-agent/releases/latest',timeout=4) as response:
+            url=response.url
+        match=re.fullmatch(r'https://github.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)',url)
+        if not match:
+            raise ValueError('invalid official release redirect')
+        tag=match[1]
+        remote=subprocess.check_output(['git','-c','credential.helper=','ls-remote','--exit-code','https://github.com/NousResearch/hermes-agent.git','refs/tags/'+tag,'refs/tags/'+tag+'^{}'],text=True,timeout=4)
+        refs=dict(line.split()[::-1] for line in remote.splitlines())
+        sha=refs.get('refs/tags/'+tag+'^{}',refs.get('refs/tags/'+tag,''))
+        if not re.fullmatch(r'[0-9a-f]{40}',sha):
+            raise ValueError('invalid official release SHA')
+        ahead=False
+        if head!=sha and rides_default_channel(channel_record(config,root),channel,root):
+            ancestry=subprocess.run(['git','-C',str(root),'merge-base','--is-ancestor',sha,head],capture_output=True,timeout=2)
+            if ancestry.returncode not in (0,1):
+                raise ValueError('cannot verify release ancestry')
+            ahead=ancestry.returncode==0
+        target=SimpleNamespace(commit=head if ahead else sha,ahead=ahead)
+    if not target.commit:
+        raise ValueError('unsupported branch delivery')
+    state='ahead' if target.ahead else ('equal' if head==target.commit else 'different')
+    print(channel+'|'+head+'|'+target.commit+'|'+state)
+'''
+cmd[-1]=cmd[-1].replace(old,code)
+subprocess.run(cmd,check=True,timeout=12)
+PY_CHANNEL
+    )" || return 2
+    IFS='|' read -r channel local_sha target_sha state <<< "$result"
+    if [ "$channel" = main ] && [ "$state" = main ]; then
+        verify_official_main "$version_text"
+        return $?
+    fi
+    [[ "$local_sha" =~ ^[0-9a-f]{40}$ ]] && [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]] || return 2
+    HERMES_LOCAL_SHA="$local_sha"; HERMES_REMOTE_SHA="$target_sha"
+    case "$state" in
+        equal) HERMES_MAIN_STATUS="已是最新（已核对 ${channel} 更新目标）"; return 0 ;;
+        ahead) HERMES_MAIN_STATUS="已是最新（本地代码领先 ${channel} 发布版，等待下一次发布）"; return 0 ;;
+        different) HERMES_MAIN_STATUS="${channel} 通道有更新（使用菜单 7 或 hermes update）"; return 1 ;;
+        *) return 2 ;;
+    esac
+}
+
+# 仅显示官方稳定发布版本号；不使用 PyPI 或本地缓存代替官方查询。
+get_official_release_version() {
+    local release url
+    command -v curl >/dev/null 2>&1 || return 1
+    release="$(curl -fsSL --connect-timeout 2 --max-time 4 \
+        -H 'Accept: application/vnd.github+json' -H 'Cache-Control: no-cache' \
+        https://api.github.com/repos/NousResearch/hermes-agent/releases/latest 2>/dev/null |
+        python3 -c 'import json,re,sys
+try:
+    data=json.load(sys.stdin)
+    tag=data.get("tag_name", "")
+    if data.get("draft") or data.get("prerelease") or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+        raise ValueError("invalid stable release")
+    print(tag)
+except (ValueError, TypeError, AttributeError):
+    sys.exit(1)' 2>/dev/null)"
+    if [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        printf '%s\n' "$release"; return 0
+    fi
+    url="$(curl -fsSL --connect-timeout 2 --max-time 5 -o /dev/null -w '%{url_effective}' \
+        https://github.com/NousResearch/hermes-agent/releases/latest 2>/dev/null)" || return 1
+    if [[ "$url" =~ ^https://github\.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+}
+
+# 版本行用于展示；是否最新必须实时核对官方 main。
+get_version() {
+    if ! check_installed; then
+        return
+    fi
+
+    local hv first_line update_line hermes_bin python_bin venv_dir metadata version
+
+    if command -v timeout >/dev/null 2>&1; then
+        # 使用官方运行时输出本地版本信息，关闭其缓存/联网更新检查。
+        # 旧版不支持运行时查询时，短时回退到 --version。
+        hv="$(timeout 3 python3 - <<'PY_VERSION' 2>/dev/null
+import json, subprocess
+cmd = json.loads(subprocess.check_output(['hermes', '--print-runtime-command'], text=True, timeout=2))
+if not isinstance(cmd, list) or len(cmd) < 3 or cmd[-2] != '-c':
+    raise SystemExit(1)
+old = "runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if old not in cmd[-1]:
+    raise SystemExit(1)
+cmd[-1] = cmd[-1].replace(old, 'from hermes_cli._startup_fast import print_fast_version_info; print_fast_version_info(check_updates=False)')
+subprocess.run(cmd, check=True, timeout=2)
+PY_VERSION
+        )" || hv=""
+        [ -n "$hv" ] || hv="$(timeout 3 hermes --version 2>/dev/null || true)"
+    else
+        hv="$(hermes --version 2>/dev/null || true)"
+    fi
+
+    first_line="$(echo "$hv" | sed -n '1p')"
+    if [ -n "$first_line" ]; then
+        local official_version local_base
+        local_base="$(extract_semver "$first_line")"
+        local_base="v${local_base#v}"
+        official_version="$(get_official_release_version)"
+        if [ "$local_base" = v ] || [ -z "$official_version" ]; then
+            printf '%s %b无法检测%b\n' "${local_base:-未知}" "$YELLOW" "$NC"
+        elif version_lt "${local_base#v}" "${official_version#v}"; then
+            printf '%s %b新版本 %s%b\n' "$local_base" "$RED" "$official_version" "$NC"
+        else
+            printf '%s %b最新版本%b\n' "$local_base" "$GREEN" "$NC"
+        fi
+        return
+    fi
+
+    # 兜底：如果 hermes --version 异常，再读 dist-info/METADATA。
+    hermes_bin="$(command -v hermes 2>/dev/null)"
+    if [ -n "$hermes_bin" ] && [ -r "$hermes_bin" ]; then
+        python_bin="$(sed -n '1s/^#!//p' "$hermes_bin" 2>/dev/null)"
+        if [ -n "$python_bin" ] && [ -x "$python_bin" ]; then
+            venv_dir="$(dirname "$(dirname "$python_bin")")"
+            for metadata in "$venv_dir"/lib/python*/site-packages/hermes_agent-*.dist-info/METADATA; do
+                [ -r "$metadata" ] || continue
+                version="$(sed -n 's/^Version: //p' "$metadata" 2>/dev/null | sed -n '1p')"
+                if [ -n "$version" ]; then
+                    printf 'v%s %b无法检测%b\n' "${version#v}" "$YELLOW" "$NC"
+                    return
+                fi
+            done
+        fi
+    fi
+}
+
+# 提取语义版本号，例如 v0.13.0 / 0.13.0
+extract_semver() {
+    echo "$1" | grep -Eo 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
+}
+
+# 比较两个版本号：$1 < $2 返回 0
+version_lt() {
+    [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n 1)" != "$2" ] && [ "$1" != "$2" ]
+}
+
+# 获取 PyPI 最新版本：优先读缓存，过期后后台刷新，避免拖慢主菜单显示
+get_latest_version() {
+    local cache_dir cache_file lock_dir now cache_mtime lock_mtime ttl lock_ttl version
+    cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/hermes-manager"
+    cache_file="$cache_dir/hermes-agent-latest-version"
+    lock_dir="$cache_dir/hermes-agent-latest-version.lock"
+    ttl=21600       # 6 小时内不重复联网检查
+    lock_ttl=300    # 后台刷新失败时，5 分钟内不重复启动刷新任务
+    now="$(date +%s 2>/dev/null || echo 0)"
+
+    mkdir -p "$cache_dir" 2>/dev/null || true
+
+    # 缓存未过期：直接返回，菜单无网络等待。
+    if [ -r "$cache_file" ]; then
+        cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)"
+        if [ $((now - cache_mtime)) -lt "$ttl" ]; then
+            sed -n '1p' "$cache_file" 2>/dev/null
+            return
+        fi
+        # 缓存过期也先返回旧值，刷新放后台做，避免卡界面。
+        version="$(sed -n '1p' "$cache_file" 2>/dev/null)"
+    fi
+
+    # 后台刷新：用锁避免每次打开菜单都发起 PyPI 请求。
+    if mkdir "$lock_dir" 2>/dev/null; then
+        (
+            python3 - "$cache_file" <<'PY' 2>/dev/null
+import json
+import sys
+import tempfile
+import urllib.request
+from pathlib import Path
+
+cache_file = Path(sys.argv[1])
+try:
+    with urllib.request.urlopen('https://pypi.org/pypi/hermes-agent/json', timeout=2) as response:
+        data = json.load(response)
+    version = (data.get('info') or {}).get('version') or ''
+    if version:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile('w', dir=str(cache_file.parent), delete=False) as f:
+            f.write('v' + version.lstrip('v') + '\n')
+            tmp = f.name
+        Path(tmp).replace(cache_file)
+except Exception:
+    pass
+PY
+            rmdir "$lock_dir" 2>/dev/null || true
+        ) >/dev/null 2>&1 &
+    elif [ -d "$lock_dir" ]; then
+        lock_mtime="$(stat -c %Y "$lock_dir" 2>/dev/null || echo "$now")"
+        if [ $((now - lock_mtime)) -gt "$lock_ttl" ]; then
+            rmdir "$lock_dir" 2>/dev/null || true
+        fi
+    fi
+
+    # 首次无缓存时不输出，不阻塞菜单；下次打开菜单会读到后台刷新结果。
+    [ -n "$version" ] && echo "$version"
+}
+
+# 检查是否有新版本
+get_update_notice() {
+    if ! check_installed; then
+        return
+    fi
+
+    local current_version latest_version current_plain latest_plain
+    current_version="$(extract_semver "$(get_version)")"
+    latest_version="$(extract_semver "$(get_latest_version)")"
+    current_plain="${current_version#v}"
+    latest_plain="${latest_version#v}"
+
+    if [ -n "$current_plain" ] && [ -n "$latest_plain" ] && version_lt "$current_plain" "$latest_plain"; then
+        echo -e "  ${YELLOW}有新版本 ${latest_version^^}${NC}"
+    fi
+}
+
+# 获取网关状态
+get_gateway_status() {
+    if ! check_installed; then
+        echo -e "${RED}未安装${NC}"
+        return
+    fi
+
+    # 优先检查 Hermes 安装的 user systemd 服务，速度快且比扫进程更准。
+    if command -v systemctl >/dev/null 2>&1; then
+        case "$(systemctl --user is-active hermes-gateway.service 2>/dev/null)" in
+            active)
+                echo -e "${GREEN}运行中${NC}$(get_update_notice)"
+                return
+                ;;
+            inactive|failed|activating|deactivating)
+                echo -e "${RED}已停止${NC}$(get_update_notice)"
+                return
+                ;;
+        esac
+    fi
+
+    # 兜底：兼容非 systemd 或手动启动的 gateway。
+    if pgrep -u "$(id -u)" -f "(^|[[:space:]])(([^[:space:]]*/)?python[0-9.]*[[:space:]]+-m[[:space:]]+hermes_cli\.main[[:space:]]+gateway[[:space:]]+run|([^[:space:]]*/)?hermes[[:space:]]+gateway[[:space:]]+run|hermes-gateway)([[:space:]]|$)" >/dev/null 2>&1; then
+        echo -e "${GREEN}运行中${NC}$(get_update_notice)"
+    else
+        echo -e "${RED}已停止${NC}$(get_update_notice)"
+    fi
+}
+
+
+refresh_hermes_path() {
+    if ! command -v hermes >/dev/null 2>&1; then
+        if [ -d "$HOME/.hermes/hermes-agent/venv/bin" ]; then
+            export PATH="$HOME/.hermes/hermes-agent/venv/bin:$PATH"
+        fi
+    fi
+}
+
+add_app_id() {
+mkdir -p /home/docker
+touch /home/docker/appno.txt
+grep -qxF "115" /home/docker/appno.txt || echo "115" >> /home/docker/appno.txt
+
+}
+
+
+get_hermes_home_dir() {
+    local cfg_path
+    if command -v hermes >/dev/null 2>&1; then
+        cfg_path="$(hermes config path 2>/dev/null | sed -n '1p')"
+        if [ -n "$cfg_path" ]; then
+            dirname "$cfg_path"
+            return
+        fi
+    fi
+    echo "$HOME/.hermes"
+}
+
+backup_memory_full() {
+    local hermes_home backup_dir ts archive parent base confirm was_running wait_i tar_status
+    hermes_home="$(get_hermes_home_dir)"
+    backup_dir="$HOME/hermes_memory_backups"
+    ts="$(date +%Y%m%d_%H%M%S)"
+    archive="$backup_dir/hermes_memory_full_${ts}.tar.gz"
+    was_running=0
+
+    if [ ! -d "$hermes_home" ]; then
+        echo -e "${RED}❌ 未找到 Hermes 数据目录：$hermes_home${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}即将备份 Hermes 记忆/配置/会话数据：${NC}$hermes_home"
+    echo -e "${YELLOW}备份前会先停止 Gateway，等待缓存/SQLite WAL 落库，备份完成后再启动 Gateway。${NC}"
+    echo -e "${YELLOW}注意：备份可能包含 .env、auth.json、config.yaml 等敏感信息，请妥善保管。${NC}"
+    read -p "确认开始全量备份？(y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "已取消。"
+        return 0
+    fi
+
+    if command -v hermes >/dev/null 2>&1; then
+        if systemctl --user is-active --quiet hermes-gateway 2>/dev/null || pgrep -u "$(id -u)" -f "(^|[[:space:]])(([^[:space:]]*/)?python[0-9.]*[[:space:]]+-m[[:space:]]+hermes_cli\.main[[:space:]]+gateway[[:space:]]+run|([^[:space:]]*/)?hermes[[:space:]]+gateway[[:space:]]+run|hermes-gateway)([[:space:]]|$)" >/dev/null 2>&1; then
+            was_running=1
+        fi
+
+        echo -e "${YELLOW}正在停止 Gateway...${NC}"
+        hermes gateway stop >/dev/null 2>&1 || true
+        systemctl --user stop hermes-gateway >/dev/null 2>&1 || true
+
+        echo -e "${YELLOW}等待 Gateway 完全退出并落库...${NC}"
+        for wait_i in {1..20}; do
+            if ! systemctl --user is-active --quiet hermes-gateway 2>/dev/null && ! pgrep -u "$(id -u)" -f "(^|[[:space:]])(([^[:space:]]*/)?python[0-9.]*[[:space:]]+-m[[:space:]]+hermes_cli\.main[[:space:]]+gateway[[:space:]]+run|([^[:space:]]*/)?hermes[[:space:]]+gateway[[:space:]]+run|hermes-gateway)([[:space:]]|$)" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+        done
+        sleep 2
+        sync
+    fi
+
+    mkdir -p "$backup_dir"
+    parent="$(dirname "$hermes_home")"
+    base="$(basename "$hermes_home")"
+
+    # 备份用户数据而不是 Hermes 安装体/缓存：保留记忆、会话、配置、技能、凭据、cron 等。
+    tar \
+        --exclude="$base/hermes-agent" \
+        --exclude="$base/node" \
+        --exclude="$base/cache" \
+        --exclude="$base/logs/*.log" \
+        -czf "$archive" \
+        -C "$parent" "$base"
+    tar_status=$?
+
+    if [ "$was_running" -eq 1 ] && command -v hermes >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在重新启动 Gateway...${NC}"
+        hermes gateway start >/dev/null 2>&1 || systemctl --user start hermes-gateway >/dev/null 2>&1 || true
+    fi
+
+    if [ "$tar_status" -eq 0 ]; then
+        echo -e "${GREEN}✅ 备份完成：${NC}$archive"
+    else
+        echo -e "${RED}❌ 备份失败。${NC}"
+        rm -f "$archive"
+        return 1
+    fi
+}
+
+restore_memory_full_install_latest() {
+    local hermes_home backup_dir backups count i selected archive parent base ts old_dir manual_path
+    hermes_home="$(get_hermes_home_dir)"
+    backup_dir="$HOME/hermes_memory_backups"
+
+    local search_dir path_choice
+    echo -e "${CYAN}备份包查找路径：${NC}"
+    echo -e "  1) $backup_dir"
+    echo -e "  2) $HOME"
+    echo ""
+    read -p "请选择备份包查找路径 [1-2，默认 1]: " path_choice
+    case "$path_choice" in
+        ""|1) search_dir="$backup_dir" ;;
+        2) search_dir="$HOME" ;;
+        0) echo "已取消。"; return 0 ;;
+        *) echo -e "${RED}输入错误。${NC}"; return 1 ;;
+    esac
+
+    if [ ! -d "$search_dir" ]; then
+        echo -e "${RED}❌ 路径不存在：$search_dir${NC}"
+        return 1
+    fi
+
+    mapfile -t backups < <(find "$search_dir" -maxdepth 1 -type f -name 'hermes_memory_full_*.tar.gz' | sort -r)
+    count="${#backups[@]}"
+
+    echo ""
+    echo -e "${CYAN}可用的备份${NC}"
+    echo "-------------------------"
+    if [ "$count" -eq 0 ]; then
+        echo -e "${YELLOW}未在 $search_dir 找到 hermes_memory_full_*.tar.gz 备份包。${NC}"
+        return 1
+    fi
+    for i in "${!backups[@]}"; do
+        printf "  %s. %s\n" "$((i+1))" "${backups[$i]}"
+    done
+    echo ""
+    read -p "回车键还原最新的备份，序号选择备份恢复。输入0退出：" selected
+    if [ -z "$selected" ]; then
+        selected=1
+    fi
+    if [ "$selected" = "0" ]; then
+        echo "已取消。"
+        return 0
+    fi
+    if ! [[ "$selected" =~ ^[0-9]+$ ]] || [ "$selected" -lt 1 ] || [ "$selected" -gt "$count" ]; then
+        echo -e "${RED}输入错误。${NC}"
+        return 1
+    fi
+    archive="${backups[$((selected-1))]}"
+
+    if ! tar -tzf "$archive" >/dev/null 2>&1; then
+        echo -e "${RED}❌ 备份包无法读取或已损坏：$archive${NC}"
+        return 1
+    fi
+
+    if ! tar -tzf "$archive" 2>/dev/null | grep -qx '\.hermes/'; then
+        echo -e "${RED}❌ 备份包结构不正确：包内必须包含 .hermes/ 目录。${NC}"
+        return 1
+    fi
+    echo -e "${YELLOW}将从以下备份还原：${NC}$archive"
+    echo -e "${RED}警告：当前 $hermes_home 会被移动为 .before_restore 备份，然后替换为所选备份。${NC}"
+    read -p "确认还原并安装/启动最新版 Hermes？(y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "已取消。"
+        return 0
+    fi
+
+    if command -v hermes >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在停止 Gateway...${NC}"
+        hermes gateway stop >/dev/null 2>&1 || true
+        systemctl --user stop hermes-gateway >/dev/null 2>&1 || true
+    fi
+
+    parent="$(dirname "$hermes_home")"
+    base="$(basename "$hermes_home")"
+    ts="$(date +%Y%m%d_%H%M%S)"
+    old_dir="${hermes_home}.before_restore_${ts}"
+    mkdir -p "$parent"
+
+    if [ -e "$hermes_home" ]; then
+        mv "$hermes_home" "$old_dir" || {
+            echo -e "${RED}❌ 无法移动当前数据目录。${NC}"
+            return 1
+        }
+        echo -e "${YELLOW}当前数据已保留为：${NC}$old_dir"
+    fi
+
+    if tar -xzf "$archive" -C "$parent"; then
+        if [ ! -d "$hermes_home" ]; then
+            echo -e "${RED}❌ 备份包结构异常，未还原出 $hermes_home。${NC}"
+            [ -d "$old_dir" ] && [ ! -e "$hermes_home" ] && mv "$old_dir" "$hermes_home"
+            return 1
+        fi
+        echo -e "${GREEN}✅ 记忆全量还原完成。${NC}"
+    else
+        echo -e "${RED}❌ 解压还原失败，正在尝试回滚。${NC}"
+        rm -rf "$hermes_home"
+        [ -d "$old_dir" ] && mv "$old_dir" "$hermes_home"
+        return 1
+    fi
+
+    echo -e "${YELLOW}正在安装/更新 Hermes Agent 最新版...${NC}"
+    if ! curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash; then
+        echo -e "${RED}❌ 安装最新版失败。记忆已还原，但 Hermes 可能未更新。${NC}"
+        return 1
+    fi
+
+    refresh_hermes_path
+    if command -v hermes >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在安装并启动 Gateway...${NC}"
+        hermes gateway install || true
+        hermes gateway start || true
+        add_app_id
+        echo -e "${GREEN}✅ 还原完成，并已尝试启动最新版 Hermes Gateway。${NC}"
+    else
+        echo -e "${RED}❌ 安装后仍未找到 hermes 命令，请检查安装日志。${NC}"
+        return 1
+    fi
+}
+
+backup_restore_submenu() {
+    while true; do
+        clear
+        echo -e "${CYAN}=================================================${NC}"
+        echo -e "${YELLOW}              备份与还原                         ${NC}"
+        echo -e "${CYAN}=================================================${NC}"
+        echo -e "${GREEN}1.${NC} 备份记忆全量"
+        echo -e "${GREEN}2.${NC} 还原记忆全量并安装启动最新版"
+        echo -e "${GREEN}0.${NC} 返回主菜单"
+        echo -e "${CYAN}=================================================${NC}"
+        read -p "请选择功能 [0-2]: " br_choice
+        echo ""
+        case "$br_choice" in
+            1) backup_memory_full ;;
+            2) restore_memory_full_install_latest ;;
+            0) break ;;
+            *) echo -e "${RED}输入错误，请重新选择。${NC}" ;;
+        esac
+        echo ""
+        read -p "按回车键继续..."
+    done
+}
+
+hermes_update_robust() {
+    if ! check_installed; then
+        echo -e "${RED}请先安装 Hermes。${NC}"
+        return 1
+    fi
+
+    local version_text update_rc
+
+    echo -e "${YELLOW}正在执行官方更新：hermes update${NC}"
+    hermes update
+    update_rc=$?
+
+    refresh_hermes_path
+    hash -r 2>/dev/null || true
+
+    version_text="$(timeout 8 hermes --version 2>&1)"
+    local verify_rc
+    verify_update_channel "$version_text"
+    verify_rc=$?
+    echo "$version_text" | sed -n '1,8p'
+    if [ "$update_rc" -eq 0 ] && [ "$verify_rc" -eq 0 ]; then
+        echo -e "${GREEN}✅ 官方更新完成，${HERMES_MAIN_STATUS}。${NC}"
+        add_app_id
+        return 0
+    fi
+    if [ "$update_rc" -ne 0 ]; then
+        echo -e "${RED}❌ 官方更新命令失败（退出码 $update_rc）。${NC}"
+    else
+        echo -e "${YELLOW}⚠ 官方更新命令已结束，但未通过实时最新版本验证。${NC}"
+    fi
+    echo -e "${YELLOW}${HERMES_MAIN_STATUS}${NC}"
+    echo ""
+    echo -e "${YELLOW}为降低供应链风险，脚本不会执行 git fetch/reset 等强制兜底更新。${NC}"
+    echo -e "${YELLOW}请检查上方 hermes update 输出及当前更新通道；查询失败时检查网络或稍后重试。${NC}"
+    return 1
+}
+
+
+hermes_messaging_robust() {
+    if ! check_installed; then
+        echo -e "${RED}请先安装 Hermes。${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}正在启动 Hermes 机器人连接配置向导...${NC}"
+    echo ""
+
+    hermes gateway setup
+    local setup_rc=$?
+
+    if [ "$setup_rc" -eq 0 ]; then
+        echo -e "${GREEN}✅ Hermes Gateway 配置完成。${NC}"
+        echo ""
+        echo -e "${YELLOW}现在可以启动 Gateway：${NC}"
+        echo "  hermes gateway start"
+        echo ""
+        echo -e "${YELLOW}查看状态：${NC}"
+        echo "  hermes gateway status"
+    else
+        echo -e "${RED}❌ Hermes Gateway 配置失败。${NC}"
+        return "$setup_rc"
+    fi
+}
+
+
+
+# 主菜单UI
+show_menu() {
+    clear
+    echo -e "${CYAN}=================================================${NC}"
+    echo -e "${YELLOW}           Hermes Agent 终端管理工具             ${NC}"
+    echo -e "${CYAN}=================================================${NC}"
+    echo -e "运行状态 : $(get_gateway_status)"
+    echo -e "当前版本 : $(get_version)"
+    echo -e "${CYAN}-------------------------------------------------${NC}"
+    echo -e "${GREEN}1.${NC} 安装 Hermes Agent"
+    echo -e "${GREEN}2.${NC} 启动 Gateway (消息网关/后台服务)"
+    echo -e "${GREEN}3.${NC} 停止 Gateway"
+    echo -e "${GREEN}4.${NC} API/模型管理 (提供商与模型切换)"
+    echo -e "${GREEN}5.${NC} 启动终端对话UI (Interactive Chat)"
+    echo -e "${GREEN}6.${NC} 运行初始化配置向导 (Setup Wizard)"
+    echo -e "${GREEN}7.${NC} 检查并更新 Hermes"
+    echo -e "${GREEN}8.${NC} 卸载 Hermes"
+    echo -e "${GREEN}9.${NC} 机器人连接对接"
+    echo -e "${GREEN}18.${NC} 备份与还原"
+    echo -e "${GREEN}0.${NC} 退出"
+    echo -e "${CYAN}=================================================${NC}"
+    if ! read -p " 请输入数字 [0-18]: " choice; then
+        echo -e "\n${GREEN}退出脚本。${NC}"
+        exit 0
+    fi
+    echo ""
+    
+    case $choice in
+        1)
+            echo -e "${YELLOW}开始安装 Hermes Agent...${NC}"
+            curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+            refresh_hermes_path
+            hermes gateway install
+            hermes gateway start
+            add_app_id
+            ;;
+        2)
+            if check_installed; then
+                echo -e "${YELLOW}正在启动 Gateway...${NC}"
+                systemctl --user start hermes-gateway
+                hermes gateway stop
+                hermes gateway start
+            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            ;;
+        3)
+            if check_installed; then
+                echo -e "${YELLOW}正在停止 Gateway...${NC}"
+                hermes gateway stop
+            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            ;;
+        4)
+            if check_installed; then
+                install_jq || { read -p "按回车键返回主菜单..."; return; }
+                echo -e "${YELLOW}进入模型配置向导...${NC}"
+                api_management_submenu
+            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            ;;
+        5)
+            if check_installed; then
+                echo -e "${YELLOW}即将进入交互式终端，输入 /exit 即可退出返回。${NC}"
+                sleep 1
+                hermes
+            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            ;;
+        6)
+            if check_installed; then
+                echo -e "${YELLOW}正在启动初始化配置向导...${NC}"
+                hermes setup
+            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            ;;
+        7)
+            hermes_update_robust
+            ;;
+        8)
+            if check_installed; then
+                read -p "确定要卸载 Hermes 吗？所有数据将被清除。(y/N): " confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    hermes uninstall
+                    sed -i "/\b115\b/d" /home/docker/appno.txt
+                else echo "已取消。"; fi
+            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            ;;
+
+        9)
+            hermes_messaging_robust
+            ;;
+
+        18)
+            backup_restore_submenu
+            ;;
+        0)
+            echo -e "${GREEN}感谢使用，再见！${NC}"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}输入错误，请重新选择。${NC}"
+            ;;
+    esac
+    echo ""
+    read -p "按回车键返回主菜单..."
+}
+
+# 主循环
+while true; do
+    show_menu
+done
