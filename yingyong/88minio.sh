@@ -456,7 +456,7 @@ def run(name,scheduled=False):
                 src='source:'+c['source_bucket']; dst='destination:'+c['destination_bucket']
                 checked(base+['lsf',src,'--max-depth','1'])
                 checked(base+['mkdir',dst])
-                checked(base+['sync',src,dst,'--delete-after','--create-empty-src-dirs'])
+                checked(base+['sync',src,dst,'--modify-window','1s','--s3-upload-cutoff','32Mi','--s3-chunk-size','8Mi','--delete-after','--create-empty-src-dirs'])
             if direct:
                 sync_bucket()
             else:
@@ -820,6 +820,9 @@ while true; do
             sudo docker run -d \
                 --name minio \
                 --restart unless-stopped \
+                --log-driver json-file \
+                --log-opt max-size=10m \
+                --log-opt max-file=3 \
                 -p 9000:9000 \
                 -p 9001:9001 \
                 -v "$install_dir/data:/data" \
@@ -831,6 +834,7 @@ while true; do
                 loc_v4=$(hostname -I | awk '{print $1}')
                 echo "------------------------------------------------"
                 echo "✅ 启动成功！"
+                echo "运行日志由 Docker 记录，按 10m × 3 轮换；不是 7 天过期。"
                 echo "管理界面: http://$loc_v4:9001"
                 echo "API 地址: http://$loc_v4:9000"
                 echo "管理员账号: $MINIO_ROOT_USER"
