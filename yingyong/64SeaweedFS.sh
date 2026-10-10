@@ -55,8 +55,250 @@ PY
     [ $? -eq 0 ] || return 1
     printf '%s' "$value"
 }
+# 仅新安装部署本应用独立的主机日志接收器；不修改 Docker 全局配置或 cron。
+log_runtime_preflight() {
+    [ -x /usr/bin/python3 ] && command -v systemctl >/dev/null && [ -d /run/systemd/system ] || {
+        echo "编号日志需要主机 Python3 和正在运行的 systemd；未部署。"; return 1;
+    }
+    local endpoint
+    endpoint=$(docker context inspect --format '{{.Endpoints.docker.Host}}') || return 1
+    case "$endpoint" in unix://*) ;; *) echo "日志接收器仅支持本机 Unix socket Docker，不支持远程 Docker。"; return 1 ;; esac
+    [ -z "${DOCKER_HOST:-}" ] || { echo "请取消 DOCKER_HOST 后使用本机 Docker context。"; return 1; }
+    [ ! -e "/etc/systemd/system/$NAME-runtime-log.service" ] &&
+        [ ! -L "/etc/systemd/system/$NAME-runtime-log.service" ] &&
+        [ -z "$(systemctl show -p FragmentPath --value "$NAME-runtime-log.service" 2>/dev/null)" ] || {
+        echo "同名日志服务已存在，拒绝覆盖。"; return 1;
+    }
+}
+write_runtime_logger() {
+    mkdir -m 700 "$APP_DIR/.runtime-log" || return 1
+    cat > "$APP_DIR/.runtime-log/logger.py" <<'PYRUNTIMELOG'
+#!/usr/bin/env python3
+# Installer-owned runtime logger v1: Docker syslog -> bounded plain application files.
+import fcntl
+import os
+import selectors
+import socket
+import stat
+import sys
+
+LIMIT = 10 * 1024 * 1024  # 10 MiB; three files including active.
+
+class Rotator:
+    def __init__(self, directory, app, limit=LIMIT, prefix=""):
+        self.limit = limit
+        self.names = [f'{prefix}{i}.log' for i in (1, 2, 3)]
+        self.directory = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        s = os.fstat(self.directory)
+        if s.st_uid != os.getuid() or s.st_mode & 0o022:
+            raise RuntimeError('untrusted log directory')
+        self.fd = None
+        self.open_active()
+
+    def validate(self, name):
+        try:
+            s = os.stat(name, dir_fd=self.directory, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if not stat.S_ISREG(s.st_mode) or s.st_nlink != 1 or s.st_uid != os.getuid():
+            raise RuntimeError('unsafe numbered log file')
+
+    def open_active(self):
+        for name in self.names:
+            self.validate(name)
+        self.fd = os.open(self.names[0], os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+                          0o600, dir_fd=self.directory)
+        self.size = os.fstat(self.fd).st_size
+        if self.size > self.limit:
+            raise RuntimeError('existing active log exceeds limit; manual migration required')
+
+    def rotate(self):
+        for name in self.names:
+            self.validate(name)
+        os.close(self.fd)
+        self.fd = None
+        try:
+            os.unlink(self.names[2], dir_fd=self.directory)
+        except FileNotFoundError:
+            pass
+        for src, dst in ((self.names[1], self.names[2]), (self.names[0], self.names[1])):
+            try:
+                os.rename(src, dst, src_dir_fd=self.directory, dst_dir_fd=self.directory)
+            except FileNotFoundError:
+                pass
+        self.open_active()
+
+    def write(self, data):
+        # Normal lines stay whole; oversized lines split without cutting UTF-8 codepoints.
+        if len(data) <= self.limit and self.size + len(data) > self.limit:
+            self.rotate()
+        while data:
+            available = self.limit - self.size
+            n = min(len(data), available)
+            if n < len(data):
+                while n and data[n] & 0xc0 == 0x80:
+                    n -= 1
+            if not n:
+                self.rotate()
+                continue
+            chunk, data = data[:n], data[n:]
+            while chunk:
+                count = os.write(self.fd, chunk)
+                self.size += count
+                chunk = chunk[count:]
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+        os.close(self.directory)
+
+
+def message(frame, app):
+    # RFC5424: PRI+VERSION TIMESTAMP HOST APP PROCID MSGID STRUCTURED-DATA MESSAGE.
+    fields = frame.split(b' ', 7)
+    if len(fields) != 8 or not fields[0].endswith(b'>1') or fields[3] != app.encode() or fields[6] != b'-':
+        raise RuntimeError('unexpected syslog format/tag')
+    priority = int(fields[0][1:fields[0].index(b'>')]) & 7
+    if priority not in (3, 6):
+        raise RuntimeError('unexpected Docker stream priority')
+    return priority == 3, fields[7] + b'\n'
+
+
+def serve(directory, app, path):
+    os.umask(0o077)
+    # Lock only the logger, not interactive installer menus. Lock inode is never removed.
+    lock = os.open(path + '.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        s = os.lstat(path)
+    except FileNotFoundError:
+        pass
+    else:
+        if not stat.S_ISSOCK(s.st_mode) or s.st_uid != os.getuid():
+            raise RuntimeError('unsafe socket path')
+        os.unlink(path)
+    writer = Rotator(directory, app)
+    errors = Rotator(directory, app, prefix=app)
+    def record(frame):
+        stderr, data = message(frame, app)
+        (errors if stderr else writer).write(data)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(path)
+    server.listen(16)
+    server.setblocking(False)
+    sel = selectors.DefaultSelector()
+    sel.register(server, selectors.EVENT_READ, None)
+    notify = os.environ.get('NOTIFY_SOCKET')
+    if notify:
+        address = '\0' + notify[1:] if notify.startswith('@') else notify
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as ready:
+            ready.connect(address)
+            ready.sendall(b'READY=1')
+    try:
+        while True:
+            for key, _ in sel.select():
+                if key.fileobj is server:
+                    conn, _ = server.accept()
+                    conn.setblocking(False)
+                    sel.register(conn, selectors.EVENT_READ, bytearray())
+                    continue
+                data = key.fileobj.recv(65536)
+                buffer = key.data
+                if not data:
+                    if buffer:
+                        record(bytes(buffer))
+                    sel.unregister(key.fileobj)
+                    key.fileobj.close()
+                    continue
+                buffer.extend(data)
+                while b'\n' in buffer:
+                    frame, _, rest = buffer.partition(b'\n')
+                    buffer[:] = rest
+                    record(bytes(frame))
+                # Docker's line reader emits bounded fragments; reject unbounded peer input.
+                if len(buffer) > LIMIT:
+                    raise RuntimeError('syslog frame exceeds limit')
+    finally:
+        writer.close()
+        errors.close()
+        sel.close()
+        server.close()
+
+if __name__ == '__main__':
+    serve(sys.argv[1], sys.argv[2], sys.argv[3])
+PYRUNTIMELOG
+    chmod 600 "$APP_DIR/.runtime-log/logger.py" || return 1
+    python3 -m py_compile "$APP_DIR/.runtime-log/logger.py" || return 1
+}
+start_runtime_logger() {
+    local unit="/etc/systemd/system/$NAME-runtime-log.service" i
+    # 新安装预检后仍排他创建；不能覆盖现有服务或符号链接。
+    python3 - "$unit" "$APP_DIR" "$NAME" <<'PYRUNTIMEUNIT'
+import os, sys
+path, root, app=sys.argv[1:]
+text=f'''# Installer-owned numbered runtime logger v1: {app}
+[Unit]
+Description={app} numbered application runtime logs
+Before=docker.service
+[Service]
+Type=notify
+ExecStart=/usr/bin/python3 {root}/.runtime-log/logger.py {root}/logs {app} /run/{app}-runtime-log/syslog.sock
+Restart=on-failure
+RestartSec=1
+RuntimeDirectory={app}-runtime-log
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={root}/logs /run/{app}-runtime-log
+[Install]
+WantedBy=multi-user.target
+'''
+fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
+with os.fdopen(fd,'w') as stream: stream.write(text)
+os.chmod(path,0o644)
+if open(path).read()!=text: raise RuntimeError('日志服务配置回读失败')
+PYRUNTIMEUNIT
+    [ $? -eq 0 ] || return 1
+    systemctl daemon-reload && systemctl enable --now "$NAME-runtime-log.service" || return 1
+    for i in {1..50}; do
+        if systemctl is-active --quiet "$NAME-runtime-log.service" &&
+            python3 - "/run/$NAME-runtime-log/syslog.sock" <<'PYRUNTIMEREADY'
+import socket,sys
+with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as s:
+    s.settimeout(1)
+    s.connect(sys.argv[1])
+PYRUNTIMEREADY
+        then return 0; fi
+        sleep .1
+    done
+    echo "日志接收器未就绪，未启动存储容器；请检查 $NAME-runtime-log.service。"
+    return 1
+}
+stop_runtime_logger() {
+    local unit="/etc/systemd/system/$NAME-runtime-log.service"
+    [ -e "$unit" ] || return 0
+    # 已有/外部服务不自动管理；仅停止本脚本生成且命令一致的接收器，保留文件。
+    python3 - "$unit" "$APP_DIR" "$NAME" <<'PYRUNTIMEOWNED'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1]); root,app=sys.argv[2:]
+if p.is_symlink(): raise SystemExit('拒绝符号链接日志服务')
+text=p.read_text()
+expected=f'ExecStart=/usr/bin/python3 {root}/.runtime-log/logger.py {root}/logs {app} /run/{app}-runtime-log/syslog.sock'
+if not text.startswith(f'# Installer-owned numbered runtime logger v1: {app}\n') or expected not in text.splitlines():
+    raise SystemExit('非本脚本日志服务，保留且不自动停止')
+PYRUNTIMEOWNED
+    [ $? -eq 0 ] || return 1
+    systemctl disable --now "$NAME-runtime-log.service" || return 1
+    if systemctl is-active --quiet "$NAME-runtime-log.service" || systemctl is-enabled --quiet "$NAME-runtime-log.service"; then
+        echo "日志服务停止/禁用未验证通过。"; return 1
+    fi
+}
+
 install() {
     require_docker || return 1
+    log_runtime_preflight || return 1
     if [ -e "$APP_DIR" ] || docker container inspect "$NAME" >/dev/null 2>&1; then
         echo "目录或同名容器已存在，不覆盖。已有安装请选更新。"; return 1
     fi
@@ -78,7 +320,8 @@ PY
     docker pull "$IMAGE" || return 1
     umask 077
     mkdir -p "$APP_DIR/data" "$APP_DIR/logs" || return 1
-    chown 0:0 "$APP_DIR/data" "$APP_DIR/logs" || return 1
+    chown 0:0 "$APP_DIR/data" || return 1
+    chown 0:0 "$APP_DIR/logs" || return 1
     chmod 750 "$APP_DIR/data" "$APP_DIR/logs"
     printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nWEED_ADMIN_USER=%s\nWEED_ADMIN_PASSWORD=%s\n' "$access" "$secret" "$admin_user" "$admin_pass" > "$APP_DIR/runtime.env"
     cat > "$APP_DIR/compose.yaml" <<EOF
@@ -96,15 +339,25 @@ services:
       - ./data:/data
       - ./logs:/logs
     entrypoint: ["weed"]
-    command: ["mini", "-dir=/data", "-ip=127.0.0.1", "-ip.bind=0.0.0.0", "-master.telemetry=false", "-webdav=false", "-s3.allowDeleteBucketNotEmpty=false"]
+    command: ["-logtostderr=true", "mini", "-dir=/data", "-ip=127.0.0.1", "-ip.bind=0.0.0.0", "-master.telemetry=false", "-webdav=false", "-s3.allowDeleteBucketNotEmpty=false"]
     logging:
-      driver: json-file
+      driver: syslog
       options:
-        max-size: "10m"
-        max-file: "3"
+        syslog-address: "unix:///run/$NAME-runtime-log/syslog.sock"
+        syslog-format: "rfc5424micro"
+        tag: "$NAME"
+        mode: "blocking"
+        cache-disabled: "true"
 EOF
-    compose config --quiet && compose up -d || return 1
+    compose config --quiet || return 1
+    write_runtime_logger && start_runtime_logger || return 1
+    compose up -d || { echo "容器启动失败，日志接收器与配置保留供排查。"; return 1; }
     healthy || return 1
+    systemctl is-active --quiet "$NAME-runtime-log.service" || { echo "日志接收器异常，不能宣称完整安装成功。"; return 1; }
+    echo "容器 stdout 运行日志：$APP_DIR/logs/1.log（最新）、2.log、3.log。"
+    echo "容器 stderr 单独写入 $APP_DIR/logs/${NAME}1.log、${NAME}2.log、${NAME}3.log（含警告，不等于 ERROR 级别）。"
+    echo "stdout / stderr 各自每文件最多 10 MiB（10485760 字节），各保留 3 个（每应用共 6 个、最多 60 MiB）；写入前按字节轮转，不按天数清理。"
+    echo "日志经本机 Docker syslog 直接写入主机目录；接收器故障可能阻塞输出，不保证断电/故障无日志丢失。"
     echo "安装完成，单机单盘不提供磁盘冗余，请另做备份。"
     echo "S3 Access Key：$access"
     echo "S3 Secret Key：$secret"
@@ -569,7 +822,7 @@ def run(name,scheduled=False):
                 src='source:'+c['source_bucket']; dst='destination:'+c['destination_bucket']
                 checked(base+['lsf',src,'--max-depth','1'])
                 checked(base+['mkdir',dst])
-                checked(base+['sync',src,dst,'--delete-after','--create-empty-src-dirs'])
+                checked(base+['sync',src,dst,'--modify-window','1s','--s3-upload-cutoff','32Mi','--s3-chunk-size','8Mi','--delete-after','--create-empty-src-dirs'])
             if direct:
                 sync_bucket()
             else:
@@ -838,9 +1091,10 @@ uninstall() {
         echo "请先在同步子菜单删除全部任务，以移除对应 cron，再卸载。"; return 1
     fi
     echo "支持卸载 1 号官方镜像或 21 号自定义镜像安装的 SeaweedFS（按实际 Compose 配置）。"
-    echo "将删除 SeaweedFS 容器及 Compose 管理的网络；保留 $APP_DIR 本地数据和配置、/home 备份及 Docker。"
+    echo "将删除 SeaweedFS 容器及 Compose 管理的网络，并停止本脚本专属日志接收器；保留 $APP_DIR 本地数据和配置、/home 备份及 Docker。"
     confirm || { echo "已取消"; return 0; }
     compose down || return 1
+    stop_runtime_logger || return 1
     echo "已卸载，本地数据和配置目录已保留：$APP_DIR；备份保留。"
 }
 main() {
@@ -875,7 +1129,10 @@ main() {
             3) replication_menu rsync ;;
             4) replication_menu s3 ;;
             5) docker ps -a --filter name='^/seaweedfs$'; addresses ;;
-            6) docker logs --tail 100 "$NAME" ;;
+            6) if [ -f "$APP_DIR/logs/1.log" ]; then
+                   echo "stdout（最新）："; tail -n 100 -- "$APP_DIR/logs/1.log"
+                   echo "stderr（最新，包含警告）："; tail -n 100 -- "$APP_DIR/logs/${NAME}1.log"
+               else docker logs --tail 100 "$NAME"; fi ;;
             9) uninstall ;;
             21) install_custom_image ;;
             22) update_custom_image ;;
