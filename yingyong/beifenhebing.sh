@@ -280,6 +280,97 @@ forum_generated_menu() {
     done
 }
 
+local_archive_mode_menu() {
+    local choice
+    local engine="$1" title="$2"
+    local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
+    export WEB_CONNECTION_SESSION
+    /usr/bin/python3 "$engine" install-cron >/dev/null || echo '论坛调度修复异常'
+    /usr/bin/python3 "$engine" probe || echo '连接检测异常'
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo "=================================="
+        echo "        $title"
+        echo "=================================="
+        /usr/bin/python3 "$engine" summary || echo "任务检测异常"
+        echo "=================================="
+        echo "1. 本地归档SSH传送"
+        echo "2. 本地归档S3 API兼容备份配置"
+        echo "7. 测试连接"
+        echo "8. 执行某个任务"
+        echo "9. 删除任务"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice" in
+            1) /usr/bin/python3 "$engine" create-transfer ;;
+            2) /usr/bin/python3 "$engine" create-s3 ;;
+            7) /usr/bin/python3 "$engine" select-test ;;
+            8) /usr/bin/python3 "$engine" select-run ;;
+            9) /usr/bin/python3 "$engine" select-delete ;;
+            0) return 0 ;;
+            *) echo "无效选项。" ;;
+        esac
+        IFS= read -r -p "按回车继续..." choice || return 0
+    done
+}
+
+
+local_archive_overview() {
+    /usr/bin/python3 - "$1" <<'LOCAL_OVERVIEW_PY'
+import importlib.util,sys
+from pathlib import Path
+modules=[]
+for mode in ('sync','keep'):
+    path=Path('/root/yingyong/beifenhebing-local-'+mode+'.py')
+    spec=importlib.util.spec_from_file_location('overview_'+mode,path)
+    module=importlib.util.module_from_spec(spec);sys.modules[spec.name]=module;spec.loader.exec_module(module)
+    modules.append(module)
+if sys.argv[1]=='count':
+    count=sum(len(m.entries()) for m in modules)
+    print(f'\033[32m已有 {count} 个\033[0m' if count else '\033[31m暂无\033[0m')
+else:
+    index=0
+    for i,(m,title) in enumerate(zip(modules,('同步传送删除远端','传送不删除远程文件'))):
+        print(title);print('备注名   状态')
+        rows=m.entries();states=m.cached_connections()
+        if not rows:print('\033[31m暂无\033[0m')
+        for row in rows:
+            index+=1
+            label='S3' if row.get('config',{}).get('mode')=='s3' else 'SSH'
+            name=''.join(x for x in row['name'] if x.isprintable())
+            print(f"{index}. {name}   {m.connection_label(states.get(row['id']))}（{label}）")
+        if i==0:print('------------------------')
+LOCAL_OVERVIEW_PY
+}
+
+local_archive_menu() {
+    local choice
+    local WEB_CONNECTION_SESSION=local-overview-${BASHPID}-${RANDOM}
+    export WEB_CONNECTION_SESSION
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-sync.py probe || echo "同步任务连接检测异常"
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-keep.py probe || echo "传送任务连接检测异常"
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo "=================================="
+        echo "        备份本地*.tar.gz（/home/备份）"
+        echo "=================================="
+        local_archive_overview summary || echo "任务检测异常"
+        echo "=================================="
+        echo "1. 本地*.tar.gz备份同步传送"
+        echo "2. 本地*.tar.gz备份传送不删除远程文件"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice" in
+            1) local_archive_mode_menu /root/yingyong/beifenhebing-local-sync.py '本地归档同步传送（删除远端多余归档）' ;;
+            2) local_archive_mode_menu /root/yingyong/beifenhebing-local-keep.py '本地归档传送（不删除远端）' ;;
+            0) return 0 ;;
+            *) echo "无效选项。" ;;
+        esac
+    done
+}
+
 show_menu() {
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     echo "=================================="
@@ -292,6 +383,8 @@ show_menu() {
     /usr/bin/python3 /root/yingyong/beifenhebing-forum.py count || echo "任务检测异常"
     echo "论坛生成备份传送 详情进入 3 查看"
     /usr/bin/python3 /root/yingyong/beifenhebing-generated.py count || echo "任务检测异常"
+    echo "备份本地*.tar.gz（home/备份）详情进入 99 查看"
+    local_archive_overview count || echo "任务检测异常"
     echo "=================================="
       echo "1. 网站备份（/home/web）"
       echo "2. 论坛备份（/var/discourse）"
@@ -301,11 +394,8 @@ show_menu() {
       echo "11. 图床备份"
       echo "------------------------"
       echo "------------------------"
-      echo "188.全部备份传送同步本地"
-      echo "200.全部备份传送不删除远程文件"
+      echo "99. 备份本地*.tar.gz（home/备份）"
       echo "------------------------"
-      echo "使用100与200前先用远程连接一次更换为远程 IP "
-      echo "ssh-keygen -f "/root/.ssh/known_hosts" -R "1.1.1.1""
       echo "------------------------"
       echo "0. 退出"
 }
@@ -501,115 +591,6 @@ finally:
 FORUM_RESTORE_PY
 )
 
-operation_188() (
-IFS= read -r -p "输入远程服务器IP: " useip
-    IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-
-    mkdir -p /home/quanbubeifen_build
-    cd /home/quanbubeifen_build || return 1
-
-    OUTPUT_BIN="/home/quanbubeifen.sh"
-    generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifen.sh" "$OUTPUT_BIN" || return 1
-
-    # -------- 定时任务：每几分钟运行一次（防重复） --------
-
-    echo "------------------------"
-    IFS= read -r -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
-
-    # 100号专用锁
-    LOCK_FILE="/tmp/quanbubeifen.lock"
-
-    (crontab -l 2>/dev/null | grep -Fv -- "$OUTPUT_BIN"; \
-     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-
-    # -------- 目录变更即时监控 --------
-    if ! command -v inotifywait >/dev/null 2>&1; then
-      if grep -qi "ubuntu\|debian" /etc/os-release; then
-        apt-get update && apt-get install -y inotify-tools
-      elif grep -qi "centos\|redhat" /etc/os-release; then
-        yum install -y inotify-tools
-      fi
-    fi
-
-# 创建监控脚本
-cat > /home/jiankong.sh << 'EOF'
-#!/bin/bash
-WATCH_DIR="/home/备份/密码"
-inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
-    sleep 2
-    /home/quanbubeifen.sh
-    /home/quanbubeifen2.sh
-done
-EOF
-
-chmod 700 /home/jiankong.sh
-
-# systemd 服务
-cat > /etc/systemd/system/quanbubeifen-watch.service << EOF
-[Unit]
-Description=目录监控即时传送
-After=network.target
-
-[Service]
-ExecStart=/home/jiankong.sh
-Restart=always
-User=root
-WorkingDirectory=/root
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable quanbubeifen-watch
-systemctl restart quanbubeifen-watch
-
-echo "--------------------------------"
-echo "✔ 执行文件：/home/quanbubeifen.sh"
-echo "✔ 定时任务：每 $interval 分钟使用 $LOCK_FILE"
-)
-
-operation_200() (
-IFS= read -r -p "输入远程服务器IP: " useip
-    IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-
-    mkdir -p /home/quanbubeifen_build
-    cd /home/quanbubeifen_build || return 1
-
-    OUTPUT_BIN="/home/quanbubeifen2.sh"
-    generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/quanbubeifen2.sh" "$OUTPUT_BIN" || return 1
-
-    # -------- 定时任务：每几分钟运行一次（防重复） --------
-
-    echo "------------------------"
-    IFS= read -r -p "每几分钟运行一次（如 1 / 5 / 10）: " interval
-
-    # 200号专用锁名，防止与100号冲突
-    LOCK_FILE="/tmp/quanbubeifen2.lock"
-
-    (crontab -l 2>/dev/null | grep -Fv -- "$OUTPUT_BIN"; \
-     echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-
-    # 重复监控脚本逻辑（保持同步）
-cat > /home/jiankong.sh << 'EOF'
-#!/bin/bash
-WATCH_DIR="/home/备份/密码"
-inotifywait -m -e close_write,create,move --format '%e %f' "$WATCH_DIR" | while read event file; do
-    sleep 2
-    /home/quanbubeifen.sh
-    /home/quanbubeifen2.sh
-done
-EOF
-    chmod 700 /home/jiankong.sh
-    systemctl daemon-reload
-    systemctl restart quanbubeifen-watch
-
-    echo "--------------------------------"
-    echo "✔ 执行文件：/home/quanbubeifen2.sh"
-    echo "✔ 定时任务：每 $interval 分钟使用 $LOCK_FILE"
-)
-
 repair_dependencies() {
     local tool manager
     local -a missing=() packages=()
@@ -657,6 +638,8 @@ main() {
     /usr/bin/python3 /root/yingyong/beifenhebing-web.py install-cron >/dev/null || echo "网站备份定时任务检测异常，未覆盖其他任务。" >&2
     /usr/bin/python3 /root/yingyong/beifenhebing-forum.py install-cron >/dev/null || echo "论坛调度修复异常" >&2
     /usr/bin/python3 /root/yingyong/beifenhebing-generated.py install-cron >/dev/null || echo "论坛生成备份传送调度修复异常" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-sync.py install-cron >/dev/null || echo "本地同步调度修复异常" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-keep.py install-cron >/dev/null || echo "本地传送调度修复异常" >&2
     while true; do
         show_menu
         IFS= read -r -p "请输入选项：" choice || { echo "已退出"; return 0; }
@@ -665,8 +648,7 @@ main() {
             2) forum_backup_menu; continue ;;
             3) forum_generated_menu; continue ;;
             11) operation_11 ;;
-            188) operation_188 ;;
-            200) operation_200 ;;
+            99) local_archive_menu; continue ;;
             0) echo "已退出"; return 0 ;;
             *) echo "无效选项。" ;;
         esac
@@ -675,6 +657,67 @@ main() {
 }
 
 # 单文件发布：helpers 为下方可读源码；只在直接运行时释放，不在 source 时写入。
+central_data_migrate() {
+    /usr/bin/python3 - <<'CENTRAL_DATA_MIGRATE_PY'
+import os,sys,json,shutil,subprocess,tempfile,fcntl,stat
+from pathlib import Path
+base=Path('/home/备份/data')
+old_roots={'website':Path('/home/web/beifen/tasks'),'forum':Path('/home/论坛备份/tasks'),'generated':Path('/home/论坛生成备份任务/tasks'),'local-sync':Path('/home/本地归档传送任务/sync'),'local-keep':Path('/home/本地归档传送任务/keep')}
+base.mkdir(parents=True,exist_ok=True,mode=0o700)
+if base.is_symlink():raise ValueError('data不能是符号链接')
+os.chmod(base,0o700)
+lock=open(base/'.migration.lock','a');fcntl.flock(lock,fcntl.LOCK_EX)
+pending=[(key,src) for key,src in old_roots.items() if src.exists() and not src.is_symlink()]
+if not pending:sys.exit(0)
+services=[]
+for key,src in pending:
+ stem='web' if key=='website' else key
+ for transport in ['transfer','s3']:
+  name='beifenhebing-'+stem+'-'+transport+'.service'
+  r=subprocess.run(['systemctl','is-active','--quiet',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+  if r.returncode==0:services.append(name)
+for name in services:subprocess.run(['systemctl','stop',name],check=True)
+held=[]
+try:
+ # All former workers stopped. Fail immediately if a manual operation still holds any stable lock.
+ for key,src in pending:
+  if src.is_symlink():raise ValueError('旧注册目录不能是链接')
+  for p in src.rglob('*.lock'):
+   fd=os.open(p,os.O_RDWR|os.O_NOFOLLOW)
+   if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError('锁不是普通文件')
+   fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB);held.append(fd)
+ backup=Path(tempfile.mkdtemp(prefix='migration-backup-',dir=base))
+ for key,src in pending:
+  dst=base/key
+  if dst.exists():raise ValueError('新旧注册目录同时存在，停止迁移以避免覆盖')
+  shutil.copytree(src,backup/key)
+  src.rename(dst) # same filesystem: retain all lock inodes
+  for pointer in dst.glob('*/location.json'):
+   task=pointer.parent;loc=json.loads(pointer.read_text())
+   if loc.get('runtime_config'):continue
+   filename=loc.get('config_file')
+   if not filename:raise ValueError('旧配置格式需人工核对')
+   original=Path(loc['local_dir'])/filename
+   if original.is_symlink():raise ValueError('脚本不能是链接')
+   lines=original.read_text().splitlines(keepends=True)
+   rows=[r[len('# BEIFEN_CONFIG '):] for r in lines if r.startswith('# BEIFEN_CONFIG ')]
+   if len(rows)!=1:raise ValueError('配置标记异常')
+   c=json.loads(rows[0]);target=task/filename
+   for field,suffix in [('password_file','.password'),('credential_file','.credentials')]:
+    if c.get(field):
+     cred=Path(c[field])
+     if cred.is_symlink():raise ValueError('凭据不能是链接')
+     shutil.copy2(cred,backup/(key+'-'+task.name+suffix))
+     dest=target.with_suffix(suffix);cred.rename(dest);os.chmod(dest,0o600);c[field]=str(dest)
+   original.rename(target)
+   target.write_text(''.join('# BEIFEN_CONFIG '+json.dumps(c,ensure_ascii=False)+'\n' if r.startswith('# BEIFEN_CONFIG ') else r for r in lines));os.chmod(target,0o700)
+   pointer.write_text(json.dumps({'runtime_config':filename,'local_dir':c['local_dir']},ensure_ascii=False)+'\n');os.chmod(pointer,0o600)
+finally:
+ for fd in held:os.close(fd)
+ for name in services:subprocess.run(['systemctl','start',name],check=True)
+CENTRAL_DATA_MIGRATE_PY
+}
+
 singlefile_python_ready() {
     /usr/bin/python3 -c 'import sys,fcntl; assert sys.version_info >= (3,9)' >/dev/null 2>&1 && return 0
     [[ $EUID == 0 ]] || { echo '自动释放需要 root 和 Python >=3.9' >&2; return 1; }
@@ -761,6 +804,43 @@ generated = generated[:main_guard] + overrides + generated[main_guard:]
 generated_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhebing-web', 'beifenhebing-generated')
 for name, body in [('beifenhebing-generated.py', generated), ('beifenhebing-generated-s3.py', generated_s3)]:
     compile(body, name, 'exec'); files[name] = body.encode('utf-8')
+bulk_overrides = '# Overrides for recursive local archive transfer; no local deletions.\nimport stat\n\ndef transfer_source():\n    while True:\n        try:\n            p = local_path(prompt(\'本地备份读取路径（包含下级目录）\', \'/home/备份\'))\n            if not p.is_dir(): raise ValueError(\'读取目录不存在\')\n            return p, None\n        except ValueError as ex: print(str(ex))\n\ndef local_path(text):\n    if not text.strip() or any(ord(x)<32 for x in text): raise ValueError(\'目录不能为空或含控制字符\')\n    p=Path(\'/\'+text.strip().lstrip(\'/\')).resolve()\n    if p==Path(\'/\'): raise ValueError(\'不能使用根目录\')\n    return p\n\ndef snapshot(c):\n    root=local_path(c[\'local_dir\']); result={}\n    for directory, dirs, names in os.walk(root, followlinks=False):\n        dirs[:]=[n for n in dirs if not (Path(directory)/n).is_symlink() and (Path(directory)/n).resolve()!=Path(\'/home/备份/data\').resolve()]\n        for name in names:\n            p=Path(directory)/name\n            if not name.endswith(\'.tar.gz\') or p.is_symlink() or not p.is_file(): continue\n            result[p.relative_to(root).as_posix()]=signature(p)\n    return result\n\ndef remote_command(c,task,program,args):\n    target=c.get(\'user\',\'root\')+\'@\'+c[\'host\']\n    command=\'python3 -c \'+shlex.quote(program)+\' \'+ \' \'.join(shlex.quote(str(x)) for x in args)\n    return auth_call([\'ssh\']+ssh_args(task,c)+[target,command],c,capture_output=True)\n\ndef ssh_send(task,c,p,rel,checksum):\n    base=remote_path(c[\'remote_dir\']);dest=posixpath.join(base,rel);part=dest+\'.partial-\'+uuid.uuid4().hex\n    cmd=\'umask 077; mkdir -p -- \'+shlex.quote(posixpath.dirname(dest))+\'; t=\'+shlex.quote(part)+\'; trap \\\'rm -f -- "$t"\\\' EXIT; cat > "$t" && mv -- "$t" \'+shlex.quote(dest)\n    with p.open(\'rb\') as f:auth_call([\'ssh\']+ssh_args(task,c)+[c.get(\'user\',\'root\')+\'@\'+c[\'host\'],cmd],c,stdin=f)\n    result=remote_command(c,task,"import hashlib,sys;h=hashlib.sha256();f=open(sys.argv[1],\'rb\');\\nfor b in iter(lambda:f.read(1048576),b\'\'):h.update(b)\\nprint(h.hexdigest())",[dest])\n    if result.stdout.decode().strip()!=checksum:raise ValueError(\'SSH远端校验失败\')\n\ndef safe_rel(value):\n    return bool(value) and not value.startswith(\'/\') and all(x not in (\'\',\'.\',\'..\') for x in value.split(\'/\')) and \'\\\\\' not in value and all(ord(x)>=32 for x in value)\n\ndef s3_rows(client,c):\n    rows=[]\n    for page in client.get_paginator(\'list_objects_v2\').paginate(Bucket=c[\'bucket\'],Prefix=c[\'prefix\']):\n        for item in page.get(\'Contents\',[]):\n            rel=item[\'Key\'][len(c[\'prefix\']):]\n            if safe_rel(rel) and rel.endswith(\'.tar.gz\'):rows.append((rel,item[\'Key\']))\n    return rows\n\ndef transfer_tick(task,c,now=None,force=False):\n    now=time.time() if now is None else now\n    path=task/\'bulk-state.json\';state=json.loads(path.read_text()) if path.exists() else {}\n    current=snapshot(c)\n    if not current:return # Never turn an empty/missing source into remote deletion.\n    if state.get(\'observed\')!=current:\n        state.update(observed=current,changed_at=now,attempts=0,next_attempt=0)\n        atomic_json(path,state);return\n    if now-state[\'changed_at\']<c.get(\'quiet_seconds\',5):return\n    if state.get(\'completed\')==current:return\n    sl=slot(c,now)\n    if state.get(\'attempts\',0)>=c.get(\'retries\',3):\n        if sl is None or sl<=state.get(\'fallback_slot\',-1):return\n        state[\'fallback_slot\']=sl\n    elif now<state.get(\'next_attempt\',0):return\n    state[\'attempts\']=state.get(\'attempts\',0)+1;state[\'next_attempt\']=now+c.get(\'retry_seconds\',60)\n    atomic_json(path,state)\n    root=local_path(c[\'local_dir\']);sent=state.setdefault(\'sent\',{})\n    client=None;module=None\n    try:\n        for rel,sig in current.items():\n            if not safe_rel(rel):raise ValueError(\'不安全相对路径\')\n            if sent.get(rel)==sig:continue\n            p=root/rel;checksum=checked_checksum(p)\n            if signature(p)!=sig:raise ValueError(\'文件变化\')\n            if c.get(\'mode\')==\'s3\':\n                if client is None:\n                    module=s3_module();client=module.client(c);module.ensure_bucket(client,c)\n                from boto3.s3.transfer import TransferConfig\n                cfg=TransferConfig(multipart_threshold=8*1024*1024,multipart_chunksize=8*1024*1024,max_concurrency=2)\n                key=c[\'prefix\']+rel\n                client.upload_file(str(p),c[\'bucket\'],key,Config=cfg,ExtraArgs={\'Metadata\':{\'sha256\':checksum}})\n                body=client.get_object(Bucket=c[\'bucket\'],Key=key)[\'Body\'];digest=hashlib.sha256()\n                try:\n                    for block in iter(lambda:body.read(1048576),b\'\'):digest.update(block)\n                finally:body.close()\n                if digest.hexdigest()!=checksum:raise ValueError(\'S3读回校验失败\')\n            else:ssh_send(task,c,p,rel,checksum)\n            if signature(p)!=sig:raise ValueError(\'上传期间本地变化\')\n            sent[rel]=sig;atomic_json(path,state)\n        if snapshot(c)!=current:raise ValueError(\'目录变化，未清理\')\n        if BULK_SYNC:\n            if c.get(\'mode\')==\'s3\':\n                if client is None:module=s3_module();client=module.client(c)\n                for rel,key in s3_rows(client,c):\n                    if rel not in current:client.delete_object(Bucket=c[\'bucket\'],Key=key)\n                if any(rel not in current for rel,key in s3_rows(client,c)):raise ValueError(\'远端删除未完成\')\n            else:\n                manifest=json.dumps(list(current),ensure_ascii=False)\n                program="import os,sys,json,pathlib;root=pathlib.Path(sys.argv[1]);keep=set(json.loads(sys.argv[2]));\\nif root.is_symlink():raise ValueError(\'unsafe root\')\\nfor d,dirs,names in os.walk(root,followlinks=False):\\n dirs[:]=[n for n in dirs if not (pathlib.Path(d)/n).is_symlink()]\\n for n in names:\\n  p=pathlib.Path(d)/n\\n  if n.endswith(\'.tar.gz\') and not p.is_symlink() and p.is_file() and p.relative_to(root).as_posix() not in keep:p.unlink()\\nremaining={p.relative_to(root).as_posix() for p in root.rglob(\'*.tar.gz\') if p.is_file() and not p.is_symlink()}\\nassert not remaining-keep"\n                remote_command(c,task,program,[remote_path(c[\'remote_dir\']),manifest])\n        state[\'completed\']=current;state[\'sent\']={r:sent[r] for r in current};atomic_json(path,state)\n    except Exception as ex:\n        print(\'本地归档传送未完成：\'+type(ex).__name__+\'；未标记完成\',file=sys.stderr)\n\n# Explicit confirmation of each task\'s remote destination; normalize slash variants.\n_bulk_prompt = prompt\ndef remote_path(text):\n    text = text.strip()\n    if not text or any(ord(x)<32 for x in text): raise ValueError(\'远程目录不能为空或含控制字符\')\n    value = posixpath.normpath(\'/\' + text.lstrip(\'/\'))\n    if value == \'/\': raise ValueError(\'远程目录不能是根目录\')\n    return value\n\ndef prompt(label, default=None):\n    if label not in (\'远程目录\',) and not label.startswith(\'S3桶内保存路径\'):\n        return _bulk_prompt(label, default)\n    while True:\n        text = _bulk_prompt(label, default)\n        try:\n            if label == \'远程目录\': normalized = remote_path(text)\n            else:\n                text = text or (label.split(\'回车默认 \',1)[1].split(\' ）\',1)[0].strip() if \'回车默认 \' in label else \'/备份/web\')\n                normalized = s3_module().normalize_prefix(text)\n        except ValueError as ex:\n            print(str(ex));continue\n        print(\'本任务远程保存位置：\' + normalized)\n        if _bulk_prompt(\'与本任务配置的备份传送目录一致请输入 yes 确认\') == \'yes\':\n            return normalized\n        print(\'未确认，请重新输入远程保存位置。\')\n'
+for mode, sync in [('sync', True), ('keep', False)]:
+    stem = 'beifenhebing-local-' + mode
+    bulk = files['beifenhebing-web.py'].decode('utf-8').replace('beifenhebing-web', stem).replace('网站', '本地归档')
+    bulk = bulk.replace("ROOT = Path('/home/web/beifen/tasks')", "ROOT = Path('/home/本地归档传送任务/" + mode + "')")
+    bulk = bulk.replace('# 本地归档备份 /home/web', '# 本地归档' + mode + '备份 /home/web')
+    a = bulk.index('LEGACY = tuple('); b = bulk.index('\n\n', a)
+    bulk = bulk[:a] + 'LEGACY = ()' + bulk[b:]
+    bulk = bulk.replace("[('backup', '备份任务'), ('transfer', '备份传送'), ('s3', 'S3 API 兼容传送任务')]", "[('transfer', '备份传送'), ('s3', 'S3 API 兼容传送任务')]")
+    bulk = bulk.replace("'transfer-state.json', 'known_hosts'", "'transfer-state.json', 'bulk-state.json', 'known_hosts'")
+    bulk = bulk.replace("确认专用目录并保存任务，输入 yes", "确认递归传送且同步模式会删除专用远端内本地不存在的.tar.gz，输入 yes")
+    bulk = bulk.replace('仅扫描选中目录第一层最新归档；不打包、不清理本地。定时为额外兜底，时区UTC。', '递归传送所选目录内全部.tar.gz，保留相对目录；已成功且未变化则跳过。不打包、不清理本地，时区UTC。')
+    bulk = bulk.replace("    private_root()\n    with lock(ROOT / '.scheduler.lock'),", "    private_root()\n    with lock(ROOT / '.scheduler.lock'),")
+    bulk = bulk.replace("    host = prompt(", "    if any(c.get('id') == task_id for _, c in configs()):\n        print('同名任务已存在，请使用其他任务名称；如需重建，请先通过9删除。')\n        return\n    host = prompt(")
+    pos = bulk.rfind("if __name__ == '__main__':")
+    bulk = bulk[:pos] + 'BULK_SYNC = ' + repr(sync) + '\n' + bulk_overrides + '\n' + bulk[pos:]
+    bulk_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhebing-web', stem)
+    bulk_s3 = bulk_s3.replace('确认保存凭据并启用远端清理请输入 yes', '确认保存：同步模式删除本地不存在的远端.tar.gz，保留模式不删除，输入 yes')
+    for name, content in [(stem+'.py', bulk), (stem+'-s3.py', bulk_s3)]:
+        compile(content,name,'exec'); files[name] = content.encode('utf-8')
+central_overrides = '# Central runtime config, task locks, bounded logs; archive locations stay unchanged.\nimport logging, logging.handlers\n\n_runtime_config_path = config_path\n_runtime_atomic_json = atomic_json\n\ndef config_path(task):\n    pointer = task / \'location.json\'\n    if pointer.exists():\n        location = json.loads(pointer.read_text())\n        filename = location.get(\'runtime_config\')\n        if filename:\n            if \'/\' in filename or not filename.endswith(\'.sh\'): raise ValueError(\'运行配置路径无效\')\n            target = task / filename\n            if target.is_symlink(): raise ValueError(\'配置不能是链接\')\n            return target\n    return _runtime_config_path(task)\n\ndef atomic_json(path, value):\n    if path.name == \'location.json\' and value.get(\'config_file\'):\n        task = path.parent\n        original = Path(value[\'local_dir\']) / value[\'config_file\']\n        c = read_config(original)\n        pending = globals().get("_PENDING_SOURCE")\n        if pending:\n            c.pop("backup_prefix", None)\n            c["source_dir"], c["generated_site"] = pending\n        target = task / original.name\n        for field, suffix in [(\'password_file\',\'.password\'), (\'credential_file\',\'.credentials\')]:\n            if c.get(field):\n                src = Path(c[field]); dest = target.with_suffix(suffix)\n                if src != dest:\n                    if src.is_symlink() or dest.exists(): raise ValueError(\'凭据迁移路径冲突\')\n                    # Never expose the secret; preserve bytes and private permissions.\n                    fd = os.open(dest, os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600)\n                    with os.fdopen(fd,\'wb\') as f: f.write(src.read_bytes())\n                    src.unlink()\n                c[field] = str(dest)\n        content = \'#!/bin/bash\\n# BEIFEN_CONFIG \'+json.dumps(c,ensure_ascii=False)+\'\\nexec /usr/bin/python3 \'+shlex.quote(str(ENGINE))+\' run \'+shlex.quote(c[\'id\'])+\'\\n\'\n        fd,tmp=tempfile.mkstemp(prefix=\'.config-\',dir=task)\n        try:\n            os.fchmod(fd,0o700)\n            with os.fdopen(fd,\'w\') as f:f.write(content)\n            os.replace(tmp,target)\n        finally:\n            if os.path.exists(tmp):os.unlink(tmp)\n        if original != target:original.unlink()\n        value={\'runtime_config\':target.name,\'local_dir\':c[\'local_dir\']}\n    return _runtime_atomic_json(path,value)\n\ndef runtime_log(task,event,status):\n    # Stable flock protects log rotation across cron and worker processes.\n    ROOT.mkdir(parents=True,exist_ok=True,mode=0o700)\n    with lock(ROOT/\'.log.lock\'):\n        logger=logging.getLogger(\'runtime-\'+str(ROOT));logger.setLevel(logging.INFO);logger.propagate=False\n        handler=logging.handlers.RotatingFileHandler(ROOT/\'operations.log\',maxBytes=2*1024*1024,backupCount=5,encoding=\'utf-8\')\n        logger.addHandler(handler)\n        try:\n            handler.setFormatter(logging.Formatter(\'%(asctime)s %(message)s\'))\n            logger.info(\'%s %s %s\', \'\'.join(x for x in str(task.name) if x.isalnum() or x in \'-_\'),event,status)\n            os.chmod(ROOT/\'operations.log\',0o600)\n        finally:logger.removeHandler(handler);handler.close()\n\n_runtime_tick=transfer_tick\ndef transfer_tick(task,c,now=None,force=False):\n    # No idle heartbeat logging: record only changed transmission results.\n    before={p.name:p.stat().st_mtime_ns for p in task.glob(\'*state.json\')}\n    try:\n        result=_runtime_tick(task,c,now,force)\n        after={p.name:p.stat().st_mtime_ns for p in task.glob(\'*state.json\')}\n        if before!=after:runtime_log(task,\'transfer\',\'state-updated\')\n        return result\n    except Exception as ex:\n        runtime_log(task,\'transfer\',type(ex).__name__);raise\n\n_runtime_archive=archive_and_transfer\ndef archive_and_transfer(task,c):\n    runtime_log(task,\'backup\',\'started\')\n    try:\n        result=_runtime_archive(task,c);runtime_log(task,\'backup\',\'completed\');return result\n    except Exception as ex:runtime_log(task,\'backup\',type(ex).__name__);raise\n'
+runtime_roots = {
+ 'web':'/home/备份/data/website', 'forum':'/home/备份/data/forum',
+ 'generated':'/home/备份/data/generated', 'local-sync':'/home/备份/data/local-sync',
+ 'local-keep':'/home/备份/data/local-keep'}
+for category, root in runtime_roots.items():
+    name='beifenhebing-'+category+'.py'
+    text=files[name].decode('utf-8')
+    text=re.sub(r"^ROOT = Path\('[^']+'\)", 'ROOT = Path('+repr(root)+')',text,flags=re.M)
+    pos=text.rfind("if __name__ == '__main__':")
+    text=text[:pos]+central_overrides+'\n'+text[pos:]
+    compile(text,name,'exec');files[name]=text.encode('utf-8')
+    s3name='beifenhebing-'+category+'-s3.py'
+    text=files[s3name].decode('utf-8')
+    text=text.replace("expected = Path(c['local_dir']) / (c['name'] + '-s3.credentials')", "expected = e.config_path(e.task_by_id(c['id'])).with_suffix('.credentials')")
+    text=text.replace('    validate(c)\n    expected =', '    validate(c)\n    e = engine()\n    expected =')
+    compile(text,s3name,'exec');files[s3name]=text.encode('utf-8')
 files[sys.argv[2]]=source_bytes
 rootfd=open_components(canonical,create=True)
 os.fchmod(rootfd,0o700)
@@ -1768,7 +1848,7 @@ def connection_label(status):
 def menu_summary(count_only=False):
     rows = entries()
     if count_only:
-        print(f'\033[32m已有 {len(rows)} 个\033[0m')
+        print(f'\033[32m已有 {len(rows)} 个\033[0m' if rows else '\033[31m暂无\033[0m')
         return
     connections = cached_connections()  # redraw never initiates a network probe
     for group, title in [('backup', '备份任务'), ('transfer', '备份传送'), ('s3', 'S3 API 兼容传送任务')]:
@@ -2178,5 +2258,6 @@ SINGLEFILE_SOURCE_BEIFENHEBING_WEB_S3_PY
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     singlefile_bootstrap || exit 1
+    central_data_migrate || exit 1
     main "$@"
 fi
