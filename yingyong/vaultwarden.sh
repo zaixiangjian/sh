@@ -357,7 +357,7 @@ backup_app_unlocked() {
     done
     # Baseline is captured after archive completion, while the container is stopped.
     if ! python3 - "$INSTALL_DIR" "$archive" <<'PYBASE'
-import json, os, sys, tempfile, time
+import json, os, sys, tempfile, time, sqlite3, hashlib
 from pathlib import Path
 base = Path(sys.argv[1])
 def signature(name):
@@ -368,6 +368,15 @@ def signature(name):
         return None
 payload = {'db': [signature(n) for n in ('db.sqlite3', 'db.sqlite3-shm', 'db.sqlite3-wal')],
            'at': time.time(), 'archive': os.path.abspath(sys.argv[2])}
+database = base / 'data' / 'db.sqlite3'
+if database.exists():
+    source = sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=15)
+    snapshot = sqlite3.connect(':memory:')
+    source.backup(snapshot)
+    h = hashlib.sha256()
+    for line in snapshot.iterdump(): h.update((line + '\n').encode())
+    payload['logical_hash'] = h.hexdigest()
+    snapshot.close(); source.close()
 fd, tmp = tempfile.mkstemp(prefix='.backup-baseline-', dir=base)
 try:
     with os.fdopen(fd, 'w') as f:
