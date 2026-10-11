@@ -212,7 +212,7 @@ forum_backup_menu() {
     local choice
     local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
     export WEB_CONNECTION_SESSION
-    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py install-cron || echo '论坛调度修复异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py install-cron >/dev/null || echo '论坛调度修复异常'
     /usr/bin/python3 /root/yingyong/beifenhebing-forum.py probe || echo '连接检测异常'
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
@@ -221,9 +221,10 @@ forum_backup_menu() {
         echo "=================================="
         /usr/bin/python3 /root/yingyong/beifenhebing-forum.py summary || echo "任务检测异常"
         echo "=================================="
-        echo "1. 论坛备份"
-        echo "2. 备份传送"
-        echo "3. S3 API兼容备份配置"
+        echo "1. 论坛全量备份"
+        echo "2. 论坛全量传送"
+        echo "3. 论坛全量传送S3 API兼容备份配置"
+        echo "4. 论坛全量备份恢复（从 /home 检测备份）"
         echo "7. 测试连接"
         echo "8. 执行某个任务"
         echo "9. 删除任务"
@@ -234,6 +235,7 @@ forum_backup_menu() {
             1) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create ;;
             2) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-transfer ;;
             3) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-s3 ;;
+            4) forum_restore ;;
             7) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-test ;;
             8) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-run ;;
             9) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-delete ;;
@@ -263,7 +265,6 @@ show_menu() {
       echo "------------------------"
       echo "11. 图床备份"
       echo "------------------------"
-      echo "999. 论坛恢复检测/home目录解压到/var只需要kejilion.sh  11 72  2重建即可"
       echo "------------------------"
       echo "188.全部备份传送同步本地"
       echo "200.全部备份传送不删除远程文件"
@@ -470,59 +471,57 @@ IFS= read -r -p "输入远程服务器IP: " useip
 
 
 
-operation_999() (
-echo "------------------------"
-    echo "检查并解压 .tar.gz 文件..."
-
-    # 设置待检测的目录和解压目标目录
-    home_dir="/home"
-    dest_dir="/var"
-
-    # 查找 home 目录下的所有 .tar.gz 文件
-    tar_files=$(ls -t $home_dir/*.tar.gz)
-
-    # 如果没有找到任何备份文件
-    if [ -z "$tar_files" ]; then
-        echo "没有找到 .tar.gz 文件，无法解压！"
-        return 1
-    fi
-
-    echo "备份文件列表："
-    echo "------------------------"
-    i=1
-    for file in $tar_files; do
-        echo "$i. $file"
-        i=$((i+1))
-    done
-
-    # 提示用户选择备份文件（默认为最新备份）
-    IFS= read -r -p "请输入要解压的备份编号（回车解压最新）： " restore_choice
-
-    if [ -z "$restore_choice" ]; then
-        # 如果用户回车，则解压最新的文件
-        restore_file=$(echo "$tar_files" | head -n 1 | xargs basename)
-    else
-        # 否则恢复用户指定的备份
-        restore_file=$(echo "$tar_files" | sed -n "${restore_choice}p" | xargs basename)
-    fi
-
-    if [ -z "$restore_file" ]; then
-        echo "无效的选择，解压失败！"
-        return 1
-    fi
-
-    echo "正在解压备份：$restore_file"
-
-    # 解压文件到 /var 目录
-    tar -xvzf "$home_dir/$restore_file" -C $dest_dir
-
-    # 检查解压是否成功
-    if [ $? -eq 0 ]; then
-        echo "文件解压成功！"
-    else
-        echo "文件解压失败！"
-        return 1
-    fi
+forum_restore() (
+    /usr/bin/python3 - 3<&0 <<'FORUM_RESTORE_PY'
+import os, sys, tarfile, tempfile, shutil, datetime
+sys.stdin = os.fdopen(3)
+from pathlib import Path
+home = Path('/home')
+target = Path('/var/discourse')
+files = sorted((p for p in home.glob('*.tar.gz') if p.is_file() and not p.is_symlink()), key=lambda p:p.stat().st_mtime_ns, reverse=True)
+if not files:
+    print('没有找到 /home 第一层的 .tar.gz 备份'); raise SystemExit(0)
+for i,p in enumerate(files,1): print(f'{i}. {p.name}')
+choice=input('选择论坛备份编号（回车最新，0取消）: ')
+if choice=='0': raise SystemExit(0)
+if choice and (not choice.isdigit() or not 1 <= int(choice) <= len(files)):
+    raise SystemExit('编号无效，未恢复')
+p=files[int(choice)-1 if choice else 0]
+with tarfile.open(p,'r:gz') as archive:
+    members=archive.getmembers()
+    if not members: raise SystemExit('归档为空，未恢复')
+    for m in members:
+        parts=Path(m.name).parts
+        if not parts or parts[0]!='discourse' or '..' in parts or Path(m.name).is_absolute() or not (m.isfile() or m.isdir()):
+            raise SystemExit('不是安全的 discourse 全量目录归档（链接/特殊文件不允许），未恢复')
+print('将恢复 '+p.name+' 到 /var/discourse。请先停止论坛容器及数据库，勿在运行中恢复。')
+if input('确认已停止论坛并恢复，输入小写 yes: ') != 'yes':
+    print('已取消'); raise SystemExit(0)
+if target.is_symlink(): raise SystemExit('恢复目标是符号链接，拒绝操作')
+staging=Path(tempfile.mkdtemp(prefix='.forum-restore-',dir='/var'))
+previous=None
+try:
+    with tarfile.open(p,'r:gz') as archive:
+        archive.extractall(staging,filter='data')
+    candidate=staging/'discourse'
+    if not candidate.is_dir(): raise ValueError('归档缺少 discourse 目录')
+    if target.exists():
+        previous=Path(tempfile.mkdtemp(prefix='discourse-before-restore-',dir='/var'))
+        previous.rmdir()
+        target.rename(previous)
+    try: candidate.rename(target)
+    except BaseException:
+        if previous is not None: previous.rename(target)
+        raise
+    print('论坛全量备份恢复完成。')
+    if previous: print('恢复前数据保留在：'+str(previous))
+    print('请使用')
+    print('bash /root/kejilion.sh')
+    print('11.  面板工具 ▶️')
+    print('72 应用  2 号重建')
+finally:
+    shutil.rmtree(staging)
+FORUM_RESTORE_PY
 )
 
 operation_188() (
@@ -678,7 +677,7 @@ repair_dependencies() {
 main() {
     local choice
     repair_dependencies || { echo "依赖自动修复失败，请处理以上错误后重试。" >&2; return 1; }
-    /usr/bin/python3 /root/yingyong/beifenhebing-web.py install-cron || echo "网站备份定时任务检测异常，未覆盖其他任务。" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-web.py install-cron >/dev/null || echo "网站备份定时任务检测异常，未覆盖其他任务。" >&2
     while true; do
         show_menu
         IFS= read -r -p "请输入选项：" choice || { echo "已退出"; return 0; }
@@ -688,7 +687,6 @@ main() {
             6) operation_6 ;;
             7) operation_7 ;;
             11) operation_11 ;;
-            999) operation_999 ;;
             188) operation_188 ;;
             200) operation_200 ;;
             0) echo "已退出"; return 0 ;;
