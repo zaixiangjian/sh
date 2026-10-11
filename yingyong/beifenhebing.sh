@@ -821,6 +821,7 @@ for mode, sync in [('sync', True), ('keep', False)]:
     pos = bulk.rfind("if __name__ == '__main__':")
     bulk = bulk[:pos] + 'BULK_SYNC = ' + repr(sync) + '\n' + bulk_overrides + '\n' + bulk[pos:]
     bulk_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhebing-web', stem)
+    bulk_s3 = bulk_s3.replace("default_prefix = '/备份/' + (backup_prefix or 'web')", "default_prefix = '/备份'")
     bulk_s3 = bulk_s3.replace('确认保存凭据并启用远端清理请输入 yes', '确认保存：同步模式删除本地不存在的远端.tar.gz，保留模式不删除，输入 yes')
     for name, content in [(stem+'.py', bulk), (stem+'-s3.py', bulk_s3)]:
         compile(content,name,'exec'); files[name] = content.encode('utf-8')
