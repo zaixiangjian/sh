@@ -11,7 +11,7 @@ BACKUP_DIR="/home/备份/vaultwarden"  # 本地备份目录，支持末尾 /
 QUIET_SECONDS=3                      # 文件连续无变化等待秒数
 DAILY_BACKUP_TIME="05:00"             # 每日打包并传送（主机时区）
 DAILY_TRANSFER_TIME="05:05"           # SSH/S3 每日只传最新备份（主机时区）
-S3_RETENTION_COUNT=5               # S3远端最多保留备份数量
+S3_RETENTION_COUNT=100               # S3远端最多保留备份数量
 TRANSFER_RETRY_SECONDS=60           # SSH/S3传送失败后的重试间隔（秒）
 TRANSFER_MAX_ATTEMPTS=3             # 每个新备份最多尝试次数（含首次）
 
@@ -451,8 +451,8 @@ show_registration_status() {
     result="$(registration_config 2>/dev/null)" || result="unknown"
     state="${result%%$'\n'*}"
     if [[ "${1:-}" == inline ]]; then
-        printf '5. 注册管理（'
-    else
+        printf '5. 配置管理（'
+    elif [[ "${1:-}" != bare ]]; then
         echo "状态"
     fi
     case "$state" in
@@ -461,7 +461,11 @@ show_registration_status() {
         restricted) printf '\033[32m🟢 允许注册（仅限邮箱域名白名单）\033[0m' ;;
         *) printf '\033[33m🟡 检测失败\033[0m' ;;
     esac
-    if [[ "${1:-}" == inline ]]; then printf '）'; fi
+    if [[ "${1:-}" == inline ]]; then
+        printf ' '
+        show_smtp_status
+        printf '）'
+    fi
     printf '\n'
 }
 
@@ -528,15 +532,69 @@ PY
     return 1
 }
 
+ensure_mail_python() {
+    local python_version
+    echo "正在检查 Python 3..."
+    if [[ -x /usr/bin/python3 ]] && /usr/bin/python3 -c 'import json, pathlib, subprocess, getpass, fcntl' >/dev/null 2>&1; then
+        python_version="$(/usr/bin/python3 --version 2>&1)" || return 1
+        echo "Python 3已安装：$python_version"
+        return 0
+    fi
+    [[ $EUID -eq 0 ]] || { echo "缺少 Python 3，请使用 root 运行以自动安装。"; return 1; }
+    echo "未检测到可用的 /usr/bin/python3，正在安装 Python 3..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y python3 || return 1
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y python3 || return 1
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y python3 || return 1
+    elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache python3 || return 1
+    elif command -v pacman >/dev/null 2>&1; then
+        pacman -S --needed --noconfirm python || return 1
+    elif command -v zypper >/dev/null 2>&1; then
+        zypper --non-interactive install python3 || return 1
+    else
+        echo "不支持自动安装的包管理器，请手动安装 Python 3。"
+        return 1
+    fi
+    if ! /usr/bin/python3 -c 'import json, pathlib, subprocess, getpass, fcntl' >/dev/null 2>&1; then
+        echo "Python 3 安装后校验失败，未执行 SMTP 配置。"
+        return 1
+    fi
+    echo "Python 3 已安装并通过校验。"
+}
+
+configure_smtp() {
+    ensure_mail_python || { echo "Python 3 不可用，SMTP 配置未修改。"; return 1; }
+    /usr/bin/python3 /root/yingyong/vaultwarden-mail.py smtp
+}
+
+show_smtp_status() {
+    local status
+    status="$(/usr/bin/python3 /root/yingyong/vaultwarden-mail.py status 2>/dev/null)" || status=unknown
+    case "$status" in
+        smtp) printf '\033[32m有SMTP\033[0m' ;;
+        none) printf '\033[31m无SMTP\033[0m' ;;
+        *) printf '\033[33mSMTP检测失败\033[0m' ;;
+    esac
+}
+
 registration_menu() {
     local choice answer
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     echo "=================================="
-    echo "        vaultwarden 注册管理"
-    show_registration_status
+    echo "        vaultwarden 配置管理"
+    echo "注册状态"
+    show_registration_status bare
+    echo "------------------------"
+    echo "邮件状态"
+    show_smtp_status
+    echo
     echo "=================================="
     echo "1. 开启注册"
     echo "2. 禁止注册"
+    echo "3. 添加 SMTP 配置"
     echo "0. 返回"
     IFS= read -r -p "请输入选项：" choice || return 0
     case "$choice" in
@@ -547,6 +605,7 @@ registration_menu() {
             [[ "$answer" == yes ]] || { echo "已取消。"; return 0; }
             if [[ "$choice" == 1 ]]; then set_registration true; else set_registration false; fi
             ;;
+        3) configure_smtp ;;
         0) return 0 ;;
         *) echo "无效选项。" ;;
     esac
