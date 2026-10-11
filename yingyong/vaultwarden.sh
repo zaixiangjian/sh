@@ -11,7 +11,7 @@ BACKUP_DIR="/home/备份/vaultwarden"  # 本地备份目录，支持末尾 /
 QUIET_SECONDS=3                      # 文件连续无变化等待秒数
 DAILY_BACKUP_TIME="05:00"             # 每日打包并传送（主机时区）
 DAILY_TRANSFER_TIME="05:05"           # SSH/S3 每日只传最新备份（主机时区）
-S3_RETENTION_COUNT=5               # S3远端最多保留备份数量
+S3_RETENTION_COUNT=100               # S3远端最多保留备份数量
 TRANSFER_RETRY_SECONDS=60           # SSH/S3传送失败后的重试间隔（秒）
 TRANSFER_MAX_ATTEMPTS=3             # 每个新备份最多尝试次数（含首次）
 
@@ -83,13 +83,30 @@ backup_app() ( run_operation backup_app_unlocked "$@"; )
 restore_app() ( run_operation restore_app_unlocked "$@"; )
 set_registration() ( run_operation set_registration_unlocked "$@"; )
 uninstall_app() {
-    local answer
+    local answer rc=0
     require_docker || return 1
-    echo "将停止并禁用所有Vaultwarden后台任务，再删除容器；数据、任务配置和备份保留。"
+    if ! /usr/bin/python3 - "$INSTALL_DIR" "$BACKUP_DIR" <<'PY'
+from pathlib import Path
+import sys
+install=Path(sys.argv[1]);backup=Path(sys.argv[2])
+if not install.is_absolute() or install.is_symlink():sys.exit('安装目录无效，已取消')
+i,b=install.resolve(),backup.resolve()
+if str(i) in ('/','/home','/root','/home/web','/home/docker') or len(i.parts)<4:sys.exit('安装目录范围过大，已取消')
+if b==i or i in b.parents:sys.exit('备份目录在安装目录内，禁止卸载以免删除备份')
+PY
+    then return 1; fi
+    echo "将停止后台任务，备份整个data目录并传送一次，再删除容器及本地安装目录。"
+    echo "删除目录：$INSTALL_DIR（含任务配置和凭据）；保留备份目录：$BACKUP_DIR"
+    echo "密码库保存在data备份中，任务配置不会单独备份；S3此次不清理旧备份。"
     IFS= read -r -p "确认卸载请输入小写 yes：" answer || return 0
     [[ "$answer" == yes ]] || { echo "已取消。"; return 0; }
     /usr/bin/python3 /root/yingyong/vaultwarden-lifecycle.py stop || return 1
-    ( run_operation uninstall_app_unlocked )
+    ( run_operation uninstall_app_unlocked ) || rc=$?
+    if [[ "$rc" != 0 ]]; then
+        echo "卸载已中止，尝试恢复后台任务。"
+        repair_background_tasks || echo "后台任务恢复失败，请检查服务。"
+    fi
+    return "$rc"
 }
 
 require_docker() {
@@ -245,13 +262,25 @@ PY
 }
 
 uninstall_app_unlocked() {
+    local archive answer
     require_docker || return 1
-    container_exists || { echo "未找到容器，后台任务已停用。"; return 0; }
-    docker rm -f "$CONTAINER" || return 1
-    if container_exists; then
-        echo "卸载校验失败。"; return 1
+    container_exists || { echo "未找到容器，未删除安装目录。"; return 1; }
+    echo "正在打包"
+    backup_app || { echo "备份失败，禁止卸载。"; return 1; }
+    archive="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["archive"])' "$INSTALL_DIR/backup-db-baseline.json")" || return 1
+    echo "打包成功尝试传送：$archive"
+    if ! /usr/bin/python3 /root/yingyong/vaultwarden-final-send.py "$archive"; then
+        IFS= read -r -p "上述任务传送失败，仍继续卸载请输入小写 yes：" answer || return 1
+        [[ "$answer" == yes ]] || { echo "已取消卸载，本地备份保留。"; return 1; }
+    else
+        echo "现有任务传送完成。"
     fi
-    echo "卸载完成，密码库数据已保留。"
+    echo "正在卸载"
+    docker rm -f "$CONTAINER" || return 1
+    if container_exists; then echo "容器删除校验失败，安装目录未删除。"; return 1; fi
+    rm -rf -- "$INSTALL_DIR" || return 1
+    [[ ! -e "$INSTALL_DIR" ]] || { echo "安装目录未删除完成。"; return 1; }
+    echo "卸载成功，本地备份保留：$archive"
 }
 
 login_hub() {
