@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.16"
+sh_v="0.0.17"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6138,7 +6138,7 @@ linux_panel() {
     fi
     check_docker "46" "aria2-pro"
     check_docker "48" "nexterm"
-    check_docker "49" "libretv"
+    check_docker "49" "vaultwarden"
     check_docker "50" "moontv"
     check_path "51" "/home/docker/jiguang"
     check_docker "54" "webssh"
@@ -6273,7 +6273,7 @@ linux_panel() {
     echo -e "$(panel_menu_item_green_if_installed 43 "${gl_kjlan}43. ${gl_bai}vaultwarden(禁止注册SMTP设置)" "43. vaultwarden(禁止注册SMTP设置)")\033[48G$(panel_menu_item_green_if_installed 44 "${gl_kjlan}44. ${gl_bai}vaultwarden(禁止注册)" "44. vaultwarden(禁止注册)")"
     echo -e "$(panel_menu_item_green_if_installed 45 "${gl_kjlan}45. ${gl_bai}vaultwarden(注册SMTP设置)" "45. vaultwarden(注册SMTP设置)")\033[48G$(panel_menu_item_green_if_installed 46 "${gl_kjlan}46. ${gl_bai}Aria2离线下载" "46. Aria2离线下载")"
     echo -e "$(panel_menu_item_green_if_installed 47 "${gl_kjlan}47. ${gl_bai}Cloudreve网盘" "47. Cloudreve网盘")\033[48G$(panel_menu_item_green_if_installed 48 "${gl_kjlan}48. ${gl_bai}编译部署ssh Nexterm  53 79" "48. 编译部署ssh Nexterm  53 79")"
-    echo -e "$(panel_menu_item_green_if_installed 49 "${gl_kjlan}49. ${gl_bai}LibreTV" "49. LibreTV")\033[48G$(panel_menu_item_green_if_installed 50 "${gl_kjlan}50. ${gl_bai}MoonTV" "50. MoonTV")"
+    echo -e "$(panel_menu_item_green_if_installed 49 "${gl_kjlan}49. ${gl_bai}vaultwarden完整脚本 ${gl_huang}★${gl_bai}" "49. vaultwarden完整脚本")★\033[48G$(panel_menu_item_green_if_installed 50 "${gl_kjlan}50. ${gl_bai}MoonTV" "50. MoonTV")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 51 "${gl_kjlan}51. ${gl_bai}极光面板" "51. 极光面板")\033[48G$(panel_menu_item_green_if_installed 52 "${gl_kjlan}52. ${gl_bai}emby安装" "52. emby安装")"
     echo -e "$(panel_menu_item_green_if_installed 53 "${gl_kjlan}53. ${gl_bai}NextermSSH链接 48 79${gl_huang}★${gl_bai}" "53. NextermSSH链接 48 79★")\033[48G$(panel_menu_item_green_if_installed 54 "${gl_kjlan}54. ${gl_bai}webssh ${gl_huang}★${gl_bai}" "54. webssh ★")"
@@ -8227,34 +8227,11 @@ EOF
             done
             ;;
 
-
-
-
-
-
-
-
       49)
-        
-        ADMINPASSWORD="admin123456789"
-        PASSWORD="111111"
-    
-        docker_name="libretv"
-        docker_img="bestzwei/libretv:latest"
-        docker_port=8899
-        docker_rum="docker run -d \
-          --name libretv \
-          --restart unless-stopped \
-          -p 8899:8080 \
-          -e PASSWORD=$PASSWORD \
-          -e ADMINPASSWORD=$ADMINPASSWORD \
-          $docker_img"
-        docker_describe="LibreTV 是一个 IPTV 媒体播放器，支持直播电视流媒体播放"
-        docker_url="项目地址: https://hub.docker.com/r/bestzwei/libretv"
-        docker_use="echo \"✅ 设置密码: $ADMINPASSWORD\" && echo \"🌐 访问地址: http://localhost:$docker_port\""
-        docker_passwd=""
-        docker_app
-          ;;
+        echo "▶️ 正在启动 vaultwarden 安装..."
+        run_local_first_app_script "▶️ 安装vaultwarden..." "/root/yingyong/vaultwarden.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/vaultwarden.sh"
+        echo "✅ vaultwarden 安装成功..."
+        ;;
 
       50)
 
@@ -11445,11 +11422,11 @@ EOF
         bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
         echo "✅ 动105脚本必装模块执行完成。"
         ;;
+		
       1005)
-        clear
-        echo "▶️ 正在启动定时远程备份与传送模块..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebing.sh)
-        echo "✅ 远程备份与传送模块执行完成。"
+        echo "▶️ 正在启动备份合并脚本..."
+        run_local_first_app_script "▶️ 安装beifenhebing..." "/root/yingyong/beifenhebing.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/beifenhebing.sh"
+        echo "✅ 备份合并脚本安装完成。"
         ;;
 
 
