@@ -8,7 +8,7 @@ INSTALL_DIR="/home/web/vaultwarden"
 OFFICIAL_IMAGE="vaultwarden/server:latest"
 CUSTOM_IMAGE="zaixiangjian/vaultwarden:latest"
 BACKUP_DIR="/home/备份/vaultwarden"  # 本地备份目录，支持末尾 /
-QUIET_SECONDS=5                      # 文件连续无变化等待秒数
+QUIET_SECONDS=3                      # 文件连续无变化等待秒数
 DAILY_BACKUP_TIME="05:00"             # 每日打包并传送（主机时区）
 DAILY_TRANSFER_TIME="05:05"           # SSH/S3 每日只传最新备份（主机时区）
 S3_RETENTION_COUNT=5               # S3远端最多保留备份数量
@@ -567,6 +567,29 @@ ssh_backup_summary() {
     }
 }
 
+show_backup_logs() {
+    echo "=================================="
+    echo "SSH 监控、打包及传送日志（最近50行）"
+    /usr/bin/python3 - "$INSTALL_DIR/ssh-backup.log" <<'PY'
+from collections import deque
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+if p.exists():
+    with p.open(errors='replace') as f:
+        print(''.join(deque(f, maxlen=50)), end='')
+else:
+    print('暂无SSH监控日志。')
+PY
+    echo "------------------------"
+    echo "S3 上传、校验及清理日志（最近50条）"
+    journalctl -u vaultwarden-s3-backup.service -u vaultwarden-s3-daily.service -n 50 --no-pager -o short-iso || echo "读取S3日志失败。"
+    echo "------------------------"
+    echo "SSH 每日兜底及服务异常日志（最近50条）"
+    journalctl -u vaultwarden-ssh-daily-backup.service -u vaultwarden-ssh-daily-transfer.service -u vaultwarden-ssh-backup.service -u vaultwarden-ssh-backup-health.service -n 50 --no-pager -o short-iso || echo "读取systemd日志失败。"
+    echo "=================================="
+}
+
 ssh_backup_menu() {
     local choice
     while true; do
@@ -586,15 +609,7 @@ ssh_backup_menu() {
         case "$choice" in
             1) python3 /root/yingyong/vaultwarden-ssh.py add-backup && ssh_backup_repair ;;
             2) python3 /root/yingyong/vaultwarden-ssh.py add-transfer && ssh_backup_repair ;;
-            5) python3 - <<'PY'
-from pathlib import Path
-p=Path('/home/web/vaultwarden/ssh-backup.log')
-if p.exists():
-    print(''.join(p.read_text(errors='replace').splitlines(keepends=True)[-50:]), end='')
-else:
-    print('暂无监控日志。')
-PY
-                ;;
+            5) show_backup_logs ;;
             9) python3 /root/yingyong/vaultwarden-ssh.py delete && ssh_backup_repair ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
@@ -611,16 +626,18 @@ s3_backup_menu() {
         echo "        S3 API 兼容备份配置"
         echo "共用本地备份；仅传最新；远端专用前缀保留${S3_RETENTION_COUNT}个"
         echo "=================================="
-        /usr/bin/python3 /root/yingyong/vaultwarden-s3.py list
-        echo "------------------------"
+        ssh_backup_summary summary-numbered
+        echo "=================================="
         echo "1. 添加S3任务"
         echo "2. 查看S3任务"
+        echo "5. 查看监控日志"
         echo "9. 删除S3任务"
         echo "0. 返回"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
             1) /usr/bin/python3 /root/yingyong/vaultwarden-s3.py add && /usr/bin/python3 /root/yingyong/vaultwarden-s3.py repair ;;
             2) /usr/bin/python3 /root/yingyong/vaultwarden-s3.py list ;;
+            5) show_backup_logs ;;
             9) /usr/bin/python3 /root/yingyong/vaultwarden-s3.py delete && /usr/bin/python3 /root/yingyong/vaultwarden-s3.py repair ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
