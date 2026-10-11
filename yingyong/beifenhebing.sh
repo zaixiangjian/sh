@@ -208,6 +208,42 @@ website_backup_menu() {
     done
 }
 
+forum_backup_menu() {
+    local choice
+    local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
+    export WEB_CONNECTION_SESSION
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py install-cron || echo '论坛调度修复异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py probe || echo '连接检测异常'
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo "=================================="
+        echo "        论坛备份（/var/discourse）"
+        echo "=================================="
+        /usr/bin/python3 /root/yingyong/beifenhebing-forum.py summary || echo "任务检测异常"
+        echo "=================================="
+        echo "1. 论坛备份"
+        echo "2. 备份传送"
+        echo "3. S3 API兼容备份配置"
+        echo "7. 测试连接"
+        echo "8. 执行某个任务"
+        echo "9. 删除任务"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice" in
+            1) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create ;;
+            2) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-transfer ;;
+            3) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-s3 ;;
+            7) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-test ;;
+            8) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-run ;;
+            9) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-delete ;;
+            0) return 0 ;;
+            *) echo "无效选项。" ;;
+        esac
+        IFS= read -r -p "按回车继续..." choice || return 0
+    done
+}
+
 show_menu() {
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     echo "=================================="
@@ -216,16 +252,17 @@ show_menu() {
     echo "=================================="
     echo "网站备份任务 详情进入1查看"
     /usr/bin/python3 /root/yingyong/beifenhebing-web.py count || echo "任务检测异常"
+    echo "论坛备份任务 详情进入2查看"
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py count || echo "任务检测异常"
     echo "=================================="
       echo "1. 网站备份（/home/web）"
+      echo "2. 论坛备份（/var/discourse）"
       echo "------------------------"
       echo "6. 论坛传送任务"
       echo "7. 论坛传送任务1"
       echo "------------------------"
       echo "11. 图床备份"
       echo "------------------------"
-      echo "98.V 论坛备份"
-      echo "99.J 论坛备份"
       echo "999. 论坛恢复检测/home目录解压到/var只需要kejilion.sh  11 72  2重建即可"
       echo "------------------------"
       echo "188.全部备份传送同步本地"
@@ -432,122 +469,6 @@ IFS= read -r -p "输入远程服务器IP: " useip
 
 
 
-
-operation_98() (
-IFS= read -r -p "输入远程服务器IP: " useip
-          IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-
-          # 创建并进入备份目录
-          mkdir -p /home/论坛备份
-          cd /home/论坛备份 || return 1
-
-          # 下载备份脚本（统一文件名）
-          OUTPUT_BIN="/home/论坛备份/discoursebeifen.sh"
-          generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/discoursebeifenv.sh" "$OUTPUT_BIN" || return 1
-
-          echo "------------------------"
-          echo "选择备份频率："
-          echo "1. 每周备份"
-          echo "2. 每天固定时间备份"
-          echo "3. 每N天备份一次（精确到分钟）"
-          IFS= read -r -p "请输入选择编号: " dingshi
-
-          case $dingshi in
-            1)
-              IFS= read -r -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-              IFS= read -r -p "几点备份（0-23）: " hour
-              IFS= read -r -p "几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-                echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            2)
-              IFS= read -r -p "每天几点备份（0-23）: " hour
-              IFS= read -r -p "每天几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-                echo "已设置每天 ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            3)
-              IFS= read -r -p "每几天备份一次（如：2 表示每2天）: " interval
-              IFS= read -r -p "几点（0-23）: " hour
-              IFS= read -r -p "几分（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-                echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-              fi
-              ;;
-            *)
-              echo "无效输入"
-              ;;
-          esac
-)
-
-operation_99() (
-IFS= read -r -p "输入远程服务器IP: " useip
-          IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-
-          # 创建并进入备份目录
-          mkdir -p /home/论坛备份
-          cd /home/论坛备份 || return 1
-
-          # 下载备份脚本（统一文件名）
-          OUTPUT_BIN="/home/论坛备份/discoursebeifen1.sh"
-          generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/discoursebeifenj.sh" "$OUTPUT_BIN" || return 1
-
-          echo "------------------------"
-          echo "选择备份频率："
-          echo "1. 每周备份"
-          echo "2. 每天固定时间备份"
-          echo "3. 每N天备份一次（精确到分钟）"
-          IFS= read -r -p "请输入选择编号: " dingshi
-
-          case $dingshi in
-            1)
-              IFS= read -r -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-              IFS= read -r -p "几点备份（0-23）: " hour
-              IFS= read -r -p "几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-                echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            2)
-              IFS= read -r -p "每天几点备份（0-23）: " hour
-              IFS= read -r -p "每天几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-                echo "已设置每天 ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            3)
-              IFS= read -r -p "每几天备份一次（如：2 表示每2天）: " interval
-              IFS= read -r -p "几点（0-23）: " hour
-              IFS= read -r -p "几分（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-                echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-              fi
-              ;;
-            *)
-              echo "无效输入"
-              ;;
-          esac
-)
 
 operation_999() (
 echo "------------------------"
@@ -763,11 +684,10 @@ main() {
         IFS= read -r -p "请输入选项：" choice || { echo "已退出"; return 0; }
         case "$choice" in
             1) website_backup_menu; continue ;;
+            2) forum_backup_menu; continue ;;
             6) operation_6 ;;
             7) operation_7 ;;
             11) operation_11 ;;
-            98) operation_98 ;;
-            99) operation_99 ;;
             999) operation_999 ;;
             188) operation_188 ;;
             200) operation_200 ;;
@@ -839,6 +759,19 @@ for match in re.finditer(r'^# SINGLEFILE_HELPER ([a-z0-9-]+\.py) (SINGLEFILE_SOU
     files[name]=body.encode('utf-8')
 expected=['beifenhebing-web.py', 'beifenhebing-web-s3.py']
 if set(files)!=set(expected): raise ValueError('嵌入helper集合不完整')
+# Derive independent forum engines from the embedded current source.
+forum = files['beifenhebing-web.py'].decode('utf-8')
+forum = forum.replace('beifenhebing-web', 'beifenhebing-forum').replace('网站', '论坛')
+forum = forum.replace("ROOT = Path('/home/web/beifen/tasks')", "ROOT = Path('/home/论坛备份/tasks')")
+forum = forum.replace("SOURCE = Path('/home/web')", "SOURCE = Path('/var/discourse')")
+forum = forum.replace('/home/web', '/var/discourse')
+a = forum.index('LEGACY = tuple(')
+b = forum.index('\n\n', a)
+forum = forum[:a] + "LEGACY = tuple(Path('/home/论坛备份/' + n + ext) for n in ('discoursebeifen','discoursebeifen1') for ext in ('.sh','.x'))" + forum[b:]
+forum_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhebing-web', 'beifenhebing-forum').replace('网站', '论坛')
+for name, body in [('beifenhebing-forum.py', forum), ('beifenhebing-forum-s3.py', forum_s3)]:
+    compile(body, name, 'exec')
+    files[name] = body.encode('utf-8')
 files[sys.argv[2]]=source_bytes
 rootfd=open_components(canonical,create=True)
 os.fchmod(rootfd,0o700)
