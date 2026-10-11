@@ -3,175 +3,6 @@
 # 凭据仅保存到 0600 配置；下载任务和 launcher 为 0700。
 set +x
 set +v
-gh_proxy=${gh_proxy-}
-
-generate_task() (
-    set +x
-    set +v
-    umask 077
-    local url=$1 output=$2 temp local_ip
-    [[ $output == /*.sh && ${useip-} =~ ^[a-zA-Z0-9.:_-]+$ && -n ${usepasswd-} ]] || {
-        echo "远程地址或密码为空/无效" >&2; return 1;
-    }
-    command -v python3 >/dev/null || { echo "需要 python3" >&2; return 1; }
-    temp=$(mktemp -d "${output%/*}/.task-build.XXXXXXXX") || return 1
-    trap 'rm -rf -- "$temp"' EXIT
-    if ! wget -q -O "$temp/payload.sh" "$url" || [[ ! -s $temp/payload.sh ]]; then
-        echo "下载失败，未生成任务或修改调度" >&2; return 1
-    fi
-    local_ip=$(curl -4 -fsS --max-time 15 ifconfig.me || curl -4 -fsS --max-time 15 ipinfo.io/ip) || {
-        echo "获取本机 IP 失败" >&2; return 1;
-    }
-    [[ $local_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ && $local_ip != 0.0.0.0 ]] || {
-        echo "本机 IP 无效" >&2; return 1;
-    }
-    # 只替换有明确 shell 引用上下文的占位符，模板变化则 fail closed。
-    python3 - "$temp/payload.sh" <<'PY'
-import pathlib, sys, subprocess
-p = pathlib.Path(sys.argv[1])
-s = p.read_text().replace('\r\n', '\n')
-for token, var in [('vps密码', 'TASK_PASSWORD'), ('vpsip', 'TASK_REMOTE_IP')]:
-    if token not in s:
-        raise SystemExit('模板缺少凭据占位符')
-    for quote in ["'", '"']:
-        s = s.replace(quote + token + quote, '"${' + var + '}"')
-    if token == 'vpsip':
-        # 地址已验证为不含 shell 元字符的主机/IP。
-        s = s.replace(token, '${TASK_REMOTE_IP}')
-    if token in s:
-        raise SystemExit('模板占位符引用形式不支持，拒绝生成')
-p.write_text(s)
-if subprocess.run(['bash', '-n', str(p)]).returncode:
-    raise SystemExit('下载脚本语法错误')
-PY
-    [[ $? == 0 ]] || return 1
-    printf 'TASK_REMOTE_IP=%q\nTASK_PASSWORD=%q\nTASK_LOCAL_IP=%q\n' \
-        "$useip" "$usepasswd" "$local_ip" > "$temp/task.conf" || return 1
-    {
-        echo '#!/bin/bash'
-        echo 'set +x'
-        echo 'set +v'
-        printf 'source %q || exit 1\n' "$output.conf"
-        echo 'IP=$(curl -4 -fsS --max-time 15 ifconfig.me || curl -4 -fsS --max-time 15 ipinfo.io/ip) || exit 1'
-        echo '[[ "$IP" == "$TASK_LOCAL_IP" ]] || { echo "IP not allowed: $IP" >&2; exit 1; }'
-        printf 'source %q\n' "${output%.sh}.payload.sh"
-    } > "$temp/launcher.sh" || return 1
-    bash -n "$temp/launcher.sh" || return 1
-    chmod 600 "$temp/task.conf" || return 1
-    chmod 700 "$temp/launcher.sh" "$temp/payload.sh" || return 1
-    # 临时文件与最终文件同文件系统；最终 .sh 绝不作为清理中间文件删除。
-    mv -fT -- "$temp/task.conf" "$output.conf" &&
-    mv -fT -- "$temp/payload.sh" "${output%.sh}.payload.sh" &&
-    mv -fT -- "$temp/launcher.sh" "$output" || return 1
-)
-
-# 精确路径白名单，禁止按关键词广泛删除 cron 或任意路径。
-known_task_paths() {
-    local base
-    for base in /home/web/beifen/beifenwhmcs /home/web/beifen/beifen /home/web/beifen/chuansong \
-        /home/luntanbeifen /home/web/vaultwarden/beifen \
-        /home/web/vaultwarden/mimachuansong /home/web/vaultwarden/mimachuansong2 \
-        /home/docker/wangpan /home/docker/zixuanmulu \
-        /home/docker/zixuanmulu2 /home/docker/wangpan/waibucunchu \
-        /home/docker/miniochuansong /home/论坛备份/discoursebeifen \
-        /home/论坛备份/discoursebeifen1 /home/quanbubeifen /home/quanbubeifen2; do
-        printf '%s.sh\n%s.x\n' "$base" "$base"
-    done
-}
-managed_tasks() {
-    local line path token found
-    local -a paths words
-    mapfile -t paths < <(known_task_paths)
-    while IFS= read -r line; do
-        [[ -z $line || $line == \#* ]] && continue
-        read -r -a words <<< "$line"
-        found=0
-        for token in "${words[@]}"; do
-            for path in "${paths[@]}"; do
-                if [[ $token == "$path" ]]; then
-                    printf '%s\t%s\n' "$path" "$line"
-                    found=1; break
-                fi
-            done
-            (( found )) && break
-        done
-    done
-}
-show_tasks() {
-    local row i=0
-    echo "当前已有定时任务（.x 为 legacy，保持不迁移）："
-    while IFS= read -r row; do
-        ((i+=1)); printf '%s. %s\n' "$i" "${row#*$'\t'}"
-    done < <(crontab -l 2>/dev/null | managed_tasks)
-}
-website_tasks() {
-    local path row
-    while IFS=$'\t' read -r path row; do
-        case "$path" in
-            /home/web/beifen/beifen.sh|/home/web/beifen/beifen.x|/home/web/beifen/beifenwhmcs.sh|/home/web/beifen/beifenwhmcs.x|/home/web/beifen/chuansong.sh|/home/web/beifen/chuansong.x) printf '%s\t%s\n' "$path" "$row" ;;
-        esac
-    done
-}
-
-delete_task() {
-    local scope=${1:-all}
-    if [[ $scope == website ]]; then
-        python3 /root/yingyong/beifenhebing-web.py select-delete
-        return $?
-    fi
-    local snapshot row choice selected path line temp i=0
-    local -a rows
-    snapshot=$(crontab -l 2>/dev/null) || { echo "没有可删除的 cron 任务"; return 1; }
-    if [[ $scope == website ]]; then
-        mapfile -t rows < <(printf '%s\n' "$snapshot" | managed_tasks | website_tasks)
-    else
-        mapfile -t rows < <(printf '%s\n' "$snapshot" | managed_tasks)
-    fi
-    for row in "${rows[@]}"; do ((i+=1)); printf '%s. %s\n' "$i" "${row#*$'\t'}"; done
-    IFS= read -r -p "请输入要删除的任务编号: " choice || return 1
-    [[ $choice =~ ^[1-9][0-9]*$ && $choice -le ${#rows[@]} ]] || { echo "无效编号"; return 1; }
-    selected=${rows[choice-1]}; path=${selected%%$'\t'*}; line=${selected#*$'\t'}
-    temp=$(mktemp) || return 1
-    # 保持原次序，且只删选中那一行一次。
-    local removed=0 current
-    while IFS= read -r current; do
-        if [[ $removed == 0 && $current == "$line" ]]; then removed=1; continue; fi
-        printf '%s\n' "$current"
-    done <<< "$snapshot" > "$temp"
-    crontab "$temp" || { rm -f -- "$temp"; return 1; }
-    rm -f -- "$temp"
-    # 若该路径还有其他 cron 引用，不删除其文件。systemd/legacy 不停启。
-    if ! crontab -l 2>/dev/null | managed_tasks | cut -f1 | grep -Fxq -- "$path"; then
-        rm -f -- "$path"
-        if [[ $path == *.sh ]]; then
-            rm -f -- "$path.conf" "${path%.sh}.payload.sh"
-        fi
-    fi
-    echo "已删除定时任务: $line（未停止或迁移服务）"
-}
-test_task() {
-    local kind=$1 row path choice i=0
-    if [[ $kind == website ]]; then
-        python3 /root/yingyong/beifenhebing-web.py select-run
-        return $?
-    fi
-    local -a paths=()
-    while IFS=$'\t' read -r path row; do
-        case $kind:$path in
-            website:/home/web/beifen/beifen.sh|website:/home/web/beifen/beifen.x|website:/home/web/beifen/beifenwhmcs.sh|website:/home/web/beifen/beifenwhmcs.x|website:/home/web/beifen/chuansong.sh|website:/home/web/beifen/chuansong.x) ;;
-            backup:*beifen.sh|backup:*beifen.x|backup:*beifenwhmcs.sh|backup:*beifenwhmcs.x) ;;
-            transfer:*chuansong.sh|transfer:*chuansong.x|transfer:*mimachuansong2.sh|transfer:*mimachuansong2.x) ;;
-            *) continue ;;
-        esac
-        paths+=("$path"); ((i+=1)); printf '%s. %s\n' "$i" "$path"
-    done < <(crontab -l 2>/dev/null | managed_tasks)
-    IFS= read -r -p "请选择要测试的任务编号: " choice || return 1
-    [[ $choice =~ ^[1-9][0-9]*$ && $choice -le ${#paths[@]} ]] || { echo "无效编号"; return 1; }
-    path=${paths[choice-1]}
-    [[ -f $path && -x $path ]] || { echo "脚本不存在或不可执行"; return 1; }
-    # ELF legacy .x 必须直接执行，不能交给 bash 解释。
-    "$path"
-}
 
 website_backup_menu() {
     local choice
@@ -199,8 +30,8 @@ website_backup_menu() {
             2) operation_2 ;;
             3) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create-s3 ;;
             7) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-test ;;
-            8) test_task website ;;
-            9) delete_task website ;;
+            8) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-run ;;
+            9) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-delete ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
         esac
@@ -400,80 +231,12 @@ show_menu() {
       echo "0. 退出"
 }
 
-operation_111() (
-IFS= read -r -p "输入远程服务器IP: " useip
-  IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-
-  mkdir -p /home/web/beifen
-  cd /home/web/beifen || return 1
-
-  OUTPUT_BIN="/home/web/beifen/beifenwhmcs.sh"
-  generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/beifenwhmcs.sh" "$OUTPUT_BIN" || return 1
-
-  echo "------------------------"
-  echo "选择备份频率："
-  echo "1. 每周备份"
-  echo "2. 每天固定时间备份"
-  echo "3. 每N天备份一次（精确到分钟）"
-  IFS= read -r -p "请输入选择编号: " dingshi
-
-  case $dingshi in
-    1)
-      IFS= read -r -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-      IFS= read -r -p "几点备份（0-23）: " hour
-      IFS= read -r -p "几分备份（0-59）: " minute
-      if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-      else
-        (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-        echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-      fi
-      ;;
-    2)
-      IFS= read -r -p "每天几点备份（0-23）: " hour
-      IFS= read -r -p "每天几分备份（0-59）: " minute
-      if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-      else
-        (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-        echo "已设置每天 ${hour}点${minute}分进行备份"
-      fi
-      ;;
-    3)
-      IFS= read -r -p "每几天备份一次（如：2 表示每2天）: " interval
-      IFS= read -r -p "几点（0-23）: " hour
-      IFS= read -r -p "几分（0-59）: " minute
-      if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-        echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-      else
-        (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-        echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-      fi
-      ;;
-    *)
-      echo "无效输入"
-      ;;
-  esac
-)
-
 operation_1() (
     python3 /root/yingyong/beifenhebing-web.py create
 )
 
 operation_2() (
     python3 /root/yingyong/beifenhebing-web.py create-transfer
-)
-
-operation_3() (
-delete_task
-)
-
-operation_4() (
-test_task backup
-)
-
-operation_5() (
-test_task transfer
 )
 
 forum_restore() (
