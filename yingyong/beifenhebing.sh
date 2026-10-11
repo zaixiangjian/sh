@@ -71,7 +71,7 @@ known_task_paths() {
     for base in /home/web/beifen/beifenwhmcs /home/web/beifen/beifen /home/web/beifen/chuansong \
         /home/luntanbeifen /home/web/vaultwarden/beifen \
         /home/web/vaultwarden/mimachuansong /home/web/vaultwarden/mimachuansong2 \
-        /home/web/beifen/zidongtuchuang /home/docker/wangpan /home/docker/zixuanmulu \
+        /home/docker/wangpan /home/docker/zixuanmulu \
         /home/docker/zixuanmulu2 /home/docker/wangpan/waibucunchu \
         /home/docker/miniochuansong /home/论坛备份/discoursebeifen \
         /home/论坛备份/discoursebeifen1 /home/quanbubeifen /home/quanbubeifen2; do
@@ -391,11 +391,11 @@ show_menu() {
       echo "------------------------"
       echo "3. 论坛生成备份传送"
       echo "------------------------"
-      echo "11. 图床备份"
-      echo "------------------------"
-      echo "------------------------"
       echo "99. 备份本地*.tar.gz（home/备份）"
       echo "------------------------"
+      echo "SSH重置密码连接 1.1.1.1 更改远程对应的 IP 地址"
+      echo "------------------------"
+      echo "ssh-keygen -f /root/.ssh/known_hosts -R 1.1.1.1"
       echo "------------------------"
       echo "0. 退出"
 }
@@ -475,68 +475,6 @@ test_task backup
 operation_5() (
 test_task transfer
 )
-
-operation_11() (
-IFS= read -r -p "输入远程服务器IP: " useip
-          IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-
-          mkdir -p /home/web/beifen
-          cd /home/web/beifen || return 1
-
-          OUTPUT_BIN="/home/web/beifen/beifen.sh"
-          generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongtuchuang.sh" "$OUTPUT_BIN" || return 1
-
-          echo "------------------------"
-          echo "选择备份频率："
-          echo "1. 每周备份"
-          echo "2. 每天固定时间备份"
-          echo "3. 每N天备份一次（精确到分钟）"
-          IFS= read -r -p "请输入选择编号: " dingshi
-
-          case $dingshi in
-            1)
-              IFS= read -r -p "选择每周备份的星期几 (0-6，0代表星期日): " weekday
-              IFS= read -r -p "几点备份（0-23）: " hour
-              IFS= read -r -p "几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * $weekday $OUTPUT_BIN") | crontab -
-                echo "已设置每周星期$weekday ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            2)
-              IFS= read -r -p "每天几点备份（0-23）: " hour
-              IFS= read -r -p "每天几分备份（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour * * * $OUTPUT_BIN") | crontab -
-                echo "已设置每天 ${hour}点${minute}分进行备份"
-              fi
-              ;;
-            3)
-              IFS= read -r -p "每几天备份一次（如：2 表示每2天）: " interval
-              IFS= read -r -p "几点（0-23）: " hour
-              IFS= read -r -p "几分（0-59）: " minute
-              if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-                echo "备份任务 $OUTPUT_BIN 已存在，跳过添加。"
-              else
-                (crontab -l 2>/dev/null; echo "$minute $hour */$interval * * $OUTPUT_BIN") | crontab -
-                echo "已设置每${interval}天 ${hour}点${minute}分实施备份"
-              fi
-              ;;
-            *)
-              echo "无效输入"
-              ;;
-          esac
-)
-
-
-
-
-
-
 
 forum_restore() (
     /usr/bin/python3 - 3<&0 <<'FORUM_RESTORE_PY'
@@ -647,7 +585,6 @@ main() {
             1) website_backup_menu; continue ;;
             2) forum_backup_menu; continue ;;
             3) forum_generated_menu; continue ;;
-            11) operation_11 ;;
             99) local_archive_menu; continue ;;
             0) echo "已退出"; return 0 ;;
             *) echo "无效选项。" ;;
