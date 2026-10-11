@@ -246,6 +246,40 @@ forum_backup_menu() {
     done
 }
 
+forum_generated_menu() {
+    local choice
+    local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
+    export WEB_CONNECTION_SESSION
+    /usr/bin/python3 /root/yingyong/beifenhebing-generated.py install-cron >/dev/null || echo '论坛调度修复异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-generated.py probe || echo '连接检测异常'
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo "=================================="
+        echo "        论坛内部生成备份传送"
+        echo "=================================="
+        /usr/bin/python3 /root/yingyong/beifenhebing-generated.py summary || echo "任务检测异常"
+        echo "=================================="
+        echo "1. 论坛内部生成备份传送"
+        echo "2. 论坛内部生成备份S3 API兼容备份配置"
+        echo "7. 测试连接"
+        echo "8. 执行某个任务"
+        echo "9. 删除任务"
+        echo "------------------------"
+        echo "0. 返回上一级"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice" in
+            1) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py create-transfer ;;
+            2) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py create-s3 ;;
+            7) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py select-test ;;
+            8) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py select-run ;;
+            9) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py select-delete ;;
+            0) return 0 ;;
+            *) echo "无效选项。" ;;
+        esac
+        IFS= read -r -p "按回车继续..." choice || return 0
+    done
+}
+
 show_menu() {
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     echo "=================================="
@@ -260,8 +294,7 @@ show_menu() {
       echo "1. 网站备份（/home/web）"
       echo "2. 论坛备份（/var/discourse）"
       echo "------------------------"
-      echo "6. 论坛传送任务"
-      echo "7. 论坛传送任务1"
+      echo "3. 论坛生成备份传送"
       echo "------------------------"
       echo "11. 图床备份"
       echo "------------------------"
@@ -350,64 +383,6 @@ test_task backup
 operation_5() (
 test_task transfer
 )
-
-operation_6() (
-mkdir -p /home
-    cd /home || return 1
-
-    IFS= read -r -p "输入远程服务器IP: " useip
-    IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-    OUTPUT_BIN="/home/luntanbeifen.sh"
-    generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/luntanbeifen.sh" "$OUTPUT_BIN" || return 1
-
-    # 新增：选择每几分钟传送一次
-    IFS= read -r -p "每几分钟传送一次（如：1 / 5 / 10）: " interval
-
-    LOCK_FILE="/tmp/luntanbeifen.lock"
-
-    if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-        echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
-    else
-        # 使用用户输入的分钟间隔来设置定时任务
-        if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
-            (crontab -l 2>/dev/null; echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-            echo "已设置每${interval}分钟执行一次传送任务"
-        else
-            echo "无效的间隔输入"
-        fi
-    fi
-)
-
-operation_7() (
-mkdir -p /home
-    cd /home || return 1
-
-    IFS= read -r -p "输入远程服务器IP: " useip
-    IFS= read -r -s -p "输入远程服务器密码: " usepasswd || return 1; echo
-    OUTPUT_BIN="/home/luntanbeifen.sh"
-    generate_task "${gh_proxy}https://raw.githubusercontent.com/zaixiangjian/sh/main/luntanbeifen1.sh" "$OUTPUT_BIN" || return 1
-
-    # 新增：选择每几分钟传送一次
-    IFS= read -r -p "每几分钟传送一次（如：1 / 5 / 10）: " interval
-
-    LOCK_FILE="/tmp/luntanbeifen.lock"
-
-    if crontab -l 2>/dev/null | grep -Fq -- "$OUTPUT_BIN"; then
-        echo "传送任务 $OUTPUT_BIN 已存在，跳过添加。"
-    else
-        # 如果用户设置了分钟间隔，则使用 "*/N" 格式
-        if [[ -n "$interval" && "$interval" =~ ^[0-9]+$ ]]; then
-            (crontab -l 2>/dev/null; echo "*/$interval * * * * flock -n $LOCK_FILE $OUTPUT_BIN") | crontab -
-            echo "已设置每${interval}分钟执行一次传送任务"
-        else
-            echo "无效的间隔输入"
-        fi
-    fi
-)
-
-
-
-
 
 operation_11() (
 IFS= read -r -p "输入远程服务器IP: " useip
@@ -684,8 +659,7 @@ main() {
         case "$choice" in
             1) website_backup_menu; continue ;;
             2) forum_backup_menu; continue ;;
-            6) operation_6 ;;
-            7) operation_7 ;;
+            3) forum_generated_menu; continue ;;
             11) operation_11 ;;
             188) operation_188 ;;
             200) operation_200 ;;
@@ -770,6 +744,18 @@ forum_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhebing
 for name, body in [('beifenhebing-forum.py', forum), ('beifenhebing-forum-s3.py', forum_s3)]:
     compile(body, name, 'exec')
     files[name] = body.encode('utf-8')
+generated = files['beifenhebing-web.py'].decode('utf-8').replace('beifenhebing-web', 'beifenhebing-generated').replace('网站', '论坛内部生成备份')
+generated = generated.replace("ROOT = Path('/home/web/beifen/tasks')", "ROOT = Path('/home/论坛生成备份任务/tasks')")
+generated = generated.replace('/home/web', '/var/discourse/shared/standalone/backups/default')
+a = generated.index('LEGACY = tuple('); b = generated.index('\n\n', a)
+generated = generated[:a] + "LEGACY = tuple(Path('/home/luntanbeifen' + ext) for ext in ('.sh','.x'))" + generated[b:]
+overrides = "import shutil\n\n# Discourse-generated backups: separate read source from owned config/archive directory.\n_PENDING_SOURCE = None\n_GENERATED_PATTERN = re.compile(r'(.+?)-([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6})(?:-v[^/]*)?\\.tar\\.gz')\n\ndef archive_pattern(c):\n    site = c.get('generated_site')\n    return re.compile((re.escape(site) if site else r'[^/]+') + r'-([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6})(?:-v[^/]*)?\\.tar\\.gz')\n\ndef archive_sort_key(name, c):\n    match = archive_pattern(c).fullmatch(name)\n    if not match: return None\n    stamp = match.group(1)\n    try: dt.datetime.strptime(stamp, '%Y-%m-%d-%H%M%S')\n    except ValueError: return None\n    return stamp\n\ndef local_path(text):\n    text = text.strip()\n    if not text or any(ord(x)<32 for x in text): raise ValueError('本地路径不能为空或含控制字符')\n    p = Path('/' + text.lstrip('/')).resolve()\n    if p == Path('/'): raise ValueError('不能选择根目录')\n    return p\n\ndef transfer_source():\n    global _PENDING_SOURCE\n    existing = [c for _,c in configs() if c.get('source_dir')]\n    default_source = existing[0]['source_dir'] if existing else '/var/discourse/shared/standalone/backups/default'\n    while True:\n        try:\n            source = local_path(prompt('本地Discourse生成备份目录（可手动修改）', default_source))\n            if not source.is_dir(): raise ValueError('备份读取目录不存在')\n            break\n        except ValueError as ex: print(str(ex))\n    matches = [c for c in existing if c['source_dir'] == str(source)]\n    reuse = matches[0] if matches else None\n    archive = latest_archive(source, {})\n    site = reuse.get('generated_site') if reuse else None\n    if not site and archive:\n        site = _GENERATED_PATTERN.fullmatch(archive.name).group(1)\n        validate_backup_prefix(site)\n    if site:\n        default = reuse['local_dir'] if reuse else '/home/备份/' + site\n        print('自动获取网站名称：' + site)\n        destination = local_path(prompt('配置保存目录', default))\n    else:\n        print('名称自动获取失败')\n        while True:\n            text = prompt('请手动输入本地路径（例如 /home/备份/备注名）')\n            if not text.strip():\n                text = prompt('不能为空请重新输入（例如 /home/备份/备注名）')\n            try:\n                destination = local_path(text)\n                site = validate_backup_prefix(destination.name)\n                break\n            except ValueError as ex: print(str(ex))\n    if destination == source or destination in source.parents or source in destination.parents:\n        raise ValueError('配置保存目录必须独立于原始备份目录')\n    _PENDING_SOURCE = (str(source), site)\n    return destination, site\n\n_original_atomic_json = atomic_json\ndef atomic_json(path, value):\n    if path.name == 'location.json' and _PENDING_SOURCE:\n        script = Path(value['local_dir']) / value['config_file']\n        c = read_config(script)\n        c.pop('backup_prefix', None)\n        c['source_dir'], c['generated_site'] = _PENDING_SOURCE\n        rows = script.read_text().splitlines(keepends=True)\n        content = ''.join('# BEIFEN_CONFIG ' + json.dumps(c, ensure_ascii=False) + '\\n' if row.startswith('# BEIFEN_CONFIG ') else row for row in rows)\n        fd,tmp = tempfile.mkstemp(prefix='.config-', dir=script.parent)\n        try:\n            os.fchmod(fd,0o700)\n            with os.fdopen(fd,'w') as f: f.write(content)\n            os.replace(tmp,script)\n        finally:\n            if os.path.exists(tmp): os.unlink(tmp)\n    return _original_atomic_json(path, value)\n\n_original_transfer_tick = transfer_tick\n_original_upload_existing = upload_existing\n_original_s3_module = s3_module\n\ndef copy_for_send(task,c,p):\n    local = local_path(c.get('archive_destination', c['local_dir']))\n    local.mkdir(parents=True,exist_ok=True,mode=0o700)\n    if local == p.parent: return p\n    target = local / p.name\n    digest = checked_checksum(p)\n    if target.exists():\n        if target.is_symlink() or checked_checksum(target)!=digest: raise ValueError('本地备份同名冲突，拒绝覆盖')\n        return target\n    before = signature(p)\n    fd,tmp = tempfile.mkstemp(prefix='.archive-',dir=local)\n    try:\n        os.fchmod(fd,0o600)\n        with os.fdopen(fd,'wb') as out, p.open('rb') as source:\n            shutil.copyfileobj(source,out)\n        if signature(p)!=before or checked_checksum(Path(tmp))!=digest: raise ValueError('复制期间原始备份变化')\n        os.link(tmp,target)\n    finally:\n        if os.path.exists(tmp): os.unlink(tmp)\n    return target\n\ndef upload_existing(task,c,p):\n    sent = copy_for_send(task,c,p)\n    transport = dict(c); transport['local_dir'] = c.get('archive_destination',c['local_dir'])\n    return _original_upload_existing(task,transport,sent)\n\ndef s3_module():\n    module = _original_s3_module()\n    if not getattr(module,'_generated_copy_wrapper',False):\n        original = module.upload_existing\n        def upload(task,c,p):\n            sent = copy_for_send(task,c,p)\n            transport = dict(c); transport['local_dir'] = c.get('archive_destination',c['local_dir'])\n            return original(task,transport,sent)\n        module.upload_existing = upload\n        module._generated_copy_wrapper = True\n    return module\n\ndef transfer_tick(task,c,now=None,force=False):\n    effective = dict(c)\n    if c.get('source_dir'):\n        effective['archive_destination'] = c['local_dir']\n        effective['local_dir'] = c['source_dir']\n    return _original_transfer_tick(task,effective,now,force)\n"
+main_guard = generated.rfind("if __name__ == '__main__':")
+if main_guard < 0: raise ValueError('generated engine缺少main入口')
+generated = generated[:main_guard] + overrides + generated[main_guard:]
+generated_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhebing-web', 'beifenhebing-generated')
+for name, body in [('beifenhebing-generated.py', generated), ('beifenhebing-generated-s3.py', generated_s3)]:
+    compile(body, name, 'exec'); files[name] = body.encode('utf-8')
 files[sys.argv[2]]=source_bytes
 rootfd=open_components(canonical,create=True)
 os.fchmod(rootfd,0o700)
