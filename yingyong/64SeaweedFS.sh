@@ -806,22 +806,17 @@ def run(name,scheduled=False):
         final += ['test ! -L '+shlex.quote(str(p)) for p in ancestors]
         # 两端允许运行；新目录默认700，已有目录保留权限但必须可写/可进入。
         checked(options+[target,' && '.join(checks+[create]+final)])
-        exclusions=['--exclude=/runtime.env.replication','--exclude=**/.ssh/***','--exclude=**/id_*','--exclude=*.key','--exclude=*.pem','--exclude=*.p12','--exclude=*.pfx','--exclude=**/credentials*','--exclude=**/task.json','--exclude=**/'+marker,'--exclude=*.lock','--exclude=*.tmp','--exclude=/.replication-*/***']
-        exclusions += ['--exclude=/'+n+'/***' for n in tasks()]
-        exclusions += ['--exclude=**/.replication-*/***','--exclude=**/*.tmp/***','--exclude=**/.staging*/***','--exclude=**/tmp/***','--exclude=**/temp/***']
-        # 避免任意文件名的 PEM/OpenSSH 私钥进入镜像；不读取/输出 runtime.env。
-        for directory, dirs, files in os.walk(root,followlinks=False):
-            if pathlib.Path(directory)==root: dirs[:]=[d for d in dirs if d not in tasks()]
-            for filename in files:
-                f=pathlib.Path(directory)/filename
-                if f.is_symlink() or f.name=='runtime.env': continue
-                try:
-                    with f.open('rb') as stream: header=stream.read(4096)
-                except OSError: fail('源文件不可读取，取消同步以防不完整镜像。')
-                if b'PRIVATE KEY-----' in header:
-                    exclusions.append('--exclude=/'+f.relative_to(root).as_posix())
-        # 不解引用符号链接；排除部署凭证以外的复制凭证。runtime.env/compose.yaml 明确保留。
-        checked(['rsync','-a','--safe-links','--delete','--protect-args','--chmod=Du=rwx,Dgo=,Fu=rw,Fgo=']+exclusions+['-e',shlex.join(options),'--',str(root)+'/',target+':'+c['destination']+'/'])
+        # Only deployment files and object data; never pre-read the object tree.
+        for name in ('compose.yaml', 'runtime.env', 'data'):
+            source = root / name
+            if source.is_symlink(): fail('同步源不能是符号链接：'+name)
+            if not source.exists(): fail('缺少同步源，取消以防远端误删除：'+name)
+            if (name == 'data' and not source.is_dir()) or (name != 'data' and not source.is_file()):
+                fail('同步源类型异常：'+name)
+        filters=['--include=/compose.yaml','--include=/runtime.env','--include=/data/***','--exclude=*']
+        print('同步范围：compose.yaml、runtime.env、data/；不扫描文件内容，不传日志或任务配置。')
+        # Excluded remote entries remain protected; no --delete-excluded.
+        checked(['rsync','-a','--no-links','--delete','--protect-args','--chmod=Du=rwx,Dgo=,Fu=rw,Fgo=']+filters+['-e',shlex.join(options),'--',str(root)+'/',target+':'+c['destination']+'/'])
     else:
         need('rclone')
         # 只同步明确选择的一对桶；不对 S3 根路径 sync，也不删除其他桶。
@@ -931,6 +926,21 @@ def verify_ssh(c):
     if p.returncode: fail('SSH 认证或主机指纹校验失败，未注册任务；检查密码、密钥、SSH端口和 known_hosts。')
     print('SSH 主机信任与认证检查通过。')
 
+def ensure_remote_rsync(c):
+    print('检查目标端rsync；已安装则复用，缺少时自动安装（仅rsync，不安装或重启SeaweedFS）。')
+    program = 'set -eu\nif command -v rsync >/dev/null 2>&1; then\n    echo REMOTE_RSYNC_READY\n    exit 0\nfi\nif [ "$(id -u)" != 0 ]; then\n    echo REMOTE_RSYNC_NEEDS_ROOT >&2\n    exit 41\nfi\nif command -v apt-get >/dev/null 2>&1; then\n    apt-get update -qq\n    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends rsync\nelif command -v dnf >/dev/null 2>&1; then\n    dnf install -y -q rsync\nelif command -v yum >/dev/null 2>&1; then\n    yum install -y -q rsync\nelif command -v apk >/dev/null 2>&1; then\n    apk add --no-cache rsync\nelif command -v zypper >/dev/null 2>&1; then\n    zypper --non-interactive install rsync\nelse\n    echo REMOTE_PACKAGE_MANAGER_UNSUPPORTED >&2\n    exit 42\nfi\ncommand -v rsync >/dev/null 2>&1 || exit 43\nrsync --version >/dev/null\nprintf \'REMOTE_RSYNC_READY\\n\'\n'
+    try:
+        result = subprocess.run(ssh_options(c)+[c['user']+'@'+c['host'], 'sh -c '+shlex.quote(program)],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
+    except subprocess.TimeoutExpired:
+        fail('远端rsync安装超时，未注册任务；请检查远端软件源及网络。')
+    if result.returncode or b'REMOTE_RSYNC_READY' not in result.stdout:
+        reason = ('远端非root且缺少rsync，请用root添加或手动安装' if b'REMOTE_RSYNC_NEEDS_ROOT' in result.stderr
+                  else '远端包管理器不支持，请手动安装rsync' if b'REMOTE_PACKAGE_MANAGER_UNSUPPORTED' in result.stderr
+                  else '远端SSH/软件源/安装校验失败（退出码 '+str(result.returncode)+'）')
+        fail(reason+'；未注册任务。')
+    print('目标端rsync就绪。')
+
 def add(mode,connection='ssh'):
     if mode not in ('rsync','s3') or connection not in ('https','ssh'): fail('任务类型或连接方式无效。')
     direct=mode=='s3' and connection=='https'
@@ -985,6 +995,10 @@ def add(mode,connection='ssh'):
         print('将结果与接下来显示的指纹核对；已有信任时直接检查登录。')
         ask('按回车继续核验 SSH 主机指纹与认证：')
         verify_ssh(c)
+    if mode == 'rsync':
+        if not yes('确认检查远端依赖，缺少rsync时允许自动安装（不修改存储服务）'):
+            print('已取消，未安装依赖或注册任务。'); return
+        ensure_remote_rsync(c)
     if not yes(('确认远端删除范围、权限及在线覆盖风险' if mode=='rsync' else '确认远端删除范围与权限')+'，注册每'+interval_label(c)+'任务'): print('已取消'); return
     os.mkdir(p,0o700)
     try:
