@@ -19,6 +19,7 @@ website_backup_menu() {
         echo "1. 网站备份"
         echo "2. 备份传送"
         echo "3. S3 API兼容备份配置"
+        echo "4. 全局控制（$(/usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-label)）"
         echo "7. 测试连接"
         echo "8. 执行某个任务"
         echo "9. 删除任务"
@@ -29,6 +30,7 @@ website_backup_menu() {
             1) operation_1 ;;
             2) operation_2 ;;
             3) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create-s3 ;;
+            4) /usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-control ;;
             7) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-test ;;
             8) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-run ;;
             9) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-delete ;;
@@ -55,7 +57,8 @@ forum_backup_menu() {
         echo "1. 论坛全量备份"
         echo "2. 论坛全量传送"
         echo "3. 论坛全量传送S3 API兼容备份配置"
-        echo "4. 论坛全量备份恢复（从 /home 检测备份）"
+        echo "4. 全局控制（$(/usr/bin/python3 /root/yingyong/beifenhebing-forum.py mode-label)）"
+        echo "5. 论坛全量备份恢复（从 /home 检测备份）"
         echo "7. 测试连接"
         echo "8. 执行某个任务"
         echo "9. 删除任务"
@@ -66,7 +69,8 @@ forum_backup_menu() {
             1) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create ;;
             2) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-transfer ;;
             3) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-s3 ;;
-            4) forum_restore ;;
+            5) forum_restore ;;
+            4) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py mode-control ;;
             7) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-test ;;
             8) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-run ;;
             9) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-delete ;;
@@ -217,8 +221,8 @@ show_menu() {
     echo "备份本地*.tar.gz（home/备份）详情进入 99 查看"
     local_archive_overview count || echo "任务检测异常"
     echo "=================================="
-      echo "1. 网站备份（/home/web）"
-      echo "2. 论坛备份（/var/discourse）"
+      echo "1. 网站备份（/home/web）（$(/usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-label)）"
+      echo "2. 论坛备份（/var/discourse）（$(/usr/bin/python3 /root/yingyong/beifenhebing-forum.py mode-label)）"
       echo "------------------------"
       echo "3. 论坛生成备份传送"
       echo "------------------------"
@@ -542,6 +546,12 @@ for category, root in runtime_roots.items():
     text=text.replace("expected = Path(c['local_dir']) / (c['name'] + '-s3.credentials')", "expected = e.config_path(e.task_by_id(c['id'])).with_suffix('.credentials')")
     text=text.replace('    validate(c)\n    expected =', '    validate(c)\n    e = engine()\n    expected =')
     compile(text,s3name,'exec');files[s3name]=text.encode('utf-8')
+packing_overrides = "# Global packing mode; transport-only jobs never stop services.\n_mode_call = call\n_mode_archive = archive_and_transfer\n_PACKING_MODE = None\n\ndef backup_mode():\n    p=ROOT/'backup-mode.json'\n    if not p.exists():return 'running'\n    value=json.loads(p.read_text()).get('mode')\n    if value not in ('running','stopped'):raise ValueError('备份模式配置异常')\n    return value\n\ndef mode_label(color=True):\n    try:\n        value=backup_mode();text='运行中备份' if value=='running' else '停止运行备份';code='32' if value=='running' else '31'\n    except Exception:text='检测异常';code='33'\n    return '\\033['+code+'m'+text+'\\033[0m' if color else text\n\ndef mode_control():\n    private_root()\n    while True:\n        print('==================================')\n        print('        '+('网站备份（/home/web）' if SOURCE==Path('/home/web') else '论坛备份（/var/discourse）'))\n        print('==================================\\n备份时运行状态\\n'+mode_label(False)+'\\n==================================')\n        print('1. 开启运行中备份\\n2. 开启停止运行后备份\\n0. 返回上一级')\n        choice=prompt('请输入选项')\n        if choice=='0':return\n        if choice not in ('1','2'):print('无效选项');continue\n        with lock(ROOT/'.mode-config.lock'):\n            atomic_json(ROOT/'backup-mode.json',{'mode':'running' if choice=='1' else 'stopped'})\n        print('模式已保存，仅下一次打包时生效。')\n\ndef service_command(action):\n    if SOURCE==Path('/home/web'):\n        compose=Path('/home/web/docker-compose.yml')\n        if not compose.is_file():raise ValueError('缺少docker-compose.yml，停止模式不能执行')\n        prefix=['docker','compose','-f',str(compose)]\n        _mode_call(['docker','info'],capture_output=True,timeout=20)\n        ids=_mode_call(prefix+['ps','-a','-q'],capture_output=True,timeout=30).stdout.decode().split()\n        if not ids:return\n        _mode_call(prefix+([action,'-t','120'] if action=='stop' else [action]),capture_output=True,timeout=180)\n        if action=='stop':\n            for ident in ids:\n                state=_mode_call(['docker','inspect','--format','{{.State.Running}}',ident],capture_output=True,timeout=15).stdout.decode().strip()\n                if state!='false':raise ValueError('Compose容器未全部停止')\n        else:\n            for ident in ids:\n                state=_mode_call(['docker','inspect','--format','{{.State.Running}}',ident],capture_output=True,timeout=15).stdout.decode().strip()\n                if state!='true':raise ValueError('Compose容器未全部启动')\n    else:\n        launcher=Path('/var/discourse/launcher')\n        if not launcher.is_file():raise ValueError('缺少Discourse launcher')\n        _mode_call(['docker','info'],capture_output=True,timeout=20)\n        result=_mode_call(['docker','ps','-a','--filter','name=^/app$','--format','{{.Names}}'],capture_output=True,timeout=20)\n        if 'app' not in result.stdout.decode().split():return\n        _mode_call([str(launcher),action,'app'],cwd='/var/discourse',capture_output=True,timeout=720)\n        actual=_mode_call(['docker','inspect','--format','{{.State.Running}}','app'],capture_output=True,timeout=15).stdout.decode().strip()\n        if actual!=('false' if action=='stop' else 'true'):raise ValueError('Discourse服务状态未达到目标')\n\ndef recover_stopped_backup():\n    pending=ROOT/'service-recovery.json'\n    if pending.exists():\n        service_command('start')\n        pending.unlink()\n        runtime_log(ROOT,'service','recovery-completed')\n\ndef call(args,**kwargs):\n    # Release service downtime before the original routine begins SSH transfer.\n    if _PACKING_MODE=='stopped' and args and args[0]=='tar':\n        pending=ROOT/'service-recovery.json'\n        atomic_json(pending,{'phase':'stopping','restart':'all-existing'})\n        try:\n            service_command('stop')\n            atomic_json(pending,{'phase':'packing','restart':'all-existing'})\n            return _mode_call(args,**kwargs)\n        finally:\n            service_command('start')\n            pending.unlink(missing_ok=True)\n    return _mode_call(args,**kwargs)\n\ndef archive_and_transfer(task,c):\n    global _PACKING_MODE\n    with lock(ROOT/'.backup-lifecycle.lock'):\n        recover_stopped_backup()\n        _PACKING_MODE=backup_mode()\n        try:return _mode_archive(task,c)\n        finally:_PACKING_MODE=None\n\nif __name__=='__main__' and len(sys.argv)>1 and sys.argv[1] in ('mode-label','mode-control'):\n    if sys.argv[1]=='mode-label':print(mode_label())\n    else:mode_control()\n    raise SystemExit(0)\n"
+for category in ('web','forum'):
+    name='beifenhebing-'+category+'.py';text=files[name].decode('utf-8')
+    pos=text.rfind("if __name__ == '__main__':")
+    text=text[:pos]+packing_overrides+'\n'+text[pos:]
+    compile(text,name,'exec');files[name]=text.encode('utf-8')
 files[sys.argv[2]]=source_bytes
 rootfd=open_components(canonical,create=True)
 os.fchmod(rootfd,0o700)
