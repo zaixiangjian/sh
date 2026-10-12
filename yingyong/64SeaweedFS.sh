@@ -392,14 +392,14 @@ PYLOGMIGRATE
     if compose config --quiet && write_runtime_logger && start_runtime_logger && compose up -d --force-recreate "$NAME" && healthy; then
         if [ "$(docker inspect -f '{{.HostConfig.LogConfig.Type}}' "$NAME")" = syslog ] && systemctl is-active --quiet "$NAME-runtime-log.service"; then
             echo "编号日志已启用：1.log/2.log/3.log 与 seaweedfs1.log/seaweedfs2.log/seaweedfs3.log。"
-            echo "原配置私密备份：$saved；旧原生日志保留。"
+            echo "原配置私密备份：$saved；仅新输出写入编号日志，已有日志不读取、不改名、不删除。"
             return 0
         fi
     fi
     cp -p "$saved/compose.yaml" "$APP_DIR/compose.yaml"
     cp -p "$saved/runtime.env" "$APP_DIR/runtime.env"
     compose up -d --force-recreate "$NAME" || echo "恢复旧容器失败，请检查：$saved" >&2
-    echo "日志迁移未验证成功，已恢复旧配置；数据未删除。" >&2
+    echo "新日志配置未验证成功，已恢复旧配置；已有日志和数据未删除。" >&2
     return 1
 }
 
