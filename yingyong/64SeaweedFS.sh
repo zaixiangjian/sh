@@ -273,7 +273,6 @@ PYRUNTIMELOG
 }
 start_runtime_logger() {
     prepare_runtime_log_directory || return 1
-    systemctl reset-failed "$NAME-runtime-log.service" || return 1
     local unit="/etc/systemd/system/$NAME-runtime-log.service" i
     # 新安装预检后仍排他创建；不能覆盖现有服务或符号链接。
     python3 - "$unit" "$APP_DIR" "$NAME" <<'PYRUNTIMEUNIT'
@@ -311,7 +310,9 @@ os.chmod(path,0o644)
 if open(path).read()!=text: raise RuntimeError('日志服务配置回读失败')
 PYRUNTIMEUNIT
     [ $? -eq 0 ] || return 1
-    systemctl daemon-reload && systemctl enable --now "$NAME-runtime-log.service" || return 1
+    systemctl daemon-reload || return 1
+    systemctl reset-failed "$NAME-runtime-log.service" || return 1
+    systemctl enable --now "$NAME-runtime-log.service" || return 1
     for i in {1..50}; do
         if systemctl is-active --quiet "$NAME-runtime-log.service" &&
             python3 - "/run/$NAME-runtime-log/syslog.sock" <<'PYRUNTIMEREADY'
