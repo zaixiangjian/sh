@@ -112,7 +112,10 @@ write_runtime_logger() {
         log_runtime_preflight || return 1
         return 0
     fi
-    mkdir -m 700 "$APP_DIR/.runtime-log" || return 1
+    [ ! -L "$APP_DIR/.runtime-log" ] && [ ! -L "$APP_DIR/.runtime-log/logger.py" ] || { echo "日志程序路径不能是符号链接"; return 1; }
+    mkdir -p -m 700 "$APP_DIR/.runtime-log" || return 1
+    [ -d "$APP_DIR/.runtime-log" ] || return 1
+    chown root:root "$APP_DIR/.runtime-log" && chmod 700 "$APP_DIR/.runtime-log" || return 1
     cat > "$APP_DIR/.runtime-log/logger.py" <<'PYRUNTIMELOG'
 #!/usr/bin/env python3
 # Installer-owned runtime logger v1: Docker syslog -> bounded plain application files.
@@ -311,7 +314,10 @@ if open(path).read()!=text: raise RuntimeError('日志服务配置回读失败')
 PYRUNTIMEUNIT
     [ $? -eq 0 ] || return 1
     systemctl daemon-reload || return 1
-    systemctl reset-failed "$NAME-runtime-log.service" || return 1
+    # A newly written unit may not yet be loaded; reset only an actual failed unit.
+    if systemctl is-failed --quiet "$NAME-runtime-log.service"; then
+        systemctl reset-failed "$NAME-runtime-log.service" || return 1
+    fi
     systemctl enable --now "$NAME-runtime-log.service" || return 1
     for i in {1..50}; do
         if systemctl is-active --quiet "$NAME-runtime-log.service" &&
