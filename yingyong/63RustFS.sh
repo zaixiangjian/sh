@@ -84,7 +84,29 @@ PYLOGREUSE
         [ $? -eq 0 ] || return 1
     fi
 }
+prepare_runtime_log_directory() {
+    /usr/bin/python3 - "$APP_DIR/logs" <<'PYLOGDIRECTORY'
+import os,stat,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+fd=os.open('/',os.O_RDONLY|os.O_DIRECTORY)
+try:
+    for part in p.parts[1:]:
+        try:os.mkdir(part,0o750,dir_fd=fd)
+        except FileExistsError:pass
+        nxt=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd)
+        os.close(fd);fd=nxt
+    os.fchown(fd,0,0)
+    os.fchmod(fd,0o750)
+    s=os.fstat(fd)
+    if s.st_uid!=0 or s.st_gid!=0 or stat.S_IMODE(s.st_mode)!=0o750:
+        raise ValueError('日志目录权限修复未通过')
+finally:os.close(fd)
+PYLOGDIRECTORY
+}
+
 write_runtime_logger() {
+    prepare_runtime_log_directory || return 1
     # Owned existing receiver is reused, not rewritten while serving a live socket.
     if [ -f "/etc/systemd/system/$NAME-runtime-log.service" ]; then
         log_runtime_preflight || return 1
@@ -250,6 +272,8 @@ PYRUNTIMELOG
     python3 -m py_compile "$APP_DIR/.runtime-log/logger.py" || return 1
 }
 start_runtime_logger() {
+    prepare_runtime_log_directory || return 1
+    systemctl reset-failed "$NAME-runtime-log.service" || return 1
     local unit="/etc/systemd/system/$NAME-runtime-log.service" i
     # 新安装预检后仍排他创建；不能覆盖现有服务或符号链接。
     python3 - "$unit" "$APP_DIR" "$NAME" <<'PYRUNTIMEUNIT'
@@ -274,6 +298,13 @@ ReadWritePaths={root}/logs /run/{app}-runtime-log
 [Install]
 WantedBy=multi-user.target
 '''
+if os.path.exists(path):
+    if os.path.islink(path): raise RuntimeError('拒绝符号链接日志服务')
+    old=open(path).read()
+    expected=f'ExecStart=/usr/bin/python3 {root}/.runtime-log/logger.py {root}/logs {app} /run/{app}-runtime-log/syslog.sock'
+    if not old.startswith(f'# Installer-owned numbered runtime logger v1: {app}\n') or expected not in old.splitlines():
+        raise RuntimeError('外部同名日志服务，拒绝覆盖')
+    raise SystemExit(0)
 fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o644)
 with os.fdopen(fd,'w') as stream: stream.write(text)
 os.chmod(path,0o644)
