@@ -64,13 +64,32 @@ log_runtime_preflight() {
     endpoint=$(docker context inspect --format '{{.Endpoints.docker.Host}}') || return 1
     case "$endpoint" in unix://*) ;; *) echo "日志接收器仅支持本机 Unix socket Docker，不支持远程 Docker。"; return 1 ;; esac
     [ -z "${DOCKER_HOST:-}" ] || { echo "请取消 DOCKER_HOST 后使用本机 Docker context。"; return 1; }
-    [ ! -e "/etc/systemd/system/$NAME-runtime-log.service" ] &&
-        [ ! -L "/etc/systemd/system/$NAME-runtime-log.service" ] &&
-        [ -z "$(systemctl show -p FragmentPath --value "$NAME-runtime-log.service" 2>/dev/null)" ] || {
-        echo "同名日志服务已存在，拒绝覆盖。"; return 1;
-    }
+    local unit="/etc/systemd/system/$NAME-runtime-log.service" fragment
+    fragment=$(systemctl show -p FragmentPath --value "$NAME-runtime-log.service" 2>/dev/null)
+    if [ -e "$unit" ] || [ -L "$unit" ] || [ -n "$fragment" ]; then
+        [ -z "$fragment" ] || [ "$fragment" = "$unit" ] || { echo "外部同名日志服务，拒绝覆盖。"; return 1; }
+        python3 - "$unit" "$APP_DIR" "$NAME" <<'PYLOGREUSE'
+import pathlib,sys,stat
+p=pathlib.Path(sys.argv[1]);root,app=sys.argv[2:]
+if p.is_symlink() or not p.is_file():raise SystemExit('日志服务文件不安全')
+s=p.stat()
+if s.st_uid!=0 or s.st_mode & 0o022:raise SystemExit('日志服务权限不安全')
+text=p.read_text()
+expected=f'ExecStart=/usr/bin/python3 {root}/.runtime-log/logger.py {root}/logs {app} /run/{app}-runtime-log/syslog.sock'
+if not text.startswith(f'# Installer-owned numbered runtime logger v1: {app}\n') or expected not in text.splitlines():
+    raise SystemExit('非本脚本日志服务，拒绝覆盖')
+helper=pathlib.Path(root)/'.runtime-log'/'logger.py'
+if helper.is_symlink() or not helper.is_file():raise SystemExit('已有日志服务辅助程序缺失或不安全')
+PYLOGREUSE
+        [ $? -eq 0 ] || return 1
+    fi
 }
 write_runtime_logger() {
+    # Owned existing receiver is reused, not rewritten while serving a live socket.
+    if [ -f "/etc/systemd/system/$NAME-runtime-log.service" ]; then
+        log_runtime_preflight || return 1
+        return 0
+    fi
     mkdir -m 700 "$APP_DIR/.runtime-log" || return 1
     cat > "$APP_DIR/.runtime-log/logger.py" <<'PYRUNTIMELOG'
 #!/usr/bin/env python3
@@ -296,11 +315,73 @@ PYRUNTIMEOWNED
     fi
 }
 
+apply_numbered_logging() {
+    local target=${1:-} saved
+    log_runtime_preflight || return 1
+    umask 077
+    saved=$(mktemp -d "$APP_DIR/.logging-before.XXXXXXXX") || return 1
+    cp -p "$APP_DIR/compose.yaml" "$saved/compose.yaml" || return 1
+    cp -p "$APP_DIR/runtime.env" "$saved/runtime.env" || return 1
+    if ! python3 - "$APP_DIR" "$NAME" "$target" <<'PYLOGMIGRATE'
+import json,os,subprocess,sys,tempfile
+from pathlib import Path
+root=Path(sys.argv[1]);name=sys.argv[2];image=sys.argv[3]
+for filename in ('compose.yaml','runtime.env'):
+    if (root/filename).is_symlink():raise ValueError('拒绝符号链接配置')
+r=subprocess.run(['docker','compose','-f',str(root/'compose.yaml'),'config','--format','json'],capture_output=True,text=True,check=True)
+config=json.loads(r.stdout)
+service=config.get('services',{}).get(name)
+if not service:raise ValueError('Compose没有预期服务，未修改')
+# Preserve resolved deployment values; JSON is also valid Compose YAML.
+env=service.setdefault('environment',{})
+if not isinstance(env,dict):raise ValueError('环境格式不支持')
+env['RUSTFS_OBS_LOG_DIRECTORY']=''
+env['RUSTFS_OBS_LOG_STDOUT_ENABLED']='true'
+service['logging']={'driver':'syslog','options':{'syslog-address':'unix:///run/'+name+'-runtime-log/syslog.sock','syslog-format':'rfc5424micro','tag':name,'mode':'blocking','cache-disabled':'true'}}
+if image:service['image']=image
+text=(root/'runtime.env').read_text()
+lines=[line for line in text.splitlines() if not line.startswith(('RUSTFS_OBS_LOG_DIRECTORY=','RUSTFS_OBS_LOG_STDOUT_ENABLED='))]
+lines+=['RUSTFS_OBS_LOG_DIRECTORY=','RUSTFS_OBS_LOG_STDOUT_ENABLED=true']
+for filename,content in [('compose.yaml',json.dumps(config,ensure_ascii=False,indent=2)+'\n'),('runtime.env','\n'.join(lines)+'\n')]:
+    fd,tmp=tempfile.mkstemp(dir=root,prefix='.logging-stage-')
+    try:
+        os.fchmod(fd,0o600)
+        with os.fdopen(fd,'w') as f:f.write(content)
+        os.replace(tmp,root/filename)
+    finally:
+        if os.path.exists(tmp):os.unlink(tmp)
+PYLOGMIGRATE
+    then
+        cp -p "$saved/compose.yaml" "$APP_DIR/compose.yaml"
+        cp -p "$saved/runtime.env" "$APP_DIR/runtime.env"
+        echo "日志配置转换失败，原配置已恢复：$saved"; return 1
+    fi
+    if compose config --quiet && write_runtime_logger && start_runtime_logger && compose up -d --force-recreate "$NAME" && healthy; then
+        if [ "$(docker inspect -f '{{.HostConfig.LogConfig.Type}}' "$NAME")" = syslog ] && systemctl is-active --quiet "$NAME-runtime-log.service"; then
+            echo "编号日志已启用：1.log/2.log/3.log 与 rustfs1.log/rustfs2.log/rustfs3.log。"
+            echo "原配置私密备份：$saved；旧原生日志保留。"
+            return 0
+        fi
+    fi
+    cp -p "$saved/compose.yaml" "$APP_DIR/compose.yaml"
+    cp -p "$saved/runtime.env" "$APP_DIR/runtime.env"
+    compose up -d --force-recreate "$NAME" || echo "恢复旧容器失败，请检查：$saved" >&2
+    echo "日志迁移未验证成功，已恢复旧配置；数据未删除。" >&2
+    return 1
+}
+
 install() {
     require_docker || return 1
     log_runtime_preflight || return 1
+    if installed && ! docker container inspect "$NAME" >/dev/null 2>&1; then
+        echo "复用已有部署配置及数据，切换到 $IMAGE 并启用编号日志；保留账号及端口。"
+        confirm || { echo "已取消"; return 0; }
+        docker pull "$IMAGE" || return 1
+        apply_numbered_logging "$IMAGE" || return 1
+        addresses; return 0
+    fi
     if [ -e "$APP_DIR" ] || docker container inspect "$NAME" >/dev/null 2>&1; then
-        echo "目录或同名容器已存在，不覆盖。已有安装请选更新。"; return 1
+        echo "已有目录或容器，不覆盖；完整部署请选2/22更新。"; return 1
     fi
     local api console bind access secret
     console=$(port_input "网页端口" 9101) || return 1
@@ -366,37 +447,13 @@ install_custom_image() {
     install
 }
 update_custom_image() {
-    installed || { echo "尚未安装，请先使用 1 或 21 号安装。"; return 1; }
+    installed || { echo "尚未安装，请先使用1或21安装。"; return 1; }
     require_docker || return 1
-    local target="zaixiangjian/rustfs:latest" saved
-    echo "将从 $target 更新当前 rustfs 实例，保留端口、账号密码和数据。"
-    echo "更新前请自行制作一致性快照。"
+    echo "更新自定义镜像及编号日志；保留数据、端口、账号。请先暂停镜像传送并制作一致性备份。"
     confirm || { echo "已取消"; return 0; }
-    # 先拉取成功再更改镜像来源，避免仓库不存在时影响现有配置。
-    docker pull "$target" || return 1
-    saved=$(mktemp "$APP_DIR/compose.before-image.XXXXXX") || return 1
-    cp -p "$APP_DIR/compose.yaml" "$saved" || return 1
-    if ! python3 - "$APP_DIR/compose.yaml" "$target" <<'PYIMAGE'
-from pathlib import Path
-import re,sys
-p=Path(sys.argv[1]);text=p.read_text()
-text,n=re.subn(r'(?m)^    image:.*$', '    image: '+sys.argv[2],text)
-if n!=1: raise ValueError('必须只有一处服务镜像配置，拒绝修改')
-p.write_text(text)
-PYIMAGE
-    then echo "配置未修改成功，原配置备份：$saved"; return 1; fi
-    if ! compose config --quiet; then
-        cp -p "$saved" "$APP_DIR/compose.yaml"
-        echo "配置校验失败，已恢复原配置。"; return 1
-    fi
-    if compose up -d && healthy; then
-        rm -f -- "$saved"
-        echo "自定义镜像更新完成；后续 2 号更新也沿用此镜像。"
-        addresses
-    else
-        echo "更新启动未验证通过，原配置保留：$saved；数据未删除。"
-        return 1
-    fi
+    docker pull zaixiangjian/rustfs:latest || return 1
+    apply_numbered_logging zaixiangjian/rustfs:latest || return 1
+    echo "自定义镜像更新完成"; addresses
 }
 
 login_docker_hub() {
@@ -440,11 +497,13 @@ print("远端镜像配置摘要与本地一致，推送验证通过。")
 update() {
     installed || { echo "尚未安装"; return 1; }
     require_docker || return 1
-    echo "更新前请自行制作一致性快照；同步镜像不是可靠的停机快照。"
+    echo "更新当前配置镜像及编号日志；保留数据、账号、端口。请先暂停镜像传送并制作一致性备份。"
     confirm || { echo "已取消"; return 0; }
-    compose pull && compose up -d && healthy || { echo "更新失败，请检查日志及您自己的快照。"; return 1; }
+    compose pull || return 1
+    apply_numbered_logging || return 1
     echo "更新完成"; addresses
 }
+
 # 自包含任务管理器；配置为 JSON，绝不 source/eval 凭证。
 replication() {
     python3 - "$APP_DIR" "$(readlink -f "${BASH_SOURCE[0]}")" "$NAME" "$@" <<'PY'
