@@ -4,7 +4,7 @@
 set -uo pipefail
 
 CONTAINER="vaultwarden"
-INSTALL_DIR="/home/web/vaultwarden"
+INSTALL_DIR="/home/docker/vaultwarden"
 OFFICIAL_IMAGE="vaultwarden/server:latest"
 CUSTOM_IMAGE="zaixiangjian/vaultwarden:latest"
 BACKUP_DIR="/home/备份/vaultwarden"  # 本地备份目录，支持末尾 /
