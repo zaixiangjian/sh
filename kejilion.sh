@@ -782,21 +782,26 @@ ldnmp_mysql_version_guard() {
 ldnmp_configure_php_container() {
   local php_container="$1"
   run_command docker exec "$php_container" sed -i "s/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g" /etc/apk/repositories > /dev/null 2>&1 || true
-  docker exec "$php_container" apk update
-  curl -sL ${gh_proxy}https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions -o /usr/local/bin/install-php-extensions
-  docker exec "$php_container" mkdir -p /usr/local/bin/
-  docker cp /usr/local/bin/install-php-extensions "$php_container":/usr/local/bin/
-  docker exec "$php_container" chmod +x /usr/local/bin/install-php-extensions
-  docker exec "$php_container" sh -c "apk add --no-cache imagemagick imagemagick-dev && apk add --no-cache git autoconf gcc g++ make pkgconfig && rm -rf /tmp/imagick && git clone ${gh_proxy}https://github.com/Imagick/imagick /tmp/imagick && cd /tmp/imagick && phpize && ./configure && make && make install && echo 'extension=imagick.so' > /usr/local/etc/php/conf.d/imagick.ini && rm -rf /tmp/imagick"
-  docker exec "$php_container" install-php-extensions mysqli pdo_mysql gd intl zip exif bcmath opcache redis
-  docker exec "$php_container" sh -c 'echo "upload_max_filesize=50M " > /usr/local/etc/php/conf.d/uploads.ini'
-  docker exec "$php_container" sh -c 'echo "post_max_size=50M " > /usr/local/etc/php/conf.d/post.ini'
-  docker exec "$php_container" sh -c 'echo "memory_limit=256M" > /usr/local/etc/php/conf.d/memory.ini'
-  docker exec "$php_container" sh -c 'echo "max_execution_time=1200" > /usr/local/etc/php/conf.d/max_execution_time.ini'
-  docker exec "$php_container" sh -c 'echo "max_input_time=600" > /usr/local/etc/php/conf.d/max_input_time.ini'
-  docker exec "$php_container" sh -c 'echo "max_input_vars=3000" > /usr/local/etc/php/conf.d/max_input_vars.ini'
-  docker exec "$php_container" chmod -R 777 /var/www/html
-  docker restart "$php_container" > /dev/null 2>&1
+  docker exec "$php_container" apk update || return 1
+  curl -sL ${gh_proxy}https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions -o /usr/local/bin/install-php-extensions || return 1
+  docker exec "$php_container" mkdir -p /usr/local/bin/ || return 1
+  docker cp /usr/local/bin/install-php-extensions "$php_container":/usr/local/bin/ || return 1
+  docker exec "$php_container" chmod +x /usr/local/bin/install-php-extensions || return 1
+  docker exec "$php_container" sh -c "apk add --no-cache imagemagick imagemagick-dev && apk add --no-cache git autoconf gcc g++ make pkgconfig && rm -rf /tmp/imagick && git clone ${gh_proxy}https://github.com/Imagick/imagick /tmp/imagick && cd /tmp/imagick && phpize && ./configure && make && make install && echo 'extension=imagick.so' > /usr/local/etc/php/conf.d/imagick.ini && rm -rf /tmp/imagick" || return 1
+  docker exec "$php_container" install-php-extensions mysqli pdo_mysql gd intl zip exif bcmath opcache redis || return 1
+  docker exec "$php_container" sh -c 'echo "upload_max_filesize=50M " > /usr/local/etc/php/conf.d/uploads.ini' || return 1
+  docker exec "$php_container" sh -c 'echo "post_max_size=50M " > /usr/local/etc/php/conf.d/post.ini' || return 1
+  docker exec "$php_container" sh -c 'echo "memory_limit=256M" > /usr/local/etc/php/conf.d/memory.ini' || return 1
+  docker exec "$php_container" sh -c 'echo "max_execution_time=1200" > /usr/local/etc/php/conf.d/max_execution_time.ini' || return 1
+  docker exec "$php_container" sh -c 'echo "max_input_time=600" > /usr/local/etc/php/conf.d/max_input_time.ini' || return 1
+  docker exec "$php_container" sh -c 'echo "max_input_vars=3000" > /usr/local/etc/php/conf.d/max_input_vars.ini' || return 1
+  docker exec "$php_container" chmod -R 777 /var/www/html || return 1
+  if [ "$php_container" = "php" ]; then
+    ldnmp_apply_ioncube || return 1
+  else
+    docker restart "$php_container" > /dev/null 2>&1 || return 1
+  fi
+  return 0
 }
 
 ldnmp_set_redis_policy() {
@@ -808,6 +813,7 @@ ldnmp_default_mysql_version="9.7"
 ldnmp_default_php_version="8.3"
 ldnmp_selected_mysql_version="$ldnmp_default_mysql_version"
 ldnmp_selected_php_version="$ldnmp_default_php_version"
+ldnmp_selected_ioncube="n"
 
 ldnmp_detect_current_versions() {
   local cur_mysql cur_php
@@ -815,6 +821,73 @@ ldnmp_detect_current_versions() {
   cur_php=$(docker exec php php -r 'echo PHP_VERSION;' 2>/dev/null)
   [ -n "$cur_mysql" ] && echo "当前 MySQL：$cur_mysql"
   [ -n "$cur_php" ] && echo "当前 PHP：$cur_php"
+}
+
+# ionCube 只管理主 php 容器；n 表示最终不启用，不影响独立 php74。
+ldnmp_select_ioncube() {
+  local answer
+  ldnmp_selected_ioncube="n"
+  while true; do
+    if ! read -e -p "是否安装ionCube Loader？（y/n，回车默认n）：" answer; then
+      echo "已取消 ionCube 选择。"
+      return 1
+    fi
+    case "$answer" in
+      [Yy]) ldnmp_selected_ioncube="y"; return 0 ;;
+      ""|[Nn]) ldnmp_selected_ioncube="n"; return 0 ;;
+      *) echo "请输入 y 或 n。" ;;
+    esac
+  done
+}
+
+ldnmp_apply_ioncube() {
+  local actual_php
+  actual_php=$(docker exec php php -n -r 'echo PHP_MAJOR_VERSION,".",PHP_MINOR_VERSION;') || { echo "读取 PHP 实际版本失败。"; return 1; }
+  [ -n "$actual_php" ] || { echo "PHP 实际版本为空。"; return 1; }
+  # 先清理旧加载项，避免旧版本 Loader 阻止 PHP/扩展安装工具启动。
+  # 仅删除 ionCube 的加载行和专属 .so，保留同一 ini 中的其他设置。
+  if ! docker exec -i php sh -s <<'IONCUBE_CLEANUP'
+set -eu
+ini_dir="${PHP_INI_DIR:-/usr/local/etc/php}"
+ext_dir=$(php -n -r 'echo ini_get("extension_dir");')
+for file in "$ini_dir/php.ini" "$ini_dir"/conf.d/*.ini; do
+  [ -f "$file" ] || continue
+  if grep -Ei '^[[:space:]]*(zend_extension|extension)[[:space:]]*=.*ioncube' "$file" >/dev/null; then
+    sed -i '/^[[:space:]]*[Zz][Ee][Nn][Dd]_[Ee][Xx][Tt][Ee][Nn][Ss][Ii][Oo][Nn][[:space:]]*=.*[Ii][Oo][Nn][Cc][Uu][Bb][Ee]/d; /^[[:space:]]*[Ee][Xx][Tt][Ee][Nn][Ss][Ii][Oo][Nn][[:space:]]*=.*[Ii][Oo][Nn][Cc][Uu][Bb][Ee]/d' "$file"
+  fi
+ done
+for file in "$ext_dir"/ioncube*.so; do
+  [ -f "$file" ] || continue
+  rm -f "$file"
+done
+IONCUBE_CLEANUP
+  then
+    echo "清理旧 ionCube 失败，请检查只读挂载或文件权限。"
+    return 1
+  fi
+  if [ "${ldnmp_selected_ioncube:-n}" = "y" ]; then
+    echo "正在安装适配 PHP ${actual_php} 的 ionCube Loader……"
+    docker exec php install-php-extensions ioncube_loader || { echo "ionCube 安装失败。"; return 1; }
+    # Loader 必须在 OPcache 前加载，00 前缀优先于常规扩展配置。
+    docker exec php sh -ec '
+      dir="${PHP_INI_DIR:-/usr/local/etc/php}/conf.d"
+      for file in "$dir"/*.ini; do
+        [ -f "$file" ] || continue
+        if grep -Ei "^[[:space:]]*zend_extension[[:space:]]*=.*ioncube" "$file" >/dev/null; then
+          [ "$file" = "$dir/00-ioncube.ini" ] || mv "$file" "$dir/00-ioncube.ini"
+        fi
+      done
+    ' || { echo "调整 ionCube 加载顺序失败。"; return 1; }
+  fi
+  docker exec php php-fpm -t || { echo "PHP-FPM 配置检查失败。"; return 1; }
+  docker restart php >/dev/null || { echo "PHP 重启失败。"; return 1; }
+  if [ "${ldnmp_selected_ioncube:-n}" = "y" ]; then
+    docker exec php php -r 'exit(extension_loaded("ionCube Loader") && function_exists("ioncube_loader_version") ? 0 : 1);' || { echo "ionCube 未成功加载，不能确认配置完成。"; return 1; }
+    echo "ionCube Loader 已启用（PHP ${actual_php}）。"
+  else
+    docker exec php php -r 'exit(extension_loaded("ionCube Loader") || function_exists("ioncube_loader_version") ? 1 : 0);' || { echo "ionCube 仍然加载或 PHP 检查失败。"; return 1; }
+    echo "ionCube Loader 未启用（PHP ${actual_php}）。"
+  fi
 }
 
 ldnmp_select_versions() {
@@ -828,6 +901,7 @@ ldnmp_select_versions() {
   php_version=${php_version:-$ldnmp_default_php_version}
   ldnmp_selected_mysql_version="$mysql_version"
   ldnmp_selected_php_version="$php_version"
+  ldnmp_select_ioncube || return 1
 }
 
 ldnmp_apply_versions() {
@@ -997,6 +1071,7 @@ install_ldnmp() {
 	  echo  # 打印换行，以便输出不被覆盖
 
 
+	  ldnmp_apply_ioncube || { echo "LDNMP 的 PHP/ionCube 配置失败，未确认安装完成。"; return 1; }
 	  clear
 	  echo "LDNMP环境安装完毕"
 	  echo "------------------------"
@@ -4238,9 +4313,9 @@ linux_ldnmp() {
 	  install_certbot
 
 	  install_ldnmp_conf
-	  ldnmp_select_versions
+	  ldnmp_select_versions || { echo "已取消环境版本选择。"; break; }
 	  ldnmp_apply_versions
-	  install_ldnmp
+	  install_ldnmp || { echo "环境配置失败，请检查上方错误。"; break; }
 	  nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 37 → 1. 更新nginx 查看详细错误。"
 
 		;;
@@ -5084,9 +5159,9 @@ linux_ldnmp() {
 		  install_docker
 		  install_certbot
 		  echo "还原全站数据会使用备份中的 MySQL 数据目录，建议选择与备份创建时相同的 MySQL 主版本。"
-		  ldnmp_select_versions
+		  ldnmp_select_versions || { echo "已取消环境版本选择。"; break; }
 		  ldnmp_apply_versions
-		  install_ldnmp
+		  install_ldnmp || { echo "环境配置失败，请检查上方错误。"; break; }
 		  nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 37 → 1. 更新nginx 查看详细错误。"
 	  else
 		  echo "没有找到压缩包。"
@@ -5437,14 +5512,15 @@ linux_ldnmp() {
 			  ldnmp_pods="php"
 			  read -e -p "请输入${ldnmp_pods}版本号 （如: 7.4 8.0 8.1 8.2 8.3 8.4 8.5）（回车默认${ldnmp_default_php_version}）: " version
 			  version=${version:-$ldnmp_default_php_version}
+			  ldnmp_select_ioncube || break
 			  cd /home/web/ || break
 			  cp /home/web/docker-compose.yml /home/web/docker-compose1.yml
 			  php_image="php:${version}-fpm-alpine"
 			  ldnmp_compose_set_image php "$php_image" || { echo "修改 php 镜像失败"; cp /home/web/docker-compose1.yml /home/web/docker-compose.yml; break; }
-			  docker compose pull $ldnmp_pods
-			  docker compose up -d --force-recreate $ldnmp_pods
-			  ldnmp_configure_php_container php
-			  cp /home/web/docker-compose1.yml /home/web/docker-compose.yml
+			  docker compose pull "$ldnmp_pods" || { echo "php 镜像拉取失败"; cp /home/web/docker-compose1.yml /home/web/docker-compose.yml; break; }
+			  docker compose up -d --force-recreate "$ldnmp_pods" || { echo "php 容器重建失败；恢复旧 Compose 配置，但未确认运行容器回滚。"; cp /home/web/docker-compose1.yml /home/web/docker-compose.yml; break; }
+			  ldnmp_configure_php_container php || { echo "PHP/ionCube 配置失败；保留当前镜像配置供修复，未确认更新完成。"; break; }
+			  # 成功保留新 PHP 镜像版本，避免下次重建退回旧版本。
 			  send_stats "更新$ldnmp_pods"
 			  echo "更新${ldnmp_pods}完成"
 
@@ -5474,9 +5550,9 @@ linux_ldnmp() {
 					install_docker
 					install_certbot
 					echo "mysql:${ldnmp_default_mysql_version} 会跟随官方同分支补丁版本，例如 ${ldnmp_default_mysql_version}.x；不建议跨版本升级或降级。"
-					ldnmp_select_versions
+					ldnmp_select_versions || { echo "已取消环境版本选择。"; break; }
 					ldnmp_apply_versions
-					install_ldnmp
+					install_ldnmp || { echo "环境配置失败，请检查上方错误。"; break; }
 					nginx_upgrade || echo "nginx 更新/检测失败，请稍后单独执行 1. 更新nginx 查看详细错误。"
 					;;
 				  *)
