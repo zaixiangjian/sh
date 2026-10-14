@@ -6627,11 +6627,11 @@ systemctl start nezha-dashboard 2>/dev/null || {
         echo "✅ 恢复完成"
         ;;
 
+
       9)
-        clear
         echo "▶️ 正在启动哪吒docker安装..."
-        bash <(curl -sS https://raw.githubusercontent.com/zaixiangjian/sh/main/ai/dockernezhav0.sh)
-        echo "✅ 哪吒docker安装完成。"
+        run_local_first_app_script "▶️ 安装哪吒docker版..." "/root/yingyong/dockernezhav0.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/dockernezhav0.sh"
+        echo "✅ 哪吒docker安装完成..."
         ;;
 
       999)
