@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.17"
+sh_v="0.0.18"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -6217,6 +6217,7 @@ linux_panel() {
     check_docker "49" "vaultwarden"
     check_docker "50" "moontv"
     check_path "51" "/home/docker/jiguang"
+	check_docker "53" "nexterm"
     check_docker "54" "webssh"
     if /bin/systemctl list-unit-files openlist.service 2>/dev/null | grep -q '^openlist\.service'; then
         installed_items+=("55")
@@ -6244,6 +6245,7 @@ linux_panel() {
        { [ -f "/home/docker/mailcow-dockerized/docker-compose.yml" ] && [ -s "/home/docker/mailcow-dockerized/mailcow.conf" ]; }; then
         installed_items+=("77" "78")
     fi
+	check_docker "79" "nexterm"
     check_docker "84" "hitokoto"
     check_docker "85" "openlist-api-server"
     check_docker "86" "backrest"
@@ -6348,7 +6350,7 @@ linux_panel() {
     echo -e "$(panel_menu_item_green_if_installed 41 "${gl_kjlan}41. ${gl_bai}耗子管理面板" "41. 耗子管理面板")\033[48G$(panel_menu_item_green_if_installed 42 "${gl_kjlan}42. ${gl_bai}vaultwarden(可以注册)" "42. vaultwarden(可以注册)")"
     echo -e "$(panel_menu_item_green_if_installed 43 "${gl_kjlan}43. ${gl_bai}vaultwarden(禁止注册SMTP设置)" "43. vaultwarden(禁止注册SMTP设置)")\033[48G$(panel_menu_item_green_if_installed 44 "${gl_kjlan}44. ${gl_bai}vaultwarden(禁止注册)" "44. vaultwarden(禁止注册)")"
     echo -e "$(panel_menu_item_green_if_installed 45 "${gl_kjlan}45. ${gl_bai}vaultwarden(注册SMTP设置)" "45. vaultwarden(注册SMTP设置)")\033[48G$(panel_menu_item_green_if_installed 46 "${gl_kjlan}46. ${gl_bai}Aria2离线下载" "46. Aria2离线下载")"
-    echo -e "$(panel_menu_item_green_if_installed 47 "${gl_kjlan}47. ${gl_bai}Cloudreve网盘" "47. Cloudreve网盘")\033[48G$(panel_menu_item_green_if_installed 48 "${gl_kjlan}48. ${gl_bai}编译部署ssh Nexterm  53 79" "48. 编译部署ssh Nexterm  53 79")"
+    echo -e "$(panel_menu_item_green_if_installed 47 "${gl_kjlan}47. ${gl_bai}Cloudreve网盘" "47. Cloudreve网盘")\033[48G$(panel_menu_item_green_if_installed 48 "${gl_kjlan}48. ${gl_bai}编译部署ssh Nexterm  用53 79" "48. 编译部署ssh Nexterm  用53 79")"
     echo -e "$(panel_menu_item_green_if_installed 49 "${gl_kjlan}49. ${gl_bai}vaultwarden完整脚本 ${gl_huang}★${gl_bai}" "49. vaultwarden完整脚本★")\033[48G$(panel_menu_item_green_if_installed 50 "${gl_kjlan}50. ${gl_bai}MoonTV" "50. MoonTV")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 51 "${gl_kjlan}51. ${gl_bai}极光面板" "51. 极光面板")\033[48G$(panel_menu_item_green_if_installed 52 "${gl_kjlan}52. ${gl_bai}emby安装" "52. emby安装")"
@@ -6367,7 +6369,7 @@ linux_panel() {
     echo -e "$(panel_menu_item_green_if_installed 73 "${gl_kjlan}73. ${gl_bai}安装Matrix加密聊天 ${gl_huang}★${gl_bai}" "73. 安装Matrix加密聊天 ★")\033[48G$(panel_menu_item_green_if_installed 74 "${gl_kjlan}74. ${gl_bai}Mattermost团队协作聊天" "74. Mattermost团队协作聊天")"
     echo -e "$(panel_menu_item_green_if_installed 75 "${gl_kjlan}75. ${gl_bai}Certimate 证书管理 ${gl_huang}★${gl_bai}" "75. Certimate 证书管理 ★")\033[48G$(panel_menu_item_green_if_installed 76 "${gl_kjlan}76. ${gl_bai}vaultwarden管理员禁止注册 ${gl_huang}★${gl_bai}" "76. vaultwarden管理员禁止注册 ★")"
     echo -e "$(panel_menu_item_green_if_installed 77 "${gl_kjlan}77. ${gl_bai}邮箱caddy与nginx都可用 ${gl_huang}★${gl_bai}" "77. 邮箱caddy与nginx都可用 ★")\033[48G$(panel_menu_item_green_if_installed 78 "${gl_kjlan}78. ${gl_bai}Caddy安装mailcow邮箱 ${gl_huang}★${gl_bai}" "78. Caddy安装mailcow邮箱 ★")"
-    echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
+    echo -e "$(panel_menu_item_green_if_installed 79 "${gl_kjlan}79. ${gl_bai}自编译ssh Nexterm 48 用53${gl_huang}★${gl_bai}" "79. 自编译ssh Nexterm 48 用53★")\033[48G$(panel_menu_item_green_if_installed 80 "${gl_kjlan}80. ${gl_bai}自编译导航Sun-Panel ${gl_huang}★${gl_bai}" "80. 自编译导航Sun-Panel ★")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 81 "${gl_kjlan}81. ${gl_bai}Sun-Panel压缩包安装33docker ${gl_huang}★${gl_bai}" "81. Sun-Panel压缩包安装33docker ★")\033[48G$(panel_menu_item_green_if_installed 82 "${gl_kjlan}82. ${gl_bai}Backrest安装包 86 docker安装 ${gl_huang}★${gl_bai}" "82. Backrest安装包 86 docker安装 ★")"
     echo -e "$(panel_menu_item_green_if_installed 83 "${gl_kjlan}83. ${gl_bai}自编译caddy-dns ${gl_huang}★${gl_bai}" "83. 自编译caddy-dns ★")\033[48G$(panel_menu_item_green_if_installed 84 "${gl_kjlan}84. ${gl_bai}Hitokoto API (一言)  ${gl_huang}★${gl_bai}" "84. Hitokoto API (一言)  ★")"
@@ -8360,135 +8362,9 @@ EOF
       docker_app
         ;;
 
-
       53)
-
-      clear
-      echo "Nexterm - 基于 Web 的终端访问工具"
-      echo "GitHub 地址"
-      echo "https://github.com/gnmyt/Nexterm"
-      echo "功能介绍: 使用浏览器远程访问主机终端，支持加密会话与多用户协作"
-      echo
-      echo "1. 安装 Nexterm"
-      echo "2. 备份 Nexterm"
-      echo "3. 卸载 Nexterm"
-      echo "4. 恢复 Nexterm"
-      read -p "请输入操作编号: " sub_choice
-
-      nexterm_dir="/home/docker/nexterm"
-      backup_dir="/home/docker"
-      backup_prefix="nexterm"
-      backup_limit=3
-      docker_name="nexterm"
-      docker_img="germannewsmaker/nexterm:1.0.5-OPEN-PREVIEW"
-      docker_port=6989
-
-      local_ip=$(hostname -I | awk '{print $1}')
-      ipv6_addr=$(ip -6 addr show scope global | grep inet6 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
-
-      case "$sub_choice" in
-        1)
-          if docker ps -a --format '{{.Names}}' | grep -qw $docker_name; then
-            echo "$docker_name 已经安装完成"
-            echo "------------------------"
-            echo "访问地址:"
-            echo "http://${local_ip}:${docker_port}"
-            [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
-          else
-            encryption_key=$(openssl rand -hex 32)
-            mkdir -p $nexterm_dir
-
-            docker run -d \
-              --name $docker_name \
-              -e ENCRYPTION_KEY=$encryption_key \
-              --restart always \
-              -p ${docker_port}:6989 \
-              -v $nexterm_dir:/app/data \
-              $docker_img
-
-            echo "$docker_name 已经安装完成"
-            echo "------------------------"
-            echo "https://github.com/gnmyt/Nexterm"
-            echo "通过 SSH、VNC 和 RDP 远程连接，通过 SFTP 管理文件"
-            echo "访问地址:"
-            echo "http://${local_ip}:${docker_port}"
-            [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
-            echo "加密密钥为: $encryption_key"
-          fi
-          ;;
-        2)
-          timestamp=$(date +%Y%m%d%H%M%S)
-          backup_file="${backup_prefix}-${timestamp}.tar.gz"
-          tar -czf "${backup_dir}/${backup_file}" -C "$nexterm_dir" .
-          echo "备份已保存为: ${backup_dir}/${backup_file}"
-
-          # 删除多余的旧备份，保留最新3个
-          find "$backup_dir" -name "${backup_prefix}-*.tar.gz" | sort -r | sed -n '4,$p' | xargs -r rm -f
-          ;;
-        3)
-          read -p "确认卸载 Nexterm？将删除容器和 $nexterm_dir 目录 [y/N]: " confirm
-          if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            docker rm -f $docker_name 2>/dev/null
-            rm -rf "$nexterm_dir"
-            echo "Nexterm 已卸载完成"
-          else
-            echo "操作已取消"
-          fi
-          ;;
-        4)
-          echo "可用备份文件："
-          backups=($(ls -1t $backup_dir/${backup_prefix}-*.tar.gz 2>/dev/null))
-          if [ ${#backups[@]} -eq 0 ]; then
-            echo "无可用备份"
-            break
-          fi
-
-          for i in "${!backups[@]}"; do
-            echo "$((i+1)). $(basename ${backups[$i]})"
-          done
-          read -p "请输入备份编号（留空则恢复最新）: " sel
-
-          if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#backups[@]}" ]; then
-            restore_file="${backups[$((sel-1))]}"
-          else
-            restore_file="${backups[0]}"
-          fi
-
-          echo "恢复自: $(basename $restore_file)"
-          read -p "请输入原始加密密钥（必填，恢复后用于重新启动服务）: " encryption_key
-          if [ -z "$encryption_key" ]; then
-            echo "未输入密钥，操作取消。"
-            break
-          fi
-
-          docker rm -f $docker_name 2>/dev/null
-          rm -rf "$nexterm_dir"
-          mkdir -p "$nexterm_dir"
-          tar -xzf "$restore_file" -C "$nexterm_dir"
-
-          echo "恢复完成。正在重新运行安装启动服务。"
-
-          docker run -d \
-            --name $docker_name \
-            -e ENCRYPTION_KEY=$encryption_key \
-            --restart always \
-            -p ${docker_port}:6989 \
-            -v $nexterm_dir:/app/data \
-            $docker_img
-
-          echo "------------------------"
-          echo "$docker_name 已重新启动"
-          echo "访问地址:"
-          echo "http://${local_ip}:${docker_port}"
-          [ -n "$ipv6_addr" ] && echo "http://[${ipv6_addr}]:${docker_port}"
-          echo "加密密钥为: $encryption_key"
-          ;;
-        *)
-          echo "无效选项"
-          ;;
-      esac
-
-      read -p "按任意键继续..." -n1
+        run_local_first_app_script "▶️ 安装nextermSSH..." "/root/yingyong/nexterm.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/nexterm.sh"
+        echo "✅ nextermSSH 安装成功..."
         ;;
 
       54)
