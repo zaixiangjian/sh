@@ -10741,14 +10741,14 @@ done
       92)
         clear
         echo "▶️ 正在启动CLIProxyAPI安装..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/CLIProxyAPI.sh)
+		run_local_first_app_script "▶️ 正在启动CLIProxyAPI安装..." "/root/yingyong/Openclaw.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/CLIProxyAPI.sh"
         echo "✅ CLIProxyAPI安装完成。"
         ;;
 
       93)
         clear
         echo "▶️ 正在启动Sub2API安装..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Sub2API.sh)
+		run_local_first_app_script "▶️ 正在启动Sub2API安装..." "/root/yingyong/Openclaw.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/Sub2API.sh"
         echo "✅ Sub2API安装完成。"
         ;;
 
