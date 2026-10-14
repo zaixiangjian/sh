@@ -224,7 +224,7 @@ update_app() {
 uninstall_app() {
     local confirm
     echo "⚠️ 卸载将删除 Sub2API 容器、数据卷、镜像及安装目录，数据库等数据将丢失。"
-    read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
+    IFS= read -r -p "确认卸载请输入 yes（其他输入取消）: " confirm || return 0
     if [ "$confirm" != "yes" ]; then
         echo "已取消卸载"
         return 0
@@ -348,28 +348,36 @@ restore_app() {
     echo "检测到以下备份文件："
     index=1
     for backup_file in "${backups[@]}"; do
-        echo "$index) $(basename "$backup_file")"
+        echo "$index. $(basename "$backup_file")"
         index=$((index + 1))
     done
 
     echo ""
-    read -p "请选择要恢复的备份编号，直接回车恢复最新备份 [$(basename "$latest")]: " selected
+    IFS= read -r -p "请选择要恢复的备份编号（回车恢复最新备份，0取消）: " selected || { echo "已取消恢复"; return 0; }
+
+    if [ "$selected" = "0" ]; then
+        echo "已取消恢复"
+        return 0
+    fi
 
     if [ -z "$selected" ]; then
         backup_file="$latest"
-    elif [[ "$selected" =~ ^[0-9]+$ ]] && [ "$selected" -ge 1 ] && [ "$selected" -le "${#backups[@]}" ]; then
+    elif [[ "$selected" =~ ^[1-9][0-9]*$ ]] && [ "${#selected}" -le 18 ] && [ "$selected" -le "${#backups[@]}" ]; then
         backup_file="${backups[$((selected - 1))]}"
     else
         echo "无效选择"
         return 1
     fi
 
+    local confirm
     echo "将恢复备份: $backup_file"
-    read -p "恢复会覆盖当前 Sub2API 数据，确认继续？[y/N]: " confirm
-    case "$confirm" in
-        y|Y|yes|YES) ;;
-        *) echo "已取消恢复"; return 0 ;;
-    esac
+    echo "恢复目标: $APP_DIR"
+    echo "恢复会覆盖当前 Sub2API 配置及数据卷（包括数据库）。"
+    IFS= read -r -p "确认恢复请输入 yes（其他输入取消）: " confirm || { echo "已取消恢复"; return 0; }
+    if [ "$confirm" != "yes" ]; then
+        echo "已取消恢复"
+        return 0
+    fi
 
     tmp_dir=$(mktemp -d)
     tar xzf "$backup_file" -C "$tmp_dir" || {
@@ -465,18 +473,26 @@ restore_app() {
 # ==============================
 
 while true; do
-    clear
-    echo "================================="
+    if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "$TERM" != "dumb" ]; then
+        clear
+    fi
+    echo "=================================="
     echo "        Sub2API 管理脚本"
-    echo "================================="
-    echo "1. 安装 Sub2API"
-    echo "2. 更新 Sub2API"
-    echo "3. 备份 Sub2API"
-    echo "4. 恢复 Sub2API"
-    echo "9. 卸载 Sub2API"
+    echo "开源 AI API 中转平台，支持多账号管理、配额分发与请求转发"
+    echo "部署组件：Sub2API + PostgreSQL + Redis"
+    echo "开源地址："
+    echo "https://github.com/Wei-Shaw/sub2api"
+    echo "=================================="
+    echo "默认访问端口：${APP_PORT}，容器内部端口：8080"
+    echo "------------------------"
+    echo "1. 安装"
+    echo "2. 更新"
+    echo "3. 备份（home目录）"
+    echo "4. 恢复（从home/目录获取）"
+    echo "9. 卸载"
     echo "0. 退出"
-    echo "================================="
-    read -p "请选择: " choice
+    echo
+    read -r -p "请输入选项: " choice || { echo "已退出"; exit 0; }
 
     case $choice in
         1) install_app; pause ;;
@@ -484,7 +500,7 @@ while true; do
         3) backup_app; pause ;;
         4) restore_app; pause ;;
         9) uninstall_app; pause ;;
-        0) exit 0 ;;
+        0) echo "已退出"; exit 0 ;;
         *) echo "无效选项"; pause ;;
     esac
 done
