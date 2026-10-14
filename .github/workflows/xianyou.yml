@@ -53,6 +53,7 @@ jobs:
             "zaixiangjian/backrest"
             "zaixiangjian/cloudreve"
             "zaixiangjian/vaultwarden"
+            "zaixiangjian/aio"
           )
 
           echo "Processing ${#IMAGES[@]} images..."
