@@ -260,8 +260,6 @@ show_menu() {
     echo "开源地址："
     echo "https://github.com/router-for-me/CLIProxyAPI"
     echo "=================================="
-    echo
-    echo "------------------------"
     echo "默认访问端口：${PORT}"
     echo "管理页面：http://你的IP:${PORT}/management.html"
     echo "------------------------"
