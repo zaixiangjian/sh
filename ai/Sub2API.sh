@@ -483,8 +483,6 @@ while true; do
     echo "开源地址："
     echo "https://github.com/Wei-Shaw/sub2api"
     echo "=================================="
-    echo
-    echo "------------------------"
     echo "默认访问端口：${APP_PORT}，容器内部端口：8080"
     echo "------------------------"
     echo "1. 安装"
