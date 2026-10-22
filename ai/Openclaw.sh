@@ -250,7 +250,7 @@ check_openclaw_update() {
 			(( remaining > 25 )) && remaining=25
 			timeout "$remaining" openclaw gateway status >"$probe_log" 2>&1
 			probe_rc=$?
-			if [ "$probe_rc" -eq 0 ] && grep -q "Connectivity probe: ok" "$probe_log"; then
+			if [ "$probe_rc" -eq 0 ] && grep -Eq '^[[:space:]]*(Connectivity (probe|check)|RPC probe): ok[[:space:]]*$' "$probe_log"; then
 				rm -f "$probe_log"
 				echo "✅ OpenClaw Gateway 已启动并连通。"
 				return 0
@@ -5731,12 +5731,21 @@ openclaw_backup_restore_menu() {
 		install_node_and_tools
 		git config --global url."${gh_proxy}github.com/".insteadOf ssh://git@github.com/
 		git config --global url."${gh_proxy}github.com/".insteadOf git@github.com:
-		npm install -g openclaw@latest
+		if ! npm install -g openclaw@latest; then
+			echo "❌ OpenClaw 程序更新失败，未执行后续启动。"
+			break_end
+			return 1
+		fi
 		crontab -l 2>/dev/null | grep -v "s gateway" | crontab -
-		start_gateway
 		hash -r
+		if ! start_gateway; then
+			echo "❌ 程序已更新，但 Gateway 启动失败；更新流程未完成。"
+			echo "若日志提示数据库 schema 迁移：先停止 Gateway 并备份数据，再执行 openclaw doctor --fix，完成后重新启动。"
+			break_end
+			return 1
+		fi
 		add_app_id
-		echo "更新完成"
+		echo "✅ 更新完成，Gateway 已启动并连通。"
 		break_end
 	}
 
