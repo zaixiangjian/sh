@@ -4,7 +4,7 @@
 set -o pipefail
 APP_DIR=/home/docker/openlist
 NAME=openlist
-IMAGE=openlistteam/openlist:v4.2.6
+IMAGE=openlistteam/openlist:v4.2.7
 API_IMAGE=openlistteam/openlist_api_server:latest
 API_NAME=openlist-api-server
 API_APP_DIR=/home/docker/openlist-api-server
