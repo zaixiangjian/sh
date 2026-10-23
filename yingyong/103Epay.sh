@@ -398,55 +398,9 @@ install_docker() {
   compose_cmd >/dev/null
 }
 
-# Trusted local contract: repository e779c12, security/pcre README.md.
-# No network fallback: only the two reviewed build inputs may leave html/.
-stage_epay_pcre_inputs() {
-  python3 - "$HTML_DIR" "$APP_DIR" <<'PYPCRE' || return 1
-import hashlib,os,pathlib,stat,sys
-source=pathlib.Path(os.path.abspath(sys.argv[1]))/'security/pcre'
-target=pathlib.Path(os.path.abspath(sys.argv[2]))/'security/pcre'
-contract={
-    'rebuild.sh':'ca94777a2a1666fb9abac5fd80a91e922ca710578fd4f65d26b2934b58fc80a8',
-    'php-8.3.36-pcre2-large-stack.patch':'42e2458b6fe09dbe5f309339022e9c56b764973af3460d7892bc74eb2288a370',
-}
-def safe(p):
-    for q in [p]+list(p.parents):
-        if q.is_symlink(): raise SystemExit('PCRE build input/output symlink refused')
-for p in (source,target): safe(p)
-inputs={}
-for name,digest in contract.items():
-    p=source/name; safe(p)
-    if not p.is_file() or not stat.S_ISREG(p.stat().st_mode): raise SystemExit('Missing PCRE build input: '+name)
-    data=p.read_bytes()
-    if hashlib.sha256(data).hexdigest()!=digest: raise SystemExit('PCRE build input SHA256 mismatch: '+name)
-    inputs[name]=data
-# Validate the complete source contract before writing any output. Never copy extras.
-target.mkdir(parents=True,exist_ok=True)
-if set(p.name for p in target.iterdir())-set(contract): raise SystemExit('Unexpected external PCRE context files')
-for name,data in inputs.items():
-    p=target/name; safe(p)
-    if p.exists() and not p.is_file(): raise SystemExit('Unsafe PCRE output')
-    p.write_bytes(data); p.chmod(0o644)
-    if hashlib.sha256(p.read_bytes()).hexdigest()!=contract[name]: raise SystemExit('PCRE output SHA256 mismatch')
-PYPCRE
-}
-
 write_dockerfile() {
-  stage_epay_pcre_inputs || return 1
   cat > "${APP_DIR}/Dockerfile" <<'EOF'
-# PHP 8.3.36 is pinned: do not regress PHP security fixes by changing tags.
-FROM php:8.3.36-fpm-alpine@sha256:69f823ed1766f7b39249d6b9cbcac17f64fa356f3e4393541bab4a9594008fba AS pcre-builder
-ARG PHP_BUILD_JOBS=2
-COPY security/pcre/ /patches/
-RUN sh /patches/rebuild.sh
-
-FROM php:8.3.36-fpm-alpine@sha256:69f823ed1766f7b39249d6b9cbcac17f64fa356f3e4393541bab4a9594008fba AS patched-runtime
-COPY --from=pcre-builder /out/php /usr/local/bin/php
-COPY --from=pcre-builder /out/php-fpm /usr/local/sbin/php-fpm
-# Retain the exact patched compilation unit + provenance, not an unpatched
-# tarball alone, as audit evidence. PCRE_VERSION intentionally stays 10.42.
-COPY --from=pcre-builder /out/evidence/ /usr/local/share/epay-pcre-fix/
-COPY security/pcre/php-8.3.36-pcre2-large-stack.patch /usr/local/share/epay-pcre-fix/
+FROM php:8.3-fpm-alpine
 
 RUN set -eux; \
     apk add --no-cache \
@@ -466,7 +420,6 @@ RUN printf '%s\n' \
     printf '%s\n' '[www]' 'security.limit_extensions = .php' \
       > /usr/local/etc/php-fpm.d/zz-epay-security.conf
 
-FROM patched-runtime AS application
 WORKDIR /var/www/html
 COPY --chown=82:82 html/ /var/www/html/
 EOF
@@ -476,13 +429,8 @@ write_dockerignore() {
   cat > "${APP_DIR}/.dockerignore" <<'EOF'
 **
 !Dockerfile
-!security/
-!security/pcre/
-!security/pcre/rebuild.sh
-!security/pcre/php-8.3.36-pcre2-large-stack.patch
 !html/
 !html/**
-html/security/pcre/
 html/private-receipts/
 html/**/private-receipts/
 html/**/private_receipts/
@@ -1349,10 +1297,8 @@ install_app_impl() {
   fi
 
   write_env "${port}" || return 1
-  if [ "$mode" != image ]; then
-    write_dockerfile || return 1
-    write_dockerignore || return 1
-  fi
+  write_dockerfile || return 1
+  write_dockerignore || return 1
   write_nginx_conf || return 1
   write_compose "${mode}" || return 1
   fix_permissions || return 1
@@ -1394,6 +1340,8 @@ update_app_impl() {
   if [ "${mode}" = "image" ]; then
     seed_html_from_image || return 1
     cd "${APP_DIR}"
+    write_dockerfile || return 1
+    write_dockerignore || return 1
     write_nginx_conf || return 1
     write_compose "${mode}" || return 1
     fix_permissions || return 1
@@ -1495,8 +1443,6 @@ backup_app() {
     was_running=1
     if ! stop_stack; then
       rm -f -- "$archive"
-      # Nothing has been packed yet; remove only an empty private reservation.
-      rmdir -- "$bundle" || error "空私有备份目录清理失败：$bundle"
       restart_previous_stack || error "停止失败后旧服务恢复失败，需人工检查"
       return 1
     fi
@@ -1607,10 +1553,8 @@ restore_app() {
     APP_DIR="${restore_tmp}/Epay"
     HTML_DIR="${APP_DIR}/html"
     MYSQL_DIR="${APP_DIR}/mysql"
-    if [ "$mode" = "source" ]; then
-      write_dockerfile || exit 1
-      write_dockerignore || exit 1
-    fi
+    write_dockerfile || exit 1
+    write_dockerignore || exit 1
     write_nginx_conf || exit 1
     write_compose "$mode" || exit 1
     chmod 600 "${APP_DIR}/.env" || exit 1
@@ -1629,7 +1573,7 @@ restore_app() {
   fi
   if mv "${restore_tmp}/Epay" "${APP_DIR}"; then
     rm -rf "${restore_tmp}"
-    if [ "$was_running" -eq 1 ] && ! start_stack; then
+    if ! start_stack; then
       error "恢复启动失败，回滚到旧目录（失败候选保留）"
       stop_stack || { error "候选仍运行，禁止替换数据目录"; return 1; }
       mv "$APP_DIR" "${APP_DIR}.failed_restore_${ts}" || return 1
@@ -1639,11 +1583,7 @@ restore_app() {
       fi
       return 1
     fi
-    if [ "$was_running" -eq 1 ]; then
-      success "恢复完成，已恢复原运行状态"
-    else
-      success "恢复完成，保持原停止状态"
-    fi
+    success "恢复完成，已启动服务"
     if [ -d "${old_dir}" ]; then warn "旧目录保留在：${old_dir}"; fi
   else
     error "恢复替换失败，正在回滚..."
@@ -1664,8 +1604,8 @@ uninstall_app() {
     warn "已取消卸载"
     return 0
   fi
-  stop_stack || return 1
   remove_epay_persistence
+  stop_stack || return 1
   docker rm -f epay-nginx epay-php epay-mysql >/dev/null 2>&1 || true
   rm -rf "${APP_DIR}"
   success "卸载完成"
@@ -1798,9 +1738,9 @@ docker_push_app() (
   clean_epay_residue_files || return 1
   scan_epay_untracked_source_files || return 1
   verify_epay_security_fixes || return 1
-  write_dockerfile || return 1
   prune_epay_build_context || return 1
   scan_epay_sensitive_build_files || return 1
+  write_dockerfile || return 1
   write_dockerignore || return 1
   local image_id
   epay_build_manifest "$HTML_DIR" "$build_stage/expected.json" || return 1
@@ -1825,17 +1765,16 @@ prepare_epay_clean_build() (
   local stage
   stage="$(mktemp -d "$APP_DIR/.clean-build.XXXXXX")" || return 1
   trap 'rm -rf "$stage"' EXIT
-  epay_validate_build_paths "$HTML_DIR" || return 1
   cp -a "$HTML_DIR" "$stage/html" || return 1
   local target="$APP_DIR/.build-context"
   APP_DIR="$stage" HTML_DIR="$stage/html" MYSQL_DIR="$stage/mysql"
   while IFS= read -r rel; do
     [ "$rel" = assets/img ] || rm -rf "$HTML_DIR/$rel" || return 1
   done < <(epay_runtime_paths)
-  write_dockerfile || return 1
   prune_epay_build_context || return 1
   scan_epay_sensitive_build_files || return 1
   validate_epay_source || return 1
+  write_dockerfile || return 1
   write_dockerignore || return 1
   rm -rf "$target" || return 1
   mv "$stage" "$target" || return 1
@@ -1917,8 +1856,7 @@ r=pathlib.Path(sys.argv[1])
 for p in sorted(r.rglob('*'),key=lambda x:len(x.parts),reverse=True):
     rel=p.relative_to(r)
     if p.is_symlink(): raise SystemExit('Build context symlink requires review')
-    remove=rel==pathlib.Path('security/pcre') or pathlib.Path('security/pcre') in rel.parents
-    remove=remove or any(x in ('.git','.svn','.hg','private-receipts','private_receipts','tests','test','fixtures','fixture','__pycache__') for x in rel.parts)
+    remove=any(x in ('.git','.svn','.hg','private-receipts','private_receipts','tests','test','fixtures','fixture','__pycache__') for x in rel.parts)
     remove=remove or bool(re.search(r'\.(env|zip|tar|gz|tgz|7z|rar|log|key|bak[^/]*|old[^/]*|orig[^/]*|save[^/]*|swp|phtml|phar|php[0-9]+)$',p.name,re.I))
     remove=remove or (p.suffix.lower()=='.sql' and not(rel.parent==pathlib.Path('install')))
     remove=remove or p.name.startswith(('epay_release','epay_update'))
