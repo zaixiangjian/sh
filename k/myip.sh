@@ -620,6 +620,57 @@ ddns_install() {
     ddns_write_worker && ddns_cron || return 1
     printf 'DDNS 已配置：%s（每 %s 分钟，未立即修改 DNS）\n' "$CFRECORD_NAME" "$ddns_minutes"
 }
+ddns_manage() {
+    local ddns_choice ddns_selected ddns_domain ddns_rest ddns_row ddns_tmp
+    local -a ddns_lines
+    while true; do
+        ddns_prepare || return 1
+        if [[ -f $DDNS_DB_FILE && -f $DDNS_SCRIPT_PATH ]]; then ddns_cron || return 1; fi
+        clear
+        echo "======================"
+        echo "DDNS 本机 IP 到指定域名"
+        ddns_list
+        echo "======================"
+        echo "1. 添加域名"
+        echo "2. 查看列表"
+        echo "3. 删除域名"
+        echo "0. 返回"
+        echo "------------------------"
+        read -r -p "选择: " ddns_choice || return 0
+        case $ddns_choice in
+            1) ddns_install; read -r -p "回车返回..." || return 0 ;;
+            2) ddns_list; read -r -p "回车返回..." || return 0 ;;
+            3)
+                ddns_list
+                ddns_lines=(); ddns_row=0
+                if [[ -f $DDNS_DB_FILE ]]; then
+                    while IFS='|' read -r ddns_domain ddns_rest || [[ -n $ddns_domain ]]; do
+                        ((ddns_row+=1))
+                        [[ -n $ddns_domain ]] && ddns_lines+=("$ddns_row")
+                    done < "$DDNS_DB_FILE"
+                fi
+                ((${#ddns_lines[@]})) || { read -r -p "回车返回..." || return 0; continue; }
+                read -r -p "选择序号（ 0 取消）: " ddns_selected || return 0
+                [[ $ddns_selected == 0 ]] && continue
+                if [[ $ddns_selected =~ ^[1-9][0-9]{0,8}$ ]] && ((ddns_selected <= ${#ddns_lines[@]})); then
+                    ddns_tmp=$(mktemp "${DDNS_DB_FILE}.delete.XXXXXX") || return 1
+                    if awk -v target="${ddns_lines[ddns_selected-1]}" 'NR != target' "$DDNS_DB_FILE" > "$ddns_tmp" &&
+                       ddns_atomic "$DDNS_DB_FILE" 600 < "$ddns_tmp"; then
+                        echo "✔ 已删除本地 DDNS 配置，云端 DNS 记录保留"
+                    else
+                        ddns_error "删除失败"
+                    fi
+                    rm -f -- "$ddns_tmp"
+                else
+                    ddns_error "无效序号"
+                fi
+                read -r -p "回车返回..." || return 0
+                ;;
+            0) return 0 ;;
+            *) ddns_error "无效选项" ;;
+        esac
+    done
+}
 ddns_uninstall() {
     local ddns_answer
     read -r -p '仅卸载 DDNS 本地配置，不删除云端 DNS。输入 yes 确认: ' ddns_answer || return 1
@@ -650,7 +701,8 @@ while true; do
   echo "3. 卸载"
   echo "======================"
   echo "11. DDNS 公网 IP"
-  echo "12. 卸载"
+  echo "12. 管理"
+  echo "13. 卸载"
   echo "======================"
   echo "0. 退出"
   echo "------------------------"
@@ -661,7 +713,8 @@ while true; do
     2) manage ;;
     3) uninstall ;;
     11) ddns_install; read -r -p "回车返回..." ;;
-    12) ddns_uninstall; read -r -p "回车返回..." ;;
+    12) ddns_manage ;;
+    13) ddns_uninstall; read -r -p "回车返回..." ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
