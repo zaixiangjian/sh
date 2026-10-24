@@ -2,11 +2,25 @@
 
 SCRIPT_PATH="/home/myip.sh"
 DB_FILE="/home/myip_db.txt"
+DEFAULT_MINUTES="5"             # IP 白名单自定义默认时间（2-60 分钟）
+
+# DDNS 独立路径，可自定义；不影响上面的 IP 白名单功能。
+DDNS_SCRIPT_PATH="/home/myip_ddns.sh"
+DDNS_DB_FILE="/home/myip_ddns_db.txt"
+DDNS_DEFAULT_MINUTES="2"        # DDNS 自定义默认时间（2-60 分钟）
+DDNS_STATE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/.myip-ddns-paths"
 
 # 上次路径保存在管理脚本旁，不随数据路径移动，也不执行其中内容。
 PATH_STATE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/.myip-paths"
 OLD_SCRIPT_PATH=""
 OLD_DB_FILE=""
+
+# 安装及管理修复调用顶部默认值，不覆盖已保存的间隔。
+default_minutes() {
+  local value=$1 fallback=$2
+  [[ "$value" =~ ^([2-9]|[1-5][0-9]|60)$ ]] || value=$fallback
+  printf '%s\n' "$value"
+}
 
 prepare_paths() {
   local db_literal line tmp replaced=0
@@ -93,7 +107,7 @@ sync_cron() {
         fi
       done <<< "$current"
     fi
-    [[ "$minute" =~ ^([2-9]|[1-5][0-9]|60)$ ]] || minute=5
+    [[ "$minute" =~ ^([2-9]|[1-5][0-9]|60)$ ]] || minute=$(default_minutes "$DEFAULT_MINUTES" 5)
     if [[ "$minute" == 60 ]]; then schedule='0 * * * *'; else schedule="*/$minute * * * *"; fi
     updated="${cleaned:+$cleaned$'\n'}# IP白名单配置列表
 $schedule $quoted_path >/dev/null 2>&1
@@ -223,8 +237,10 @@ install() {
   require_input ACCOUNT_ID "ACCOUNT_ID（帐户ID 例如：a44ee7ef949....）: "
   require_input LIST_ID "LIST_ID（列表ID 例如：92a1eb84761e4ed8....）: "
   require_input API_TOKEN "API_TOKEN（密钥包含 帐户筛选器列表 读取与编辑 ）: "
-  read -p "定时分钟(默认5,2-60): " MIN
-  [[ "$MIN" =~ ^[0-9]+$ ]] || MIN=5
+  local default_min
+  default_min=$(default_minutes "$DEFAULT_MINUTES" 5)
+  read -p "定时分钟(默认${default_min},2-60): " MIN
+  [[ "$MIN" =~ ^[0-9]+$ ]] || MIN=$default_min
   MIN=$((10#$MIN))
   ((MIN<2)) && MIN=2
   ((MIN>60)) && MIN=60
@@ -353,20 +369,289 @@ show_configured_domains() {
   fi
 }
 
+# Bash-only DDNS add-on. Parent supplies DDNS_SCRIPT_PATH, DDNS_DB_FILE, DDNS_STATE.
+ddns_error() { printf 'DDNS: %s\n' "$*" >&2; }
+ddns_path_ok() { [[ $1 == /* && $1 != *[$'\n\r%']* && $1 != */ && ! -L $1 && ! -d $1 ]]; }
+ddns_domain_ok() {
+    local ddns_label; local -a ddns_labels
+    [[ ${#1} -le 253 && $1 == *.* && $1 != *[$'\n\r|']* ]] || return 1
+    IFS=. read -r -a ddns_labels <<< "$1"
+    [[ $1 != *. ]] || return 1
+    for ddns_label in "${ddns_labels[@]}"; do
+        [[ ${#ddns_label} -le 63 && $ddns_label =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || return 1
+    done
+}
+ddns_atomic() {
+    local ddns_target=$1 ddns_mode=$2 ddns_tmp
+    ddns_tmp=$(mktemp "${ddns_target}.tmp.XXXXXX") || return 1
+    if cat > "$ddns_tmp" && chmod "$ddns_mode" "$ddns_tmp" && mv -f -- "$ddns_tmp" "$ddns_target"; then return 0; fi
+    rm -f -- "$ddns_tmp"; return 1
+}
+ddns_prepare() {
+    local ddns_old_script='' ddns_old_db='' ddns_p ddns_candidate='' ddns_line
+    for ddns_p in "$DDNS_SCRIPT_PATH" "$DDNS_DB_FILE" "$DDNS_STATE"; do
+        ddns_path_ok "$ddns_p" || { ddns_error '路径必须是安全的绝对文件路径'; return 1; }
+        [[ $ddns_p != "$SCRIPT_PATH" && $ddns_p != "$DB_FILE" && $ddns_p != "$PATH_STATE" && $ddns_p != "$(readlink -f -- "${BASH_SOURCE[0]}")" ]] || { ddns_error 'DDNS 路径不能覆盖白名单文件或管理脚本'; return 1; }
+    done
+    [[ $DDNS_SCRIPT_PATH != "$DDNS_DB_FILE" && $DDNS_STATE != "$DDNS_DB_FILE" && $DDNS_STATE != "$DDNS_SCRIPT_PATH" ]] || return 1
+    mkdir -p -- "$(dirname -- "$DDNS_SCRIPT_PATH")" "$(dirname -- "$DDNS_DB_FILE")" "$(dirname -- "$DDNS_STATE")" || return 1
+    if [[ -f $DDNS_STATE ]]; then
+        { IFS= read -r ddns_old_script; IFS= read -r ddns_old_db; } < "$DDNS_STATE"
+        ddns_path_ok "$ddns_old_script" && ddns_path_ok "$ddns_old_db" && [[ $ddns_old_script != "$ddns_old_db" ]] || { ddns_error '路径状态无效'; return 1; }
+        [[ $DDNS_SCRIPT_PATH != "$ddns_old_db" && $DDNS_DB_FILE != "$ddns_old_script" && $DDNS_STATE != "$ddns_old_db" && $DDNS_STATE != "$ddns_old_script" ]] || { ddns_error '新旧路径交叉冲突'; return 1; }
+        if [[ $ddns_old_db != "$DDNS_DB_FILE" && -f $ddns_old_db && -e $DDNS_DB_FILE ]]; then
+            cmp -s -- "$ddns_old_db" "$DDNS_DB_FILE" || { ddns_error '新数据库路径已有不同内容，拒绝覆盖'; return 1; }
+        fi
+        if [[ -f $ddns_old_script && ( $ddns_old_script != "$DDNS_SCRIPT_PATH" || $ddns_old_db != "$DDNS_DB_FILE" ) ]]; then
+            ddns_candidate=$(mktemp "${DDNS_SCRIPT_PATH}.migrate.XXXXXX") || return 1
+            while IFS= read -r ddns_line || [[ -n $ddns_line ]]; do
+                if [[ $ddns_line == DDNS_DB_FILE=* ]]; then printf 'DDNS_DB_FILE=%q\n' "$DDNS_DB_FILE"; else printf '%s\n' "$ddns_line"; fi
+            done < "$ddns_old_script" > "$ddns_candidate"
+            if [[ -e $DDNS_SCRIPT_PATH && $DDNS_SCRIPT_PATH != "$ddns_old_script" ]] && ! cmp -s -- "$ddns_candidate" "$DDNS_SCRIPT_PATH"; then
+                rm -f -- "$ddns_candidate"; ddns_error '新脚本路径已有不同内容，拒绝覆盖'; return 1
+            fi
+        fi
+        if [[ $ddns_old_db != "$DDNS_DB_FILE" && -f $ddns_old_db && ! -e $DDNS_DB_FILE ]]; then
+            ddns_atomic "$DDNS_DB_FILE" 600 < "$ddns_old_db" || { rm -f -- "${ddns_candidate:-/nonexistent}"; return 1; }
+        fi
+        if [[ $ddns_old_db != "$DDNS_DB_FILE" && -f "${ddns_old_db}.cron_minutes" && ! -e "${DDNS_DB_FILE}.cron_minutes" ]]; then
+            ddns_atomic "${DDNS_DB_FILE}.cron_minutes" 600 < "${ddns_old_db}.cron_minutes" || return 1
+        fi
+        if [[ -n $ddns_candidate ]]; then
+            ddns_atomic "$DDNS_SCRIPT_PATH" 700 < "$ddns_candidate"; local ddns_rc=$?
+            rm -f -- "$ddns_candidate"; (( ddns_rc == 0 )) || return 1
+        fi
+    fi
+    [[ ! -f $DDNS_DB_FILE ]] || chmod 600 -- "$DDNS_DB_FILE" || return 1
+    if [[ -f $DDNS_SCRIPT_PATH && -f $DDNS_DB_FILE ]]; then
+        printf '%s\n%s\n' "$DDNS_SCRIPT_PATH" "$DDNS_DB_FILE" | ddns_atomic "$DDNS_STATE" 600 || return 1
+    fi
+}
+ddns_cron() {
+    local ddns_minutes ddns_schedule
+    ddns_minutes=$(default_minutes "$DDNS_DEFAULT_MINUTES" 2)
+    if [[ -f "${DDNS_DB_FILE}.cron_minutes" ]]; then
+        read -r ddns_minutes < "${DDNS_DB_FILE}.cron_minutes"
+    fi
+    [[ $ddns_minutes =~ ^([2-9]|[1-5][0-9]|60)$ ]] || ddns_minutes=$(default_minutes "$DDNS_DEFAULT_MINUTES" 2)
+    if [[ $ddns_minutes == 60 ]]; then ddns_schedule='0 * * * *'; else ddns_schedule="*/$ddns_minutes * * * *"; fi
+    local ddns_old ddns_new='' ddns_line ddns_inside=0 ddns_begin=0 ddns_end=0 ddns_cmd ddns_after ddns_tmp
+    command -v crontab >/dev/null || { ddns_error '缺少 crontab'; return 1; }
+    ddns_old=$(crontab -l 2>/dev/null); local ddns_rc=$?
+    # crontab -l returns 1 for an empty table; other failures must not erase jobs.
+    (( ddns_rc <= 1 )) || return 1
+    while IFS= read -r ddns_line || [[ -n $ddns_line ]]; do
+        if [[ $ddns_line == '# DDNS 本机 IP 到指定域名' ]]; then
+            (( ddns_inside == 0 && ddns_begin == ddns_end )) || return 1
+            ddns_inside=1; ddns_begin=$((ddns_begin+1)); continue
+        fi
+        if [[ $ddns_line == '# DDNS 本机 IP 到指定域名 结束' ]]; then
+            (( ddns_inside == 1 )) || return 1
+            ddns_inside=0; ddns_end=$((ddns_end+1)); continue
+        fi
+        (( ddns_inside )) || ddns_new+="$ddns_line"$'\n'
+    done <<< "$ddns_old"
+    (( ddns_inside == 0 )) || { ddns_error '定时任务标记不完整，未修改'; return 1; }
+    [[ -n $ddns_old ]] || ddns_new=''
+    if [[ ${1:-} != remove && -f $DDNS_SCRIPT_PATH && -f $DDNS_DB_FILE ]]; then
+        # Cron uses /bin/sh: single-quote paths rather than Bash-only %q.
+        ddns_cmd=${DDNS_SCRIPT_PATH//\'/\'\\\'\'}
+        ddns_new+="# DDNS 本机 IP 到指定域名"$'\n'"$ddns_schedule /bin/bash '$ddns_cmd' >/dev/null 2>&1"$'\n'"# DDNS 本机 IP 到指定域名 结束"$'\n'
+    fi
+    ddns_tmp=$(mktemp "${DDNS_STATE}.cron.XXXXXX") || return 1
+    printf '%s' "$ddns_new" > "$ddns_tmp"
+    crontab "$ddns_tmp"; ddns_rc=$?; rm -f -- "$ddns_tmp"
+    (( ddns_rc == 0 )) || return 1
+    ddns_after=$(crontab -l 2>/dev/null) || return 1
+    [[ $ddns_after == "$(printf '%s' "$ddns_new")" ]] || { ddns_error '定时任务回读不一致'; return 1; }
+    if [[ ${1:-} != remove && -f $DDNS_SCRIPT_PATH && -f $DDNS_DB_FILE ]]; then
+        printf '%s\n%s\n' "$DDNS_SCRIPT_PATH" "$DDNS_DB_FILE" | ddns_atomic "$DDNS_STATE" 600 || return 1
+    fi
+}
+ddns_list() {
+    local ddns_domain ddns_rest ddns_n=0
+    if [[ -f $DDNS_DB_FILE ]]; then
+        while IFS='|' read -r ddns_domain ddns_rest || [[ -n $ddns_domain ]]; do
+            [[ -n $ddns_domain ]] || continue
+            ddns_n=$((ddns_n+1)); printf '%s. \033[36m%s\033[0m\n' "$ddns_n" "$ddns_domain"
+        done < "$DDNS_DB_FILE"
+    fi
+    (( ddns_n )) || printf '\033[31m暂无\033[0m\n'
+}
+ddns_api() {
+    local ddns_method=$1 ddns_path=$2 ddns_body=${3:-} ddns_response
+    [[ $ddns_token =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+    ddns_response=$(printf 'header = "Authorization: Bearer %s"\n' "$ddns_token" |
+        curl --config - --silent --show-error --fail --connect-timeout 10 --max-time 35 \
+        --request "$ddns_method" --header 'Content-Type: application/json' \
+        --data "$ddns_body" "https://api.cloudflare.com/client/v4$ddns_path" 2>/dev/null) || return 1
+    jq -e '.success == true' >/dev/null 2>&1 <<< "$ddns_response" || return 1
+    printf '%s\n' "$ddns_response"
+}
+ddns_records() {
+    local ddns_zone=$1 ddns_name=$2 ddns_type=$3 ddns_page=1 ddns_pages ddns_response ddns_all='[]' ddns_part
+    while :; do
+        ddns_response=$(ddns_api GET "/zones/$ddns_zone/dns_records?name=$ddns_name&type=$ddns_type&per_page=100&page=$ddns_page") || return 1
+        ddns_pages=$(jq -er '.result_info.total_pages | select(type == "number" and . >= 0 and . <= 1000 and . == floor)' <<< "$ddns_response") || return 1
+        ddns_part=$(jq -ce --arg n "$ddns_name" --arg t "$ddns_type" '.result | select(type == "array") | map(select(.name == $n and .type == $t))' <<< "$ddns_response") || return 1
+        ddns_all=$(jq -cn --argjson a "$ddns_all" --argjson b "$ddns_part" '$a+$b') || return 1
+        (( ddns_page >= ddns_pages )) && break
+        ddns_page=$((ddns_page+1))
+    done
+    printf '%s\n' "$ddns_all"
+}
+ddns_ip_ok() {
+    local ddns_ip=${2,,} ddns_a ddns_b ddns_c ddns_d ddns_x ddns_colons; local -a ddns_groups
+    if [[ $1 == A ]]; then
+        [[ $ddns_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+        IFS=. read -r ddns_a ddns_b ddns_c ddns_d <<< "$ddns_ip"
+        for ddns_x in "$ddns_a" "$ddns_b" "$ddns_c" "$ddns_d"; do (( 10#$ddns_x <= 255 )) || return 1; done
+        ddns_a=$((10#$ddns_a)); ddns_b=$((10#$ddns_b)); ddns_c=$((10#$ddns_c))
+        (( ddns_a > 0 && ddns_a < 224 && ddns_a != 10 && ddns_a != 127 && !(ddns_a == 100 && ddns_b >= 64 && ddns_b <= 127) && !(ddns_a == 169 && ddns_b == 254) && !(ddns_a == 172 && ddns_b >= 16 && ddns_b <= 31) && !(ddns_a == 192 && (ddns_b == 168 || ddns_b == 0 || (ddns_b == 2))) && !(ddns_a == 198 && (ddns_b == 18 || ddns_b == 19 || (ddns_b == 51 && ddns_c == 100))) && !(ddns_a == 203 && ddns_b == 0 && ddns_c == 113) ))
+    else
+        # Conservative public unicast only; reject embedded IPv4 and scoped addresses.
+        [[ $ddns_ip =~ ^[23][0-9a-f:]+$ && $ddns_ip == *:* && $ddns_ip != *:::* && $ddns_ip != *::*::* && $ddns_ip != 2001:db8:* ]] || return 1
+        [[ $ddns_ip != :* && ( $ddns_ip != *: || $ddns_ip == *:: ) ]] || return 1
+        ddns_colons=${ddns_ip//[^:]}; IFS=: read -r -a ddns_groups <<< "$ddns_ip"
+        for ddns_x in "${ddns_groups[@]}"; do [[ ${#ddns_x} -le 4 ]] || return 1; done
+        if [[ $ddns_ip == *::* ]]; then (( ${#ddns_colons} <= 7 )); else (( ${#ddns_colons} == 7 )); fi
+    fi
+}
+ddns_probe() {
+    local ddns_family=$1 ddns_url ddns_ip ddns_flag=-4
+    [[ $ddns_family != AAAA ]] || ddns_flag=-6
+    for ddns_url in https://api64.ipify.org https://icanhazip.com; do
+        ddns_ip=$(curl "$ddns_flag" --silent --fail --connect-timeout 5 --max-time 12 "$ddns_url" 2>/dev/null) || continue
+        ddns_ip=${ddns_ip//$'\r'/}; ddns_ip=${ddns_ip//$'\n'/}
+        if ddns_ip_ok "$ddns_family" "$ddns_ip"; then printf '%s\n' "${ddns_ip,,}"; return 0; fi
+    done
+    return 1
+}
+ddns_matches() {
+    jq -e --arg id "$1" --arg n "$2" --arg t "$3" --arg ip "$4" \
+        '.id == $id and .name == $n and .type == $t and (.content|ascii_downcase) == $ip and .proxied == false and .ttl == 1' >/dev/null 2>&1
+}
+ddns_sync_family() {
+    local ddns_zone=$1 ddns_domain=$2 ddns_type=$3 ddns_ip=$4 ddns_rows ddns_id ddns_response ddns_body ddns_duplicate
+    ddns_rows=$(ddns_records "$ddns_zone" "$ddns_domain" "$ddns_type") || return 1
+    ddns_id=$(jq -r '.[0].id // empty' <<< "$ddns_rows")
+    ddns_body=$(jq -cn --arg n "$ddns_domain" --arg t "$ddns_type" --arg ip "$ddns_ip" '{name:$n,type:$t,content:$ip,ttl:1,proxied:false}') || return 1
+    if [[ -n $ddns_id ]]; then
+        [[ $ddns_id =~ ^[a-fA-F0-9]{32}$ ]] || return 1
+        ddns_api PATCH "/zones/$ddns_zone/dns_records/$ddns_id" "$ddns_body" >/dev/null || return 1
+    else
+        ddns_response=$(ddns_api POST "/zones/$ddns_zone/dns_records" "$ddns_body") || return 1
+        ddns_id=$(jq -er '.result.id' <<< "$ddns_response") || return 1
+        [[ $ddns_id =~ ^[a-fA-F0-9]{32}$ ]] || return 1
+    fi
+    ddns_response=$(ddns_api GET "/zones/$ddns_zone/dns_records/$ddns_id") || return 1
+    jq -c '.result' <<< "$ddns_response" | ddns_matches "$ddns_id" "$ddns_domain" "$ddns_type" "$ddns_ip" || return 1
+    while IFS= read -r ddns_duplicate; do
+        [[ -n $ddns_duplicate && $ddns_duplicate != "$ddns_id" ]] || continue
+        [[ $ddns_duplicate =~ ^[a-fA-F0-9]{32}$ ]] || return 1
+        ddns_api DELETE "/zones/$ddns_zone/dns_records/$ddns_duplicate" >/dev/null || return 1
+    done < <(jq -r '.[].id' <<< "$ddns_rows")
+    ddns_rows=$(ddns_records "$ddns_zone" "$ddns_domain" "$ddns_type") || return 1
+    [[ $(jq 'length' <<< "$ddns_rows") == 1 ]] || return 1
+    jq -c '.[0]' <<< "$ddns_rows" | ddns_matches "$ddns_id" "$ddns_domain" "$ddns_type" "$ddns_ip"
+}
+ddns_run() {
+    local ddns_cmd ddns_v4='' ddns_v6='' ddns_domain ddns_zone ddns_token ddns_extra ddns_rc=0 ddns_cnames
+    for ddns_cmd in curl jq flock; do command -v "$ddns_cmd" >/dev/null || { ddns_error "缺少 $ddns_cmd"; return 1; }; done
+    exec 9< "$0" || return 1
+    flock -n 9 || return 0
+    [[ -f $DDNS_DB_FILE ]] || return 0
+    ddns_v4=$(ddns_probe A) || ddns_error 'IPv4 探测失败，保留原记录'
+    ddns_v6=$(ddns_probe AAAA) || ddns_error 'IPv6 探测失败，保留原记录'
+    while IFS='|' read -r ddns_domain ddns_zone ddns_token ddns_extra || [[ -n $ddns_domain ]]; do
+        [[ -n $ddns_domain ]] || continue
+        if ! ddns_domain_ok "$ddns_domain" || [[ ! $ddns_zone =~ ^[a-fA-F0-9]{32}$ || ! $ddns_token =~ ^[A-Za-z0-9_-]+$ || -n $ddns_extra ]]; then ddns_error '配置行无效'; ddns_rc=1; continue; fi
+        ddns_cnames=$(ddns_records "$ddns_zone" "$ddns_domain" CNAME) || { ddns_error "$ddns_domain 查询失败"; ddns_rc=1; continue; }
+        [[ $(jq 'length' <<< "$ddns_cnames") == 0 ]] || { ddns_error "$ddns_domain 存在 CNAME，跳过"; ddns_rc=1; continue; }
+        if [[ -n $ddns_v4 ]]; then ddns_sync_family "$ddns_zone" "$ddns_domain" A "$ddns_v4" || { ddns_error "$ddns_domain A 同步失败"; ddns_rc=1; }; fi
+        if [[ -n $ddns_v6 ]]; then ddns_sync_family "$ddns_zone" "$ddns_domain" AAAA "$ddns_v6" || { ddns_error "$ddns_domain AAAA 同步失败"; ddns_rc=1; }; fi
+    done < "$DDNS_DB_FILE"
+    return "$ddns_rc"
+}
+ddns_write_worker() {
+    {
+        printf '#!/usr/bin/env bash\nDDNS_DB_FILE=%q\n' "$DDNS_DB_FILE"
+        declare -f ddns_error ddns_domain_ok ddns_api ddns_records ddns_ip_ok ddns_probe ddns_matches ddns_sync_family ddns_run
+        printf '\nddns_run\n'
+    } | ddns_atomic "$DDNS_SCRIPT_PATH" 700
+}
+ddns_install() {
+    local ddns_minutes ddns_default_min
+    ddns_default_min=$(default_minutes "$DDNS_DEFAULT_MINUTES" 2)
+    local CFRECORD_NAME CFKEY ddns_token ddns_suffix ddns_response ddns_zone='' ddns_cnames ddns_tmp ddns_domain ddns_rest
+    ddns_prepare || return 1
+    install_deps || return 1
+    command -v flock >/dev/null || { ddns_error '缺少 flock（util-linux）'; return 1; }
+    read -r -p 'CFRECORD_NAME（完整域名）: ' CFRECORD_NAME || return 1
+    read -r -s -p 'CFKEY（API Token，Zone Read / DNS Edit）: ' CFKEY || return 1
+    printf '\n'; CFRECORD_NAME=${CFRECORD_NAME,,}; ddns_token=$CFKEY
+    while true; do
+        read -r -p "定时分钟(默认${ddns_default_min},2-60): " ddns_minutes || return 1
+        ddns_minutes=${ddns_minutes:-$ddns_default_min}
+        [[ $ddns_minutes =~ ^([2-9]|[1-5][0-9]|60)$ ]] && break
+        ddns_error '请输入 2-60 的整数'
+    done
+    ddns_domain_ok "$CFRECORD_NAME" && [[ $ddns_token =~ ^[A-Za-z0-9_-]+$ ]] || { ddns_error '域名或 Token 格式无效'; return 1; }
+    ddns_suffix=$CFRECORD_NAME
+    while [[ $ddns_suffix == *.* ]]; do
+        ddns_response=$(ddns_api GET "/zones?name=$ddns_suffix&per_page=50") || { ddns_error 'Zone 查询失败，请检查 Token 权限'; return 1; }
+        ddns_zone=$(jq -r --arg n "$ddns_suffix" '[.result[] | select(.name == $n and (.account.id | type == "string" and length > 0))] | if length == 1 then .[0].id else empty end' <<< "$ddns_response") || return 1
+        if [[ -n $ddns_zone ]]; then break; fi
+        ddns_suffix=${ddns_suffix#*.}
+    done
+    [[ $ddns_zone =~ ^[a-fA-F0-9]{32}$ ]] || { ddns_error '找不到可见 Zone，请授予 Zone Read / DNS Edit'; return 1; }
+    ddns_cnames=$(ddns_records "$ddns_zone" "$CFRECORD_NAME" CNAME) || { ddns_error 'DNS 读取失败'; return 1; }
+    [[ $(jq 'length' <<< "$ddns_cnames") == 0 ]] || { ddns_error '同名 CNAME 不可用于 DDNS'; return 1; }
+    ddns_tmp=$(mktemp "${DDNS_DB_FILE}.add.XXXXXX") || return 1
+    if [[ -f $DDNS_DB_FILE ]]; then
+        while IFS='|' read -r ddns_domain ddns_rest || [[ -n $ddns_domain ]]; do
+            [[ -z $ddns_domain || $ddns_domain == "$CFRECORD_NAME" ]] || printf '%s|%s\n' "$ddns_domain" "$ddns_rest"
+        done < "$DDNS_DB_FILE" > "$ddns_tmp"
+    fi
+    printf '%s|%s|%s\n' "$CFRECORD_NAME" "$ddns_zone" "$CFKEY" >> "$ddns_tmp"
+    ddns_atomic "$DDNS_DB_FILE" 600 < "$ddns_tmp"; local ddns_rc=$?; rm -f -- "$ddns_tmp"
+    (( ddns_rc == 0 )) || return 1
+    printf '%s\n' "$ddns_minutes" | ddns_atomic "${DDNS_DB_FILE}.cron_minutes" 600 || return 1
+    ddns_write_worker && ddns_cron || return 1
+    printf 'DDNS 已配置：%s（每 %s 分钟，未立即修改 DNS）\n' "$CFRECORD_NAME" "$ddns_minutes"
+}
+ddns_uninstall() {
+    local ddns_answer
+    read -r -p '仅卸载 DDNS 本地配置，不删除云端 DNS。输入 yes 确认: ' ddns_answer || return 1
+    [[ $ddns_answer == yes ]] || return 0
+    ddns_prepare && ddns_cron remove || return 1
+    rm -f -- "$DDNS_SCRIPT_PATH" "$DDNS_DB_FILE" "${DDNS_DB_FILE}.cron_minutes" "$DDNS_STATE"
+}
+
 # =========================
 # 主菜单
 # =========================
 while true; do
   if prepare_paths; then sync_cron; else exit 1; fi
+  if ddns_prepare; then
+    if [[ -f "$DDNS_DB_FILE" || -f "$DDNS_SCRIPT_PATH" ]]; then ddns_cron; fi
+  fi
   clear
   echo "======================"
   echo " Cloudflare IP白名单配置列表"
   echo "======================"
   show_configured_domains
   echo "======================"
+  echo "DDNS 本机 IP 到指定域名"
+  ddns_list
+  echo "======================"
   echo "1. 安装"
   echo "2. 管理"
   echo "3. 卸载"
+  echo "======================"
+  echo "11. DDNS 公网 IP"
+  echo "12. 卸载"
+  echo "======================"
   echo "0. 退出"
   echo "------------------------"
   read -p "选择: " c
@@ -375,6 +660,8 @@ while true; do
     1) install ;;
     2) manage ;;
     3) uninstall ;;
+    11) ddns_install; read -r -p "回车返回..." ;;
+    12) ddns_uninstall; read -r -p "回车返回..." ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
