@@ -46,10 +46,10 @@ install() {
 
   echo "===== Cloudflare DDNS（WAF 列表覆盖修复版）====="
 
-  require_input DDNS "DDNS域名: "
-  require_input ACCOUNT_ID "ACCOUNT_ID: "
-  require_input LIST_ID "LIST_ID: "
-  require_input API_TOKEN "API_TOKEN: "
+  require_input DDNS "DNS域名（已DDNS的 IP 域名）: "
+  require_input ACCOUNT_ID "ACCOUNT_ID（帐户ID 例如：a44ee7ef949....）: "
+  require_input LIST_ID "LIST_ID（列表ID 例如：92a1eb84761e4ed8....）: "
+  require_input API_TOKEN "API_TOKEN（密钥包含 帐户筛选器列表 读取与编辑 ）: "
 
   read -p "定时分钟(默认5,2-60): " MIN
   MIN=${MIN:-5}
@@ -148,10 +148,10 @@ manage() {
     case $c in
 
       1)
-        require_input DDNS "DDNS域名: "
-        require_input ACCOUNT_ID "ACCOUNT_ID: "
-        require_input LIST_ID "LIST_ID: "
-        require_input API_TOKEN "API_TOKEN: "
+        require_input DDNS "DNS域名（已DDNS的 IP 域名）: "
+        require_input ACCOUNT_ID "ACCOUNT_ID（帐户ID 例如：a44ee7ef949....）: "
+        require_input LIST_ID "LIST_ID（列表ID 例如：92a1eb84761e4ed8....）: "
+        require_input API_TOKEN "API_TOKEN（密钥包含 帐户筛选器列表 读取与编辑 ）: "
         echo "$DDNS|$ACCOUNT_ID|$LIST_ID|$API_TOKEN" >> "$DB_FILE"
         echo "✔ 已添加"
         read -p "回车返回..."
@@ -215,7 +215,7 @@ uninstall() {
 while true; do
   clear
   echo "======================"
-  echo " Cloudflare DDNS"
+  echo " Cloudflare IP白名单配置列表"
   echo "======================"
   echo "1) 安装"
   echo "2) 管理"
