@@ -215,7 +215,7 @@ uninstall() {
 while true; do
   clear
   echo "======================"
-  echo " Cloudflare DDNS"
+  echo " Cloudflare IP白名单配置列表"
   echo "======================"
   echo "1) 安装"
   echo "2) 管理"
