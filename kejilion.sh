@@ -6380,7 +6380,7 @@ linux_panel() {
     echo -e "$(panel_menu_item_green_if_installed 91 "${gl_kjlan}91. ${gl_bai}自动进行谷歌浏览 ${gl_huang}★${gl_bai}" "91. 自动进行谷歌浏览 ★")\033[48G$(panel_menu_item_green_if_installed 92 "${gl_kjlan}92. ${gl_bai}CLIProxyAPI ${gl_huang}★${gl_bai}" "92. CLIProxyAPI ★")"
     echo -e "$(panel_menu_item_green_if_installed 93 "${gl_kjlan}93. ${gl_bai}Sub2API ${gl_huang}★${gl_bai}" "93. Sub2API ★")\033[48G$(panel_menu_item_green_if_installed 94 "${gl_kjlan}94. ${gl_bai}Openclaw ${gl_huang}★${gl_bai}" "94. Openclaw ★")"
     echo -e "$(panel_menu_item_green_if_installed 95 "${gl_kjlan}95. ${gl_bai}Open WebUI ${gl_huang}★${gl_bai}" "95. Open WebUI ★")\033[48G$(panel_menu_item_green_if_installed 96 "${gl_kjlan}96. ${gl_bai}Google检测" "96. Google检测")"
-    echo -e "$(panel_menu_item_green_if_installed 97 "${gl_kjlan}97. ${gl_bai}IP白名单模式" "97. IP白名单模式")\033[48G$(panel_menu_item_green_if_installed 98 "${gl_kjlan}98. ${gl_bai}安装Google" "98. 安装Google")"
+    echo -e "$(panel_menu_item_green_if_installed 97 "${gl_kjlan}97. ${gl_bai}IP白名单模式配置列表" "97. IP白名单模式配置列表")\033[48G$(panel_menu_item_green_if_installed 98 "${gl_kjlan}98. ${gl_bai}安装Google" "98. 安装Google")"
     echo -e "$(panel_menu_item_green_if_installed 99 "${gl_kjlan}99. ${gl_bai}Hermes机器人爱马仕" "99. Hermes机器人爱马仕")\033[48G$(panel_menu_item_green_if_installed 100 "${gl_kjlan}100. ${gl_bai}lobehub安装webai" "100. lobehub安装webai")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "$(panel_menu_item_green_if_installed 101 "${gl_kjlan}101. ${gl_bai}agent-ai备份" "101. agent-ai备份")\033[48G$(panel_menu_item_green_if_installed 102 "${gl_kjlan}102. ${gl_bai}加密支付GMPay 又名 epusdt ${gl_huang}★${gl_bai}" "102. 加密支付GMPay 又名 epusdt ★")"
