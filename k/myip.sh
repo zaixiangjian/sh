@@ -217,10 +217,10 @@ while true; do
   echo "======================"
   echo " Cloudflare IP白名单配置列表"
   echo "======================"
-  echo "1) 安装"
-  echo "2) 管理"
-  echo "3) 卸载"
-  echo "0) 退出"
+  echo "1. 安装"
+  echo "2. 管理"
+  echo "3. 卸载"
+  echo "0. 退出"
 
   read -p "选择: " c
 
