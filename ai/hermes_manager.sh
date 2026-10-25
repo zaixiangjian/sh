@@ -1160,11 +1160,11 @@ get_gateway_status() {
     if command -v systemctl >/dev/null 2>&1; then
         case "$(systemctl --user is-active hermes-gateway.service 2>/dev/null)" in
             active)
-                echo -e "${GREEN}运行中${NC}$(get_update_notice)"
+                echo -e "${GREEN}运行中${NC}"
                 return
                 ;;
             inactive|failed|activating|deactivating)
-                echo -e "${RED}已停止${NC}$(get_update_notice)"
+                echo -e "${RED}已停止${NC}"
                 return
                 ;;
         esac
@@ -1172,9 +1172,9 @@ get_gateway_status() {
 
     # 兜底：兼容非 systemd 或手动启动的 gateway。
     if pgrep -u "$(id -u)" -f "(^|[[:space:]])(([^[:space:]]*/)?python[0-9.]*[[:space:]]+-m[[:space:]]+hermes_cli\.main[[:space:]]+gateway[[:space:]]+run|([^[:space:]]*/)?hermes[[:space:]]+gateway[[:space:]]+run|hermes-gateway)([[:space:]]|$)" >/dev/null 2>&1; then
-        echo -e "${GREEN}运行中${NC}$(get_update_notice)"
+        echo -e "${GREEN}运行中${NC}"
     else
-        echo -e "${RED}已停止${NC}$(get_update_notice)"
+        echo -e "${RED}已停止${NC}"
     fi
 }
 
