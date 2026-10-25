@@ -592,7 +592,7 @@ EOF
         echo "❌ 最新备份未变化，本次未生成新包，不上传历史备份。"
         return 1
     fi
-    printf '%s\n' "$newest"
+    printf '\nAGENT_AI_BACKUP_FILE=%s\n' "$newest"
 }
 
 run_openclaw_custom_backup() {
@@ -626,16 +626,16 @@ EOF
         echo "❌ 最新备份未变化，本次未生成新包，不上传历史备份。"
         return 1
     fi
-    printf '%s\n' "$newest"
+    printf '\nAGENT_AI_BACKUP_FILE=%s\n' "$newest"
 }
 
 backup_hermes() {
     ensure_enabled_configs_or_configure || return 1
     local backup_file keep output rc
     echo -e "${CYAN}正在执行 Hermes 备份，下面实时显示进度（最长等待 900 秒）...${NC}"
-    if output=$(run_hermes_manager_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
+    if output=$(set -o pipefail; run_hermes_manager_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
     [ "$rc" -eq 0 ] || return "$rc"
-    backup_file=$(printf '%s\n' "$output" | tail -n 1)
+    backup_file=$(printf '%s\n' "$output" | sed -n 's/^AGENT_AI_BACKUP_FILE=//p' | tail -n 1)
     [ -f "$backup_file" ] || { echo -e "${RED}❌ Hermes 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
     upload_backup_to_all_enabled "$backup_file" 'hermes' "$HERMES_BACKUP_PATTERN" || return 1
     keep="$(get_effective_local_keep)"
@@ -647,9 +647,9 @@ backup_openclaw() {
     ensure_enabled_configs_or_configure || return 1
     local backup_file keep output rc
     echo -e "${CYAN}正在执行 OpenClaw 备份，下面实时显示进度（最长等待 900 秒）...${NC}"
-    if output=$(run_openclaw_custom_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
+    if output=$(set -o pipefail; run_openclaw_custom_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
     [ "$rc" -eq 0 ] || return "$rc"
-    backup_file=$(printf '%s\n' "$output" | tail -n 1)
+    backup_file=$(printf '%s\n' "$output" | sed -n 's/^AGENT_AI_BACKUP_FILE=//p' | tail -n 1)
     [ -f "$backup_file" ] || { echo -e "${RED}❌ OpenClaw 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
     upload_backup_to_all_enabled "$backup_file" 'openclaw' "$OPENCLAW_BACKUP_PATTERN" || return 1
     keep="$(get_effective_local_keep)"
