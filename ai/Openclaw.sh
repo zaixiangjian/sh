@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# 备份保存目录、文件名前缀与还原自动查找目录
+OPENCLAW_BACKUP_DIR="/home/备份/Openclaw"
+OPENCLAW_BACKUP_PREFIX="openclaw"
+OPENCLAW_RESTORE_DIRS=("$OPENCLAW_BACKUP_DIR" "/home" "/root")
+
 # ===== OpenClaw.sh compatibility/bootstrap helpers =====
 # These helpers make this script usable as a standalone script on fresh VPSes.
 # They intentionally stay quiet unless something is missing or fails.
@@ -5477,7 +5482,7 @@ openclaw_backup_restore_menu() {
 
 
 	openclaw_custom_backup_root() {
-		echo "$HOME/openclaw_custom_backups"
+		echo "$OPENCLAW_BACKUP_DIR"
 	}
 
 	openclaw_custom_data_dir() {
@@ -5543,8 +5548,8 @@ openclaw_backup_restore_menu() {
 
 		data_dir=$(openclaw_custom_data_dir)
 		backup_root=$(openclaw_custom_backup_root)
-		ts=$(date +%Y%m%d_%H%M%S)
-		archive="$backup_root/openclaw_custom_full_${ts}.tar.gz"
+		ts=$(date +%Y%m%d-%H%M%S)
+		archive="$backup_root/${OPENCLAW_BACKUP_PREFIX}-${ts}.tar.gz"
 		was_running=0
 
 		if openclaw_custom_is_running; then
@@ -5598,34 +5603,29 @@ openclaw_backup_restore_menu() {
 
 	openclaw_custom_restore_full() {
 		send_stats "OpenClaw自制全量还原"
-		local data_dir backup_root search_dir path_choice backups count i selected archive parent ts old_dir confirm
+		local data_dir backup_root search_dir backups count i selected archive parent ts old_dir confirm
 		data_dir=$(openclaw_custom_data_dir)
 		backup_root=$(openclaw_custom_backup_root)
 
-		echo "备份包查找路径："
-		echo "  1) $backup_root"
-		echo "  2) $HOME"
-		echo ""
-		read -e -p "请选择备份包查找路径 [1-2，默认 1]: " path_choice
-		case "$path_choice" in
-			""|1) search_dir="$backup_root" ;;
-			2) search_dir="$HOME" ;;
-			0) echo "已取消。"; return 0 ;;
-			*) echo "输入错误。"; return 1 ;;
-		esac
-
-		if [ ! -d "$search_dir" ]; then
-			echo "❌ 路径不存在：$search_dir"
-			return 1
-		fi
-
-		mapfile -t backups < <(find "$search_dir" -maxdepth 1 -type f -name 'openclaw_custom_full_*.tar.gz' | sort -r)
+		local search_dir
+		local -A scanned_dirs=()
+		echo "自动查找备份目录：${OPENCLAW_RESTORE_DIRS[*]}"
+		mapfile -t backups < <(
+		    for search_dir in "${OPENCLAW_RESTORE_DIRS[@]}"; do
+		        search_dir="${search_dir%/}"
+		        [ -n "$search_dir" ] || search_dir=/
+		        [ -d "$search_dir" ] || continue
+		        [ -z "${scanned_dirs[$search_dir]+yes}" ] || continue
+		        scanned_dirs["$search_dir"]=1
+		        find "$search_dir" -maxdepth 1 -type f -name '*.tar.gz' -printf '%T@	%p\n'
+		    done | sort -nr | cut -f2-
+		)
 		count="${#backups[@]}"
 		echo ""
 		echo "可用的备份"
 		echo "-------------------------"
 		if [ "$count" -eq 0 ]; then
-			echo "未在 $search_dir 找到 openclaw_custom_full_*.tar.gz 备份包。"
+		echo "未在配置的还原目录中找到 *.tar.gz 备份包。"
 			return 1
 		fi
 		for i in "${!backups[@]}"; do
