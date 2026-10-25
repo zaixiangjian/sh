@@ -11423,6 +11423,20 @@ EOF
         ssh_socket_escaped=${ssh_socket_escaped//\"/\\\"}
         rsync_ssh+=" -o ControlMaster=no -o ControlPath=\"$ssh_socket_escaped\" -o BatchMode=yes -o ProxyCommand=false"
 
+        # 先创建目标目录；使用远端shell单引号转义，防止空格/中文/引号被拆分或执行。
+        if [[ "$remote_path" == *$'\n'* || "$remote_path" == *$'\r'* ]]; then
+            echo "❌ 远程目录不能包含换行或回车。"
+            exit 1
+        fi
+        remote_path_quoted="'${remote_path//\'/\'\\\'\'}'"
+        echo "📂 正在准备远程目录：$remote_path"
+        if ! ssh "${ssh_options[@]}" "$remote_user@$remote_ip" \
+            "mkdir -p -- $remote_path_quoted && test -d $remote_path_quoted && test -w $remote_path_quoted"; then
+            echo "❌ 无法创建远程目录或目录不可写，取消传送：$remote_path"
+            exit 1
+        fi
+        echo "✅ 远程目录已准备完成。"
+
         # 检查远程 VPS 是否安装 rsync
         echo "🕵️ 正在检查远程 VPS 是否已安装 rsync..."
         ssh "${ssh_options[@]}" "$remote_user@$remote_ip" "command -v rsync > /dev/null 2>&1"
