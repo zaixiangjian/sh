@@ -320,7 +320,7 @@ PY
 REMOTE_DIR="/home/备份/CLIProxyAPI/config"
 LOG_MAX_BYTES=2097152
 LOG_BACKUPS=3
-remote_engine() {
+single_remote_engine() {
     python3 - "$REMOTE_DIR" "$BACKUP_DIR" "$@" 3<&0 <<'PY'
 import os,sys,pathlib,json,re,subprocess,getpass,urllib.parse,tempfile,time,hashlib,tarfile
 sys.stdin=os.fdopen(3)
@@ -401,20 +401,21 @@ try:
             text='[remote]\ntype = s3\nprovider = Other\nenv_auth = false\naccess_key_id = '+access+'\nsecret_access_key = '+secret+'\nendpoint = '+endpoint+'\nregion = '+region+'\nforce_path_style = true\nsign_accept_encoding = false\n'
         if d['action']=='backup':
             while True:
-                interval=ask('备份间隔（1h/2h/4h/6h/8h/12h/1d/2d/3d/5d/7d）','1d')
-                if interval in ('1h','2h','4h','6h','8h','12h','1d','2d','3d','5d','7d'): break
+                print('备份间隔（1h/2h/4h/6h/8h/12h，1d/2d/3d/5d/7d/14d/30d）')
+                interval=(input('h等于小时，d等于天[默认 7d]：').strip() or '7d')
+                if interval in ('1h','2h','4h','6h','8h','12h','1d','2d','3d','5d','7d','14d','30d'): break
                 print('请输入完整间隔，例如4h或2d。')
             d['interval']=interval
             if interval.endswith('h'):
                 hours=int(interval[:-1])
-                minute=ask('UTC每个周期的分钟','0')
+                minute=ask('北京时间每个周期的分钟','0')
                 if not minute.isdigit() or not 0<=int(minute)<=59: raise ValueError('分钟无效')
-                d['calendar']='*-*-* 00/'+str(hours)+':'+f'{int(minute):02}'+':00 UTC'
+                d['calendar']='*-*-* 00/'+str(hours)+':'+f'{int(minute):02}'+':00 Asia/Shanghai'
             else:
-                hour=ask('每日备份UTC小时','5'); minute=ask('分钟','0')
+                hour=ask('每日备份北京时间小时','5'); minute=ask('分钟','0')
                 if not hour.isdigit() or not minute.isdigit() or not 0<=int(hour)<=23 or not 0<=int(minute)<=59: raise ValueError('时间无效')
-                d['calendar']='*-*-* '+f'{int(hour):02}:{int(minute):02}:00 UTC'
-                d['anchor_day']=int(time.time()//86400)
+                d['calendar']='*-*-* '+f'{int(hour):02}:{int(minute):02}:00 Asia/Shanghai'
+                d['anchor_day']=int((time.time()+8*3600)//86400)
         else:
             d['calendar']='*:*:00/30'
             print('传送监控每30秒检查；仅发送最新完整归档，已成功发送的不重复上传。')
@@ -425,9 +426,9 @@ try:
     elif mode=='calendar': print(load()['calendar'])
     elif mode=='action': print(load().get('action','backup'))
     elif mode=='due':
-        d=load(); interval=d.get('interval','1d')
+        d=load(); interval=d.get('interval','7d')
         if d.get('action','backup')=='backup' and interval.endswith('d'):
-            days=int(interval[:-1]); today=int(time.time()//86400)
+            days=int(interval[:-1]); today=int((time.time()+(8*3600 if 'Asia/Shanghai' in d.get('calendar','') else 0))//86400)
             sys.exit(0 if (today-int(d.get('anchor_day',today)))%days==0 else 3)
         sys.exit(0)
     elif mode=='delete':
@@ -480,20 +481,9 @@ except Exception as e:
     print('远程备份失败：'+(str(e) if isinstance(e,ValueError) else type(e).__name__),file=sys.stderr); sys.exit(1)
 PY
 }
-repair_remote_schedules() {
-    # 仅已安装且有任务时修复，不因脚本存在或Docker检测失败启用任务。
-    command -v docker >/dev/null || return 0
-    docker info >/dev/null 2>&1 || return 0
-    exists && [[ -d $DATA_DIR ]] || return 0
-    local kind
-    for kind in ssh-backup ssh s3; do
-        if [[ -f $REMOTE_DIR/$kind.json && -f $REMOTE_DIR/$kind.conf ]]; then
-            remote_schedule "$kind" enable >/dev/null || error "修复$kind定时任务失败。"
-        fi
-    done
-}
+
 # 配置修改顺序：配置锁→对应任务锁，均非阻塞；不同应用路径独立。
-configuration_locked() (
+single_configuration_locked() (
     local kind=$1
     shift
     umask 077
@@ -511,8 +501,8 @@ configure_remote_task() {
 delete_remote_task() {
     remote_schedule_unlocked "$1" remove && remote_engine delete "$1"
 }
-remote_schedule_unlocked() {
-    local kind=$1 action=$2 calendar script unit="cliproxyapi-backup-$1"
+single_remote_schedule_unlocked() {
+    local kind=$1 action=$2 calendar script unit="${AI_APP_ID}-backup-$1"
     [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || return 1
     command -v systemctl >/dev/null && [[ -d /run/systemd/system ]] || { error "定时备份需要systemd；配置可保留，仍可手动执行。"; return 1; }
     if [[ $action == remove ]]; then
@@ -531,11 +521,12 @@ remote_schedule_unlocked() {
         if [[ -e $target ]] && [[ $(IFS= read -r line < "$target"; printf '%s' "$line") != '# CLIProxyAPI managed remote backup' ]]; then error "同名外部unit，拒绝覆盖：$target"; return 1; fi
     done
     local changed
-    changed=$(python3 - "$unit" "$script" "$kind" "$calendar" <<'PY'
+    changed=$(python3 - "$unit" "$script" "$kind" "$calendar" "${AIR_TASK_NAME:-}" <<'PY'
 import sys,pathlib
-unit,script,kind,calendar=sys.argv[1:]
+unit,script,kind,calendar,task_name=sys.argv[1:]
 base=pathlib.Path('/etc/systemd/system')
-service_content=('# CLIProxyAPI managed remote backup\n[Unit]\nDescription=CLIProxyAPI remote backup\n[Service]\nType=oneshot\nUMask=0077\nExecStart=/bin/bash '+script+' --remote '+kind+' --scheduled\nStandardOutput=null\nStandardError=null\nTimeoutStartSec=2h\n')
+remote_args=('--remote-task '+task_name+' '+kind) if task_name else ('--remote '+kind)
+service_content=('# CLIProxyAPI managed remote backup\n[Unit]\nDescription=CLIProxyAPI remote backup\n[Service]\nType=oneshot\nUMask=0077\nExecStart=/bin/bash '+script+' '+remote_args+' --scheduled\nStandardOutput=null\nStandardError=null\nTimeoutStartSec=2h\n')
 timer_content=('# CLIProxyAPI managed remote backup\n[Unit]\nDescription=CLIProxyAPI daily remote backup\n[Timer]\nOnCalendar='+calendar+'\nPersistent=false\n[Install]\nWantedBy=timers.target\n')
 changed=False
 for suffix,content in (('.service',service_content),('.timer',timer_content)):
@@ -593,7 +584,7 @@ remote_run() {
     # 无新文件/稳定等待/已发送跳过不写日志，防止空闲日志膨胀。
     return "$rc"
 }
-remote_locked_run() (
+single_remote_locked_run() (
     local kind=$1
     [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || exit 1
     umask 077
@@ -619,105 +610,157 @@ remote_choose_ssh() {
     IFS= read -r -p "选择任务（0取消）：" selection || return 1
     case "$selection" in 1) SELECTED_REMOTE=ssh-backup ;; 2) SELECTED_REMOTE=ssh ;; *) return 1 ;; esac
 }
+
+
+remote_summary() { named_summary "${1:-all}"; }
+
+
+
+AI_APP_ID='cliproxyapi'
+AI_APP_LABEL='CLIProxyAPI'
+# Named-task context: old singleton configurations remain usable unchanged.
+task_context() {
+    local selector="$1"
+    AIR_BASE_CONFIG="$BACKUP_DIR/config"
+    AIR_BASE_APP_ID="${AIR_BASE_APP_ID:-$AI_APP_ID}"
+    if [[ "$selector" == *@* ]]; then
+        AIR_TASK_KIND="${selector%%@*}"
+        AIR_TASK_NAME="${selector#*@}"
+        [[ "$AIR_TASK_NAME" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { error '配置名称无效'; return 1; }
+        [[ "$AIR_TASK_KIND" == ssh-backup || "$AIR_TASK_KIND" == ssh || "$AIR_TASK_KIND" == s3 ]] || return 1
+        REMOTE_DIR="$AIR_BASE_CONFIG/tasks/$AIR_TASK_NAME"
+        RETENTION_FILE="$REMOTE_DIR/local-retention.json"
+        AI_APP_ID="$AIR_BASE_APP_ID-task-$AIR_TASK_NAME"
+    else
+        AIR_TASK_KIND="$selector"
+    fi
+}
+remote_engine() (
+    local mode="$1" selector="$2"; shift 2
+    task_context "$selector" || exit 1
+    single_remote_engine "$mode" "$AIR_TASK_KIND" "$@"
+)
+configuration_locked() (
+    local selector="$1"; shift
+    task_context "$selector" || exit 1
+    single_configuration_locked "$AIR_TASK_KIND" "$@"
+)
+remote_schedule_unlocked() (
+    local selector="$1"; shift
+    task_context "$selector" || exit 1
+    single_remote_schedule_unlocked "$AIR_TASK_KIND" "$@"
+)
+remote_locked_run() (
+    local selector="$1"; shift
+    task_context "$selector" || exit 1
+    single_remote_locked_run "$AIR_TASK_KIND" "$@"
+)
+task_selectors() {
+    python3 - "$BACKUP_DIR/config" "${1:-all}" <<'PY_NTASKS'
+import sys,json,re
+from pathlib import Path
+root=Path(sys.argv[1]); scope=sys.argv[2]
+kinds=['ssh-backup','ssh'] if scope=='ssh' else ['s3'] if scope=='s3' else ['ssh-backup','ssh','s3']
+for kind in kinds:
+    if (root/(kind+'.json')).is_file() and (root/(kind+'.conf')).is_file(): print(kind)
+    for folder in sorted((root/'tasks').glob('*')):
+        if folder.is_symlink() or not re.fullmatch(r'[a-z][a-z0-9_-]{0,31}',folder.name): continue
+        if (folder/(kind+'.json')).is_file() and (folder/(kind+'.conf')).is_file(): print(kind+'@'+folder.name)
+PY_NTASKS
+}
+named_summary() {
+    local scope="${1:-all}" selector dir kind idx=0 title group
+    local -a selectors=()
+    mapfile -t selectors < <(task_selectors "$scope")
+    for group in ssh-backup ssh s3; do
+        [[ "$scope" != ssh || "$group" != s3 ]] || continue
+        [[ "$scope" != s3 || "$group" == s3 ]] || continue
+        case "$group" in ssh-backup) title=SSH备份;; ssh) title=传送任务;; s3) title='S3 API 兼容传送任务';; esac
+        echo "$title"; echo '备注名   状态'
+        local found=0
+        for selector in "${selectors[@]}"; do
+            kind="${selector%%@*}"; [ "$kind" = "$group" ] || continue
+            idx=$((idx+1));found=1
+            dir="$BACKUP_DIR/config"
+            [[ "$selector" != *@* ]] || dir="$dir/tasks/${selector#*@}"
+            python3 - "$dir/$kind.json" "$idx" "$selector" "$AI_APP_ID" <<'PY_NSUMMARY'
+import sys,json,subprocess
+p,index,selector,base_app=sys.argv[1:]; d=json.load(open(p));kind=selector.split('@')[0]
+app=base_app+'-task-'+selector.split('@')[1] if '@' in selector else base_app
+unit=app+'-backup-'+kind+'.timer'
+try: active=subprocess.run(['systemctl','is-active','--quiet',unit],capture_output=True,timeout=2).returncode==0
+except (OSError,subprocess.TimeoutExpired): active=False
+state='\033[32m正常（定时运行中）\033[0m' if active else '\033[33m异常（定时未运行）\033[0m'
+name=''.join(c for c in str(d.get('name',selector)) if c.isprintable())
+interval=str(d.get('interval','7d')); unit_label='小时' if interval.endswith('h') else '天'
+timing='每30秒检测新备份并传送' if d.get('action')=='transfer' else '每'+interval[:-1]+unit_label+' '+str(d.get('calendar',''))+'（按配置时区）'
+print(index+'. '+name+'   '+state+'  '+timing)
+PY_NSUMMARY
+        done
+        [ "$found" = 1 ] || echo 暂无
+        [ "$group" != ssh-backup ] && echo '==================================' || echo '------------------------'
+    done
+}
+repremote_schedules() {
+    local selector failed=0
+    while IFS= read -r selector; do
+        [ -n "$selector" ] || continue
+        remote_schedule "$selector" enable >/dev/null || { error "修复 $selector 失败"; failed=1; }
+    done < <(task_selectors all)
+    return "$failed"
+}
 remote_menu() {
-    local kind=$1 choice confirm target
-    ensure_environment remote || return 1
+    local scope="$1" choice name target selected confirm
+    local -a selectors=()
+    ensure_environment || return 1
+    repremote_schedules
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
-        echo "=================================="
-        if [[ $kind == ssh ]]; then
-            echo "CLIProxyAPISSH 远程备份配置"
-        else
-            echo "CLIProxyAPI S3 API 兼容备份配置"
-        fi
-        echo "=================================="
-        remote_summary "$kind"
-        if [[ $kind == ssh ]]; then
-            echo "1. 添加SSH备份任务（定时备份并上传）"
-            echo "2. 添加传送任务（有新备份直接传送，不打包）"
-        else
-            echo "1. 添加S3任务（有新备份直接传送，不打包）"
-        fi
-        echo "7. 测试远端读取"
-        echo "8. 立即执行任务"
-        echo "9. 删除任务（保留备份）"
-        echo "0. 返回"
-        IFS= read -r -p "请输入选项：" choice || return 0
+        echo '=================================='
+        echo "$AI_APP_LABEL ${scope^^} 远程备份配置"
+        echo '=================================='
+        named_summary "$scope"
+        if [ "$scope" = ssh ]; then
+            echo '1. 添加SSH备份任务（定时备份并上传）'
+            echo '2. 添加传送任务（有新备份直接传送，不打包）'
+        else echo '1. 添加S3任务（有新备份直接传送，不打包）'; fi
+        echo '7. 测试远端读取';echo '8. 立即执行任务';echo '9. 删除任务（保留备份）';echo '0. 返回'
+        read -r -p '请输入选项：' choice || return 0
         case "$choice" in
-            1)
-                target=s3; [[ $kind != ssh ]] || target=ssh-backup
-                if [[ $target == ssh-backup ]]; then locked configure_local_retention || continue; fi
-                configuration_locked "$target" configure_remote_task "$target"
-                ;;
-            2)
-                if [[ $kind == ssh ]]; then configuration_locked ssh configure_remote_task ssh
-                else echo "无效选项。"; fi
+            1|2)
+                if [ "$scope" = s3 ]; then [ "$choice" = 1 ] || continue; target=s3
+                elif [ "$choice" = 1 ]; then target=ssh-backup; else target=ssh; fi
+                read -r -p '配置名称（小写字母开头，数字/横线/下划线，最多32位）: ' name || return 0
+                [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo '名称无效'; continue; }
+                if [ -e "$BACKUP_DIR/config/tasks/$name" ]; then echo '配置名称已存在，请使用新名称（不会修改正在运行的任务）。'; continue; fi
+                configuration_locked "$target@$name" named_configure "$target" || echo '任务添加未完成，已保存配置可在重开菜单时重试定时修复。'
                 ;;
             7|8|9)
-                target=s3
-                if [[ $kind == ssh ]]; then remote_choose_ssh || continue; target=$SELECTED_REMOTE; fi
+                mapfile -t selectors < <(task_selectors "$scope")
+                read -r -p '任务编号（0返回）: ' selected || return 0
+                [ "$selected" != 0 ] || continue
+                [[ "$selected" =~ ^[1-9][0-9]*$ ]] && [ "$selected" -le "${#selectors[@]}" ] || { echo '编号无效'; continue; }
+                target="${selectors[$((selected-1))]}"
                 case "$choice" in
                     7) remote_engine test "$target" ;;
                     8) remote_locked_run "$target" ;;
-                    9)
-                        IFS= read -r -p "输入yes确认删除本任务配置与定时：" confirm || return 0
-                        [[ $confirm != yes ]] || { configuration_locked "$target" delete_remote_task "$target"; }
-                        ;;
+                    9) read -r -p '输入yes删除该任务（保留备份）: ' confirm; [ "$confirm" != yes ] || configuration_locked "$target" delete_remote_task "${target%%@*}" ;;
                 esac
                 ;;
             0) return 0 ;;
-            *) echo "无效选项。" ;;
+            *) echo 无效选项 ;;
         esac
-        IFS= read -r -p "按回车继续..." _ || return 0
     done
 }
-
-remote_summary() {
-    # 主菜单仅读取本地配置及timer状态，不连接远端，不显示凭据。
-    python3 - "$REMOTE_DIR" "${1:-all}" <<'PY'
-import pathlib,json,subprocess,sys
-root=pathlib.Path(sys.argv[1]); scope=sys.argv[2]
-def color(text,code): return '\033['+code+'m'+text+'\033[0m'
-def schedule(d):
-    if d.get('action','backup')=='transfer': return '每30秒检测新备份并传送'
-    interval=d.get('interval','1d'); calendar=d.get('calendar','')
-    import re
-    match=re.search(r'(\d{2}):(\d{2}):00 UTC$',calendar)
-    if interval.endswith('h'):
-        minute=int(match.group(2)) if match else 0
-        return '每'+interval[:-1]+'小时，第'+str(minute)+'分运行（UTC）'
-    if interval.endswith('d') and match:
-        return '每'+interval[:-1]+'天 '+str(int(match.group(1)))+'时 '+str(int(match.group(2)))+'分运行（UTC）'
-    return calendar or '未设置周期'
-
-groups=[('ssh-backup','SSH备份','SSH备份'),('ssh','传送任务','SSH传送'),('s3','S3 API 兼容传送任务','S3传送')]
-if scope=='ssh': groups=groups[:2]
-elif scope=='s3': groups=groups[2:]
-for index,(kind,title,default) in enumerate(groups):
-    print(title)
-    print('备注名   状态')
-    p=root/(kind+'.json')
-    if not p.exists(): print(color('暂无','31'))
-    else:
-        try:
-            d=json.loads(p.read_text())
-            if not isinstance(d,dict) or not d.get('dest') or not (root/(kind+'.conf')).is_file(): raise ValueError()
-            name=str(d.get('name',default)).replace('\n',' ').replace('\r',' ')
-            state=color('异常','33')+'（定时未运行）'
-            try:
-                unit='cliproxyapi-backup-'+kind
-                r=subprocess.run(['systemctl','is-active',unit+'.timer'],capture_output=True,text=True,timeout=2)
-                result=subprocess.run(['systemctl','show',unit+'.service','--property=Result','--value'],capture_output=True,text=True,timeout=2)
-                if r.returncode==0 and r.stdout.strip()=='active' and result.returncode==0 and result.stdout.strip() in ('success',''):
-                    state=color('正常','32')+'（定时运行中）'
-                elif result.returncode==0 and result.stdout.strip() not in ('success',''):
-                    state=color('异常','33')+'（最近执行失败）'
-            except (OSError,subprocess.TimeoutExpired): state=color('异常','33')+'（检测失败）'
-            print(name+'   '+state+'  '+schedule(d))
-        except Exception: print(color('异常','33')+'（配置检测失败）')
-    print('------------------------' if index==0 and scope!='s3' else '==================================')
-PY
+named_configure() {
+    local kind="$1"
+    if [ "$kind" = ssh-backup ]; then configure_local_retention || return 1; fi
+    remote_engine configure "$kind" || return 1
+    [ -f "$REMOTE_DIR/$kind.json" ] && [ -f "$REMOTE_DIR/$kind.conf" ] || return 1
+    remote_schedule_unlocked "$kind" enable
 }
+
+
 
 show_menu() {
 
@@ -732,7 +775,7 @@ show_menu() {
     echo "开源地址："
     echo "https://github.com/router-for-me/CLIProxyAPI"
     echo "=================================="
-    remote_summary
+    named_summary all
     echo "默认访问端口：${PORT}"
     echo "管理页面：http://你的IP:${PORT}/management.html"
     echo "------------------------"
@@ -748,6 +791,10 @@ show_menu() {
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    if [[ ${1:-} == --remote-task ]]; then
+        remote_locked_run "${3:-}@${2:-}" "${4:-}"
+        return $?
+    fi
     if [[ ${1:-} == --remote ]]; then remote_locked_run "$2" "${3:-}"; exit $?; fi
     ensure_environment || exit 1
     repair_remote_schedules
