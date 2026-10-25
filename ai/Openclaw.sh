@@ -5621,7 +5621,7 @@ try:
             if not dest.startswith('/') or '..' in pathlib.PurePosixPath(dest).parts or dest=='/': raise ValueError('远端目录无效')
             print('将通过SFTP上传：'+dest+'；'+('不删除远程备份' if d['keep']==0 else '仅保留最新'+str(d['keep'])+'份当前前缀的远程归档'))
             if ask('输入yes确认目标及清理范围')!='yes': sys.exit(0)
-            text='[remote]\ntype = sftp\nhost = '+host+'\nuser = '+user+'\nport = '+port+'\nknown_hosts_file = none\n'
+            text='[remote]\ntype = sftp\nhost = '+host+'\nuser = '+user+'\nport = '+port+'\nknown_hosts_file = \n'
             if auth=='1': text+='key_file = '+str(key)+'\n'
             else:
                 # 密码经stdin传入obscure，不进入命令行参数或日志。
@@ -5745,6 +5745,23 @@ try:
     else: raise ValueError('未知操作')
 except (EOFError,KeyboardInterrupt):
     print('已取消。'); sys.exit(1)
+except subprocess.CalledProcessError as e:
+    diagnostic=(e.stderr or '').lower()
+    if 'known_hosts' in diagnostic or 'knownhosts' in diagnostic:
+        reason='SSH主机校验配置不兼容，请重新保存远程配置。'
+    elif 'unable to authenticate' in diagnostic or 'authentication failed' in diagnostic:
+        reason='SSH认证失败，请核对用户名、密码或私钥及服务端权限。'
+    elif 'connection refused' in diagnostic:
+        reason='远端拒绝连接，请检查SSH端口及服务。'
+    elif 'timeout' in diagnostic or 'timed out' in diagnostic:
+        reason='连接超时，请检查网络、防火墙或地址。'
+    elif 'permission denied' in diagnostic:
+        reason='远端目录权限不足，无法创建或读取。'
+    elif 'directory not found' in diagnostic or 'no such file' in diagnostic:
+        reason='远程目录或本地私钥文件不存在。'
+    else:
+        reason='远端命令失败（退出码'+str(e.returncode)+'），请检查连接、权限与配置。'
+    print('远程备份失败：'+reason,file=sys.stderr); sys.exit(1)
 except Exception as e:
     # 不回显rclone原始输出、S3凭据或完整配置。
     print('远程备份失败：'+(str(e) if isinstance(e,ValueError) else type(e).__name__),file=sys.stderr); sys.exit(1)
