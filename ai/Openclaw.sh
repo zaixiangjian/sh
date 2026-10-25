@@ -5481,6 +5481,575 @@ openclaw_backup_restore_menu() {
 
 
 
+# Reusable adaptation of CLIProxyAPI.sh original single-kind SSH/S3 engine.
+# Parent supplies BACKUP_DIR BACKUP_PREFIX (including separator), REMOTE_DIR,
+# LOCK_FILE RETENTION_FILE AI_APP_ID AI_APP_LABEL and ai_local_backup.
+# Set AI_MANAGER_SCRIPT to the installed parent manager for systemd ExecStart.
+# Source only defines functions; never installs timers or executes backups.
+air_init() {
+    [[ ${AI_APP_ID:-} == openclaw || ${AI_APP_ID:-} == hermes ]] || return 1
+    [[ -n ${AI_APP_LABEL:-} && ${BACKUP_DIR:-} == /* && -n ${BACKUP_PREFIX:-} && $BACKUP_PREFIX != */* ]] || return 1
+    [[ ${REMOTE_DIR:-} == "$BACKUP_DIR/config" && ${LOCK_FILE:-} == "$BACKUP_DIR/backup.lock" && ${RETENTION_FILE:-} == "$REMOTE_DIR/local-retention.json" ]] || return 1
+    declare -F ai_local_backup >/dev/null
+}
+air_error() { echo "错误：$*" >&2; }
+air_locked() (
+    umask 077
+    mkdir -p "$(dirname "$LOCK_FILE")" || exit 1
+    exec 9>"$LOCK_FILE" || exit 1
+    flock -n 9 || { air_error "应用备份操作正在执行。"; exit 1; }
+    "$@"
+)
+air_ensure_environment() {
+    local cmd
+    for cmd in python3 flock; do command -v "$cmd" >/dev/null || { air_error "请先安装$cmd"; return 1; }; done
+    if [[ ${1:-} == remote ]]; then
+        if ! command -v rclone >/dev/null; then
+            if command -v apt-get >/dev/null; then apt-get update && apt-get install -y rclone openssh-client || return 1
+            else air_error "请先安装rclone和OpenSSH客户端。"; return 1; fi
+        fi
+    fi
+}
+air_remote_backup_app() (
+    umask 077
+    mkdir -p "$BACKUP_DIR" || exit 1
+    AI_NEW_ARCHIVE=
+    ai_local_backup >&2 || exit 1
+    [[ -n ${AI_NEW_ARCHIVE:-} && -f $AI_NEW_ARCHIVE && ! -L $AI_NEW_ARCHIVE ]] || { air_error "本地备份未返回完整归档路径。"; exit 1; }
+    python3 - "$AI_NEW_ARCHIVE" "$BACKUP_DIR" "$BACKUP_PREFIX" <<'PY'
+import sys,pathlib,re,tarfile,gzip
+p=pathlib.Path(sys.argv[1]); root=pathlib.Path(sys.argv[2])
+if p.resolve().parent!=root.resolve() or not re.fullmatch(re.escape(sys.argv[3])+r'\d{8}-\d{6}\.tar\.gz',p.name): raise ValueError('新归档路径不属于当前应用')
+with tarfile.open(p,'r:gz') as a: a.getmembers()
+with gzip.open(p,'rb') as f:
+    while f.read(1024*1024): pass
+PY
+    [[ $? == 0 ]] || exit 1
+    if [[ -z ${AIR_EXACT_RESULT_FILE:-} ]]; then air_prune_local_backups >&2 || exit 1; fi
+    if [[ -n ${AIR_EXACT_RESULT_FILE:-} ]]; then
+        printf '%s\n' "$AI_NEW_ARCHIVE" > "$AIR_EXACT_RESULT_FILE" || exit 1
+    else
+        printf '%s\n' "$AI_NEW_ARCHIVE"
+    fi
+)
+air_manual_remote_backup() { air_configure_local_retention && air_locked air_remote_backup_app; }
+air_configure_local_retention() {
+    local count
+    while true; do
+        IFS= read -r -p "本地备份保留数量（回车默认3）：" count || return 1
+        count=${count:-3}
+        if [[ $count =~ ^[1-9][0-9]{0,5}$ ]] && (( count <= 100000 )); then break; fi
+        air_error "请输入1–100000的正整数。"
+    done
+    python3 - "$RETENTION_FILE" "$count" <<'PY'
+import pathlib,os,json,sys
+p=pathlib.Path(sys.argv[1]); p.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+fd=os.open(p,os.O_CREAT|os.O_TRUNC|os.O_WRONLY,0o600)
+with os.fdopen(fd,'w') as f: json.dump({'keep':int(sys.argv[2])},f)
+os.chmod(p,0o600)
+PY
+}
+air_prune_local_backups() {
+    python3 - "$BACKUP_DIR" "$RETENTION_FILE" "$BACKUP_PREFIX" "${1:-}" <<'PY'
+import pathlib,sys,json,re
+root=pathlib.Path(sys.argv[1]); setting=pathlib.Path(sys.argv[2])
+keep=int(sys.argv[4]) if len(sys.argv)>4 and sys.argv[4] else (json.loads(setting.read_text()).get('keep',3) if setting.exists() else 3)
+if not isinstance(keep,int) or isinstance(keep,bool) or not 1<=keep<=100000: raise ValueError('本地保留数量无效，不执行删除')
+files=sorted((p for p in root.iterdir() if re.fullmatch(re.escape(sys.argv[3])+r'\d{8}-\d{6}\.tar\.gz',p.name) and not p.is_symlink() and p.is_file()),key=lambda p:p.name.replace('-',''),reverse=True)
+for p in files[keep:]: p.unlink()
+print('本地保留最新'+str(keep)+'份备份。')
+PY
+}
+# SSH/S3配置在应用数据之外；远端只清理本脚本命名的归档。
+AI_LOG_MAX_BYTES=2097152
+AI_LOG_BACKUPS=3
+air_remote_engine() {
+    python3 - "$REMOTE_DIR" "$BACKUP_DIR" "$BACKUP_PREFIX" "$AI_APP_ID" "$AI_APP_LABEL" "$@" 3<&0 <<'PY'
+import os,sys,pathlib,json,re,subprocess,getpass,urllib.parse,tempfile,time,hashlib,tarfile
+sys.stdin=os.fdopen(3)
+root=pathlib.Path(sys.argv[1]); backups=pathlib.Path(sys.argv[2]); prefix=sys.argv[3]; app_id=sys.argv[4]; label=sys.argv[5]; mode=sys.argv[6]; kind=sys.argv[7]
+owned_pattern=re.escape(prefix)+r"\d{8}-\d{6}\.tar\.gz"
+if kind not in ('ssh-backup','ssh','s3'): raise ValueError('未知目标')
+root.mkdir(parents=True,exist_ok=True,mode=0o700); os.chmod(root,0o700)
+p=root/(kind+'.json'); conf=root/(kind+'.conf'); known=root/(kind+'-known-hosts')
+def run(args,**kw):
+    return subprocess.run(args,check=True,text=True,capture_output=True,timeout=900,**kw)
+def ask(label,default=''):
+    s=input(label+(' [默认 '+default+']' if default else '')+'：').strip(); return s or default
+def valid(s):
+    if not s or any(c in s for c in '\r\n\0'): raise ValueError('输入为空或含非法字符')
+    return s
+def save(path,text):
+    fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+    with os.fdopen(fd,'w') as f:f.write(text)
+    os.chmod(path,0o600)
+def load():
+    if not p.is_file() or not conf.is_file(): raise ValueError('尚未配置，请先选择1')
+    return json.loads(p.read_text())
+def rc(args): return run(['rclone','--config',str(conf),'--contimeout','15s','--timeout','2m','--retries','2']+args)
+try:
+    if mode=='configure':
+        if p.exists() and ask('已有配置，输入yes确认覆盖')!='yes': sys.exit(0)
+        d={'kind':kind,'keep':0 if kind in ('ssh','ssh-backup') else 3,'action':'backup' if kind=='ssh-backup' else 'transfer'}
+        if kind=='ssh':
+            while True:
+                local_keep=ask('检查本地备份数量（回车默认3）','3')
+                if local_keep.isdigit() and 1<=int(local_keep)<=100000:
+                    d['local_keep']=int(local_keep); break
+                print('请输入1–100000的整数。')
+        if kind in ('ssh-backup','ssh'):
+            while True:
+                keep=ask('远程保留数量（回车默认 3 输入 0 不删除远程备份）','3')
+                if keep.isdigit() and 0<=int(keep)<=100000:
+                    d['keep']=int(keep); break
+                print('请输入0–100000的整数，0表示不删除。')
+        d['name']=valid(ask('任务备注名',{'ssh-backup':'SSH备份','ssh':'SSH传送','s3':'S3传送'}[kind]))
+        if kind in ('ssh','ssh-backup'):
+            host=valid(ask('SSH主机IP或域名')); user=valid(ask('SSH用户名','root')); port=ask('SSH端口','22')
+            if not re.fullmatch(r'[A-Za-z0-9_.:-]+',host) or not re.fullmatch(r'[A-Za-z0-9_-]+',user) or not port.isdigit() or not 1<=int(port)<=65535: raise ValueError('主机/用户/端口无效')
+            auth=ask('SSH认证方式：1私钥 / 2密码','1')
+            if auth not in ('1','2'): raise ValueError('认证方式无效')
+            key=None; password=None
+            if auth=='1':
+                key=pathlib.Path(valid(ask('SSH私钥文件','/root/.ssh/id_ed25519')))
+                if not key.is_file(): raise ValueError('私钥不存在；定时任务需无交互可用的专用私钥')
+            else:
+                print('密码认证需在本机配置中保存可还原密码（权限600），不会进入备份包；rclone obscure不是强加密。')
+                if ask('输入yes确认保存SSH密码')!='yes': sys.exit(0)
+                password=valid(getpass.getpass('SSH密码（隐藏输入）：'))
+            dest=valid(ask('远端专用备份目录',str(backups)))
+            if not dest.startswith('/') or '..' in pathlib.PurePosixPath(dest).parts or dest=='/': raise ValueError('远端目录无效')
+            print('将通过SFTP上传：'+dest+'；'+('不删除远程备份' if d['keep']==0 else '仅保留最新'+str(d['keep'])+'份当前前缀的远程归档'))
+            if ask('输入yes确认目标及清理范围')!='yes': sys.exit(0)
+            text='[remote]\ntype = sftp\nhost = '+host+'\nuser = '+user+'\nport = '+port+'\nknown_hosts_file = none\n'
+            if auth=='1': text+='key_file = '+str(key)+'\n'
+            else:
+                # 密码经stdin传入obscure，不进入命令行参数或日志。
+                obscured=run(['rclone','obscure','-'],input=password+'\n').stdout.strip()
+                if not obscured or '\n' in obscured: raise ValueError('密码处理失败')
+                text+='pass = '+obscured+'\n'
+            d['auth']='key' if auth=='1' else 'password'
+            d['dest']='remote:'+dest
+        else:
+            endpoint=valid(ask('S3 API Endpoint（非管理网页）'))
+            u=urllib.parse.urlsplit(endpoint)
+            if u.scheme!='https' or not u.hostname or u.username or u.password or u.query or u.fragment or u.path not in ('','/'): raise ValueError('Endpoint必须为HTTPS API地址，无用户名/路径/查询参数')
+            bucket=valid(ask('存储桶名称（需提前创建）'))
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{1,62}',bucket): raise ValueError('桶名无效')
+            prefix=valid(ask('桶内专用备份前缀','备份/'+app_id)).strip('/')
+            if not prefix or '..' in prefix.split('/') or ':' in prefix: raise ValueError('前缀无效')
+            region=valid(ask('Region','us-east-1'))
+            access=valid(getpass.getpass('Access Key ID（隐藏输入）：')); secret=valid(getpass.getpass('Secret Access Key（隐藏输入）：'))
+            while True:
+                local_keep=ask('检查本地备份数量（回车默认3）','3')
+                if local_keep.isdigit() and 1<=int(local_keep)<=100000:
+                    d['local_keep']=int(local_keep); break
+                print('请输入1–100000的整数。')
+            while True:
+                keep=ask('S3远程保留数量（回车默认 3 输入 0 不删除远程备份）','3')
+                if keep.isdigit() and 0<=int(keep)<=100000: d['keep']=int(keep); break
+                print('请输入0–100000的整数，0表示不删除。')
+            d['dest']='remote:'+bucket+'/'+prefix
+            print('目标：'+endpoint+'/'+bucket+'/'+prefix+'；保留最新'+str(d['keep'])+'份'+label+'时间戳归档')
+            if ask('输入yes确认目标及清理范围')!='yes': sys.exit(0)
+            text='[remote]\ntype = s3\nprovider = Other\nenv_auth = false\naccess_key_id = '+access+'\nsecret_access_key = '+secret+'\nendpoint = '+endpoint+'\nregion = '+region+'\nforce_path_style = true\nsign_accept_encoding = false\n'
+        if d['action']=='backup':
+            while True:
+                interval=ask('备份间隔（1d/2d/3d/5d/7d/14d/30d）','7d')
+                if interval in ('1d','2d','3d','5d','7d','14d','30d'): break
+                print('请输入完整间隔，例如7d或14d。')
+            d['interval']=interval
+            hour=ask('每日备份北京时间小时（UTC+8）','5'); minute=ask('分钟','0')
+            if not hour.isdigit() or not minute.isdigit() or not 0<=int(hour)<=23 or not 0<=int(minute)<=59: raise ValueError('时间无效')
+            d['calendar']='*-*-* '+f'{int(hour):02}:{int(minute):02}:00 Asia/Shanghai'
+            d['anchor_day']=int((time.time()+8*3600)//86400)
+        else:
+            d['calendar']='*:*:00/30'
+            print('传送监控每30秒检查；仅发送最新完整归档，已成功发送的不重复上传。')
+        # Validate SSH mkdir and readback using a temporary candidate config before replacing saved credentials.
+        if kind in ('ssh','ssh-backup'):
+            fd,candidate=tempfile.mkstemp(prefix=kind+'-candidate-',suffix='.conf',dir=root)
+            os.close(fd)
+            try:
+                save(pathlib.Path(candidate),text)
+                args=['rclone','--config',candidate,'--contimeout','15s','--timeout','2m','--retries','2']
+                run(args+['mkdir',d['dest']])
+                run(args+['lsjson',d['dest'],'--max-depth','1'])
+            finally: os.unlink(candidate)
+        save(conf,text); save(p,json.dumps(d,ensure_ascii=False))
+        state=root/(kind+'-sent.json')
+        if state.exists(): state.unlink()
+        print('配置已保存，权限0600；凭据不进入备份包。')
+    elif mode=='calendar': print(load()['calendar'])
+    elif mode=='action': print(load().get('action','backup'))
+    elif mode=='local-keep': print(load().get('local_keep',3))
+    elif mode=='due':
+        d=load(); interval=d.get('interval','7d')
+        if d.get('action','backup')=='backup' and interval.endswith('d'):
+            days=int(interval[:-1]); today=int((time.time()+8*3600)//86400)
+            sys.exit(0 if (today-int(d.get('anchor_day',today)))%days==0 else 3)
+        sys.exit(0)
+    elif mode=='delete':
+        owned_files=[p,conf,root/(kind+'-sent.json')]
+        if kind in ('ssh','ssh-backup'): owned_files.append(known)
+        for q in owned_files:
+            if q.exists(): q.unlink()
+        print('配置删除，远端和本地备份未删除。')
+    elif mode=='test':
+        d=load(); rc(['lsjson',d['dest'],'--max-depth','1']); print('远端目录读取测试通过（不代表写入权限已验证）')
+    elif mode=='upload':
+        d=load()
+        explicit=sys.argv[8] if len(sys.argv)>8 else ''
+        if explicit:
+            f=pathlib.Path(explicit)
+            if not f.is_file() or f.is_symlink() or f.resolve().parent!=backups.resolve() or not re.fullmatch(owned_pattern,f.name): raise ValueError('指定归档路径或名称无效')
+        else:
+            files=[x for x in backups.glob('*.tar.gz') if x.is_file() and not x.is_symlink()]
+            if not files: print('暂无归档，等待新备份。'); sys.exit(0)
+            f=max(files,key=lambda x:x.stat().st_mtime_ns)
+        st=f.stat()
+        if not explicit and time.time()-st.st_mtime<60: print('最新归档尚未稳定，稍后再传。'); sys.exit(0)
+        with tarfile.open(f,'r:gz') as archive: archive.getmembers()
+        import gzip
+        with gzip.open(f,'rb') as stream:
+            while stream.read(1024*1024): pass
+        digest_hash=hashlib.sha256()
+        with f.open('rb') as stream:
+            for chunk in iter(lambda:stream.read(1024*1024),b''): digest_hash.update(chunk)
+        digest=digest_hash.hexdigest()
+        state=root/(kind+'-sent.json')
+        signature=[f.name,st.st_size,digest]
+        if state.exists() and json.loads(state.read_text())==signature:
+            print('最新归档已传送，跳过。'); sys.exit(0)
+        target=d['dest'].rstrip('/')+'/'+f.name
+        if kind in ('ssh','ssh-backup'):
+            rc(['mkdir',d['dest']]); rc(['lsjson',d['dest'],'--max-depth','1'])
+        rc(['copyto',str(f),target,'--immutable','--ignore-existing','--s3-upload-cutoff','32Mi','--s3-chunk-size','8Mi'])
+        info=json.loads(rc(['lsjson',target,'--stat']).stdout)
+        if info.get('IsDir') or info.get('Size')!=f.stat().st_size: raise ValueError('上传后远端大小校验失败；未执行清理')
+        # 按字节比较本次归档；成功后才允许远端保留清理。
+        rc(['check',str(f.parent),d['dest'],'--include',f.name,'--one-way','--download'])
+        if f.stat().st_size!=st.st_size or f.stat().st_mtime_ns!=st.st_mtime_ns: raise ValueError('归档在传送中发生变化；未清理')
+        if kind in ('s3','ssh-backup','ssh') and d.get('keep',0)!=0:
+            listing=json.loads(rc(['lsjson',d['dest'],'--max-depth','1']).stdout)
+            owned=sorted([x['Path'] for x in listing if not x.get('IsDir') and re.fullmatch(owned_pattern,x.get('Path',''))],key=lambda name:name.replace('-',''),reverse=True)
+            keep=d.get('keep',3)
+            if not isinstance(keep,int) or isinstance(keep,bool) or keep<1: raise ValueError('远程保留数量无效，未清理')
+            for name in owned[keep:]: rc(['deletefile',d['dest'].rstrip('/')+'/'+name])
+            remaining=json.loads(rc(['lsjson',d['dest'],'--max-depth','1']).stdout)
+            if any(x.get('Path') in owned[keep:] for x in remaining): raise ValueError('远端保留清理验证失败')
+        if f.stat().st_size!=st.st_size or f.stat().st_mtime_ns!=st.st_mtime_ns: raise ValueError('归档在传送中发生变化')
+        save(state,json.dumps(signature))
+        retention='远端不删除' if d.get('keep',0)==0 else '远端保留最新'+str(d['keep'])+'份当前前缀归档'
+        print('上传并校验成功：'+f.name+'；'+retention+'；本地数量由本地备份设置独立控制。')
+    else: raise ValueError('未知操作')
+except (EOFError,KeyboardInterrupt):
+    print('已取消。'); sys.exit(1)
+except Exception as e:
+    # 不回显rclone原始输出、S3凭据或完整配置。
+    print('远程备份失败：'+(str(e) if isinstance(e,ValueError) else type(e).__name__),file=sys.stderr); sys.exit(1)
+PY
+}
+air_repair_remote_schedules() {
+    local kind failed=0
+    for kind in ssh-backup ssh s3; do
+        if [[ -f $REMOTE_DIR/$kind.json && -f $REMOTE_DIR/$kind.conf ]]; then
+            if ! air_remote_schedule "$kind" enable >/dev/null; then
+                air_error "修复$kind定时任务失败，配置与备份保留。"
+                failed=1
+            fi
+        fi
+    done
+    return "$failed"
+}
+# 配置修改顺序：配置锁→对应任务锁，均非阻塞；不同应用路径独立。
+air_configuration_locked() (
+    local kind=$1
+    shift
+    umask 077
+    mkdir -p "$REMOTE_DIR" || exit 1
+    exec 7>"$REMOTE_DIR/configuration.lock" || exit 1
+    flock -n 7 || { air_error "配置正在修改，请稍后重试。"; exit 1; }
+    exec 8>"$REMOTE_DIR/$kind.lock" || exit 1
+    flock -n 8 || { air_error "该任务正在执行，未修改配置。"; exit 1; }
+    "$@"
+)
+air_remote_schedule() { air_configuration_locked "$1" air_remote_schedule_unlocked "$@"; }
+air_configure_remote_task() {
+    air_remote_engine configure "$1" && air_remote_schedule_unlocked "$1" enable
+}
+air_delete_remote_task() {
+    air_remote_schedule_unlocked "$1" remove && air_remote_engine delete "$1"
+}
+air_remote_schedule_unlocked() {
+    local kind=$1 action=$2 calendar script unit="ai-${AI_APP_ID}-backup-$1"
+    [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || return 1
+    command -v systemctl >/dev/null && [[ -d /run/systemd/system ]] || { air_error "定时备份需要systemd；配置可保留，仍可手动执行。"; return 1; }
+    local owned_target
+    for owned_target in "/etc/systemd/system/$unit.service" "/etc/systemd/system/$unit.timer"; do
+        if [[ -e $owned_target ]] && [[ $(IFS= read -r line < "$owned_target"; printf '%s' "$line") != "# AI_APP_ID=$AI_APP_ID managed remote backup" ]]; then
+            air_error "同名外部unit，拒绝修改：$owned_target"; return 1
+        fi
+    done
+    if [[ $action == remove ]]; then
+        systemctl disable --now "$unit.timer" || return 1
+        # 不强行终止正在传送的service；删除配置前检查。
+        systemctl is-active --quiet "$unit.service" && { air_error "任务正在运行，请完成后再删除配置。"; return 1; }
+        rm -f "/etc/systemd/system/$unit.timer" "/etc/systemd/system/$unit.service"
+        systemctl daemon-reload
+        return
+    fi
+    calendar=$(air_remote_engine calendar "$kind") || return 1
+    script=$(readlink -f "${AI_MANAGER_SCRIPT:-${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}}") || return 1
+    [[ $script =~ ^/[A-Za-z0-9_./-]+$ ]] || { air_error "定时运行的脚本路径不支持空格或特殊字符。"; return 1; }
+    local target
+    for target in "/etc/systemd/system/$unit.service" "/etc/systemd/system/$unit.timer"; do
+        if [[ -e $target ]] && [[ $(IFS= read -r line < "$target"; printf '%s' "$line") != "# AI_APP_ID=$AI_APP_ID managed remote backup" ]]; then air_error "同名外部unit，拒绝覆盖：$target"; return 1; fi
+    done
+    local changed
+    changed=$(python3 - "$unit" "$script" "$kind" "$calendar" "$AI_APP_ID" "$AI_APP_LABEL" <<'PY'
+import sys,pathlib
+unit,script,kind,calendar,app_id,label=sys.argv[1:]
+base=pathlib.Path('/etc/systemd/system')
+service_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' remote backup\n[Service]\nType=oneshot\nUMask=0077\nExecStart=/bin/bash '+script+' --remote '+kind+' --scheduled\nStandardOutput=null\nStandardError=null\nTimeoutStartSec=2h\n')
+timer_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' daily remote backup\n[Timer]\nOnCalendar='+calendar+'\nPersistent=false\n[Install]\nWantedBy=timers.target\n')
+changed=False
+for suffix,content in (('.service',service_content),('.timer',timer_content)):
+    p=base/(unit+suffix)
+    if not p.exists() or p.read_text()!=content:
+        p.write_text(content); changed=True
+print('yes' if changed else 'no')
+PY
+    ) || return 1
+    if [[ $changed == yes ]]; then systemctl daemon-reload || return 1; fi
+    if [[ $changed == yes ]] || ! systemctl is-active --quiet "$unit.timer" || ! systemctl is-enabled --quiet "$unit.timer"; then
+        systemctl enable --now "$unit.timer" || return 1
+        if [[ $changed == yes ]]; then systemctl restart "$unit.timer" || return 1; fi
+    fi
+    systemctl is-active --quiet "$unit.timer" || return 1
+    systemctl cat "$unit.service" "$unit.timer" >/dev/null || return 1
+    echo "定时已启用：$calendar；多天间隔按配置日期计算，脚本移动后请重新配置定时。"
+}
+air_backup_event_log() {
+    python3 - "$REMOTE_DIR" "$AI_LOG_MAX_BYTES" "$AI_LOG_BACKUPS" "$1" "$2" <<'PY'
+import pathlib,sys,logging,logging.handlers,fcntl,os
+root=pathlib.Path(sys.argv[1]); root.mkdir(parents=True,exist_ok=True,mode=0o700)
+with (root/'log.lock').open('a') as lock:
+    fcntl.flock(lock,fcntl.LOCK_EX)
+    h=logging.handlers.RotatingFileHandler(root/'backup-transfer.log',maxBytes=int(sys.argv[2]),backupCount=int(sys.argv[3]),encoding='utf-8')
+    h.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+    logger=logging.getLogger('ai-remote'); logger.setLevel(logging.INFO); logger.addHandler(h)
+    logger.info('%s %s',sys.argv[4],sys.argv[5]); h.close()
+    for p in root.glob('backup-transfer.log*'): os.chmod(p,0o600)
+PY
+}
+air_remote_run() {
+    local kind=$1
+    [[ -f $REMOTE_DIR/$kind.json ]] || { air_error "尚未配置远端。"; return 1; }
+    local action rc=0 result archive=""
+    action=$(air_remote_engine action "$kind") || return 1
+    if [[ $action == backup ]]; then
+        air_backup_event_log "$kind" "本地备份开始" || return 1
+        local AIR_EXACT_RESULT_FILE
+        AIR_EXACT_RESULT_FILE=$(mktemp "$REMOTE_DIR/.producer-result.XXXXXX") || return 1
+        chmod 600 "$AIR_EXACT_RESULT_FILE"
+        if ! air_locked air_remote_backup_app; then
+            rm -f "$AIR_EXACT_RESULT_FILE"
+            air_backup_event_log "$kind" "本地备份失败"; return 1
+        fi
+        IFS= read -r archive < "$AIR_EXACT_RESULT_FILE"
+        rm -f "$AIR_EXACT_RESULT_FILE"
+        [[ -n $archive && -f $archive ]] || { air_error "未获得本次完整归档路径。"; return 1; }
+        air_backup_event_log "$kind" "本地完整备份完成（可能包含应用凭据）" || return 1
+        # 本地备份先完成并恢复容器，再检查传送工具和连接远端。
+    fi
+    command -v rclone >/dev/null || {
+        air_error "缺少rclone；本地备份保留，可由其他传送任务发送。"
+        air_backup_event_log "$kind" "传送工具缺失，本地备份保留"; return 1;
+    }
+    result=$(air_remote_engine upload "$kind" "$archive" 2>&1) || rc=$?
+    [[ -z $result ]] || printf '%s\n' "$result"
+    if (( rc )); then
+        air_backup_event_log "$kind" "传送失败，本地备份保留" || return 1
+    elif [[ $result == *'上传并校验成功'* ]]; then
+        air_backup_event_log "$kind" "传送校验完成" || return 1
+    fi
+    # 无新文件/稳定等待/已发送跳过不写日志，防止空闲日志膨胀。
+    # Cleanup only after verified upload or verified unchanged sent signature.
+    if [[ $rc == 0 && ( $result == *'上传并校验成功'* || $result == *'最新归档已传送，跳过。'* ) ]]; then
+        if [[ $action == backup ]]; then
+            air_locked air_prune_local_backups || return 1
+        elif [[ $kind == ssh || $kind == s3 ]]; then
+            local transfer_keep
+            transfer_keep=$(air_remote_engine local-keep "$kind") || return 1
+            if [[ $transfer_keep =~ ^[1-9][0-9]*$ ]]; then
+                air_locked air_prune_local_backups "$transfer_keep" || return 1
+            fi
+        fi
+    fi
+    return "$rc"
+}
+air_remote_locked_run() (
+    local kind=$1
+    [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || exit 1
+    umask 077
+    mkdir -p "$REMOTE_DIR" || exit 1
+    exec 7>"$REMOTE_DIR/configuration.lock" || exit 1
+    flock -n 7 || { echo "配置正在修改，本次跳过。"; exit 0; }
+    exec 8>"$REMOTE_DIR/$kind.lock" || exit 1
+    flock -n 8 || { echo "该目标正在传送，本次跳过。"; exit 0; }
+    flock -u 7
+    exec 7>&-
+    if [[ ${2:-} == --scheduled ]]; then
+        local due_rc=0
+        air_remote_engine due "$kind" || due_rc=$?
+        [[ $due_rc != 3 ]] || exit 0
+        [[ $due_rc == 0 ]] || exit "$due_rc"
+    fi
+    air_remote_run "$kind"
+)
+air_remote_choose_ssh() {
+    local selection
+    echo "1. SSH备份上传任务"
+    echo "2. SSH仅传送任务"
+    IFS= read -r -p "选择任务（0取消）：" selection || return 1
+    case "$selection" in 1) AI_SELECTED_REMOTE=ssh-backup ;; 2) AI_SELECTED_REMOTE=ssh ;; *) return 1 ;; esac
+}
+air_remote_menu() {
+    local kind=$1 choice confirm target
+    air_ensure_environment remote || return 1
+    air_repair_remote_schedules || air_error "部分已有定时任务未能修复，请检查上述提示。"
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo "=================================="
+        if [[ $kind == ssh ]]; then
+            echo "${AI_APP_LABEL} SSH 远程备份配置"
+        else
+            echo "${AI_APP_LABEL} S3 API 兼容备份配置"
+        fi
+        echo "=================================="
+        air_remote_summary "$kind"
+        if [[ $kind == ssh ]]; then
+            echo "1. 添加SSH备份任务（定时备份并上传）"
+            echo "2. 添加传送任务（有新备份直接传送，不打包）"
+        else
+            echo "1. 添加S3任务（有新备份直接传送，不打包）"
+        fi
+        echo "7. 测试远端读取"
+        echo "8. 立即执行任务"
+        echo "9. 删除任务（保留备份）"
+        echo "0. 返回"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice" in
+            1)
+                target=s3; [[ $kind != ssh ]] || target=ssh-backup
+                if [[ $target == ssh-backup ]]; then air_locked air_configure_local_retention || continue; fi
+                air_configuration_locked "$target" air_configure_remote_task "$target"
+                ;;
+            2)
+                if [[ $kind == ssh ]]; then air_configuration_locked ssh air_configure_remote_task ssh
+                else echo "无效选项。"; fi
+                ;;
+            7|8|9)
+                target=s3
+                if [[ $kind == ssh ]]; then air_remote_choose_ssh || continue; target=$AI_SELECTED_REMOTE; fi
+                case "$choice" in
+                    7) air_remote_engine test "$target" ;;
+                    8) air_remote_locked_run "$target" ;;
+                    9)
+                        IFS= read -r -p "输入yes确认删除本任务配置与定时：" confirm || return 0
+                        [[ $confirm != yes ]] || { air_configuration_locked "$target" air_delete_remote_task "$target"; }
+                        ;;
+                esac
+                ;;
+            0) return 0 ;;
+            *) echo "无效选项。" ;;
+        esac
+        IFS= read -r -p "按回车继续..." _ || return 0
+    done
+}
+
+air_remote_summary() {
+    # 主菜单仅读取本地配置及timer状态，不连接远端，不显示凭据。
+    python3 - "$REMOTE_DIR" "${1:-all}" "$AI_APP_ID" <<'PY'
+import pathlib,json,subprocess,sys
+root=pathlib.Path(sys.argv[1]); scope=sys.argv[2]
+def color(text,code): return '\033['+code+'m'+text+'\033[0m'
+def schedule(d):
+    if d.get('action','backup')=='transfer': return '每30秒检测新备份并传送'
+    interval=d.get('interval','7d'); calendar=d.get('calendar','')
+    import re
+    match=re.search(r'(\d{2}):(\d{2}):00 Asia/Shanghai$',calendar)
+    if interval.endswith('h'):
+        minute=int(match.group(2)) if match else 0
+        return '每'+interval[:-1]+'小时，第'+str(minute)+'分运行（北京时间 UTC+8）'
+    if interval.endswith('d') and match:
+        return '每'+interval[:-1]+'天 '+str(int(match.group(1)))+'时 '+str(int(match.group(2)))+'分运行（北京时间 UTC+8）'
+    return calendar or '未设置周期'
+
+groups=[('ssh-backup','SSH备份','SSH备份'),('ssh','传送任务','SSH传送'),('s3','S3 API 兼容传送任务','S3传送')]
+if scope=='ssh': groups=groups[:2]
+elif scope=='s3': groups=groups[2:]
+for index,(kind,title,default) in enumerate(groups):
+    print(title)
+    print('备注名   状态')
+    p=root/(kind+'.json')
+    if not p.exists(): print(color('暂无','31'))
+    else:
+        try:
+            d=json.loads(p.read_text())
+            if not isinstance(d,dict) or not d.get('dest') or not (root/(kind+'.conf')).is_file(): raise ValueError()
+            name=str(d.get('name',default)).replace('\n',' ').replace('\r',' ')
+            state=color('异常','33')+'（定时未运行）'
+            try:
+                unit='ai-'+sys.argv[3]+'-backup-'+kind
+                r=subprocess.run(['systemctl','is-active',unit+'.timer'],capture_output=True,text=True,timeout=2)
+                result=subprocess.run(['systemctl','show',unit+'.service','--property=Result','--value'],capture_output=True,text=True,timeout=2)
+                if r.returncode==0 and r.stdout.strip()=='active' and result.returncode==0 and result.stdout.strip() in ('success',''):
+                    state=color('正常','32')+'（定时运行中）'
+                elif result.returncode==0 and result.stdout.strip() not in ('success',''):
+                    state=color('异常','33')+'（最近执行失败）'
+            except (OSError,subprocess.TimeoutExpired): state=color('异常','33')+'（检测失败）'
+            print(name+'   '+state+'  '+schedule(d))
+        except Exception: print(color('异常','33')+'（配置检测失败）')
+    print('------------------------' if index==0 and scope!='s3' else '==================================')
+PY
+}
+
+air_manager_init() {
+    BACKUP_DIR="$OPENCLAW_BACKUP_DIR"
+    BACKUP_PREFIX="${OPENCLAW_BACKUP_PREFIX}-"
+    REMOTE_DIR="$BACKUP_DIR/config"
+    LOCK_FILE="$BACKUP_DIR/backup.lock"
+    RETENTION_FILE="$REMOTE_DIR/local-retention.json"
+    AI_APP_ID='openclaw'
+    AI_APP_LABEL='Openclaw'
+    AI_NATIVE_BACKUP_FUNCTION='openclaw_custom_backup_full'
+    AI_MANAGER_SCRIPT=$(readlink -f "${BASH_SOURCE[0]}")
+    air_init
+}
+
+ai_local_backup() {
+    local result_file rc=0
+    mkdir -p "$REMOTE_DIR" || return 1
+    chmod 700 "$REMOTE_DIR" || return 1
+    result_file=$(mktemp "$REMOTE_DIR/.producer-result.XXXXXX") || return 1
+    # Run in the current shell so AI_NEW_ARCHIVE comes from this exact producer.
+    AI_REMOTE_RESULT_FILE="$result_file"
+    "$AI_NATIVE_BACKUP_FUNCTION" <<< y || rc=$?
+    unset AI_REMOTE_RESULT_FILE
+    if [ "$rc" -eq 0 ]; then
+        IFS= read -r AI_NEW_ARCHIVE < "$result_file" || rc=1
+        [ -f "$AI_NEW_ARCHIVE" ] || rc=1
+        case "$AI_NEW_ARCHIVE" in "$BACKUP_DIR/"*.tar.gz) : ;; *) rc=1 ;; esac
+    fi
+    rm -f -- "$result_file"
+    if [ "$rc" -ne 0 ]; then
+        echo "❌ 本次备份未成功返回新归档，未上传历史文件。"
+        return "$rc"
+    fi
+}
+
 	openclaw_custom_backup_root() {
 		echo "$OPENCLAW_BACKUP_DIR"
 	}
@@ -5584,6 +6153,9 @@ openclaw_backup_restore_menu() {
 
 		if [ "$tar_status" -eq 0 ]; then
 			echo "✅ 备份完成：$archive"
+			if [ -n "${AI_REMOTE_RESULT_FILE:-}" ]; then
+			    printf '%s\n' "$archive" > "$AI_REMOTE_RESULT_FILE" || return 1
+			fi
 			if [ "$was_running" -eq 1 ]; then
 				echo "备份前 Gateway 正在运行，正在自动重新启动 OpenClaw Gateway..."
 				if openclaw_custom_start_after_restore; then
@@ -5702,6 +6274,8 @@ openclaw_backup_restore_menu() {
 	}
 
 	openclaw_custom_backup_restore_menu() {
+		air_manager_init || return 1
+		air_repair_remote_schedules
 		send_stats "OpenClaw备份与还原自制版本"
 		while true; do
 			clear
@@ -5711,14 +6285,19 @@ openclaw_backup_restore_menu() {
 			echo "备份目录：$(openclaw_custom_backup_root)"
 			echo "数据目录：$(openclaw_custom_data_dir)"
 			echo "---------------------------------------"
+			air_remote_summary all
 			echo "1. 备份 OpenClaw 自制全量"
 			echo "2. 还原 OpenClaw 自制全量（自动安装/更新并启动）"
+			echo "3. SSH 远程备份配置"
+			echo "4. S3 API 兼容备份配置"
 			echo "0. 返回上一级"
 			echo "---------------------------------------"
 			read -e -p "请输入你的选择: " custom_choice
 			case "$custom_choice" in
 				1) openclaw_custom_backup_full; break_end ;;
 				2) openclaw_custom_restore_full; break_end ;;
+				3) air_remote_menu ssh; break_end ;;
+				4) air_remote_menu s3; break_end ;;
 				0) return 0 ;;
 				*) echo "无效的选择，请重试。"; sleep 1 ;;
 			esac
@@ -5909,6 +6488,13 @@ openclaw_backup_restore_menu() {
 	}
 
 
+
+if [[ ${1:-} == --remote ]]; then
+    air_manager_init || exit 1
+    air_ensure_environment || exit 1
+    air_remote_locked_run "${2:-}" "${3:-}"
+    exit $?
+fi
 
 	# 主循环
 	while true; do
