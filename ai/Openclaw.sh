@@ -5563,7 +5563,7 @@ PY
 # SSH/S3配置在应用数据之外；远端只清理本脚本命名的归档。
 AI_LOG_MAX_BYTES=2097152
 AI_LOG_BACKUPS=3
-air_remote_engine() {
+air_single_remote_engine() {
     python3 - "$REMOTE_DIR" "$BACKUP_DIR" "$BACKUP_PREFIX" "$AI_APP_ID" "$AI_APP_LABEL" "$@" 3<&0 <<'PY'
 import os,sys,pathlib,json,re,subprocess,getpass,urllib.parse,tempfile,time,hashlib,tarfile
 sys.stdin=os.fdopen(3)
@@ -5767,20 +5767,9 @@ except Exception as e:
     print('远程备份失败：'+(str(e) if isinstance(e,ValueError) else type(e).__name__),file=sys.stderr); sys.exit(1)
 PY
 }
-air_repair_remote_schedules() {
-    local kind failed=0
-    for kind in ssh-backup ssh s3; do
-        if [[ -f $REMOTE_DIR/$kind.json && -f $REMOTE_DIR/$kind.conf ]]; then
-            if ! air_remote_schedule "$kind" enable >/dev/null; then
-                air_error "修复$kind定时任务失败，配置与备份保留。"
-                failed=1
-            fi
-        fi
-    done
-    return "$failed"
-}
+
 # 配置修改顺序：配置锁→对应任务锁，均非阻塞；不同应用路径独立。
-air_configuration_locked() (
+air_single_configuration_locked() (
     local kind=$1
     shift
     umask 077
@@ -5798,7 +5787,7 @@ air_configure_remote_task() {
 air_delete_remote_task() {
     air_remote_schedule_unlocked "$1" remove && air_remote_engine delete "$1"
 }
-air_remote_schedule_unlocked() {
+air_single_remote_schedule_unlocked() {
     local kind=$1 action=$2 calendar script unit="ai-${AI_APP_ID}-backup-$1"
     [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || return 1
     command -v systemctl >/dev/null && [[ -d /run/systemd/system ]] || { air_error "定时备份需要systemd；配置可保留，仍可手动执行。"; return 1; }
@@ -5824,11 +5813,12 @@ air_remote_schedule_unlocked() {
         if [[ -e $target ]] && [[ $(IFS= read -r line < "$target"; printf '%s' "$line") != "# AI_APP_ID=$AI_APP_ID managed remote backup" ]]; then air_error "同名外部unit，拒绝覆盖：$target"; return 1; fi
     done
     local changed
-    changed=$(python3 - "$unit" "$script" "$kind" "$calendar" "$AI_APP_ID" "$AI_APP_LABEL" <<'PY'
+    changed=$(python3 - "$unit" "$script" "$kind" "$calendar" "$AI_APP_ID" "$AI_APP_LABEL" "${AIR_TASK_NAME:-}" <<'PY'
 import sys,pathlib
-unit,script,kind,calendar,app_id,label=sys.argv[1:]
+unit,script,kind,calendar,app_id,label,task_name=sys.argv[1:]
 base=pathlib.Path('/etc/systemd/system')
-service_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' remote backup\n[Service]\nType=oneshot\nUMask=0077\nExecStart=/bin/bash '+script+' --remote '+kind+' --scheduled\nStandardOutput=null\nStandardError=null\nTimeoutStartSec=2h\n')
+remote_args=('--remote-task '+task_name+' '+kind) if task_name else ('--remote '+kind)
+service_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' remote backup\n[Service]\nType=oneshot\nUMask=0077\nExecStart=/bin/bash '+script+' '+remote_args+' --scheduled\nStandardOutput=null\nStandardError=null\nTimeoutStartSec=2h\n')
 timer_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' daily remote backup\n[Timer]\nOnCalendar='+calendar+'\nPersistent=false\n[Install]\nWantedBy=timers.target\n')
 changed=False
 for suffix,content in (('.service',service_content),('.timer',timer_content)):
@@ -5906,7 +5896,7 @@ air_remote_run() {
     fi
     return "$rc"
 }
-air_remote_locked_run() (
+air_single_remote_locked_run() (
     local kind=$1
     [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || exit 1
     umask 077
@@ -5932,59 +5922,7 @@ air_remote_choose_ssh() {
     IFS= read -r -p "选择任务（0取消）：" selection || return 1
     case "$selection" in 1) AI_SELECTED_REMOTE=ssh-backup ;; 2) AI_SELECTED_REMOTE=ssh ;; *) return 1 ;; esac
 }
-air_remote_menu() {
-    local kind=$1 choice confirm target
-    air_ensure_environment remote || return 1
-    air_repair_remote_schedules || air_error "部分已有定时任务未能修复，请检查上述提示。"
-    while true; do
-        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
-        echo "=================================="
-        if [[ $kind == ssh ]]; then
-            echo "${AI_APP_LABEL} SSH 远程备份配置"
-        else
-            echo "${AI_APP_LABEL} S3 API 兼容备份配置"
-        fi
-        echo "=================================="
-        air_remote_summary "$kind"
-        if [[ $kind == ssh ]]; then
-            echo "1. 添加SSH备份任务（定时备份并上传）"
-            echo "2. 添加传送任务（有新备份直接传送，不打包）"
-        else
-            echo "1. 添加S3任务（有新备份直接传送，不打包）"
-        fi
-        echo "7. 测试远端读取"
-        echo "8. 立即执行任务"
-        echo "9. 删除任务（保留备份）"
-        echo "0. 返回"
-        IFS= read -r -p "请输入选项：" choice || return 0
-        case "$choice" in
-            1)
-                target=s3; [[ $kind != ssh ]] || target=ssh-backup
-                if [[ $target == ssh-backup ]]; then air_locked air_configure_local_retention || continue; fi
-                air_configuration_locked "$target" air_configure_remote_task "$target"
-                ;;
-            2)
-                if [[ $kind == ssh ]]; then air_configuration_locked ssh air_configure_remote_task ssh
-                else echo "无效选项。"; fi
-                ;;
-            7|8|9)
-                target=s3
-                if [[ $kind == ssh ]]; then air_remote_choose_ssh || continue; target=$AI_SELECTED_REMOTE; fi
-                case "$choice" in
-                    7) air_remote_engine test "$target" ;;
-                    8) air_remote_locked_run "$target" ;;
-                    9)
-                        IFS= read -r -p "输入yes确认删除本任务配置与定时：" confirm || return 0
-                        [[ $confirm != yes ]] || { air_configuration_locked "$target" air_delete_remote_task "$target"; }
-                        ;;
-                esac
-                ;;
-            0) return 0 ;;
-            *) echo "无效选项。" ;;
-        esac
-        IFS= read -r -p "按回车继续..." _ || return 0
-    done
-}
+
 
 air_remote_summary() {
     # 主菜单仅读取本地配置及timer状态，不连接远端，不显示凭据。
@@ -6032,6 +5970,148 @@ for index,(kind,title,default) in enumerate(groups):
     print('------------------------' if index==0 and scope!='s3' else '==================================')
 PY
 }
+
+# Named-task context: old singleton configurations remain usable unchanged.
+air_task_context() {
+    local selector="$1"
+    AIR_BASE_CONFIG="$BACKUP_DIR/config"
+    AIR_BASE_APP_ID="${AIR_BASE_APP_ID:-$AI_APP_ID}"
+    if [[ "$selector" == *@* ]]; then
+        AIR_TASK_KIND="${selector%%@*}"
+        AIR_TASK_NAME="${selector#*@}"
+        [[ "$AIR_TASK_NAME" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { air_error '配置名称无效'; return 1; }
+        [[ "$AIR_TASK_KIND" == ssh-backup || "$AIR_TASK_KIND" == ssh || "$AIR_TASK_KIND" == s3 ]] || return 1
+        REMOTE_DIR="$AIR_BASE_CONFIG/tasks/$AIR_TASK_NAME"
+        RETENTION_FILE="$REMOTE_DIR/local-retention.json"
+        AI_APP_ID="$AIR_BASE_APP_ID-task-$AIR_TASK_NAME"
+    else
+        AIR_TASK_KIND="$selector"
+    fi
+}
+air_remote_engine() (
+    local mode="$1" selector="$2"; shift 2
+    air_task_context "$selector" || exit 1
+    air_single_remote_engine "$mode" "$AIR_TASK_KIND" "$@"
+)
+air_configuration_locked() (
+    local selector="$1"; shift
+    air_task_context "$selector" || exit 1
+    air_single_configuration_locked "$AIR_TASK_KIND" "$@"
+)
+air_remote_schedule_unlocked() (
+    local selector="$1"; shift
+    air_task_context "$selector" || exit 1
+    air_single_remote_schedule_unlocked "$AIR_TASK_KIND" "$@"
+)
+air_remote_locked_run() (
+    local selector="$1"; shift
+    air_task_context "$selector" || exit 1
+    air_single_remote_locked_run "$AIR_TASK_KIND" "$@"
+)
+air_task_selectors() {
+    python3 - "$BACKUP_DIR/config" "${1:-all}" <<'PY_NTASKS'
+import sys,json,re
+from pathlib import Path
+root=Path(sys.argv[1]); scope=sys.argv[2]
+kinds=['ssh-backup','ssh'] if scope=='ssh' else ['s3'] if scope=='s3' else ['ssh-backup','ssh','s3']
+for kind in kinds:
+    if (root/(kind+'.json')).is_file() and (root/(kind+'.conf')).is_file(): print(kind)
+    for folder in sorted((root/'tasks').glob('*')):
+        if folder.is_symlink() or not re.fullmatch(r'[a-z][a-z0-9_-]{0,31}',folder.name): continue
+        if (folder/(kind+'.json')).is_file() and (folder/(kind+'.conf')).is_file(): print(kind+'@'+folder.name)
+PY_NTASKS
+}
+air_named_summary() {
+    local scope="${1:-all}" selector dir kind idx=0 title group
+    local -a selectors=()
+    mapfile -t selectors < <(air_task_selectors "$scope")
+    for group in ssh-backup ssh s3; do
+        [[ "$scope" != ssh || "$group" != s3 ]] || continue
+        [[ "$scope" != s3 || "$group" == s3 ]] || continue
+        case "$group" in ssh-backup) title=SSH备份;; ssh) title=传送任务;; s3) title='S3 API 兼容传送任务';; esac
+        echo "$title"; echo '备注名   状态'
+        local found=0
+        for selector in "${selectors[@]}"; do
+            kind="${selector%%@*}"; [ "$kind" = "$group" ] || continue
+            idx=$((idx+1));found=1
+            dir="$BACKUP_DIR/config"
+            [[ "$selector" != *@* ]] || dir="$dir/tasks/${selector#*@}"
+            python3 - "$dir/$kind.json" "$idx" "$selector" "$AI_APP_ID" <<'PY_NSUMMARY'
+import sys,json,subprocess
+p,index,selector,base_app=sys.argv[1:]; d=json.load(open(p));kind=selector.split('@')[0]
+app=base_app+'-task-'+selector.split('@')[1] if '@' in selector else base_app
+unit='ai-'+app+'-backup-'+kind+'.timer'
+try: active=subprocess.run(['systemctl','is-active','--quiet',unit],capture_output=True,timeout=2).returncode==0
+except (OSError,subprocess.TimeoutExpired): active=False
+state='\033[32m正常（定时运行中）\033[0m' if active else '\033[33m异常（定时未运行）\033[0m'
+name=''.join(c for c in str(d.get('name',selector)) if c.isprintable())
+timing='每30秒检测新备份并传送' if d.get('action')=='transfer' else '每'+str(d.get('interval','7d')).removesuffix('d')+'天 '+str(d.get('calendar',''))+'（北京时间）'
+print(index+'. '+name+'   '+state+'  '+timing)
+PY_NSUMMARY
+        done
+        [ "$found" = 1 ] || echo 暂无
+        [ "$group" != ssh-backup ] && echo '==================================' || echo '------------------------'
+    done
+}
+air_repair_remote_schedules() {
+    local selector failed=0
+    while IFS= read -r selector; do
+        [ -n "$selector" ] || continue
+        air_remote_schedule "$selector" enable >/dev/null || { air_error "修复 $selector 失败"; failed=1; }
+    done < <(air_task_selectors all)
+    return "$failed"
+}
+air_remote_menu() {
+    local scope="$1" choice name target selected confirm
+    local -a selectors=()
+    air_ensure_environment remote || return 1
+    air_repair_remote_schedules
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo '=================================='
+        echo "$AI_APP_LABEL ${scope^^} 远程备份配置"
+        echo '=================================='
+        air_named_summary "$scope"
+        if [ "$scope" = ssh ]; then
+            echo '1. 添加SSH备份任务（定时备份并上传）'
+            echo '2. 添加传送任务（有新备份直接传送，不打包）'
+        else echo '1. 添加S3任务（有新备份直接传送，不打包）'; fi
+        echo '7. 测试远端读取';echo '8. 立即执行任务';echo '9. 删除任务（保留备份）';echo '0. 返回'
+        read -r -p '请输入选项：' choice || return 0
+        case "$choice" in
+            1|2)
+                if [ "$scope" = s3 ]; then [ "$choice" = 1 ] || continue; target=s3
+                elif [ "$choice" = 1 ]; then target=ssh-backup; else target=ssh; fi
+                read -r -p '配置名称（小写字母开头，数字/横线/下划线，最多32位）: ' name || return 0
+                [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo '名称无效'; continue; }
+                if [ -e "$BACKUP_DIR/config/tasks/$name" ]; then echo '配置名称已存在，请使用新名称（不会修改正在运行的任务）。'; continue; fi
+                air_configuration_locked "$target@$name" air_named_configure "$target" || echo '任务添加未完成，已保存配置可在重开菜单时重试定时修复。'
+                ;;
+            7|8|9)
+                mapfile -t selectors < <(air_task_selectors "$scope")
+                read -r -p '任务编号（0返回）: ' selected || return 0
+                [ "$selected" != 0 ] || continue
+                [[ "$selected" =~ ^[1-9][0-9]*$ ]] && [ "$selected" -le "${#selectors[@]}" ] || { echo '编号无效'; continue; }
+                target="${selectors[$((selected-1))]}"
+                case "$choice" in
+                    7) air_remote_engine test "$target" ;;
+                    8) air_remote_locked_run "$target" ;;
+                    9) read -r -p '输入yes删除该任务（保留备份）: ' confirm; [ "$confirm" != yes ] || air_configuration_locked "$target" air_delete_remote_task "${target%%@*}" ;;
+                esac
+                ;;
+            0) return 0 ;;
+            *) echo 无效选项 ;;
+        esac
+    done
+}
+air_named_configure() {
+    local kind="$1"
+    if [ "$kind" = ssh-backup ]; then air_configure_local_retention || return 1; fi
+    air_remote_engine configure "$kind" || return 1
+    [ -f "$REMOTE_DIR/$kind.json" ] && [ -f "$REMOTE_DIR/$kind.conf" ] || return 1
+    air_remote_schedule_unlocked "$kind" enable
+}
+
 
 air_manager_init() {
     BACKUP_DIR="$OPENCLAW_BACKUP_DIR"
@@ -6340,7 +6420,7 @@ ai_local_backup() {
 			echo "备份目录：$(openclaw_custom_backup_root)"
 			echo "数据目录：$(openclaw_custom_data_dir)"
 			echo "---------------------------------------"
-			air_remote_summary all
+			air_named_summary all
 			echo "1. 备份 OpenClaw 自制全量"
 			echo "2. 还原 OpenClaw 自制全量（自动安装/更新并启动）"
 			echo "3. SSH 远程备份配置"
@@ -6544,6 +6624,12 @@ ai_local_backup() {
 
 
 
+if [[ ${1:-} == --remote-task ]]; then
+    air_manager_init || exit 1
+    air_ensure_environment || exit 1
+    air_remote_locked_run "${3:-}@${2:-}" "${4:-}"
+    exit $?
+fi
 if [[ ${1:-} == --remote ]]; then
     air_manager_init || exit 1
     air_ensure_environment || exit 1
