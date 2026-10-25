@@ -6268,9 +6268,9 @@ linux_panel() {
     check_path "99" "/root/.hermes"
     check_docker "100" "lobehub"
     # agent-ai 是备份工具：仅下载脚本不算安装，至少配置一个远程目标才标记。
-    if [ -f "/root/agent-ai.d/agent-ai.sh" ]; then
+    if [ -f "/root/yingyong/agent-ai.d/agent-ai.sh" ]; then
         local agent_ai_config
-        for agent_ai_config in /root/agent-ai.d/*.conf; do
+        for agent_ai_config in /root/yingyong/agent-ai.d/*.conf; do
             [ -f "$agent_ai_config" ] || continue
             if grep -Eq "^REMOTE_HOST=['\"]?[^'\"[:space:]]+" "$agent_ai_config" && \
                grep -Eq "^REMOTE_USER=['\"]?[^'\"[:space:]]+" "$agent_ai_config"; then
