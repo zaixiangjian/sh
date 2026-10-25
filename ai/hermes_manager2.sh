@@ -1,5 +1,9 @@
 #!/bin/bash
-# 换模型可以成功检测
+
+# 备份保存目录、文件名前缀与还原自动查找目录
+HERMES_BACKUP_DIR="/home/备份/hermes"
+HERMES_BACKUP_PREFIX="hermes"
+HERMES_RESTORE_DIRS=("$HERMES_BACKUP_DIR" "/home" "/root")
 # Hermes Agent 终端管理脚本 (轻量版)
 # 设计哲学：极简、直观、调用原生功能
 
@@ -9,6 +13,29 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
+
+# Debian/Ubuntu 精简系统：启动时按需补装 Python 3。
+hermes_manager_ensure_python3() {
+    command -v python3 >/dev/null 2>&1 && return 0
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "❌ 缺少 python3，请使用 root 运行脚本以自动安装。" >&2
+        return 1
+    fi
+    if ! command -v apt-get >/dev/null 2>&1; then
+        echo "❌ 未找到 apt-get，请手动安装 python3。" >&2
+        return 1
+    fi
+    echo "正在安装缺失的依赖：python3"
+    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y python3 || {
+        echo "❌ python3 安装失败，请检查软件源或网络后重试。" >&2
+        return 1
+    }
+    command -v python3 >/dev/null 2>&1 || {
+        echo "❌ 安装后仍未找到 python3。" >&2
+        return 1
+    }
+}
+hermes_manager_ensure_python3 || exit 1
 
 # 确保 hermes 命令可用 (处理环境变量未加载的情况)
 if ! command -v hermes >/dev/null 2>&1; then
@@ -331,8 +358,6 @@ url = base_url + "/chat/completions"
 payload = json.dumps({"model": model, "messages": [{"role": "user", "content": "hi"}], "temperature": 0, "max_tokens": 16}).encode()
 req = urllib.request.Request(url, data=payload, headers={
     "Content-Type": "application/json",
-    "Accept": "application/json",
-    "User-Agent": "Hermes-Model-Probe/1.0",
     "Authorization": f"Bearer {api_key}",
 }, method="POST")
 
@@ -406,22 +431,7 @@ PYEOF
         return 0
     else
         HERMES_PROBE_STATUS="FAIL"
-        local reply_lower
-        reply_lower=$(printf '%s' "$reply_preview" | tr '[:upper:]' '[:lower:]')
-        case "$reply_lower" in
-            *"error code: 1010"*)
-                HERMES_PROBE_MESSAGE="HTTP ${p_http:-0} / exit ${p_exit:-1}；检测请求被防火墙/WAF 拦截，不等于模型名错误"
-                ;;
-            *"all available accounts exhausted"*|*"no available accounts"*)
-                HERMES_PROBE_MESSAGE="HTTP ${p_http:-0} / exit ${p_exit:-1}；接口可达，但后端账号池无可用账号"
-                ;;
-            *"upstream access forbidden"*)
-                HERMES_PROBE_MESSAGE="HTTP ${p_http:-0} / exit ${p_exit:-1}；接口可达，但上游访问被拒绝/未授权"
-                ;;
-            *)
-                HERMES_PROBE_MESSAGE="HTTP ${p_http:-0} / exit ${p_exit:-1}"
-                ;;
-        esac
+        HERMES_PROBE_MESSAGE="HTTP ${p_http:-0} / exit ${p_exit:-1}"
         HERMES_PROBE_LATENCY="${p_latency:-?}ms"
         HERMES_PROBE_REPLY="$reply_preview"
         return 1
@@ -813,17 +823,229 @@ check_installed() {
     if command -v hermes >/dev/null 2>&1; then return 0; else return 1; fi
 }
 
-# 获取版本号（优先直接读取安装元数据，避免启动 hermes CLI 导致菜单变慢）
+# 只读核对官方 main：不使用 Hermes 的缓存更新提示，也不 fetch/reset。
+# 返回：0=一致，1=不同，2=无法确认，3=非官方 main。
+verify_official_main() {
+    local version_text="$1" install_dir method branch remote local_sha remote_output remote_sha
+    HERMES_MAIN_STATUS="无法确认是否最新"
+    HERMES_LOCAL_SHA=""
+    HERMES_REMOTE_SHA=""
+    install_dir=$(printf '%s\n' "$version_text" | sed -n 's/^Install directory: //p' | head -n 1)
+    method=$(printf '%s\n' "$version_text" | sed -n 's/^Install method: //p' | head -n 1)
+    if [ "$method" != git ] || [ -z "$install_dir" ] || ! command -v git >/dev/null 2>&1; then
+        HERMES_MAIN_STATUS="无法确认是否最新（安装信息不完整或非 Git 安装）"
+        return 2
+    fi
+    branch=$(git -C "$install_dir" symbolic-ref --quiet --short HEAD 2>/dev/null) || branch=""
+    remote=$(git -C "$install_dir" remote get-url origin 2>/dev/null) || remote=""
+    case "$remote" in
+        https://github.com/NousResearch/hermes-agent|https://github.com/NousResearch/hermes-agent.git|git@github.com:NousResearch/hermes-agent.git|ssh://git@github.com/NousResearch/hermes-agent.git) ;;
+        *) HERMES_MAIN_STATUS="非官方 main（安装源不同）"; return 3 ;;
+    esac
+    if [ "$branch" != main ]; then
+        HERMES_MAIN_STATUS="非官方 main（当前分支：${branch:-分离 HEAD}）"
+        return 3
+    fi
+    local_sha=$(git -C "$install_dir" rev-parse --verify HEAD 2>/dev/null) || return 2
+    if ! command -v timeout >/dev/null 2>&1; then
+        HERMES_MAIN_STATUS="无法确认是否最新（缺少 timeout）"
+        return 2
+    fi
+    # API 仅返回 SHA，比 Git 协议查询更轻；失败再短时尝试 Git。
+    remote_sha=""
+    if command -v curl >/dev/null 2>&1; then
+        remote_sha=$(curl -fsSL --connect-timeout 2 --max-time 4 \
+            -H 'Accept: application/vnd.github.sha' -H 'Cache-Control: no-cache' \
+            https://api.github.com/repos/NousResearch/hermes-agent/commits/main 2>/dev/null) || remote_sha=""
+    fi
+    if [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        remote_output=$(GIT_TERMINAL_PROMPT=0 timeout 3 git -c credential.helper= ls-remote --exit-code https://github.com/NousResearch/hermes-agent.git refs/heads/main 2>/dev/null) || {
+            HERMES_MAIN_STATUS="无法确认是否最新（查询失败；更新请运行 hermes update）"
+            return 2
+        }
+        remote_sha=$(printf '%s\n' "$remote_output" | awk '$2 == "refs/heads/main" {print $1}')
+    fi
+    if [[ ! "$local_sha" =~ ^[0-9a-f]{40}$ ]] || [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        HERMES_MAIN_STATUS="无法确认是否最新（提交信息异常）"
+        return 2
+    fi
+    HERMES_LOCAL_SHA="$local_sha"
+    HERMES_REMOTE_SHA="$remote_sha"
+    if [ "$local_sha" = "$remote_sha" ]; then
+        HERMES_MAIN_STATUS="已是最新（已实时核对官方 main）"
+        return 0
+    fi
+    HERMES_MAIN_STATUS="与官方 main 不一致（远端 ${remote_sha:0:7}；更新：hermes update 或菜单 7）"
+    return 1
+}
+
+# 使用执行中的 Hermes 运行时及官方通道解析器，只读核对更新目标。
+verify_update_channel() {
+    local version_text="$1" result channel local_sha target_sha state
+    HERMES_LOCAL_SHA=""; HERMES_REMOTE_SHA=""
+    HERMES_MAIN_STATUS="无法检测当前更新通道"
+    result="$(timeout 15 python3 - <<'PY_CHANNEL' 2>/dev/null
+import json, subprocess
+cmd=json.loads(subprocess.check_output(['hermes','--print-runtime-command'],text=True,timeout=2))
+old="runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if not isinstance(cmd,list) or len(cmd)<3 or cmd[-2]!='-c' or old not in cmd[-1]:
+    raise SystemExit(1)
+code='''
+from pathlib import Path
+import subprocess
+from hermes_cli.config import load_config
+from hermes_cli.update_channel import resolve_update_channel, channel_record, rides_default_channel
+from hermes_cli.source_releases import resolve_source_target
+root=Path(__import__('hermes_cli').__file__).resolve().parent.parent
+config=load_config()
+channel=resolve_update_channel(config,root)
+head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True,timeout=2).strip()
+if channel=='main':
+    print('main|'+head+'||main')
+else:
+    try:
+        target=resolve_source_target(channel,['git'],str(root),forward_only=rides_default_channel(channel_record(config,root),channel,root))
+    except Exception:
+        if channel!='stable':
+            raise
+        # GitHub API 限流时，直接使用官方发布页重定向及官方标签。
+        import re, urllib.request
+        from types import SimpleNamespace
+        with urllib.request.urlopen('https://github.com/NousResearch/hermes-agent/releases/latest',timeout=4) as response:
+            url=response.url
+        match=re.fullmatch(r'https://github.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)',url)
+        if not match:
+            raise ValueError('invalid official release redirect')
+        tag=match[1]
+        remote=subprocess.check_output(['git','-c','credential.helper=','ls-remote','--exit-code','https://github.com/NousResearch/hermes-agent.git','refs/tags/'+tag,'refs/tags/'+tag+'^{}'],text=True,timeout=4)
+        refs=dict(line.split()[::-1] for line in remote.splitlines())
+        sha=refs.get('refs/tags/'+tag+'^{}',refs.get('refs/tags/'+tag,''))
+        if not re.fullmatch(r'[0-9a-f]{40}',sha):
+            raise ValueError('invalid official release SHA')
+        ahead=False
+        if head!=sha and rides_default_channel(channel_record(config,root),channel,root):
+            ancestry=subprocess.run(['git','-C',str(root),'merge-base','--is-ancestor',sha,head],capture_output=True,timeout=2)
+            if ancestry.returncode not in (0,1):
+                raise ValueError('cannot verify release ancestry')
+            ahead=ancestry.returncode==0
+        target=SimpleNamespace(commit=head if ahead else sha,ahead=ahead)
+    if not target.commit:
+        raise ValueError('unsupported branch delivery')
+    state='ahead' if target.ahead else ('equal' if head==target.commit else 'different')
+    print(channel+'|'+head+'|'+target.commit+'|'+state)
+'''
+cmd[-1]=cmd[-1].replace(old,code)
+subprocess.run(cmd,check=True,timeout=12)
+PY_CHANNEL
+    )" || return 2
+    IFS='|' read -r channel local_sha target_sha state <<< "$result"
+    if [ "$channel" = main ] && [ "$state" = main ]; then
+        verify_official_main "$version_text"
+        return $?
+    fi
+    [[ "$local_sha" =~ ^[0-9a-f]{40}$ ]] && [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]] || return 2
+    HERMES_LOCAL_SHA="$local_sha"; HERMES_REMOTE_SHA="$target_sha"
+    case "$state" in
+        equal) HERMES_MAIN_STATUS="已是最新（已核对 ${channel} 更新目标）"; return 0 ;;
+        ahead) HERMES_MAIN_STATUS="已是最新（本地代码领先 ${channel} 发布版，等待下一次发布）"; return 0 ;;
+        different) HERMES_MAIN_STATUS="${channel} 通道有更新（使用菜单 7 或 hermes update）"; return 1 ;;
+        *) return 2 ;;
+    esac
+}
+
+# 仅显示官方稳定发布版本号；不使用 PyPI 或本地缓存代替官方查询。
+get_official_release_version() {
+    local release url
+    command -v curl >/dev/null 2>&1 || return 1
+    release="$(curl -fsSL --connect-timeout 2 --max-time 4 \
+        -H 'Accept: application/vnd.github+json' -H 'Cache-Control: no-cache' \
+        https://api.github.com/repos/NousResearch/hermes-agent/releases/latest 2>/dev/null |
+        python3 -c 'import json,re,sys
+try:
+    data=json.load(sys.stdin)
+    tag=data.get("tag_name", "")
+    if data.get("draft") or data.get("prerelease") or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+        raise ValueError("invalid stable release")
+    print(tag)
+except (ValueError, TypeError, AttributeError):
+    sys.exit(1)' 2>/dev/null)"
+    if [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        printf '%s\n' "$release"; return 0
+    fi
+    url="$(curl -fsSL --connect-timeout 2 --max-time 5 -o /dev/null -w '%{url_effective}' \
+        https://github.com/NousResearch/hermes-agent/releases/latest 2>/dev/null)" || return 1
+    if [[ "$url" =~ ^https://github\.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+}
+
+# 版本行用于展示；是否最新必须实时核对官方 main。
 get_version() {
     if ! check_installed; then
         return
     fi
 
-    local hermes_bin python_bin venv_dir metadata version
-    hermes_bin="$(command -v hermes 2>/dev/null)"
+    local hv first_line update_line hermes_bin python_bin venv_dir metadata version
 
-    # pip/venv 生成的 hermes 入口第一行通常指向 venv/bin/python3。
-    # 直接读 dist-info/METADATA，比执行 `hermes --version` 更快。
+    if command -v timeout >/dev/null 2>&1; then
+        # 使用官方运行时输出本地版本信息，关闭其缓存/联网更新检查。
+        # 旧版不支持运行时查询时，短时回退到 --version。
+        hv="$(timeout 3 python3 - <<'PY_VERSION' 2>/dev/null
+import json, subprocess
+cmd = json.loads(subprocess.check_output(['hermes', '--print-runtime-command'], text=True, timeout=2))
+if not isinstance(cmd, list) or len(cmd) < 3 or cmd[-2] != '-c':
+    raise SystemExit(1)
+old = "runpy.run_module('hermes_cli.main', run_name='__main__', alter_sys=True)"
+if old not in cmd[-1]:
+    raise SystemExit(1)
+cmd[-1] = cmd[-1].replace(old, 'from hermes_cli._startup_fast import print_fast_version_info; print_fast_version_info(check_updates=False)')
+subprocess.run(cmd, check=True, timeout=2)
+PY_VERSION
+        )" || hv=""
+        [ -n "$hv" ] || hv="$(timeout 3 hermes --version 2>/dev/null || true)"
+    else
+        hv="$(hermes --version 2>/dev/null || true)"
+    fi
+
+    first_line="$(echo "$hv" | sed -n '1p')"
+    if [ -n "$first_line" ]; then
+        local verify_rc display_version official_version local_base
+        verify_update_channel "$hv"
+        verify_rc=$?
+        # 仅保留版本及提交数，不展示日期、分支或本地/远端 SHA。
+        display_version="$(printf '%s\n' "$first_line" | sed -E 's/^Hermes Agent //; s/[[:space:]]*\(.*//; s/[[:space:]]*·.*//; s/\+([0-9]+)\.g[0-9a-f]+(\.dirty)?/\+\1个 Git 提交/')"
+        # 上方仅比较稳定发布版本号；与下面的 main 提交核对独立。
+        official_version="$(get_official_release_version)"
+        local_base="$(extract_semver "$display_version")"
+        if [ -z "$official_version" ] || [ -z "$local_base" ]; then
+            printf '%s %b无法检测%b\n' "$display_version" "$YELLOW" "$NC"
+        elif [ "${local_base#v}" = "${official_version#v}" ]; then
+            printf '%s %b最新版本%b\n' "$display_version" "$GREEN" "$NC"
+        elif version_lt "${local_base#v}" "${official_version#v}"; then
+            printf '%s %b新版本 %s%b\n' "$display_version" "$RED" "$official_version" "$NC"
+        else
+            printf '%s 官方版本%s %b本地版本较新%b\n' "$display_version" "$official_version" "$YELLOW" "$NC"
+        fi
+        local display_local display_remote
+        display_local="$(printf '%s\n' "$first_line" | sed -nE 's/.*\.g([0-9a-f]+).*/\1/p')"
+        [ -n "$HERMES_LOCAL_SHA" ] && display_local="$HERMES_LOCAL_SHA"
+        display_remote="${HERMES_REMOTE_SHA:0:7}"
+        printf '当前版本 : %s\n' "${display_local:0:7}"
+        printf '更新目标 : %s\n' "${display_remote:-未获取}"
+        case "$verify_rc" in
+            0) printf '%b%s%b\n' "$GREEN" "$HERMES_MAIN_STATUS" "$NC" ;;
+            1) printf '%b%s%b\n' "$RED" "$HERMES_MAIN_STATUS" "$NC" ;;
+            *) printf '%b%s%b\n' "$YELLOW" "$HERMES_MAIN_STATUS" "$NC" ;;
+        esac
+        printf '%b使用下方代码只在这一次更新最新提交 main 谨慎使用%b\n' "$YELLOW" "$NC"
+        printf '%s\n' 'hermes update --channel main'
+        return
+    fi
+
+    # 兜底：如果 hermes --version 异常，再读 dist-info/METADATA。
+    hermes_bin="$(command -v hermes 2>/dev/null)"
     if [ -n "$hermes_bin" ] && [ -r "$hermes_bin" ]; then
         python_bin="$(sed -n '1s/^#!//p' "$hermes_bin" 2>/dev/null)"
         if [ -n "$python_bin" ] && [ -x "$python_bin" ]; then
@@ -832,15 +1054,12 @@ get_version() {
                 [ -r "$metadata" ] || continue
                 version="$(sed -n 's/^Version: //p' "$metadata" 2>/dev/null | sed -n '1p')"
                 if [ -n "$version" ]; then
-                    echo "Hermes Agent v${version#v}"
+                    printf 'v%s %b无法检测%b\n' "${version#v}" "$YELLOW" "$NC"
                     return
                 fi
             done
         fi
     fi
-
-    # 兜底：兼容非标准安装方式。
-    hermes --version 2>/dev/null | sed -n '1p'
 }
 
 # 提取语义版本号，例如 v0.13.0 / 0.13.0
@@ -988,12 +1207,581 @@ get_hermes_home_dir() {
     echo "$HOME/.hermes"
 }
 
+# Reusable adaptation of CLIProxyAPI.sh original single-kind SSH/S3 engine.
+# Parent supplies BACKUP_DIR BACKUP_PREFIX (including separator), REMOTE_DIR,
+# LOCK_FILE RETENTION_FILE AI_APP_ID AI_APP_LABEL and ai_local_backup.
+# Set AI_MANAGER_SCRIPT to the installed parent manager for systemd ExecStart.
+# Source only defines functions; never installs timers or executes backups.
+air_init() {
+    [[ ${AI_APP_ID:-} == openclaw || ${AI_APP_ID:-} == hermes ]] || return 1
+    [[ -n ${AI_APP_LABEL:-} && ${BACKUP_DIR:-} == /* && -n ${BACKUP_PREFIX:-} && $BACKUP_PREFIX != */* ]] || return 1
+    [[ ${REMOTE_DIR:-} == "$BACKUP_DIR/config" && ${LOCK_FILE:-} == "$BACKUP_DIR/backup.lock" && ${RETENTION_FILE:-} == "$REMOTE_DIR/local-retention.json" ]] || return 1
+    declare -F ai_local_backup >/dev/null
+}
+air_error() { echo "错误：$*" >&2; }
+air_locked() (
+    umask 077
+    mkdir -p "$(dirname "$LOCK_FILE")" || exit 1
+    exec 9>"$LOCK_FILE" || exit 1
+    flock -n 9 || { air_error "应用备份操作正在执行。"; exit 1; }
+    "$@"
+)
+air_ensure_environment() {
+    local cmd
+    for cmd in python3 flock; do command -v "$cmd" >/dev/null || { air_error "请先安装$cmd"; return 1; }; done
+    if [[ ${1:-} == remote ]]; then
+        if ! command -v rclone >/dev/null; then
+            if command -v apt-get >/dev/null; then apt-get update && apt-get install -y rclone openssh-client || return 1
+            else air_error "请先安装rclone和OpenSSH客户端。"; return 1; fi
+        fi
+    fi
+}
+air_remote_backup_app() (
+    umask 077
+    mkdir -p "$BACKUP_DIR" || exit 1
+    AI_NEW_ARCHIVE=
+    ai_local_backup >&2 || exit 1
+    [[ -n ${AI_NEW_ARCHIVE:-} && -f $AI_NEW_ARCHIVE && ! -L $AI_NEW_ARCHIVE ]] || { air_error "本地备份未返回完整归档路径。"; exit 1; }
+    python3 - "$AI_NEW_ARCHIVE" "$BACKUP_DIR" "$BACKUP_PREFIX" <<'PY'
+import sys,pathlib,re,tarfile,gzip
+p=pathlib.Path(sys.argv[1]); root=pathlib.Path(sys.argv[2])
+if p.resolve().parent!=root.resolve() or not re.fullmatch(re.escape(sys.argv[3])+r'\d{8}-\d{6}\.tar\.gz',p.name): raise ValueError('新归档路径不属于当前应用')
+with tarfile.open(p,'r:gz') as a: a.getmembers()
+with gzip.open(p,'rb') as f:
+    while f.read(1024*1024): pass
+PY
+    [[ $? == 0 ]] || exit 1
+    if [[ -z ${AIR_EXACT_RESULT_FILE:-} ]]; then air_prune_local_backups >&2 || exit 1; fi
+    if [[ -n ${AIR_EXACT_RESULT_FILE:-} ]]; then
+        printf '%s\n' "$AI_NEW_ARCHIVE" > "$AIR_EXACT_RESULT_FILE" || exit 1
+    else
+        printf '%s\n' "$AI_NEW_ARCHIVE"
+    fi
+)
+air_manual_remote_backup() { air_configure_local_retention && air_locked air_remote_backup_app; }
+air_configure_local_retention() {
+    local count
+    while true; do
+        IFS= read -r -p "本地备份保留数量（回车默认3）：" count || return 1
+        count=${count:-3}
+        if [[ $count =~ ^[1-9][0-9]{0,5}$ ]] && (( count <= 100000 )); then break; fi
+        air_error "请输入1–100000的正整数。"
+    done
+    python3 - "$RETENTION_FILE" "$count" <<'PY'
+import pathlib,os,json,sys
+p=pathlib.Path(sys.argv[1]); p.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+fd=os.open(p,os.O_CREAT|os.O_TRUNC|os.O_WRONLY,0o600)
+with os.fdopen(fd,'w') as f: json.dump({'keep':int(sys.argv[2])},f)
+os.chmod(p,0o600)
+PY
+}
+air_prune_local_backups() {
+    python3 - "$BACKUP_DIR" "$RETENTION_FILE" "$BACKUP_PREFIX" "${1:-}" <<'PY'
+import pathlib,sys,json,re
+root=pathlib.Path(sys.argv[1]); setting=pathlib.Path(sys.argv[2])
+keep=int(sys.argv[4]) if len(sys.argv)>4 and sys.argv[4] else (json.loads(setting.read_text()).get('keep',3) if setting.exists() else 3)
+if not isinstance(keep,int) or isinstance(keep,bool) or not 1<=keep<=100000: raise ValueError('本地保留数量无效，不执行删除')
+files=sorted((p for p in root.iterdir() if re.fullmatch(re.escape(sys.argv[3])+r'\d{8}-\d{6}\.tar\.gz',p.name) and not p.is_symlink() and p.is_file()),key=lambda p:p.name.replace('-',''),reverse=True)
+for p in files[keep:]: p.unlink()
+print('本地保留最新'+str(keep)+'份备份。')
+PY
+}
+# SSH/S3配置在应用数据之外；远端只清理本脚本命名的归档。
+AI_LOG_MAX_BYTES=2097152
+AI_LOG_BACKUPS=3
+air_remote_engine() {
+    python3 - "$REMOTE_DIR" "$BACKUP_DIR" "$BACKUP_PREFIX" "$AI_APP_ID" "$AI_APP_LABEL" "$@" 3<&0 <<'PY'
+import os,sys,pathlib,json,re,subprocess,getpass,urllib.parse,tempfile,time,hashlib,tarfile
+sys.stdin=os.fdopen(3)
+root=pathlib.Path(sys.argv[1]); backups=pathlib.Path(sys.argv[2]); prefix=sys.argv[3]; app_id=sys.argv[4]; label=sys.argv[5]; mode=sys.argv[6]; kind=sys.argv[7]
+owned_pattern=re.escape(prefix)+r"\d{8}-\d{6}\.tar\.gz"
+if kind not in ('ssh-backup','ssh','s3'): raise ValueError('未知目标')
+root.mkdir(parents=True,exist_ok=True,mode=0o700); os.chmod(root,0o700)
+p=root/(kind+'.json'); conf=root/(kind+'.conf'); known=root/(kind+'-known-hosts')
+def run(args,**kw):
+    return subprocess.run(args,check=True,text=True,capture_output=True,timeout=900,**kw)
+def ask(label,default=''):
+    s=input(label+(' [默认 '+default+']' if default else '')+'：').strip(); return s or default
+def valid(s):
+    if not s or any(c in s for c in '\r\n\0'): raise ValueError('输入为空或含非法字符')
+    return s
+def save(path,text):
+    fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+    with os.fdopen(fd,'w') as f:f.write(text)
+    os.chmod(path,0o600)
+def load():
+    if not p.is_file() or not conf.is_file(): raise ValueError('尚未配置，请先选择1')
+    return json.loads(p.read_text())
+def rc(args): return run(['rclone','--config',str(conf),'--contimeout','15s','--timeout','2m','--retries','2']+args)
+try:
+    if mode=='configure':
+        if p.exists() and ask('已有配置，输入yes确认覆盖')!='yes': sys.exit(0)
+        d={'kind':kind,'keep':0 if kind in ('ssh','ssh-backup') else 3,'action':'backup' if kind=='ssh-backup' else 'transfer'}
+        if kind=='ssh':
+            while True:
+                local_keep=ask('检查本地备份数量（回车默认3）','3')
+                if local_keep.isdigit() and 1<=int(local_keep)<=100000:
+                    d['local_keep']=int(local_keep); break
+                print('请输入1–100000的整数。')
+        if kind in ('ssh-backup','ssh'):
+            while True:
+                keep=ask('远程保留数量（回车默认 3 输入 0 不删除远程备份）','3')
+                if keep.isdigit() and 0<=int(keep)<=100000:
+                    d['keep']=int(keep); break
+                print('请输入0–100000的整数，0表示不删除。')
+        d['name']=valid(ask('任务备注名',{'ssh-backup':'SSH备份','ssh':'SSH传送','s3':'S3传送'}[kind]))
+        if kind in ('ssh','ssh-backup'):
+            host=valid(ask('SSH主机IP或域名')); user=valid(ask('SSH用户名','root')); port=ask('SSH端口','22')
+            if not re.fullmatch(r'[A-Za-z0-9_.:-]+',host) or not re.fullmatch(r'[A-Za-z0-9_-]+',user) or not port.isdigit() or not 1<=int(port)<=65535: raise ValueError('主机/用户/端口无效')
+            auth=ask('SSH认证方式：1私钥 / 2密码','1')
+            if auth not in ('1','2'): raise ValueError('认证方式无效')
+            key=None; password=None
+            if auth=='1':
+                key=pathlib.Path(valid(ask('SSH私钥文件','/root/.ssh/id_ed25519')))
+                if not key.is_file(): raise ValueError('私钥不存在；定时任务需无交互可用的专用私钥')
+            else:
+                print('密码认证需在本机配置中保存可还原密码（权限600），不会进入备份包；rclone obscure不是强加密。')
+                if ask('输入yes确认保存SSH密码')!='yes': sys.exit(0)
+                password=valid(getpass.getpass('SSH密码（隐藏输入）：'))
+            dest=valid(ask('远端专用备份目录',str(backups)))
+            if not dest.startswith('/') or '..' in pathlib.PurePosixPath(dest).parts or dest=='/': raise ValueError('远端目录无效')
+            print('将通过SFTP上传：'+dest+'；'+('不删除远程备份' if d['keep']==0 else '仅保留最新'+str(d['keep'])+'份当前前缀的远程归档'))
+            if ask('输入yes确认目标及清理范围')!='yes': sys.exit(0)
+            text='[remote]\ntype = sftp\nhost = '+host+'\nuser = '+user+'\nport = '+port+'\nknown_hosts_file = none\n'
+            if auth=='1': text+='key_file = '+str(key)+'\n'
+            else:
+                # 密码经stdin传入obscure，不进入命令行参数或日志。
+                obscured=run(['rclone','obscure','-'],input=password+'\n').stdout.strip()
+                if not obscured or '\n' in obscured: raise ValueError('密码处理失败')
+                text+='pass = '+obscured+'\n'
+            d['auth']='key' if auth=='1' else 'password'
+            d['dest']='remote:'+dest
+        else:
+            endpoint=valid(ask('S3 API Endpoint（非管理网页）'))
+            u=urllib.parse.urlsplit(endpoint)
+            if u.scheme!='https' or not u.hostname or u.username or u.password or u.query or u.fragment or u.path not in ('','/'): raise ValueError('Endpoint必须为HTTPS API地址，无用户名/路径/查询参数')
+            bucket=valid(ask('存储桶名称（需提前创建）'))
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{1,62}',bucket): raise ValueError('桶名无效')
+            prefix=valid(ask('桶内专用备份前缀','备份/'+app_id)).strip('/')
+            if not prefix or '..' in prefix.split('/') or ':' in prefix: raise ValueError('前缀无效')
+            region=valid(ask('Region','us-east-1'))
+            access=valid(getpass.getpass('Access Key ID（隐藏输入）：')); secret=valid(getpass.getpass('Secret Access Key（隐藏输入）：'))
+            while True:
+                local_keep=ask('检查本地备份数量（回车默认3）','3')
+                if local_keep.isdigit() and 1<=int(local_keep)<=100000:
+                    d['local_keep']=int(local_keep); break
+                print('请输入1–100000的整数。')
+            while True:
+                keep=ask('S3远程保留数量（回车默认 3 输入 0 不删除远程备份）','3')
+                if keep.isdigit() and 0<=int(keep)<=100000: d['keep']=int(keep); break
+                print('请输入0–100000的整数，0表示不删除。')
+            d['dest']='remote:'+bucket+'/'+prefix
+            print('目标：'+endpoint+'/'+bucket+'/'+prefix+'；保留最新'+str(d['keep'])+'份'+label+'时间戳归档')
+            if ask('输入yes确认目标及清理范围')!='yes': sys.exit(0)
+            text='[remote]\ntype = s3\nprovider = Other\nenv_auth = false\naccess_key_id = '+access+'\nsecret_access_key = '+secret+'\nendpoint = '+endpoint+'\nregion = '+region+'\nforce_path_style = true\nsign_accept_encoding = false\n'
+        if d['action']=='backup':
+            while True:
+                interval=ask('备份间隔（1d/2d/3d/5d/7d/14d/30d）','7d')
+                if interval in ('1d','2d','3d','5d','7d','14d','30d'): break
+                print('请输入完整间隔，例如7d或14d。')
+            d['interval']=interval
+            hour=ask('每日备份北京时间小时（UTC+8）','5'); minute=ask('分钟','0')
+            if not hour.isdigit() or not minute.isdigit() or not 0<=int(hour)<=23 or not 0<=int(minute)<=59: raise ValueError('时间无效')
+            d['calendar']='*-*-* '+f'{int(hour):02}:{int(minute):02}:00 Asia/Shanghai'
+            d['anchor_day']=int((time.time()+8*3600)//86400)
+        else:
+            d['calendar']='*:*:00/30'
+            print('传送监控每30秒检查；仅发送最新完整归档，已成功发送的不重复上传。')
+        # Validate SSH mkdir and readback using a temporary candidate config before replacing saved credentials.
+        if kind in ('ssh','ssh-backup'):
+            fd,candidate=tempfile.mkstemp(prefix=kind+'-candidate-',suffix='.conf',dir=root)
+            os.close(fd)
+            try:
+                save(pathlib.Path(candidate),text)
+                args=['rclone','--config',candidate,'--contimeout','15s','--timeout','2m','--retries','2']
+                run(args+['mkdir',d['dest']])
+                run(args+['lsjson',d['dest'],'--max-depth','1'])
+            finally: os.unlink(candidate)
+        save(conf,text); save(p,json.dumps(d,ensure_ascii=False))
+        state=root/(kind+'-sent.json')
+        if state.exists(): state.unlink()
+        print('配置已保存，权限0600；凭据不进入备份包。')
+    elif mode=='calendar': print(load()['calendar'])
+    elif mode=='action': print(load().get('action','backup'))
+    elif mode=='local-keep': print(load().get('local_keep',3))
+    elif mode=='due':
+        d=load(); interval=d.get('interval','7d')
+        if d.get('action','backup')=='backup' and interval.endswith('d'):
+            days=int(interval[:-1]); today=int((time.time()+8*3600)//86400)
+            sys.exit(0 if (today-int(d.get('anchor_day',today)))%days==0 else 3)
+        sys.exit(0)
+    elif mode=='delete':
+        owned_files=[p,conf,root/(kind+'-sent.json')]
+        if kind in ('ssh','ssh-backup'): owned_files.append(known)
+        for q in owned_files:
+            if q.exists(): q.unlink()
+        print('配置删除，远端和本地备份未删除。')
+    elif mode=='test':
+        d=load(); rc(['lsjson',d['dest'],'--max-depth','1']); print('远端目录读取测试通过（不代表写入权限已验证）')
+    elif mode=='upload':
+        d=load()
+        explicit=sys.argv[8] if len(sys.argv)>8 else ''
+        if explicit:
+            f=pathlib.Path(explicit)
+            if not f.is_file() or f.is_symlink() or f.resolve().parent!=backups.resolve() or not re.fullmatch(owned_pattern,f.name): raise ValueError('指定归档路径或名称无效')
+        else:
+            files=[x for x in backups.glob('*.tar.gz') if x.is_file() and not x.is_symlink()]
+            if not files: print('暂无归档，等待新备份。'); sys.exit(0)
+            f=max(files,key=lambda x:x.stat().st_mtime_ns)
+        st=f.stat()
+        if not explicit and time.time()-st.st_mtime<60: print('最新归档尚未稳定，稍后再传。'); sys.exit(0)
+        with tarfile.open(f,'r:gz') as archive: archive.getmembers()
+        import gzip
+        with gzip.open(f,'rb') as stream:
+            while stream.read(1024*1024): pass
+        digest_hash=hashlib.sha256()
+        with f.open('rb') as stream:
+            for chunk in iter(lambda:stream.read(1024*1024),b''): digest_hash.update(chunk)
+        digest=digest_hash.hexdigest()
+        state=root/(kind+'-sent.json')
+        signature=[f.name,st.st_size,digest]
+        if state.exists() and json.loads(state.read_text())==signature:
+            print('最新归档已传送，跳过。'); sys.exit(0)
+        target=d['dest'].rstrip('/')+'/'+f.name
+        if kind in ('ssh','ssh-backup'):
+            rc(['mkdir',d['dest']]); rc(['lsjson',d['dest'],'--max-depth','1'])
+        rc(['copyto',str(f),target,'--immutable','--ignore-existing','--s3-upload-cutoff','32Mi','--s3-chunk-size','8Mi'])
+        info=json.loads(rc(['lsjson',target,'--stat']).stdout)
+        if info.get('IsDir') or info.get('Size')!=f.stat().st_size: raise ValueError('上传后远端大小校验失败；未执行清理')
+        # 按字节比较本次归档；成功后才允许远端保留清理。
+        rc(['check',str(f.parent),d['dest'],'--include',f.name,'--one-way','--download'])
+        if f.stat().st_size!=st.st_size or f.stat().st_mtime_ns!=st.st_mtime_ns: raise ValueError('归档在传送中发生变化；未清理')
+        if kind in ('s3','ssh-backup','ssh') and d.get('keep',0)!=0:
+            listing=json.loads(rc(['lsjson',d['dest'],'--max-depth','1']).stdout)
+            owned=sorted([x['Path'] for x in listing if not x.get('IsDir') and re.fullmatch(owned_pattern,x.get('Path',''))],key=lambda name:name.replace('-',''),reverse=True)
+            keep=d.get('keep',3)
+            if not isinstance(keep,int) or isinstance(keep,bool) or keep<1: raise ValueError('远程保留数量无效，未清理')
+            for name in owned[keep:]: rc(['deletefile',d['dest'].rstrip('/')+'/'+name])
+            remaining=json.loads(rc(['lsjson',d['dest'],'--max-depth','1']).stdout)
+            if any(x.get('Path') in owned[keep:] for x in remaining): raise ValueError('远端保留清理验证失败')
+        if f.stat().st_size!=st.st_size or f.stat().st_mtime_ns!=st.st_mtime_ns: raise ValueError('归档在传送中发生变化')
+        save(state,json.dumps(signature))
+        retention='远端不删除' if d.get('keep',0)==0 else '远端保留最新'+str(d['keep'])+'份当前前缀归档'
+        print('上传并校验成功：'+f.name+'；'+retention+'；本地数量由本地备份设置独立控制。')
+    else: raise ValueError('未知操作')
+except (EOFError,KeyboardInterrupt):
+    print('已取消。'); sys.exit(1)
+except Exception as e:
+    # 不回显rclone原始输出、S3凭据或完整配置。
+    print('远程备份失败：'+(str(e) if isinstance(e,ValueError) else type(e).__name__),file=sys.stderr); sys.exit(1)
+PY
+}
+air_repair_remote_schedules() {
+    local kind failed=0
+    for kind in ssh-backup ssh s3; do
+        if [[ -f $REMOTE_DIR/$kind.json && -f $REMOTE_DIR/$kind.conf ]]; then
+            if ! air_remote_schedule "$kind" enable >/dev/null; then
+                air_error "修复$kind定时任务失败，配置与备份保留。"
+                failed=1
+            fi
+        fi
+    done
+    return "$failed"
+}
+# 配置修改顺序：配置锁→对应任务锁，均非阻塞；不同应用路径独立。
+air_configuration_locked() (
+    local kind=$1
+    shift
+    umask 077
+    mkdir -p "$REMOTE_DIR" || exit 1
+    exec 7>"$REMOTE_DIR/configuration.lock" || exit 1
+    flock -n 7 || { air_error "配置正在修改，请稍后重试。"; exit 1; }
+    exec 8>"$REMOTE_DIR/$kind.lock" || exit 1
+    flock -n 8 || { air_error "该任务正在执行，未修改配置。"; exit 1; }
+    "$@"
+)
+air_remote_schedule() { air_configuration_locked "$1" air_remote_schedule_unlocked "$@"; }
+air_configure_remote_task() {
+    air_remote_engine configure "$1" && air_remote_schedule_unlocked "$1" enable
+}
+air_delete_remote_task() {
+    air_remote_schedule_unlocked "$1" remove && air_remote_engine delete "$1"
+}
+air_remote_schedule_unlocked() {
+    local kind=$1 action=$2 calendar script unit="ai-${AI_APP_ID}-backup-$1"
+    [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || return 1
+    command -v systemctl >/dev/null && [[ -d /run/systemd/system ]] || { air_error "定时备份需要systemd；配置可保留，仍可手动执行。"; return 1; }
+    local owned_target
+    for owned_target in "/etc/systemd/system/$unit.service" "/etc/systemd/system/$unit.timer"; do
+        if [[ -e $owned_target ]] && [[ $(IFS= read -r line < "$owned_target"; printf '%s' "$line") != "# AI_APP_ID=$AI_APP_ID managed remote backup" ]]; then
+            air_error "同名外部unit，拒绝修改：$owned_target"; return 1
+        fi
+    done
+    if [[ $action == remove ]]; then
+        systemctl disable --now "$unit.timer" || return 1
+        # 不强行终止正在传送的service；删除配置前检查。
+        systemctl is-active --quiet "$unit.service" && { air_error "任务正在运行，请完成后再删除配置。"; return 1; }
+        rm -f "/etc/systemd/system/$unit.timer" "/etc/systemd/system/$unit.service"
+        systemctl daemon-reload
+        return
+    fi
+    calendar=$(air_remote_engine calendar "$kind") || return 1
+    script=$(readlink -f "${AI_MANAGER_SCRIPT:-${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}}") || return 1
+    [[ $script =~ ^/[A-Za-z0-9_./-]+$ ]] || { air_error "定时运行的脚本路径不支持空格或特殊字符。"; return 1; }
+    local target
+    for target in "/etc/systemd/system/$unit.service" "/etc/systemd/system/$unit.timer"; do
+        if [[ -e $target ]] && [[ $(IFS= read -r line < "$target"; printf '%s' "$line") != "# AI_APP_ID=$AI_APP_ID managed remote backup" ]]; then air_error "同名外部unit，拒绝覆盖：$target"; return 1; fi
+    done
+    local changed
+    changed=$(python3 - "$unit" "$script" "$kind" "$calendar" "$AI_APP_ID" "$AI_APP_LABEL" <<'PY'
+import sys,pathlib
+unit,script,kind,calendar,app_id,label=sys.argv[1:]
+base=pathlib.Path('/etc/systemd/system')
+service_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' remote backup\n[Service]\nType=oneshot\nUMask=0077\nExecStart=/bin/bash '+script+' --remote '+kind+' --scheduled\nStandardOutput=null\nStandardError=null\nTimeoutStartSec=2h\n')
+timer_content=('# AI_APP_ID='+app_id+' managed remote backup\n[Unit]\nDescription='+label+' daily remote backup\n[Timer]\nOnCalendar='+calendar+'\nPersistent=false\n[Install]\nWantedBy=timers.target\n')
+changed=False
+for suffix,content in (('.service',service_content),('.timer',timer_content)):
+    p=base/(unit+suffix)
+    if not p.exists() or p.read_text()!=content:
+        p.write_text(content); changed=True
+print('yes' if changed else 'no')
+PY
+    ) || return 1
+    if [[ $changed == yes ]]; then systemctl daemon-reload || return 1; fi
+    if [[ $changed == yes ]] || ! systemctl is-active --quiet "$unit.timer" || ! systemctl is-enabled --quiet "$unit.timer"; then
+        systemctl enable --now "$unit.timer" || return 1
+        if [[ $changed == yes ]]; then systemctl restart "$unit.timer" || return 1; fi
+    fi
+    systemctl is-active --quiet "$unit.timer" || return 1
+    systemctl cat "$unit.service" "$unit.timer" >/dev/null || return 1
+    echo "定时已启用：$calendar；多天间隔按配置日期计算，脚本移动后请重新配置定时。"
+}
+air_backup_event_log() {
+    python3 - "$REMOTE_DIR" "$AI_LOG_MAX_BYTES" "$AI_LOG_BACKUPS" "$1" "$2" <<'PY'
+import pathlib,sys,logging,logging.handlers,fcntl,os
+root=pathlib.Path(sys.argv[1]); root.mkdir(parents=True,exist_ok=True,mode=0o700)
+with (root/'log.lock').open('a') as lock:
+    fcntl.flock(lock,fcntl.LOCK_EX)
+    h=logging.handlers.RotatingFileHandler(root/'backup-transfer.log',maxBytes=int(sys.argv[2]),backupCount=int(sys.argv[3]),encoding='utf-8')
+    h.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+    logger=logging.getLogger('ai-remote'); logger.setLevel(logging.INFO); logger.addHandler(h)
+    logger.info('%s %s',sys.argv[4],sys.argv[5]); h.close()
+    for p in root.glob('backup-transfer.log*'): os.chmod(p,0o600)
+PY
+}
+air_remote_run() {
+    local kind=$1
+    [[ -f $REMOTE_DIR/$kind.json ]] || { air_error "尚未配置远端。"; return 1; }
+    local action rc=0 result archive=""
+    action=$(air_remote_engine action "$kind") || return 1
+    if [[ $action == backup ]]; then
+        air_backup_event_log "$kind" "本地备份开始" || return 1
+        local AIR_EXACT_RESULT_FILE
+        AIR_EXACT_RESULT_FILE=$(mktemp "$REMOTE_DIR/.producer-result.XXXXXX") || return 1
+        chmod 600 "$AIR_EXACT_RESULT_FILE"
+        if ! air_locked air_remote_backup_app; then
+            rm -f "$AIR_EXACT_RESULT_FILE"
+            air_backup_event_log "$kind" "本地备份失败"; return 1
+        fi
+        IFS= read -r archive < "$AIR_EXACT_RESULT_FILE"
+        rm -f "$AIR_EXACT_RESULT_FILE"
+        [[ -n $archive && -f $archive ]] || { air_error "未获得本次完整归档路径。"; return 1; }
+        air_backup_event_log "$kind" "本地完整备份完成（可能包含应用凭据）" || return 1
+        # 本地备份先完成并恢复容器，再检查传送工具和连接远端。
+    fi
+    command -v rclone >/dev/null || {
+        air_error "缺少rclone；本地备份保留，可由其他传送任务发送。"
+        air_backup_event_log "$kind" "传送工具缺失，本地备份保留"; return 1;
+    }
+    result=$(air_remote_engine upload "$kind" "$archive" 2>&1) || rc=$?
+    [[ -z $result ]] || printf '%s\n' "$result"
+    if (( rc )); then
+        air_backup_event_log "$kind" "传送失败，本地备份保留" || return 1
+    elif [[ $result == *'上传并校验成功'* ]]; then
+        air_backup_event_log "$kind" "传送校验完成" || return 1
+    fi
+    # 无新文件/稳定等待/已发送跳过不写日志，防止空闲日志膨胀。
+    # Cleanup only after verified upload or verified unchanged sent signature.
+    if [[ $rc == 0 && ( $result == *'上传并校验成功'* || $result == *'最新归档已传送，跳过。'* ) ]]; then
+        if [[ $action == backup ]]; then
+            air_locked air_prune_local_backups || return 1
+        elif [[ $kind == ssh || $kind == s3 ]]; then
+            local transfer_keep
+            transfer_keep=$(air_remote_engine local-keep "$kind") || return 1
+            if [[ $transfer_keep =~ ^[1-9][0-9]*$ ]]; then
+                air_locked air_prune_local_backups "$transfer_keep" || return 1
+            fi
+        fi
+    fi
+    return "$rc"
+}
+air_remote_locked_run() (
+    local kind=$1
+    [[ $kind == ssh-backup || $kind == ssh || $kind == s3 ]] || exit 1
+    umask 077
+    mkdir -p "$REMOTE_DIR" || exit 1
+    exec 7>"$REMOTE_DIR/configuration.lock" || exit 1
+    flock -n 7 || { echo "配置正在修改，本次跳过。"; exit 0; }
+    exec 8>"$REMOTE_DIR/$kind.lock" || exit 1
+    flock -n 8 || { echo "该目标正在传送，本次跳过。"; exit 0; }
+    flock -u 7
+    exec 7>&-
+    if [[ ${2:-} == --scheduled ]]; then
+        local due_rc=0
+        air_remote_engine due "$kind" || due_rc=$?
+        [[ $due_rc != 3 ]] || exit 0
+        [[ $due_rc == 0 ]] || exit "$due_rc"
+    fi
+    air_remote_run "$kind"
+)
+air_remote_choose_ssh() {
+    local selection
+    echo "1. SSH备份上传任务"
+    echo "2. SSH仅传送任务"
+    IFS= read -r -p "选择任务（0取消）：" selection || return 1
+    case "$selection" in 1) AI_SELECTED_REMOTE=ssh-backup ;; 2) AI_SELECTED_REMOTE=ssh ;; *) return 1 ;; esac
+}
+air_remote_menu() {
+    local kind=$1 choice confirm target
+    air_ensure_environment remote || return 1
+    air_repair_remote_schedules || air_error "部分已有定时任务未能修复，请检查上述提示。"
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+        echo "=================================="
+        if [[ $kind == ssh ]]; then
+            echo "${AI_APP_LABEL} SSH 远程备份配置"
+        else
+            echo "${AI_APP_LABEL} S3 API 兼容备份配置"
+        fi
+        echo "=================================="
+        air_remote_summary "$kind"
+        if [[ $kind == ssh ]]; then
+            echo "1. 添加SSH备份任务（定时备份并上传）"
+            echo "2. 添加传送任务（有新备份直接传送，不打包）"
+        else
+            echo "1. 添加S3任务（有新备份直接传送，不打包）"
+        fi
+        echo "7. 测试远端读取"
+        echo "8. 立即执行任务"
+        echo "9. 删除任务（保留备份）"
+        echo "0. 返回"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice" in
+            1)
+                target=s3; [[ $kind != ssh ]] || target=ssh-backup
+                if [[ $target == ssh-backup ]]; then air_locked air_configure_local_retention || continue; fi
+                air_configuration_locked "$target" air_configure_remote_task "$target"
+                ;;
+            2)
+                if [[ $kind == ssh ]]; then air_configuration_locked ssh air_configure_remote_task ssh
+                else echo "无效选项。"; fi
+                ;;
+            7|8|9)
+                target=s3
+                if [[ $kind == ssh ]]; then air_remote_choose_ssh || continue; target=$AI_SELECTED_REMOTE; fi
+                case "$choice" in
+                    7) air_remote_engine test "$target" ;;
+                    8) air_remote_locked_run "$target" ;;
+                    9)
+                        IFS= read -r -p "输入yes确认删除本任务配置与定时：" confirm || return 0
+                        [[ $confirm != yes ]] || { air_configuration_locked "$target" air_delete_remote_task "$target"; }
+                        ;;
+                esac
+                ;;
+            0) return 0 ;;
+            *) echo "无效选项。" ;;
+        esac
+        IFS= read -r -p "按回车继续..." _ || return 0
+    done
+}
+
+air_remote_summary() {
+    # 主菜单仅读取本地配置及timer状态，不连接远端，不显示凭据。
+    python3 - "$REMOTE_DIR" "${1:-all}" "$AI_APP_ID" <<'PY'
+import pathlib,json,subprocess,sys
+root=pathlib.Path(sys.argv[1]); scope=sys.argv[2]
+def color(text,code): return '\033['+code+'m'+text+'\033[0m'
+def schedule(d):
+    if d.get('action','backup')=='transfer': return '每30秒检测新备份并传送'
+    interval=d.get('interval','7d'); calendar=d.get('calendar','')
+    import re
+    match=re.search(r'(\d{2}):(\d{2}):00 Asia/Shanghai$',calendar)
+    if interval.endswith('h'):
+        minute=int(match.group(2)) if match else 0
+        return '每'+interval[:-1]+'小时，第'+str(minute)+'分运行（北京时间 UTC+8）'
+    if interval.endswith('d') and match:
+        return '每'+interval[:-1]+'天 '+str(int(match.group(1)))+'时 '+str(int(match.group(2)))+'分运行（北京时间 UTC+8）'
+    return calendar or '未设置周期'
+
+groups=[('ssh-backup','SSH备份','SSH备份'),('ssh','传送任务','SSH传送'),('s3','S3 API 兼容传送任务','S3传送')]
+if scope=='ssh': groups=groups[:2]
+elif scope=='s3': groups=groups[2:]
+for index,(kind,title,default) in enumerate(groups):
+    print(title)
+    print('备注名   状态')
+    p=root/(kind+'.json')
+    if not p.exists(): print(color('暂无','31'))
+    else:
+        try:
+            d=json.loads(p.read_text())
+            if not isinstance(d,dict) or not d.get('dest') or not (root/(kind+'.conf')).is_file(): raise ValueError()
+            name=str(d.get('name',default)).replace('\n',' ').replace('\r',' ')
+            state=color('异常','33')+'（定时未运行）'
+            try:
+                unit='ai-'+sys.argv[3]+'-backup-'+kind
+                r=subprocess.run(['systemctl','is-active',unit+'.timer'],capture_output=True,text=True,timeout=2)
+                result=subprocess.run(['systemctl','show',unit+'.service','--property=Result','--value'],capture_output=True,text=True,timeout=2)
+                if r.returncode==0 and r.stdout.strip()=='active' and result.returncode==0 and result.stdout.strip() in ('success',''):
+                    state=color('正常','32')+'（定时运行中）'
+                elif result.returncode==0 and result.stdout.strip() not in ('success',''):
+                    state=color('异常','33')+'（最近执行失败）'
+            except (OSError,subprocess.TimeoutExpired): state=color('异常','33')+'（检测失败）'
+            print(name+'   '+state+'  '+schedule(d))
+        except Exception: print(color('异常','33')+'（配置检测失败）')
+    print('------------------------' if index==0 and scope!='s3' else '==================================')
+PY
+}
+
+air_manager_init() {
+    BACKUP_DIR="$HERMES_BACKUP_DIR"
+    BACKUP_PREFIX="${HERMES_BACKUP_PREFIX}-"
+    REMOTE_DIR="$BACKUP_DIR/config"
+    LOCK_FILE="$BACKUP_DIR/backup.lock"
+    RETENTION_FILE="$REMOTE_DIR/local-retention.json"
+    AI_APP_ID='hermes'
+    AI_APP_LABEL='hermes'
+    AI_NATIVE_BACKUP_FUNCTION='backup_memory_full'
+    AI_MANAGER_SCRIPT=$(readlink -f "${BASH_SOURCE[0]}")
+    air_init
+}
+
+ai_local_backup() {
+    local result_file rc=0
+    mkdir -p "$REMOTE_DIR" || return 1
+    chmod 700 "$REMOTE_DIR" || return 1
+    result_file=$(mktemp "$REMOTE_DIR/.producer-result.XXXXXX") || return 1
+    # Run in the current shell so AI_NEW_ARCHIVE comes from this exact producer.
+    AI_REMOTE_RESULT_FILE="$result_file"
+    "$AI_NATIVE_BACKUP_FUNCTION" <<< y || rc=$?
+    unset AI_REMOTE_RESULT_FILE
+    if [ "$rc" -eq 0 ]; then
+        IFS= read -r AI_NEW_ARCHIVE < "$result_file" || rc=1
+        [ -f "$AI_NEW_ARCHIVE" ] || rc=1
+        case "$AI_NEW_ARCHIVE" in "$BACKUP_DIR/"*.tar.gz) : ;; *) rc=1 ;; esac
+    fi
+    rm -f -- "$result_file"
+    if [ "$rc" -ne 0 ]; then
+        echo "❌ 本次备份未成功返回新归档，未上传历史文件。"
+        return "$rc"
+    fi
+}
+
 backup_memory_full() {
     local hermes_home backup_dir ts archive parent base confirm was_running wait_i tar_status
     hermes_home="$(get_hermes_home_dir)"
-    backup_dir="$HOME/hermes_memory_backups"
-    ts="$(date +%Y%m%d_%H%M%S)"
-    archive="$backup_dir/hermes_memory_full_${ts}.tar.gz"
+    backup_dir="$HERMES_BACKUP_DIR"
+    ts="$(date +%Y%m%d-%H%M%S)"
+    archive="$backup_dir/${HERMES_BACKUP_PREFIX}-${ts}.tar.gz"
     was_running=0
 
     if [ ! -d "$hermes_home" ]; then
@@ -1051,6 +1839,9 @@ backup_memory_full() {
 
     if [ "$tar_status" -eq 0 ]; then
         echo -e "${GREEN}✅ 备份完成：${NC}$archive"
+        if [ -n "${AI_REMOTE_RESULT_FILE:-}" ]; then
+            printf '%s\n' "$archive" > "$AI_REMOTE_RESULT_FILE" || return 1
+        fi
     else
         echo -e "${RED}❌ 备份失败。${NC}"
         rm -f "$archive"
@@ -1061,34 +1852,28 @@ backup_memory_full() {
 restore_memory_full_install_latest() {
     local hermes_home backup_dir backups count i selected archive parent base ts old_dir manual_path
     hermes_home="$(get_hermes_home_dir)"
-    backup_dir="$HOME/hermes_memory_backups"
+    backup_dir="$HERMES_BACKUP_DIR"
 
-    local search_dir path_choice
-    echo -e "${CYAN}备份包查找路径：${NC}"
-    echo -e "  1) $backup_dir"
-    echo -e "  2) $HOME"
-    echo ""
-    read -p "请选择备份包查找路径 [1-2，默认 1]: " path_choice
-    case "$path_choice" in
-        ""|1) search_dir="$backup_dir" ;;
-        2) search_dir="$HOME" ;;
-        0) echo "已取消。"; return 0 ;;
-        *) echo -e "${RED}输入错误。${NC}"; return 1 ;;
-    esac
-
-    if [ ! -d "$search_dir" ]; then
-        echo -e "${RED}❌ 路径不存在：$search_dir${NC}"
-        return 1
-    fi
-
-    mapfile -t backups < <(find "$search_dir" -maxdepth 1 -type f -name 'hermes_memory_full_*.tar.gz' | sort -r)
+    local search_dir
+    local -A scanned_dirs=()
+    echo "自动查找备份目录：${HERMES_RESTORE_DIRS[*]}"
+    mapfile -t backups < <(
+        for search_dir in "${HERMES_RESTORE_DIRS[@]}"; do
+            search_dir="${search_dir%/}"
+            [ -n "$search_dir" ] || search_dir=/
+            [ -d "$search_dir" ] || continue
+            [ -z "${scanned_dirs[$search_dir]+yes}" ] || continue
+            scanned_dirs["$search_dir"]=1
+            find "$search_dir" -maxdepth 1 -type f -name '*.tar.gz' -printf '%T@\t%p\n'
+        done | sort -nr | cut -f2-
+    )
     count="${#backups[@]}"
 
     echo ""
     echo -e "${CYAN}可用的备份${NC}"
     echo "-------------------------"
     if [ "$count" -eq 0 ]; then
-        echo -e "${YELLOW}未在 $search_dir 找到 hermes_memory_full_*.tar.gz 备份包。${NC}"
+    echo "未在配置的还原目录中找到 *.tar.gz 备份包。"
         return 1
     fi
     for i in "${!backups[@]}"; do
@@ -1180,26 +1965,100 @@ restore_memory_full_install_latest() {
 }
 
 backup_restore_submenu() {
+    air_manager_init || return 1
+    air_repair_remote_schedules
     while true; do
         clear
         echo -e "${CYAN}=================================================${NC}"
         echo -e "${YELLOW}              备份与还原                         ${NC}"
         echo -e "${CYAN}=================================================${NC}"
+        echo "备份目录：$HERMES_BACKUP_DIR"
+        echo "数据目录：$(get_hermes_home_dir)"
+        echo "---------------------------------------"
+        air_remote_summary all
         echo -e "${GREEN}1.${NC} 备份记忆全量"
         echo -e "${GREEN}2.${NC} 还原记忆全量并安装启动最新版"
+        echo -e "${GREEN}3.${NC} SSH 远程备份配置"
+        echo -e "${GREEN}4.${NC} S3 API 兼容备份配置"
         echo -e "${GREEN}0.${NC} 返回主菜单"
         echo -e "${CYAN}=================================================${NC}"
-        read -p "请选择功能 [0-2]: " br_choice
+        read -p "请选择功能 [0-4]: " br_choice
         echo ""
         case "$br_choice" in
             1) backup_memory_full ;;
             2) restore_memory_full_install_latest ;;
+            3) air_remote_menu ssh ;;
+            4) air_remote_menu s3 ;;
             0) break ;;
             *) echo -e "${RED}输入错误，请重新选择。${NC}" ;;
         esac
         echo ""
         read -p "按回车键继续..."
     done
+}
+
+hermes_update_robust() {
+    if ! check_installed; then
+        echo -e "${RED}请先安装 Hermes。${NC}"
+        return 1
+    fi
+
+    local version_text update_rc
+
+    echo -e "${YELLOW}正在执行官方更新：hermes update${NC}"
+    hermes update
+    update_rc=$?
+
+    refresh_hermes_path
+    hash -r 2>/dev/null || true
+
+    version_text="$(timeout 8 hermes --version 2>&1)"
+    local verify_rc
+    verify_update_channel "$version_text"
+    verify_rc=$?
+    echo "$version_text" | sed -n '1,8p'
+    if [ "$update_rc" -eq 0 ] && [ "$verify_rc" -eq 0 ]; then
+        echo -e "${GREEN}✅ 官方更新完成，${HERMES_MAIN_STATUS}。${NC}"
+        add_app_id
+        return 0
+    fi
+    if [ "$update_rc" -ne 0 ]; then
+        echo -e "${RED}❌ 官方更新命令失败（退出码 $update_rc）。${NC}"
+    else
+        echo -e "${YELLOW}⚠ 官方更新命令已结束，但未通过实时最新版本验证。${NC}"
+    fi
+    echo -e "${YELLOW}${HERMES_MAIN_STATUS}${NC}"
+    echo ""
+    echo -e "${YELLOW}为降低供应链风险，脚本不会执行 git fetch/reset 等强制兜底更新。${NC}"
+    echo -e "${YELLOW}请检查上方 hermes update 输出及当前更新通道；查询失败时检查网络或稍后重试。${NC}"
+    return 1
+}
+
+
+hermes_messaging_robust() {
+    if ! check_installed; then
+        echo -e "${RED}请先安装 Hermes。${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}正在启动 Hermes 机器人连接配置向导...${NC}"
+    echo ""
+
+    hermes gateway setup
+    local setup_rc=$?
+
+    if [ "$setup_rc" -eq 0 ]; then
+        echo -e "${GREEN}✅ Hermes Gateway 配置完成。${NC}"
+        echo ""
+        echo -e "${YELLOW}现在可以启动 Gateway：${NC}"
+        echo "  hermes gateway start"
+        echo ""
+        echo -e "${YELLOW}查看状态：${NC}"
+        echo "  hermes gateway status"
+    else
+        echo -e "${RED}❌ Hermes Gateway 配置失败。${NC}"
+        return "$setup_rc"
+    fi
 }
 
 
@@ -1210,8 +2069,8 @@ show_menu() {
     echo -e "${CYAN}=================================================${NC}"
     echo -e "${YELLOW}           Hermes Agent 终端管理工具             ${NC}"
     echo -e "${CYAN}=================================================${NC}"
-    echo -e " 运行状态 : $(get_gateway_status)"
-    echo -e " 当前版本 : $(get_version)"
+    echo -e "运行状态 : $(get_gateway_status)"
+    echo -e "当前版本 : $(get_version)"
     echo -e "${CYAN}-------------------------------------------------${NC}"
     echo -e "${GREEN}1.${NC} 安装 Hermes Agent"
     echo -e "${GREEN}2.${NC} 启动 Gateway (消息网关/后台服务)"
@@ -1221,6 +2080,7 @@ show_menu() {
     echo -e "${GREEN}6.${NC} 运行初始化配置向导 (Setup Wizard)"
     echo -e "${GREEN}7.${NC} 检查并更新 Hermes"
     echo -e "${GREEN}8.${NC} 卸载 Hermes"
+    echo -e "${GREEN}9.${NC} 机器人连接对接"
     echo -e "${GREEN}18.${NC} 备份与还原"
     echo -e "${GREEN}0.${NC} 退出"
     echo -e "${CYAN}=================================================${NC}"
@@ -1274,11 +2134,7 @@ show_menu() {
             else echo -e "${RED}请先安装 Hermes。${NC}"; fi
             ;;
         7)
-            if check_installed; then
-                echo -e "${YELLOW}正在检查更新...${NC}"
-                hermes update
-                add_app_id
-            else echo -e "${RED}请先安装 Hermes。${NC}"; fi
+            hermes_update_robust
             ;;
         8)
             if check_installed; then
@@ -1289,6 +2145,11 @@ show_menu() {
                 else echo "已取消。"; fi
             else echo -e "${RED}请先安装 Hermes。${NC}"; fi
             ;;
+
+        9)
+            hermes_messaging_robust
+            ;;
+
         18)
             backup_restore_submenu
             ;;
@@ -1303,6 +2164,13 @@ show_menu() {
     echo ""
     read -p "按回车键返回主菜单..."
 }
+
+if [[ ${1:-} == --remote ]]; then
+    air_manager_init || exit 1
+    air_ensure_environment || exit 1
+    air_remote_locked_run "${2:-}" "${3:-}"
+    exit $?
+fi
 
 # 主循环
 while true; do
