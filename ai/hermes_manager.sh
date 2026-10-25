@@ -1803,19 +1803,8 @@ backup_memory_full() {
             was_running=1
         fi
 
-        echo -e "${YELLOW}正在停止 Gateway...${NC}"
-        hermes gateway stop >/dev/null 2>&1 || true
-        systemctl --user stop hermes-gateway >/dev/null 2>&1 || true
-
-        echo -e "${YELLOW}等待 Gateway 完全退出并落库...${NC}"
-        for wait_i in {1..20}; do
-            if ! systemctl --user is-active --quiet hermes-gateway 2>/dev/null && ! pgrep -u "$(id -u)" -f "(^|[[:space:]])(([^[:space:]]*/)?python[0-9.]*[[:space:]]+-m[[:space:]]+hermes_cli\.main[[:space:]]+gateway[[:space:]]+run|([^[:space:]]*/)?hermes[[:space:]]+gateway[[:space:]]+run|hermes-gateway)([[:space:]]|$)" >/dev/null 2>&1; then
-                break
-            fi
-            sleep 1
-        done
-        sleep 2
-        sync
+        echo -e "${YELLOW}正在停止 Gateway，等待缓存/数据库完全落盘...${NC}"
+        hermes_manager_stop_and_flush || return 1
     fi
 
     mkdir -p "$backup_dir"
@@ -1826,6 +1815,13 @@ backup_memory_full() {
     tar \
         --exclude="$base/hermes-agent" \
         --exclude="$base/node" \
+        --exclude="$base/installs" \
+        --exclude="$base/tools" \
+        --exclude="$base/lsp/node_modules" \
+        --exclude="$base/lsp/bin" \
+        --exclude="$base/bin/browser*" \
+        --exclude="$base/bin/bu" \
+        --exclude="$base/bin/tirith" \
         --exclude="$base/cache" \
         --exclude="$base/logs/*.log" \
         -czf "$archive" \
@@ -1834,10 +1830,14 @@ backup_memory_full() {
 
     if [ "$was_running" -eq 1 ] && command -v hermes >/dev/null 2>&1; then
         echo -e "${YELLOW}正在重新启动 Gateway...${NC}"
-        hermes gateway start >/dev/null 2>&1 || systemctl --user start hermes-gateway >/dev/null 2>&1 || true
+        if ! hermes gateway start && ! systemctl --user start hermes-gateway.service; then
+            echo "❌ 备份打包结束，但 Gateway 重新启动失败。归档保留：$archive"
+            return 1
+        fi
     fi
 
     if [ "$tar_status" -eq 0 ]; then
+        chmod 600 "$archive" || return 1
         echo -e "${GREEN}✅ 备份完成：${NC}$archive"
         if [ -n "${AI_REMOTE_RESULT_FILE:-}" ]; then
             printf '%s\n' "$archive" > "$AI_REMOTE_RESULT_FILE" || return 1
@@ -1847,6 +1847,171 @@ backup_memory_full() {
         rm -f "$archive"
         return 1
     fi
+}
+
+hermes_manager_gateway_alive() {
+    systemctl --user is-active --quiet hermes-gateway.service 2>/dev/null ||
+    pgrep -u "$(id -u)" -f '(^|[[:space:]])(([^[:space:]]*/)?python[0-9.]*[[:space:]]+-m[[:space:]]+hermes_cli\.main[[:space:]]+gateway[[:space:]]+run|([^[:space:]]*/)?hermes[[:space:]]+gateway[[:space:]]+run|hermes-gateway)([[:space:]]|$)' >/dev/null 2>&1
+}
+
+hermes_manager_stop_and_flush() {
+    local i
+    if command -v hermes >/dev/null 2>&1; then
+        hermes gateway stop || echo "提示：CLI 停止未成功，继续检查 systemd。"
+    fi
+    systemctl --user stop hermes-gateway.service >/dev/null 2>&1 || true
+    for i in {1..30}; do
+        if ! hermes_manager_gateway_alive; then
+            sleep 2
+            sync
+            return 0
+        fi
+        sleep 1
+    done
+    echo "❌ Gateway 未完全退出，已中止，未替换数据。" >&2
+    return 1
+}
+
+hermes_manager_stage_archive() {
+    python3 - "$1" "$2" "$3" <<'PY_HERMES_STAGE'
+import os,sys,tarfile,posixpath,gzip,sqlite3,inspect
+archive,stage,base=sys.argv[1:]
+seen=set(); links=set()
+with tarfile.open(archive,'r:gz') as tar:
+    members=tar.getmembers()
+    for m in members:
+        n=m.name
+        while n.startswith('./'): n=n[2:]
+        n=n.rstrip('/')
+        if not n or n.startswith('/') or '..' in n.split('/') or '\\' in n or n.split('/')[0]!=base:
+            raise ValueError('备份包含越界路径或不匹配的数据根目录')
+        if n in seen: raise ValueError('备份包含重复路径')
+        seen.add(n)
+        if not (m.isdir() or m.isfile() or m.issym() or m.islnk()):
+            raise ValueError('备份包含不支持的特殊文件')
+        if m.issym() or m.islnk():
+            links.add(n)
+            target=posixpath.normpath(posixpath.join(posixpath.dirname(n),m.linkname) if m.issym() else m.linkname)
+            if m.linkname.startswith('/') or not (target==base or target.startswith(base+'/')):
+                raise ValueError('备份包含外部链接，请先转换为数据目录内的真实文件')
+    for n in seen:
+        parts=n.split('/')
+        if any('/'.join(parts[:i]) in links for i in range(1,len(parts))):
+            raise ValueError('备份包含链接下的路径，拒绝解压')
+    if 'filter' in inspect.signature(tar.extractall).parameters:
+        tar.extractall(stage,filter='data')
+    else:
+        tar.extractall(stage)
+with gzip.open(archive,'rb') as f:
+    while f.read(1024*1024): pass
+root=os.path.join(stage,base)
+if not os.path.isdir(root) or not os.path.isfile(os.path.join(root,'config.yaml')):
+    raise ValueError('备份缺少数据目录或 config.yaml')
+for name in os.listdir(root):
+    if name.endswith('.db'):
+        db=os.path.join(root,name)
+        if os.path.islink(db): raise ValueError('数据库不允许软链接')
+        con=sqlite3.connect(db)
+        try:
+            if con.execute('pragma quick_check').fetchone()[0]!='ok': raise ValueError('SQLite检查失败')
+        finally: con.close()
+print('✅ 暂存解压及数据库检查通过。')
+PY_HERMES_STAGE
+}
+
+hermes_manager_install_restored() {
+    local home="$1" work="$2" rc=0
+    python3 - "$home" "$work" <<'PY_HERMES_SNAPSHOT'
+import os,sys,shutil,json
+from pathlib import Path
+home,work=map(Path,sys.argv[1:]); dst=work/'protected';dst.mkdir(mode=0o700)
+skip={'hermes-agent','node','tools','installs','cache','logs','lsp','bin'}
+names=[]
+for p in home.iterdir():
+    if p.name in skip: continue
+    names.append(p.name)
+    if p.is_symlink(): (dst/p.name).symlink_to(os.readlink(p))
+    elif p.is_dir(): shutil.copytree(p,dst/p.name,symlinks=True)
+    else: shutil.copy2(p,dst/p.name)
+(work/'protected.json').write_text(json.dumps(names))
+PY_HERMES_SNAPSHOT
+    [ "$?" -eq 0 ] || return 1
+    curl -fsSL --connect-timeout 15 --max-time 180 https://hermes-agent.nousresearch.com/install.sh -o "$work/install.sh" || return 1
+    HERMES_HOME="$home" HERMES_INSTALL_DIR="$home/hermes-agent" bash "$work/install.sh" --non-interactive --skip-setup || rc=$?
+    python3 - "$home" "$work" <<'PY_HERMES_PROTECT'
+import os,sys,json,shutil,hashlib
+from pathlib import Path
+home,work=map(Path,sys.argv[1:]); src=work/'protected'
+for name in json.loads((work/'protected.json').read_text()):
+    a=src/name;b=home/name
+    if b.is_symlink() or b.is_file(): b.unlink()
+    elif b.is_dir(): shutil.rmtree(b)
+    if a.is_symlink(): b.symlink_to(os.readlink(a))
+    elif a.is_dir(): shutil.copytree(a,b,symlinks=True)
+    else: shutil.copy2(a,b)
+    def files(p):
+        if p.is_file() and not p.is_symlink(): return [(p,Path('.'))]
+        if p.is_dir() and not p.is_symlink(): return [(x,x.relative_to(p)) for x in p.rglob('*') if x.is_file() and not x.is_symlink()]
+        return []
+    for x,rel in files(a):
+        y=b if rel==Path('.') else b/rel
+        with x.open('rb') as f, y.open('rb') as g:
+            def digest(stream):
+                h=hashlib.sha256()
+                for chunk in iter(lambda:stream.read(1024*1024),b''): h.update(chunk)
+                return h.digest()
+            if digest(f)!=digest(g):
+                raise ValueError('恢复数据校验失败')
+print('✅ 恢复的配置、凭据和用户数据已保留并校验。')
+PY_HERMES_PROTECT
+    [ "$?" -eq 0 ] || return 1
+    [ "$rc" -eq 0 ] || { echo "❌ 官方安装失败，用户数据与旧目录均保留。"; return "$rc"; }
+    export PATH="$HOME/.local/bin:$PATH"
+    hash -r
+    command -v hermes >/dev/null 2>&1 || return 1
+    HERMES_HOME="$home" hermes --print-runtime-command >/dev/null || return 1
+    if [ -f "$home/lsp/package.json" ]; then
+        if ! command -v npm >/dev/null 2>&1; then
+            HERMES_HOME="$home" hermes pm install npm || return 1
+        fi
+        local npm_command
+        npm_command=$(command -v npm 2>/dev/null)
+        if [ -z "$npm_command" ]; then
+            npm_command=$(find "$home/tools" -maxdepth 3 -type f -path '*/bin/npm' -print -quit 2>/dev/null)
+        fi
+        if [ -z "$npm_command" ] || [ ! -x "$npm_command" ]; then
+            echo "❌ 无法找到 npm，语言服务环境尚未恢复。"; return 1
+        fi
+        (cd "$home/lsp" && "$npm_command" install --ignore-scripts --no-audit --no-fund) || return 1
+        mkdir -p "$home/lsp/bin"
+        local entry
+        for entry in "$home/lsp/node_modules/.bin/"*; do
+            [ -e "$entry" ] || continue
+            ln -sfn "$entry" "$home/lsp/bin/$(basename "$entry")" || return 1
+        done
+    fi
+    return 0
+}
+
+hermes_manager_start_verified() {
+    local home="$1" i
+    export HERMES_HOME="$home"
+    hermes gateway install --force --no-start-now --start-on-login || return 1
+    systemctl --user daemon-reload || return 1
+    systemctl --user enable hermes-gateway.service || return 1
+    if command -v loginctl >/dev/null 2>&1; then
+        loginctl enable-linger "$(id -un)" || echo "⚠️ 无法启用 linger，请检查退出 SSH 后服务能否持续运行。"
+    fi
+    hermes gateway start || return 1
+    for i in {1..30}; do
+        if systemctl --user is-active --quiet hermes-gateway.service; then
+            sleep 5
+            systemctl --user is-active --quiet hermes-gateway.service && return 0
+        fi
+        sleep 1
+    done
+    echo "❌ Gateway 未稳定运行，请检查：journalctl --user -u hermes-gateway.service -n 60" >&2
+    return 1
 }
 
 restore_memory_full_install_latest() {
@@ -1911,57 +2076,52 @@ restore_memory_full_install_latest() {
         return 0
     fi
 
-    if command -v hermes >/dev/null 2>&1; then
-        echo -e "${YELLOW}正在停止 Gateway...${NC}"
-        hermes gateway stop >/dev/null 2>&1 || true
-        systemctl --user stop hermes-gateway >/dev/null 2>&1 || true
-    fi
-
     parent="$(dirname "$hermes_home")"
     base="$(basename "$hermes_home")"
-    ts="$(date +%Y%m%d_%H%M%S)"
-    old_dir="${hermes_home}.before_restore_${ts}"
-    mkdir -p "$parent"
-
+    [ "$hermes_home" != / ] && [ "$hermes_home" != "$HOME" ] && [ ! -L "$hermes_home" ] || { echo "❌ 数据目录不安全。"; return 1; }
+    local work stage
+    work=$(mktemp -d "$parent/.hermes-restore.XXXXXX") || return 1
+    chmod 700 "$work"
+    stage="$work/stage"
+    mkdir -m 700 "$stage" || return 1
+    cp -- "$archive" "$work/archive.tar.gz" || { rm -rf -- "$work"; return 1; }
+    chmod 600 "$work/archive.tar.gz"
+    if ! hermes_manager_stage_archive "$work/archive.tar.gz" "$stage" "$base"; then
+        echo "❌ 备份校验/暂存失败，当前数据与服务未修改。"
+        rm -rf -- "$work"
+        return 1
+    fi
+    if ! hermes_manager_stop_and_flush; then
+        rm -rf -- "$work"
+        return 1
+    fi
+    old_dir=$(mktemp -d "${hermes_home}.before_restore_$(date +%Y%m%d-%H%M%S).XXXXXX") || return 1
+    rmdir "$old_dir" || return 1
     if [ -e "$hermes_home" ]; then
-        mv "$hermes_home" "$old_dir" || {
-            echo -e "${RED}❌ 无法移动当前数据目录。${NC}"
-            return 1
-        }
-        echo -e "${YELLOW}当前数据已保留为：${NC}$old_dir"
+        mv -- "$hermes_home" "$old_dir" || { echo "❌ 无法保留原数据，已停止还原。"; return 1; }
     fi
-
-    if tar -xzf "$archive" -C "$parent"; then
-        if [ ! -d "$hermes_home" ]; then
-            echo -e "${RED}❌ 备份包结构异常，未还原出 $hermes_home。${NC}"
-            [ -d "$old_dir" ] && [ ! -e "$hermes_home" ] && mv "$old_dir" "$hermes_home"
-            return 1
-        fi
-        echo -e "${GREEN}✅ 记忆全量还原完成。${NC}"
-    else
-        echo -e "${RED}❌ 解压还原失败，正在尝试回滚。${NC}"
-        rm -rf "$hermes_home"
-        [ -d "$old_dir" ] && mv "$old_dir" "$hermes_home"
+    if ! mv -- "$stage/$base" "$hermes_home"; then
+        [ ! -e "$hermes_home" ] && [ -d "$old_dir" ] && mv -- "$old_dir" "$hermes_home"
+        echo "❌ 数据替换失败，已尝试回滚。"
         return 1
     fi
-
-    echo -e "${YELLOW}正在安装/更新 Hermes Agent 最新版...${NC}"
-    if ! curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash; then
-        echo -e "${RED}❌ 安装最新版失败。记忆已还原，但 Hermes 可能未更新。${NC}"
+    echo "原数据/程序保留于：$old_dir"
+    echo "正在安装最新版 Hermes，保留恢复的配置和平台凭据，不运行初始化向导..."
+    if ! hermes_manager_install_restored "$hermes_home" "$work"; then
+        echo "❌ 安装或数据校验未完成，未启动 Gateway。"
+        echo "恢复数据：$hermes_home；旧数据：$old_dir；暂存目录：$work"
         return 1
     fi
-
-    refresh_hermes_path
-    if command -v hermes >/dev/null 2>&1; then
-        echo -e "${YELLOW}正在安装并启动 Gateway...${NC}"
-        hermes gateway install || true
-        hermes gateway start || true
-        add_app_id
-        echo -e "${GREEN}✅ 还原完成，并已尝试启动最新版 Hermes Gateway。${NC}"
-    else
-        echo -e "${RED}❌ 安装后仍未找到 hermes 命令，请检查安装日志。${NC}"
+    if ! hermes_manager_start_verified "$hermes_home"; then
+        echo "❌ 数据已还原但 Gateway 启动失败，旧数据保留：$old_dir"
         return 1
     fi
+    add_app_id
+    rm -rf -- "$work"
+    echo "✅ 备份数据已还原，最新版 Hermes Gateway 已稳定启动。"
+    echo "Telegram/Discord 等平台沿用备份配置；凭据失效或网络异常仍会导致平台连接失败。"
+    echo "可检查：hermes gateway status --deep"
+    echo "旧数据/程序保留于：$old_dir"
 }
 
 backup_restore_submenu() {
