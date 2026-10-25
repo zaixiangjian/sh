@@ -6099,10 +6099,47 @@ ai_local_backup() {
 		sync
 	}
 
+	openclaw_custom_restore_dependencies() {
+		local cmd version script
+		local -a packages=()
+		command -v apt-get >/dev/null 2>&1 || { echo "❌ 自动恢复依赖目前需要 Debian/Ubuntu apt-get。"; return 1; }
+		for cmd in git jq curl python3 tar gzip xz flock tmux make g++; do
+			command -v "$cmd" >/dev/null 2>&1 && continue
+			case "$cmd" in
+				xz) packages+=(xz-utils) ;;
+				flock) packages+=(util-linux) ;;
+				make|g++) packages+=(build-essential) ;;
+				*) packages+=("$cmd") ;;
+			esac
+		done
+		dpkg-query -W -f='${Status}' ca-certificates 2>/dev/null | grep -q '^install ok installed$' || packages+=(ca-certificates)
+		if [ "${#packages[@]}" -gt 0 ]; then
+			[ "$(id -u)" -eq 0 ] || { echo "❌ 请以 root 自动安装依赖。"; return 1; }
+			echo "正在安装 OpenClaw 恢复依赖：${packages[*]}"
+			apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" || return 1
+		fi
+		version=$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null) || version=0
+		if ! [[ "$version" =~ ^[0-9]+$ ]] || [ "$version" -lt 24 ] || ! npm --version >/dev/null 2>&1; then
+			[ "$(id -u)" -eq 0 ] || { echo "❌ 请以 root 安装 Node.js/npm。"; return 1; }
+			script=$(mktemp) || return 1
+			if ! curl -fsSL --connect-timeout 15 --max-time 180 https://deb.nodesource.com/setup_24.x -o "$script"; then
+				rm -f -- "$script"; return 1
+			fi
+			if ! bash "$script" || ! DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs; then
+				rm -f -- "$script"; return 1
+			fi
+			rm -f -- "$script"
+			hash -r
+		fi
+		for cmd in git jq curl python3 tar gzip xz flock tmux make g++ node npm; do
+			command -v "$cmd" >/dev/null 2>&1 || { echo "❌ 恢复依赖仍缺少：$cmd"; return 1; }
+		done
+		node --version && npm --version || return 1
+	}
+
 	openclaw_custom_install_or_update() {
 		echo "正在安装/更新 OpenClaw..."
-		install git jq curl python3
-		install_node_and_tools
+		openclaw_custom_restore_dependencies || return 1
 		git config --global url."${gh_proxy}github.com/".insteadOf ssh://git@github.com/ >/dev/null 2>&1 || true
 		git config --global url."${gh_proxy}github.com/".insteadOf git@github.com: >/dev/null 2>&1 || true
 		npm install -g openclaw@latest || return 1
@@ -6191,6 +6228,7 @@ ai_local_backup() {
 	}
 
 	openclaw_custom_restore_full() {
+		openclaw_custom_restore_dependencies || return 1
 		send_stats "OpenClaw自制全量还原"
 		local data_dir backup_root search_dir backups count i selected archive parent ts old_dir confirm
 		data_dir=$(openclaw_custom_data_dir)
