@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# 备份保存目录、文件名前缀与还原自动查找目录
+HERMES_BACKUP_DIR="/home/备份/hermes"
+HERMES_BACKUP_PREFIX="hermes"
+HERMES_RESTORE_DIRS=("$HERMES_BACKUP_DIR" "/home" "/root")
 # Hermes Agent 终端管理脚本 (轻量版)
 # 设计哲学：极简、直观、调用原生功能
 
@@ -1182,9 +1187,9 @@ get_hermes_home_dir() {
 backup_memory_full() {
     local hermes_home backup_dir ts archive parent base confirm was_running wait_i tar_status
     hermes_home="$(get_hermes_home_dir)"
-    backup_dir="$HOME/hermes_memory_backups"
-    ts="$(date +%Y%m%d_%H%M%S)"
-    archive="$backup_dir/hermes_memory_full_${ts}.tar.gz"
+    backup_dir="$HERMES_BACKUP_DIR"
+    ts="$(date +%Y%m%d-%H%M%S)"
+    archive="$backup_dir/${HERMES_BACKUP_PREFIX}-${ts}.tar.gz"
     was_running=0
 
     if [ ! -d "$hermes_home" ]; then
@@ -1252,34 +1257,28 @@ backup_memory_full() {
 restore_memory_full_install_latest() {
     local hermes_home backup_dir backups count i selected archive parent base ts old_dir manual_path
     hermes_home="$(get_hermes_home_dir)"
-    backup_dir="$HOME/hermes_memory_backups"
+    backup_dir="$HERMES_BACKUP_DIR"
 
-    local search_dir path_choice
-    echo -e "${CYAN}备份包查找路径：${NC}"
-    echo -e "  1) $backup_dir"
-    echo -e "  2) $HOME"
-    echo ""
-    read -p "请选择备份包查找路径 [1-2，默认 1]: " path_choice
-    case "$path_choice" in
-        ""|1) search_dir="$backup_dir" ;;
-        2) search_dir="$HOME" ;;
-        0) echo "已取消。"; return 0 ;;
-        *) echo -e "${RED}输入错误。${NC}"; return 1 ;;
-    esac
-
-    if [ ! -d "$search_dir" ]; then
-        echo -e "${RED}❌ 路径不存在：$search_dir${NC}"
-        return 1
-    fi
-
-    mapfile -t backups < <(find "$search_dir" -maxdepth 1 -type f -name 'hermes_memory_full_*.tar.gz' | sort -r)
+    local search_dir
+    local -A scanned_dirs=()
+    echo "自动查找备份目录：${HERMES_RESTORE_DIRS[*]}"
+    mapfile -t backups < <(
+        for search_dir in "${HERMES_RESTORE_DIRS[@]}"; do
+            search_dir="${search_dir%/}"
+            [ -n "$search_dir" ] || search_dir=/
+            [ -d "$search_dir" ] || continue
+            [ -z "${scanned_dirs[$search_dir]+yes}" ] || continue
+            scanned_dirs["$search_dir"]=1
+            find "$search_dir" -maxdepth 1 -type f -name '*.tar.gz' -printf '%T@\t%p\n'
+        done | sort -nr | cut -f2-
+    )
     count="${#backups[@]}"
 
     echo ""
     echo -e "${CYAN}可用的备份${NC}"
     echo "-------------------------"
     if [ "$count" -eq 0 ]; then
-        echo -e "${YELLOW}未在 $search_dir 找到 hermes_memory_full_*.tar.gz 备份包。${NC}"
+    echo "未在配置的还原目录中找到 *.tar.gz 备份包。"
         return 1
     fi
     for i in "${!backups[@]}"; do
