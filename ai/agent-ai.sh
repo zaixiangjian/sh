@@ -10,7 +10,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-CONFIG_DIR='/root/agent-ai.d'
+CONFIG_DIR='/root/yingyong/agent-ai.d'
 LEGACY_CONFIG_FILE='/root/agent-ai.conf'
 HERMES_SCRIPT='/root/yingyong/hermes_manager.sh'
 OPENCLAW_SCRIPT='/root/yingyong/Openclaw.sh'
