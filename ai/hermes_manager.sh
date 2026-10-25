@@ -1938,8 +1938,48 @@ print('✅ 暂存解压及数据库检查通过。')
 PY_HERMES_STAGE
 }
 
+# Restore prerequisite checks must complete before stopping Gateway or moving data.
+hermes_manager_restore_dependencies() {
+    local purpose="${1:-base}" item package
+    local -a packages=() checks=(python3 git curl tar gzip xz flock)
+    [ "$purpose" != lsp ] || checks+=(node npm)
+    for item in "${checks[@]}"; do
+        command -v "$item" >/dev/null 2>&1 && continue
+        case "$item" in
+            xz) package=xz-utils ;;
+            flock) package=util-linux ;;
+            node) package=nodejs ;;
+            *) package="$item" ;;
+        esac
+        packages+=("$package")
+    done
+    if command -v dpkg-query >/dev/null 2>&1; then
+        dpkg-query -W -f='${Status}' ca-certificates 2>/dev/null | grep -q '^install ok installed$' || packages+=(ca-certificates)
+    else
+        packages+=(ca-certificates)
+    fi
+    if [ "${#packages[@]}" -gt 0 ]; then
+        [ "$(id -u)" -eq 0 ] || { echo "❌ 恢复缺少依赖：${packages[*]}，请使用 root 自动安装。"; return 1; }
+        command -v apt-get >/dev/null 2>&1 || { echo "❌ 需要 apt-get，请手动安装：${packages[*]}"; return 1; }
+        echo "正在补齐恢复依赖：${packages[*]}"
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" || {
+            echo "❌ 恢复依赖安装失败，当前数据尚未替换。"; return 1;
+        }
+        hash -r
+    fi
+    for item in "${checks[@]}"; do
+        command -v "$item" >/dev/null 2>&1 || { echo "❌ 安装后仍缺少：$item"; return 1; }
+    done
+    if [ "$purpose" = lsp ]; then
+        node --version >/dev/null 2>&1 && npm --version >/dev/null 2>&1 || {
+            echo "❌ Node.js/npm 无法执行，已中止恢复。"; return 1;
+        }
+    fi
+}
+
 hermes_manager_install_restored() {
     local home="$1" work="$2" rc=0
+    hermes_manager_restore_dependencies base || return 1
     python3 - "$home" "$work" <<'PY_HERMES_SNAPSHOT'
 import os,sys,shutil,json
 from pathlib import Path
@@ -1990,17 +2030,9 @@ PY_HERMES_PROTECT
     command -v hermes >/dev/null 2>&1 || return 1
     HERMES_HOME="$home" hermes --print-runtime-command >/dev/null || return 1
     if [ -f "$home/lsp/package.json" ]; then
-        if ! command -v npm >/dev/null 2>&1; then
-            HERMES_HOME="$home" hermes pm install npm || return 1
-        fi
+        hermes_manager_restore_dependencies lsp || return 1
         local npm_command
-        npm_command=$(command -v npm 2>/dev/null)
-        if [ -z "$npm_command" ]; then
-            npm_command=$(find "$home/tools" -maxdepth 3 -type f -path '*/bin/npm' -print -quit 2>/dev/null)
-        fi
-        if [ -z "$npm_command" ] || [ ! -x "$npm_command" ]; then
-            echo "❌ 无法找到 npm，语言服务环境尚未恢复。"; return 1
-        fi
+        npm_command=$(command -v npm) || return 1
         (cd "$home/lsp" && "$npm_command" install --ignore-scripts --no-audit --no-fund) || return 1
         mkdir -p "$home/lsp/bin"
         local entry
@@ -2035,6 +2067,7 @@ hermes_manager_start_verified() {
 
 restore_memory_full_install_latest() {
     local hermes_home backup_dir backups count i selected archive parent base ts old_dir manual_path
+    hermes_manager_restore_dependencies base || return 1
     hermes_home="$(get_hermes_home_dir)"
     backup_dir="$HERMES_BACKUP_DIR"
 
@@ -2109,6 +2142,12 @@ restore_memory_full_install_latest() {
         echo "❌ 备份校验/暂存失败，当前数据与服务未修改。"
         rm -rf -- "$work"
         return 1
+    fi
+    if [ -f "$stage/$base/lsp/package.json" ]; then
+        if ! hermes_manager_restore_dependencies lsp; then
+            rm -rf -- "$work"
+            return 1
+        fi
     fi
     if ! hermes_manager_stop_and_flush; then
         rm -rf -- "$work"
