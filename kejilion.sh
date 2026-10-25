@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.18"
+sh_v="0.0.19"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -11306,6 +11306,7 @@ EOF
         ;;
 
       1003)
+        (
         clear
         echo "▶️ 正在准备使用 rsync 手动传送文件夹..."
 
@@ -11321,17 +11322,70 @@ EOF
         fi
         echo "------------------------"
 
-        echo -e "\033[1;33m📌 说明：\033[0m"
-        echo -e "\033[1;32m✔ 不带斜杠（如 /home/web/wangpan）表示复制整个文件夹\033[0m"
-        echo -e "\033[1;32m✔ 带斜杠（如 /home/web/wangpan/）表示只复制该文件夹的内容\033[0m"
-
-        echo "------------------------"
         # 读取用户输入
-        read -e -p "请输入本地目录路径（如 /home/web/wangpan/）: " local_path
+        read -e -p "请输入本地目录路径（默认 /home/备份/，回车使用默认）: " local_path || exit 0
+        local_path=${local_path:-/home/备份/}
+        if [[ ! -d "$local_path" ]]; then
+            echo "❌ 本地目录不存在：$local_path"
+            exit 1
+        fi
+        if [[ $(readlink -f -- "$local_path") == / ]]; then
+            echo "❌ 禁止传送整个根目录 /，请指定需要传送的文件夹。"
+            exit 1
+        fi
         # 如果本地路径末尾没有 /，则自动添加
         [[ "$local_path" != */ ]] && local_path="${local_path}/"
 
-        read -e -p "请输入远程 VPS 的 IP 地址（例如 1.1.1.1）: " remote_ip
+        read -e -p "远程 VPS 的 IP 地址（例如 1.1.1.1）: " remote_ip
+
+        while true; do
+            read -e -p "远程 VPS 的端口（默认22）: " remote_port || { remote_port=22; break; }
+            remote_port=${remote_port:-22}
+            if [[ "$remote_port" =~ ^[0-9]{1,5}$ ]] &&
+               (( 10#$remote_port >= 1 && 10#$remote_port <= 65535 )); then
+                remote_port=$((10#$remote_port))
+                break
+            fi
+            echo "❌ 端口无效，请输入 1–65535。"
+        done
+
+        read -e -p "远程 VPS 的用户名（默认root）: " remote_user
+        remote_user=${remote_user:-root}
+
+        # SSH参数同时用于远端检查、安装和rsync传送。
+        ssh_options=(-p "$remote_port")
+        rsync_ssh="ssh -p $remote_port"
+        while true; do
+            read -e -p "登录方式默认1（1. 密码 2. SSH密钥 ）: " login_method || { login_method=1; break; }
+            login_method=${login_method:-1}
+            case "$login_method" in
+                1|2) break ;;
+                *) echo "❌ 请选择1或2。" ;;
+            esac
+        done
+        if [[ "$login_method" == 2 ]]; then
+            while true; do
+                read -e -p "SSH私钥文件路径（默认 /root/.ssh/id_ed25519）: " ssh_key_path || { ssh_key_path=""; break; }
+                ssh_key_path=${ssh_key_path:-/root/.ssh/id_ed25519}
+                if [[ -f "$ssh_key_path" && -r "$ssh_key_path" && "$ssh_key_path" != *$'\n'* && "$ssh_key_path" != *$'\r'* ]]; then
+                    break
+                fi
+                echo "❌ 私钥文件不存在、不可读或路径无效，请重新输入。"
+            done
+            if [[ -n "$ssh_key_path" ]]; then
+                ssh_options+=(-i "$ssh_key_path" -o IdentitiesOnly=yes -o PreferredAuthentications=publickey)
+                # rsync自行解析-e参数；引用路径以支持空格和中文。
+                ssh_key_escaped=${ssh_key_path//\\/\\\\}
+                ssh_key_escaped=${ssh_key_escaped//\"/\\\"}
+                rsync_ssh+=" -i \"$ssh_key_escaped\" -o IdentitiesOnly=yes -o PreferredAuthentications=publickey"
+            else
+                echo "已取消。"
+                exit 0
+            fi
+        else
+            ssh_options+=(-o PubkeyAuthentication=no -o PreferredAuthentications=keyboard-interactive,password)
+            rsync_ssh+=" -o PubkeyAuthentication=no -o PreferredAuthentications=keyboard-interactive,password"
+        fi
 
         read -e -p "请输入远程目录路径（默认与本地一致，直接回车即可）: " remote_path
         if [ -z "$remote_path" ]; then
@@ -11340,12 +11394,49 @@ EOF
         fi
 
 
+        # 仅复用本次操作的连接；目录内只保存控制socket，不保存密码。
+        umask 077
+        ssh_control_base=${TMPDIR:-/root/.cache}
+        mkdir -p "$ssh_control_base" || exit 1
+        ssh_control_dir=$(mktemp -d "$ssh_control_base/rsync-ssh.XXXXXX") || exit 1
+        ssh_control_socket="$ssh_control_dir/control"
+        cleanup_rsync_ssh() {
+            ssh -p "$remote_port" -S "$ssh_control_socket" -O exit \
+                "$remote_user@$remote_ip" </dev/null >/dev/null 2>&1 || true
+            rm -rf -- "$ssh_control_dir"
+        }
+        trap cleanup_rsync_ssh EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+
+        echo "🔐 建立SSH复用连接（密码/密钥口令仅由SSH交互读取，不保存）..."
+        if ! ssh "${ssh_options[@]}" -o ControlMaster=yes \
+            -o ControlPath="$ssh_control_socket" -o ControlPersist=60 \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+            -Nf "$remote_user@$remote_ip"; then
+            echo "❌ SSH连接失败，取消传送。"
+            exit 1
+        fi
+        # 禁止连接丢失后重新认证；失败则明确退出，不再次索要密码。
+        ssh_options+=(-o ControlMaster=no -o ControlPath="$ssh_control_socket" -o BatchMode=yes -o ProxyCommand=false)
+        ssh_socket_escaped=${ssh_control_socket//\\/\\\\}
+        ssh_socket_escaped=${ssh_socket_escaped//\"/\\\"}
+        rsync_ssh+=" -o ControlMaster=no -o ControlPath=\"$ssh_socket_escaped\" -o BatchMode=yes -o ProxyCommand=false"
+
         # 检查远程 VPS 是否安装 rsync
         echo "🕵️ 正在检查远程 VPS 是否已安装 rsync..."
-        ssh root@"$remote_ip" "command -v rsync > /dev/null 2>&1"
-        if [ $? -ne 0 ]; then
+        ssh "${ssh_options[@]}" "$remote_user@$remote_ip" "command -v rsync > /dev/null 2>&1"
+        remote_rsync_status=$?
+        if [[ "$remote_rsync_status" == 255 ]]; then
+            echo "❌ SSH复用会话失败，无法判断远端是否安装rsync，取消传送。"
+            exit 1
+        fi
+        if [ "$remote_rsync_status" -ne 0 ]; then
             echo "⚙️ 远程 VPS 未安装 rsync，正在安装..."
-            ssh root@"$remote_ip" "apt update > /dev/null 2>&1 && apt install -y rsync > /dev/null 2>&1"
+            if ! ssh "${ssh_options[@]}" "$remote_user@$remote_ip" "apt update > /dev/null 2>&1 && apt install -y rsync > /dev/null 2>&1 && command -v rsync > /dev/null 2>&1"; then
+                echo "❌ 远端rsync安装或SSH连接失败，取消传送。"
+                exit 1
+            fi
             echo "✅ 远程 VPS 的 rsync 安装完成。"
         else
             echo "✅ 远程 VPS 已安装 rsync，跳过安装。"
@@ -11355,16 +11446,20 @@ EOF
         echo ""
         echo "🚀 开始传送："
         echo "从：$local_path"
-        echo "到：root@$remote_ip:$remote_path"
+        echo "到：$remote_user@$remote_ip:$remote_path（SSH端口：$remote_port）"
         echo ""
 
 
-        rsync -avz "$local_path" root@"$remote_ip":"$remote_path"
+        if ! rsync -avz -e "$rsync_ssh" "$local_path" "$remote_user@$remote_ip:$remote_path"; then
+            echo "❌ 文件传送失败，请检查连接、路径和权限。"
+            exit 1
+        fi
 
         echo ""
         echo "✅ 文件传送完成。"
         echo "------------------------"
         echo ""
+        )
         ;;
 
 
