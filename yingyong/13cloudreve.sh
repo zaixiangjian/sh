@@ -276,7 +276,7 @@ install_app() {
 update_app() {
     local image=${1:-$IMAGE}
     require_docker && check_layout || return 1
-    local candidate backup bind port aria_id
+    local candidate bind port aria_id
     aria_id=$(owned_aria2) || return 1
     IFS= read -r -p "绑定地址（回车 127.0.0.1；可选 0.0.0.0）：" bind || return 1
     bind=${bind:-127.0.0.1}
@@ -288,15 +288,13 @@ update_app() {
     if ! full_compose update "$COMPOSE" "$candidate" "$APP" "$image" "$bind" "$port"
     then rm -f -- "$candidate"; return 1; fi
     docker pull "$image" || { rm -f -- "$candidate"; return 1; }
-    backup=$(mktemp "$APP/docker-compose.yml.before-update.XXXXXX") || { rm -f -- "$candidate"; return 1; }
-    cp -p -- "$COMPOSE" "$backup" && chmod 600 "$backup" && cat "$candidate" > "$COMPOSE" && chmod 600 "$COMPOSE" || { rm -f -- "$candidate"; return 1; }
-    rm -f -- "$candidate"
+    chmod 600 "$candidate" && mv -f -- "$candidate" "$COMPOSE" || { rm -f -- "$candidate"; return 1; }
     docker compose --project-directory "$APP" -f "$COMPOSE" up -d --no-deps cloudreve || {
-        echo "启动失败；原配置：$backup。数据未删除；数据库升级后不可盲目降级。"; return 1;
+        echo "启动失败；本次未备份旧 Compose。数据未删除；数据库升级后不可盲目降级。"; return 1;
     }
-    wait_cloudreve || { echo "启动验证失败；未移除旧 aria2。原配置：$backup"; return 1; }
+    wait_cloudreve || { echo "启动验证失败；未移除旧 aria2，本次未备份旧 Compose。"; return 1; }
     remove_owned_aria2 "$aria_id" || return 1
-    echo "已更新到 $image；网页绑定 $bind:$port，仅使用内置 aria2。其余环境、端口、网络和兼容挂载保留。原配置：$backup"
+    echo "已更新到 $image；网页绑定 $bind:$port，仅使用内置 aria2。其余环境、端口、网络和兼容挂载保留。"
     echo "旧下载器容器仅在归属和新服务启动验证通过后移除；全部下载文件保留。"
     show_ports
 }
@@ -339,23 +337,59 @@ PYPUSH
     then return 1; fi
     echo "推送完成，已验证远端 config digest：$source_id"
 }
+# Retained-data uninstall checks ownership, not whether the deployment can be upgraded.
+cloudreve_uninstall_identity() {
+    python3 - "$APP" "${1:-}" <<'PYUNINSTALL'
+import json,re,subprocess,sys
+from pathlib import Path
+root=Path(sys.argv[1]); expected=sys.argv[2]
+if any(p.is_symlink() for p in (root,*root.parents)):
+    sys.exit('拒绝卸载：部署目录包含符号链接。')
+p=subprocess.run(['docker','inspect','--type','container','cloudreve'],capture_output=True,text=True)
+if p.returncode:
+    # Distinguish genuinely absent container from daemon/permission failure.
+    probe=subprocess.run(['docker','ps','-a','--filter','name=^/cloudreve$','--format','{{.ID}}'],capture_output=True,text=True)
+    if probe.returncode or probe.stdout.strip(): sys.exit('无法确认容器状态，未执行卸载。')
+    if expected: sys.exit('确认期间容器消失或变化，请重新检查。')
+    sys.exit(0)
+c=json.loads(p.stdout)[0]
+if expected and c['Id']!=expected: sys.exit('确认期间 cloudreve 容器已变化，拒绝卸载。')
+if c.get('Name')!='/cloudreve': sys.exit('容器名称不匹配，拒绝卸载。')
+image=c.get('Config',{}).get('Image','')
+pattern=r'(?:cloudreve/cloudreve|zaixiangjian/cloudreve)(?::[A-Za-z0-9_][A-Za-z0-9_.-]*|@sha256:[0-9a-f]{64})'
+if not re.fullmatch(pattern,image):
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}',image): sys.exit('容器镜像来源无法确认，拒绝卸载。')
+    r=subprocess.run(['docker','image','inspect',image],capture_output=True,text=True)
+    if r.returncode: sys.exit('无法核对容器镜像，拒绝卸载。')
+    im=json.loads(r.stdout)[0]
+    if not any(re.fullmatch(pattern,x) for x in (im.get('RepoTags') or [])+(im.get('RepoDigests') or [])):
+        sys.exit('容器镜像没有已知来源标签，拒绝卸载。')
+if c.get('HostConfig',{}).get('Privileged'):
+    sys.exit('拒绝自动卸载特权容器，请人工审核。')
+# We remove this exact container only, never compose down or any volume.
+# Alternate/legacy bind paths are allowed because uninstall never deletes their contents.
+for m in c.get('Mounts',[]):
+    if m.get('Type') not in ('bind','volume','tmpfs'): sys.exit('挂载类型无法确认，拒绝卸载。')
+print(c['Id'])
+PYUNINSTALL
+}
+
 uninstall_app() {
-    require_docker && check_layout uninstall || return 1
-    python3 - "$COMPOSE" <<'PYSCOPE'
-import json,subprocess,sys
-cfg=json.loads(subprocess.check_output(['docker','compose','-f',sys.argv[1],'config','--format','json']))
-if not set(cfg['services']).issubset({'cloudreve','aria2'}): sys.exit('存在其他服务，拒绝整套卸载；没有移除任何容器。')
-PYSCOPE
-    [ "$?" = 0 ] || return 1
-    echo "仅移除经验证的 cloudreve 容器；保留 $APP 全部数据、配置、镜像及 /home 备份。"
-    local answer aria_id cloud_id
+    command -v python3 >/dev/null && docker info >/dev/null 2>&1 || { echo "需要 Python3 和可访问的 Docker。"; return 1; }
+    local answer aria_id cloud_id verified
+    cloud_id=$(cloudreve_uninstall_identity) || return 1
+    echo "仅移除确认的 Cloudreve 容器；保留数据目录、Compose、镜像和全部 Docker 卷。"
+    if [ -n "$cloud_id" ]; then
+        docker inspect "$cloud_id" --format '{{range .Mounts}}{{if eq .Type "volume"}}保留 Docker 卷：{{.Name}} -> {{.Destination}}{{println}}{{end}}{{end}}' || return 1
+        echo "注意：匿名卷虽保留，但重新安装不会自动关联，恢复前需按卷名找回数据。"
+    fi
     aria_id=$(owned_aria2) || return 1
     [ -z "$aria_id" ] || echo "检测到已验证归属的旧独立 aria2，将一并移除其容器；下载文件保留。"
     IFS= read -r -p "确认请输入精确小写 yes：" answer || { echo "已取消"; return; }
     [ "$answer" = yes ] || { echo "已取消"; return; }
-    # 再次检查，避免确认期间容器/挂载变化；卸载不要求端口与 Compose 一致。
-    check_layout uninstall || return 1
-    cloud_id=$(docker inspect cloudreve --format '{{.Id}}') || cloud_id=
+    # Revalidate the originally captured ID after confirmation; never switch targets.
+    verified=$(cloudreve_uninstall_identity "$cloud_id") || return 1
+    [ "$verified" = "$cloud_id" ] || { echo "容器状态变化，拒绝卸载。"; return 1; }
     if [ -n "$cloud_id" ]; then
         docker rm -f "$cloud_id" || return 1
         if docker inspect "$cloud_id" >/dev/null 2>&1; then echo "卸载验证失败。"; return 1; fi
@@ -413,7 +447,7 @@ def validate(c,name):
 def load(name):
     prepare(); p=taskpath(name); private(p,True); private(p/'config.json')
     c=validate(json.loads((p/'config.json').read_text()),name)
-    for f in ('known_hosts','identity' if c['auth']=='key' else 'password'): private(p/f)
+    private(p/('identity' if c['auth']=='key' else 'password'))
     return c
 @contextlib.contextmanager
 def lock(p,blocking=False):
@@ -460,33 +494,143 @@ def transport(c):
     p=taskpath(c['name'])
     # 密码只通过 sshpass -f 读取，短期副本位于 /run，退出时清理。
     with tempfile.TemporaryDirectory(prefix='wangpan-ssh-',dir='/run') as d:
-        opts=['ssh','-F','/dev/null','-p',str(c['port']),'-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+str(p/'known_hosts'),'-o','GlobalKnownHostsFile=/dev/null','-o','ConnectTimeout=10','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=2','-o','LogLevel=ERROR']
+        opts=['ssh','-F','/dev/null','-p',str(c['port']),'-o','StrictHostKeyChecking=no','-o','UserKnownHostsFile=/dev/null','-o','GlobalKnownHostsFile=/dev/null','-o','ConnectTimeout=10','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=2','-o','LogLevel=ERROR']
         if c['auth']=='password':
             f=Path(d)/'password'; shutil.copyfile(p/'password',f); f.chmod(0o600)
-            opts=['sshpass','-f',str(f)]+opts+['-o','PubkeyAuthentication=no','-o','PreferredAuthentications=password','-o','NumberOfPasswordPrompts=1']
+            opts=['sshpass','-f',str(f)]+opts+['-o','PubkeyAuthentication=no','-o','PreferredAuthentications=password,keyboard-interactive','-o','PasswordAuthentication=yes','-o','KbdInteractiveAuthentication=yes','-o','NumberOfPasswordPrompts=1']
         else: opts+=['-i',str(p/'identity'),'-o','IdentitiesOnly=yes','-o','BatchMode=yes']
         yield opts
+
+# Only these legacy compatibility paths may be repaired; never touch data/ SQLite.
+COMPAT_FILES=('cloudreve/cloudreve.db','cloudreve/conf.ini')
+REMOTE_COMPAT='''import os,sys,json,stat,subprocess,shutil,uuid,hashlib
+from pathlib import Path
+root=Path(sys.argv[1]); mode=sys.argv[2]; expected=json.loads(sys.argv[3])
+if any(p.is_symlink() for p in (root,*root.parents)): sys.exit('拒绝远端符号链接目录')
+def safe_file(rel):
+    p=root/rel
+    if rel not in ('cloudreve/cloudreve.db','cloudreve/conf.ini'): sys.exit('兼容文件路径无效')
+    if any(x.is_symlink() for x in (p,*p.parents)): sys.exit('拒绝远端兼容文件符号链接')
+    return p
+paths=[safe_file(rel) for rel in expected]
+conflicts=[p for p in paths if p.is_dir()]
+for p in paths:
+    if p.exists() and not (p.is_file() or p.is_dir()): sys.exit('远端兼容路径为特殊文件')
+for p in conflicts:
+    if any(p.iterdir()): sys.exit('远端兼容路径为非空目录，未修改：'+str(p))
+if mode=='prepare' and conflicts:
+    if shutil.which('docker'):
+        r=subprocess.run(['docker','ps','-q'],capture_output=True,text=True,timeout=15)
+        if r.returncode: sys.exit('无法检查远端运行容器，拒绝修复目录冲突')
+        ids=r.stdout.split()
+        if ids:
+            r=subprocess.run(['docker','inspect',*ids],capture_output=True,text=True,timeout=20)
+            if r.returncode: sys.exit('无法检查运行容器挂载，拒绝修复')
+            for c in json.loads(r.stdout):
+                for m in c.get('Mounts',[]):
+                    source=Path(m.get('Source','/nonexistent')).resolve()
+                    if any(p.resolve()==source or source in p.resolve().parents or p.resolve() in source.parents for p in conflicts):
+                        sys.exit('远端冲突目录被运行容器挂载，拒绝修改')
+    for p in conflicts:
+        safe_file(str(p.relative_to(root)))
+        if any(p.iterdir()): sys.exit('冲突目录已变化，拒绝修改')
+        kept=p.with_name(p.name+'.before-transfer-'+uuid.uuid4().hex)
+        p.rename(kept)
+        print('已保留空目录冲突副本：'+str(kept),flush=True)
+if mode=='verify':
+    for rel,info in expected.items():
+        p=safe_file(rel)
+        if not p.is_file(): sys.exit('传送后兼容路径不是普通文件：'+str(p))
+        h=hashlib.sha256()
+        with p.open('rb') as f:
+            for b in iter(lambda:f.read(1024*1024),b''): h.update(b)
+        if p.stat().st_size!=info['size'] or h.hexdigest()!=info['sha256']:
+            sys.exit('传送后兼容文件内容不一致：'+str(p))
+'''
+def compat_manifest():
+    result={}
+    for rel in COMPAT_FILES:
+        p=APP/rel
+        if not p.exists() and not p.is_symlink(): continue
+        safe(p)
+        if not p.is_file(): raise ValueError('本机兼容路径必须为普通文件：'+str(p))
+        h=hashlib.sha256()
+        with p.open('rb') as f:
+            for b in iter(lambda:f.read(1024*1024),b''): h.update(b)
+        result[rel]={'size':p.stat().st_size,'sha256':h.hexdigest()}
+    return result
+def compat_remote(c,ssh,mode,manifest):
+    command='python3 -c '+shlex.quote(REMOTE_COMPAT)+' '+shlex.quote(c['dest'])+' '+mode+' '+shlex.quote(json.dumps(manifest))
+    r=call(ssh+[c['user']+'@'+c['host'],command],timeout=60)
+    if r.returncode:
+        message=r.stderr.decode(errors='replace').strip() if isinstance(r.stderr,bytes) else str(r.stderr).strip()
+        raise ValueError('远端兼容文件'+('检查/修复' if mode=='prepare' else '验证')+'失败：'+message[-1200:])
+    if r.stdout:
+        print(r.stdout.decode(errors='replace').strip() if isinstance(r.stdout,bytes) else r.stdout.strip())
+
+def transfer_phase(p,phase,started):
+    atomic(p/'progress.json',{'pid':os.getpid(),'started':started,'updated':int(time.time()),'phase':phase})
+def report_transfer_busy(p):
+    try:
+        info=json.loads((p/'progress.json').read_text())
+        age=max(0,int(time.time())-int(info['started']))
+        print('任务锁被占用：PID '+str(info['pid'])+'，已用 '+str(age)+' 秒，阶段：'+str(info['phase'])+'。这不代表文件已到达远端。')
+    except (OSError,ValueError,KeyError,TypeError):
+        print('任务锁被占用（可能由旧版后台任务持有），无法确认执行阶段；未启动第二次传送。')
+def ssh_failure(result,c):
+    raw=result.stderr or b''
+    detail=raw.decode('utf-8',errors='replace') if isinstance(raw,bytes) else str(raw)
+    if c.get('auth')=='password':
+        try:
+            secret=(taskpath(c['name'])/'password').read_text().rstrip('\n')
+            if secret: detail=detail.replace(secret,'[密码已隐藏]')
+        except OSError: pass
+    detail=' '.join(''.join(x for x in detail if x.isprintable() or x in '\n\t').split())[-1200:]
+    low=detail.lower()
+    if 'connection refused' in low: reason='连接被拒绝：检查SSH端口、SSH服务及防火墙'
+    elif 'timed out' in low or 'timeout' in low: reason='连接超时：检查IP、端口、防火墙及网络'
+    elif 'permission denied' in low or result.returncode==5: reason='认证失败：检查密码、用户名及是否允许root/密码登录'
+    elif 'no route to host' in low or 'network is unreachable' in low: reason='目标网络不可达'
+    elif 'connection reset' in low or 'connection closed' in low or 'kex_exchange_identification' in low: reason='连接被远端关闭：检查SSH监听服务、访问限制及封禁'
+    elif 'no matching' in low: reason='SSH协议算法不兼容'
+    else: reason='SSH连接/认证未成功，需查看下面的诊断'
+    return reason+'（退出码 '+str(result.returncode)+'）'+('；SSH诊断：'+detail if detail else '；远端未返回诊断')
 
 def run_task(name):
     c=load(name); p=taskpath(name)
     with lock(p/'transfer.lock') as owned:
-        if not owned: return 75
+        if not owned:
+            report_transfer_busy(p)
+            return 75
         c=load(name)  # 删除任务与等待锁之间可能已撤销配置，必须重新确认。
+        started=int(time.time())
         try:
+            transfer_phase(p,'扫描本地目录变化（尚未传送）',started)
             before=fingerprint()
+            manifest=compat_manifest()
             with transport(c) as ssh:
-                probe=call(ssh+[c['user']+'@'+c['host'],remote(c)+' && command -v rsync >/dev/null'],timeout=40)
+                transfer_phase(p,'SSH连接及远端预检（尚未传送）',started)
+                probe=call(ssh+[c['user']+'@'+c['host'],remote(c,True)+' && command -v rsync >/dev/null'],timeout=40)
                 if probe.returncode:
-                    raise ValueError('远端预检失败（代码 '+str(probe.returncode)+'）：检查SSH、rsync、目录权限或符号链接')
+                    raise ValueError('远端预检失败：'+ssh_failure(probe,c))
+                transfer_phase(p,'远端兼容文件类型检查/修复',started)
+                compat_remote(c,ssh,'prepare',manifest)
                 host='['+c['host']+']' if ':' in c['host'] else c['host']
-                cmd=['rsync','-a','--checksum','--protect-args','--timeout=90','-e',shlex.join(ssh),'--rsync-path='+remote(c)+' && exec rsync']
+                cmd=['rsync','-avz','--protect-args','--timeout=90','-e',shlex.join(ssh),'--rsync-path='+remote(c)+' && exec rsync']
+                cmd+=['--exclude=/cloudreve/cloudreve.db.before-transfer-*','--exclude=/cloudreve/conf.ini.before-transfer-*']
                 if c['delete']: cmd.append('--delete-delay')
+                transfer_phase(p,'rsync比较/传送中（不等于已完成）',started)
                 result=call(cmd+['--',str(APP)+'/',c['user']+'@'+host+':'+c['dest']+'/'],timeout=3600)
-                if result.returncode: raise ValueError('rsync 失败，代码 '+str(result.returncode))
+                if result.returncode: raise ValueError('rsync 失败：'+ssh_failure(result,c))
+                transfer_phase(p,'验证远端文件类型与内容',started)
+                compat_remote(c,ssh,'verify',manifest)
+            transfer_phase(p,'传送后扫描本地目录',started)
             after=fingerprint()
             atomic(p/'state.json',{'time':int(time.time()),'ok':True,'result':'已传送（热镜像，非一致性备份）','fingerprint':before,'dirty':before!=after})
+            transfer_phase(p,'已完成',started)
             return 0
         except (ValueError,OSError,subprocess.TimeoutExpired) as e:
+            transfer_phase(p,'失败：'+str(e),started)
             atomic(p/'state.json',{'time':int(time.time()),'ok':False,'dirty':True,'result':str(e)})
             print(str(e),file=sys.stderr); return 1
 class Debounce:
@@ -501,6 +645,8 @@ def watch_task(name):
     load(name); p=taskpath(name)
     with lock(p/'watcher.lock') as owned:
         if not owned: return 75
+        # Initial directory sync like the old wangpan.sh; same transfer lock prevents overlap.
+        run_task(name)
         debounce=Debounce()
         while True:
             load(name)
@@ -580,7 +726,7 @@ def remove_task(name):
 def ask(prompt): return input(prompt)
 def yes(prompt): return ask(prompt)=='yes'
 def dependencies():
-    for tool in ('ssh','ssh-keyscan','ssh-keygen','systemctl','crontab'):
+    for tool in ('ssh','systemctl','crontab'):
         if not shutil.which(tool): raise ValueError('缺少依赖 '+tool+'；请先自行安装，不自动安装')
     if not Path('/run/systemd/system').is_dir(): raise ValueError('需要运行中的 systemd 来保证连续监测')
 INSTALL_RSYNC = """set -eu
@@ -603,6 +749,26 @@ command -v rsync >/dev/null
 """
 # sudo 子命令只包含固定安装逻辑，避免递归提权。
 INSTALL_RSYNC=INSTALL_RSYNC.replace("exec sudo -n sh -c 'SCRIPT_BODY'", "exec sudo -n sh -c "+shlex.quote('if command -v apt-get'+INSTALL_RSYNC.split('if command -v apt-get',1)[1]))
+def ensure_local_sshpass():
+    if shutil.which('sshpass'): return
+    print('密码认证缺少 sshpass，正在自动安装（仅本机）。')
+    if os.geteuid()!=0: raise ValueError('自动安装 sshpass 需要 root，请以 root 运行脚本')
+    if shutil.which('apt-get'):
+        env=dict(os.environ,DEBIAN_FRONTEND='noninteractive')
+        r=call(['apt-get','update'],timeout=900,env=env)
+        if r.returncode: raise ValueError('更新软件源失败，未添加任务；请检查网络/软件源后重试')
+        r=call(['apt-get','install','-y','--no-install-recommends','sshpass'],timeout=900,env=env)
+    elif shutil.which('dnf'):
+        r=call(['dnf','install','-y','sshpass'],timeout=900)
+    elif shutil.which('yum'):
+        r=call(['yum','install','-y','sshpass'],timeout=900)
+    elif shutil.which('apk'):
+        r=call(['apk','add','sshpass'],timeout=900)
+    else: raise ValueError('没有支持的包管理器，无法自动安装 sshpass')
+    if r.returncode or not shutil.which('sshpass'):
+        raise ValueError('sshpass 自动安装或命令验证失败，未添加任务')
+    print('sshpass 已安装并验证。')
+
 def ensure_local_rsync():
     if shutil.which('rsync'): return
     print('本机缺少 rsync，正在使用系统包管理器安装。')
@@ -620,7 +786,7 @@ def add_task():
     auth=ask('认证 1.密钥 2.密码（1）：') or '1'
     if auth not in ('1','2'): raise ValueError('认证选项无效')
     c['auth']='key' if auth=='1' else 'password'; validate(c,name)
-    if c['auth']=='password' and not shutil.which('sshpass'): raise ValueError('密码认证需要 sshpass，请自行安装')
+    if c['auth']=='password': ensure_local_sshpass()
     print('允许目标已有部署或文件，会覆盖同路径文件；请先停止远端 Cloudreve，运行中接收数据库会损坏数据。')
     if not yes('确认目标目录及覆盖范围，远端服务已停止；请输入精确 yes：'): return
     mode=ask('删除远端多余文件？1.不删除（默认） 2.镜像删除：') or '1'
@@ -629,18 +795,10 @@ def add_task():
         print('仅对专用目标 '+c['dest']+' 使用 --delete，删除无法恢复。')
         if not yes('明确同意删除请输入精确 yes：'): return
         c['delete']=True
-    # 在认证前展示未信任主机的全部 SHA256 指纹，独立确认。禁止 accept-new/自动 yes。
-    scan=call(['ssh-keyscan','-T','10','-p',str(c['port']),c['host']],timeout=35)
-    if scan.returncode or not scan.stdout.strip(): raise ValueError('目标离线或无法获取主机密钥；未添加')
+    print('提示：按当前设置直接连接 SSH，不校验服务器指纹。')
     with tempfile.TemporaryDirectory(prefix='wangpan-ssh-',dir='/run') as d:
-        kh=Path(d)/'known_hosts'; kh.write_bytes(scan.stdout); kh.chmod(0o600)
-        fp=call(['ssh-keygen','-lf',str(kh),'-E','sha256'],text=True)
-        if fp.returncode: raise ValueError('主机密钥格式错误')
-        print('请通过独立可信渠道核对主机指纹，扫描本身不证明身份：\n'+fp.stdout)
-        if not yes('已独立核对上述指纹，信任此主机请输入精确 yes：'): return
         p.mkdir(mode=0o700)
         try:
-            shutil.copyfile(kh,p/'known_hosts'); (p/'known_hosts').chmod(0o600)
             if c['auth']=='key':
                 key=safe(Path(ask('SSH 私钥绝对路径（需无口令专用密钥）：')))
                 if key.is_relative_to(APP) or not key.is_file(): raise ValueError('私钥不得来自网盘目录')
@@ -661,7 +819,7 @@ def add_task():
             with transport(c) as ssh:
                 target=c['user']+'@'+c['host']
                 r=call(ssh+[target,'true'],timeout=40)
-                if r.returncode: raise ValueError('SSH 登录失败：请检查密码、SSH端口及认证权限（退出码 '+str(r.returncode)+'）')
+                if r.returncode: raise ValueError('SSH 登录失败：'+ssh_failure(r,c))
                 r=call(ssh+[target,'command -v python3 >/dev/null'],timeout=40)
                 if r.returncode: raise ValueError('远端缺少 python3，需先安装以校验目录归属')
                 r=call(ssh+[target,'command -v rsync >/dev/null'],timeout=40)
