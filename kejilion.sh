@@ -10798,7 +10798,7 @@ done
         ;;
 
       101)
-        run_local_first_app_script "▶️ 正在启动agent-ai备份管理脚本..." "/root/agent-ai.d/agent-ai.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh"
+        run_local_first_app_script "▶️ 正在启动agent-ai备份管理脚本..." "/root/yingyong/agent-ai.d/agent-ai.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/ai/agent-ai.sh"
         echo "✅ agent-ai备份管理脚本执行完成..."
         ;;
 
