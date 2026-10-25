@@ -14,8 +14,10 @@ CONFIG_DIR='/root/yingyong/agent-ai.d'
 LEGACY_CONFIG_FILE='/root/agent-ai.conf'
 HERMES_SCRIPT='/root/yingyong/hermes_manager.sh'
 OPENCLAW_SCRIPT='/root/yingyong/Openclaw.sh'
-HERMES_BACKUP_DIR="${HOME}/hermes_memory_backups"
-OPENCLAW_BACKUP_DIR="${HOME}/openclaw_custom_backups"
+HERMES_BACKUP_DIR="/home/备份/hermes"
+HERMES_BACKUP_PATTERN="*.tar.gz"
+OPENCLAW_BACKUP_DIR="/home/备份/Openclaw"
+OPENCLAW_BACKUP_PATTERN="*.tar.gz"
 LOCAL_KEEP_DEFAULT=3
 REMOTE_KEEP_DEFAULT=3
 
@@ -564,8 +566,8 @@ run_hermes_manager_backup() {
     chmod +x "$HERMES_SCRIPT" || true
     mkdir -p "$HERMES_BACKUP_DIR"
 
-    local before_count after_count newest
-    before_count=$(count_backups "$HERMES_BACKUP_DIR" 'hermes_memory_full_*.tar.gz')
+    local before_state newest newest_state
+    before_state=$(find "$HERMES_BACKUP_DIR" -maxdepth 1 -type f -name "$HERMES_BACKUP_PATTERN" -printf '%i %T@ %s %p\n')
     echo -e "${CYAN}调用 Hermes 管理脚本执行：18 → 1 → y${NC}"
 
     # 输入顺序：主菜单18、子菜单1、确认y、子菜单暂停回车、子菜单0、主菜单暂停回车、主菜单0退出。
@@ -583,12 +585,13 @@ EOF
         return 1
     fi
 
-    after_count=$(count_backups "$HERMES_BACKUP_DIR" 'hermes_memory_full_*.tar.gz')
-    newest=$(find_newest_backup "$HERMES_BACKUP_DIR" 'hermes_memory_full_*.tar.gz' || true)
-    if [ -z "$newest" ] || [ "$after_count" -le "$before_count" ]; then
-        echo -e "${YELLOW}⚠️ 未检测到新增 Hermes 备份包，将尝试上传目录中最新备份：${NC}${newest:-无}"
+    newest=$(find_newest_backup "$HERMES_BACKUP_DIR" "$HERMES_BACKUP_PATTERN" || true)
+    [ -n "$newest" ] || { echo "❌ 未找到本次生成的备份包，不上传旧备份。"; return 1; }
+    newest_state=$(find "$newest" -maxdepth 0 -type f -printf '%i %T@ %s %p\n')
+    if [ -z "$newest_state" ] || printf '%s\n' "$before_state" | grep -Fxq -- "$newest_state"; then
+        echo "❌ 最新备份未变化，本次未生成新包，不上传历史备份。"
+        return 1
     fi
-    [ -n "$newest" ] || { echo -e "${RED}❌ Hermes 备份目录没有可上传的备份包。${NC}"; return 1; }
     printf '%s\n' "$newest"
 }
 
@@ -597,8 +600,8 @@ run_openclaw_custom_backup() {
     chmod +x "$OPENCLAW_SCRIPT" || true
     mkdir -p "$OPENCLAW_BACKUP_DIR"
 
-    local before_count after_count newest
-    before_count=$(count_backups "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_*.tar.gz')
+    local before_state newest newest_state
+    before_state=$(find "$OPENCLAW_BACKUP_DIR" -maxdepth 1 -type f -name "$OPENCLAW_BACKUP_PATTERN" -printf '%i %T@ %s %p\n')
     echo -e "${CYAN}调用 OpenClaw 管理脚本执行：188 → 1 → y${NC}"
     echo -e "${YELLOW}注意：OpenClaw.sh 188 会在备份完成后自动重新启动 Gateway；agent-ai 只负责上传和清理备份。${NC}"
 
@@ -616,12 +619,13 @@ EOF
         return 1
     fi
 
-    after_count=$(count_backups "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_*.tar.gz')
-    newest=$(find_newest_backup "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_*.tar.gz' || true)
-    if [ -z "$newest" ] || [ "$after_count" -le "$before_count" ]; then
-        echo -e "${YELLOW}⚠️ 未检测到新增 OpenClaw 备份包，将尝试上传目录中最新备份：${NC}${newest:-无}"
+    newest=$(find_newest_backup "$OPENCLAW_BACKUP_DIR" "$OPENCLAW_BACKUP_PATTERN" || true)
+    [ -n "$newest" ] || { echo "❌ 未找到本次生成的备份包，不上传旧备份。"; return 1; }
+    newest_state=$(find "$newest" -maxdepth 0 -type f -printf '%i %T@ %s %p\n')
+    if [ -z "$newest_state" ] || printf '%s\n' "$before_state" | grep -Fxq -- "$newest_state"; then
+        echo "❌ 最新备份未变化，本次未生成新包，不上传历史备份。"
+        return 1
     fi
-    [ -n "$newest" ] || { echo -e "${RED}❌ OpenClaw 备份目录没有可上传的备份包。${NC}"; return 1; }
     printf '%s\n' "$newest"
 }
 
@@ -631,11 +635,11 @@ backup_hermes() {
     echo -e "${CYAN}正在执行 Hermes 备份，下面实时显示进度（最长等待 900 秒）...${NC}"
     if output=$(run_hermes_manager_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
     [ "$rc" -eq 0 ] || return "$rc"
-    backup_file=$(extract_backup_path_from_output "$output" "$HERMES_BACKUP_DIR" 'hermes_memory_full_[0-9_]+\.tar\.gz')
+    backup_file=$(printf '%s\n' "$output" | tail -n 1)
     [ -f "$backup_file" ] || { echo -e "${RED}❌ Hermes 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
-    upload_backup_to_all_enabled "$backup_file" 'hermes' 'hermes_memory_full_*.tar.gz' || return 1
+    upload_backup_to_all_enabled "$backup_file" 'hermes' "$HERMES_BACKUP_PATTERN" || return 1
     keep="$(get_effective_local_keep)"
-    prune_local_backups "$HERMES_BACKUP_DIR" 'hermes_memory_full_*.tar.gz' "$keep"
+    prune_local_backups "$HERMES_BACKUP_DIR" "$HERMES_BACKUP_PATTERN" "$keep"
     echo -e "${GREEN}✅ Hermes 备份完成：已上传到所有启用配置，本地保留 $keep 个。${NC}"
 }
 
@@ -645,11 +649,11 @@ backup_openclaw() {
     echo -e "${CYAN}正在执行 OpenClaw 备份，下面实时显示进度（最长等待 900 秒）...${NC}"
     if output=$(run_openclaw_custom_backup 2>&1 | tee /dev/stderr); then rc=0; else rc=$?; fi
     [ "$rc" -eq 0 ] || return "$rc"
-    backup_file=$(extract_backup_path_from_output "$output" "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_[0-9_]+\.tar\.gz')
+    backup_file=$(printf '%s\n' "$output" | tail -n 1)
     [ -f "$backup_file" ] || { echo -e "${RED}❌ OpenClaw 备份包路径异常：${backup_file:-未识别到备份包路径}${NC}"; return 1; }
-    upload_backup_to_all_enabled "$backup_file" 'openclaw' 'openclaw_custom_full_*.tar.gz' || return 1
+    upload_backup_to_all_enabled "$backup_file" 'openclaw' "$OPENCLAW_BACKUP_PATTERN" || return 1
     keep="$(get_effective_local_keep)"
-    prune_local_backups "$OPENCLAW_BACKUP_DIR" 'openclaw_custom_full_*.tar.gz' "$keep"
+    prune_local_backups "$OPENCLAW_BACKUP_DIR" "$OPENCLAW_BACKUP_PATTERN" "$keep"
     echo -e "${GREEN}✅ OpenClaw 备份完成：已上传到所有启用配置，本地保留 $keep 个。${NC}"
 }
 
