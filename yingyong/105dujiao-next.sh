@@ -398,6 +398,58 @@ show_status() {
   echo
 }
 
+dujiao_proxy_manual_hint() {
+  warn '安装/更新或可信代理同步失败，请手动获取实际地址，核对 config/config.yml 的 server.trusted_proxies：'
+  cat <<'HINT'
+docker inspect dujiao-next dujiao-next-proxy --format '{{.Name}} {{range $name, $net := .NetworkSettings.Networks}}网络={{$name}} IP={{$net.IPAddress}} 网关={{$net.Gateway}} {{end}}'
+HINT
+}
+
+dujiao_sync_trusted_proxies() {
+  python3 - "$APP_DIR/$CONFIG_FILE" <<'PY_PROXY'
+import subprocess,json,ipaddress,pathlib,re
+p=pathlib.Path(__import__('sys').argv[1])
+items=json.loads(subprocess.run(['docker','inspect','dujiao-next','dujiao-next-proxy'],check=True,capture_output=True,text=True).stdout)
+byname={x['Name'].lstrip('/'):x for x in items}
+app=byname['dujiao-next']['NetworkSettings']['Networks']; proxy=byname['dujiao-next-proxy']['NetworkSettings']['Networks']
+common=set(app)&set(proxy)
+if len(common)!=1:raise ValueError('无法唯一确定应用与代理的共同网络')
+net=proxy[common.pop()]; addresses=[]
+for key in ['IPAddress','Gateway','GlobalIPv6Address','IPv6Gateway']:
+ value=net.get(key)
+ if value:
+  ip=ipaddress.ip_address(value)
+  if ip.is_unspecified or ip.is_loopback:raise ValueError('代理地址异常')
+  addresses.append(str(ip)+'/'+str(ip.max_prefixlen))
+if not net.get('IPAddress') or not net.get('Gateway'):raise ValueError('代理IPv4或网关为空')
+if p.is_symlink() or not p.is_file():raise ValueError('配置文件不存在或是符号链接')
+text=p.read_text(); lines=text.splitlines(True)
+starts=[i for i,l in enumerate(lines) if re.match(r'^server:\s*(?:#.*)?$',l.strip('\n'))]
+if len(starts)!=1:raise ValueError('server配置结构不明确')
+a=starts[0]+1;b=next((i for i in range(a,len(lines)) if re.match(r'^[^\s#][^:]*:',lines[i])),len(lines))
+keys=[i for i in range(a,b) if re.match(r'^\s+trusted_proxies:\s*(?:#.*)?$',lines[i].rstrip('\n'))]
+if len(keys)!=1:raise ValueError('trusted_proxies不是受支持的块列表，请人工核对')
+k=keys[0];end=k+1
+while end<b and (re.match(r'^\s*-\s+',lines[end]) or not lines[end].strip() or lines[end].lstrip().startswith('#')):end+=1
+old=lines[k+1:end]; indent=re.match(r'^(\s*)',lines[k]).group(1)
+kept=[l for l in old if '# dujiao-managed-proxy' not in l]
+existing=set()
+for l in kept:
+ m=re.match(r'^\s*-\s*[\'"]?([^\s\'"#]+)',l)
+ if m:existing.add(m.group(1))
+added=[indent+'- '+v+' # dujiao-managed-proxy\n' for v in dict.fromkeys(addresses) if v not in existing]
+new=''.join(lines[:k+1]+kept+added+lines[end:])
+# Preserve inode for the existing Docker file bind mount. Do not print configuration/secrets.
+if new!=text:
+ with p.open('r+') as f:
+  f.write(new);f.truncate();f.flush();__import__('os').fsync(f.fileno())
+print('可信代理已核对：'+', '.join(addresses))
+PY_PROXY
+  local rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  docker restart dujiao-next >/dev/null || return 1
+}
+
 install_dujiao() {
   local image_repo="${1:-${CUSTOM_IMAGE_REPO}}"
   local mode_name="${2:-镜像}"
@@ -456,8 +508,9 @@ install_dujiao() {
   cd "${APP_DIR}"
   local dc
   dc="$(compose_cmd)"
-  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" pull
-  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" up -d
+  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" pull || { dujiao_proxy_manual_hint; return 1; }
+  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" up -d || { dujiao_proxy_manual_hint; return 1; }
+  dujiao_sync_trusted_proxies || { dujiao_proxy_manual_hint; return 1; }
 
   success "Dujiao-Next ${mode_name}安装/启动完成"
   echo
@@ -495,8 +548,9 @@ update_dujiao() {
   cd "${APP_DIR}"
   local dc
   dc="$(compose_cmd)"
-  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" pull
-  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" up -d
+  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" pull || { dujiao_proxy_manual_hint; return 1; }
+  ${dc} --env-file "${ENV_FILE}" -f "${COMPOSE_SQLITE}" up -d || { dujiao_proxy_manual_hint; return 1; }
+  dujiao_sync_trusted_proxies || { dujiao_proxy_manual_hint; return 1; }
   success "更新完成"
 }
 
