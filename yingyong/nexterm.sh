@@ -50,14 +50,23 @@ verify_container() {
     [[ $(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$NAME") != unhealthy ]]
 }
 run_container() {
-    docker run -d --name "$NAME" --env-file "$1" --restart always -p "$BIND_IP:$PORT:6989" -v "$DATA_DIR:/app/data" "$2" || return 1
-    verify_container
+    docker run -d --ulimit core=0:0 --name "$NAME" --env-file "$1" --restart always -p "$BIND_IP:$PORT:6989" -v "$DATA_DIR:/app/data" "$2" || return 1
+    verify_container || return 1
+    setup_app_log_rotation || error '应用已启动，但日志轮转配置失败；重新打开菜单可重试。'
+    return 0
 }
 # 归档、密钥和容器配置只在私有文件中处理，不打印环境凭据。
 helper() {
     python3 - "$@" <<'PY'
 import sys,os,json,pathlib,tarfile,time,shutil
 mode=sys.argv[1]
+def diagnostic(parts):
+    parts=tuple(p for p in parts if p not in ('','.'))
+    if parts and parts[0]=='data': parts=parts[1:]
+    return bool(parts) and (parts[0] in ('logs','crashes') or
+        any(p=='core' or p.startswith('core.') or p.endswith(('.core','.dmp')) for p in parts))
+def core_header(header):
+    return len(header)>=18 and header[:4]==b'\x7fELF' and header[5] in (1,2) and int.from_bytes(header[16:18],'little' if header[5]==1 else 'big')==4
 if mode=='env':
     key=pathlib.Path(sys.argv[2]).read_text().strip()
     if not key or '\n' in key or '\r' in key: raise ValueError('密钥无效')
@@ -102,7 +111,14 @@ elif mode=='extract':
             if str(p) in seen: raise ValueError('重复路径')
             seen.add(str(p))
         # 全部成员已在上方校验；兼容发行版自带的Python3，不依赖filter新接口。
-        t.extractall(sys.argv[3],members=members)
+        selected=[]
+        for m in members:
+            if diagnostic(pathlib.PurePosixPath(m.name).parts): continue
+            if m.isfile():
+                with t.extractfile(m) as stream:
+                    if core_header(stream.read(18)): continue
+            selected.append(m)
+        t.extractall(sys.argv[3],members=selected)
     root=pathlib.Path(sys.argv[3])
     if (root/'data').is_dir() and (root/'encryption-key').is_file():
         if set(p.name for p in root.iterdir())!={'data','encryption-key'}: raise ValueError('备份结构无效')
@@ -110,6 +126,22 @@ elif mode=='extract':
     else: print('legacy')
 elif mode=='copy':
     shutil.copytree(sys.argv[2],sys.argv[3],dirs_exist_ok=True,symlinks=False)
+elif mode=='backup-copy':
+    source=pathlib.Path(sys.argv[2]); destination=pathlib.Path(sys.argv[3])
+    if source.is_symlink(): raise ValueError('数据根目录不能是链接')
+    destination.mkdir(mode=0o700)
+    def walk_error(error): raise error
+    for directory,dirs,names in os.walk(source,followlinks=False,onerror=walk_error):
+        current=pathlib.Path(directory);relative=current.relative_to(source)
+        dirs[:]=[n for n in dirs if not diagnostic((relative/n).parts) and not (current/n).is_symlink()]
+        out=destination/relative;out.mkdir(parents=True,exist_ok=True,mode=0o700)
+        for name in names:
+            p=current/name
+            if diagnostic((relative/name).parts) or name in ('encryption-key','.nexterm-encryption-key','.env'): continue
+            if p.is_symlink() or not p.is_file(): raise ValueError('备份拒绝链接/特殊文件：'+repr(str(relative/name)))
+            with p.open('rb') as f:
+                if core_header(f.read(18)): continue
+            shutil.copy2(p,out/name)
 else: raise ValueError('未知操作')
 PY
 }
@@ -184,11 +216,12 @@ backup_app() (
     trap 'exit 130' INT
     trap 'exit 143' TERM HUP
     (( ! restart )) || docker stop -t 30 "$NAME" >/dev/null || exit 1
-    helper copy "$DATA_DIR" "$work/data" || exit 1
+    helper backup-copy "$DATA_DIR" "$work/data" || exit 1
     tar -czf "$archive" -C "$work/data" . || exit 1
     complete=1
     prune_local_backups || { error "备份成功，但本地保留清理失败。"; exit 1; }
     echo "备份完成：$archive（仅应用数据，不含加密密钥，权限0600）"
+    echo "已排除日志、崩溃转储和core文件；备份仍包含敏感业务数据，请勿公开。"
     echo "恢复必须输入原ENCRYPTION_KEY，请与备份分开妥善保管；未加密字段仍可读取。"
 )
 update_app() (
@@ -208,10 +241,10 @@ update_app() (
     docker stop -t 30 "$NAME" >/dev/null || exit 1
     if ! helper copy "$DATA_DIR" "$rollback"; then (( ! restart )) || docker start "$NAME" >/dev/null; exit 1; fi
     if ! docker rename "$NAME" "$old"; then (( ! restart )) || docker start "$NAME" >/dev/null; exit 1; fi
-    if docker run -d --name "$NAME" --env-file "$work/env" --restart "${config[2]}" -p "$BIND_IP:$PORT:6989" -v "$DATA_DIR:/app/data" "$image" && verify_container; then
+    if docker run -d --ulimit core=0:0 --name "$NAME" --env-file "$work/env" --restart "${config[2]}" -p "$BIND_IP:$PORT:6989" -v "$DATA_DIR:/app/data" "$image" && verify_container; then
         docker rm "$old" >/dev/null || { error "旧容器清理失败：$old"; exit 1; }
+        rm -rf -- "$rollback" || { error "更新成功，但临时旧数据清理失败：$rollback"; exit 1; }
         echo "更新完成：$image；保留原端口、环境变量、密钥和重启策略。"
-        echo "更新前数据保留：$rollback"
     else
         if exists; then docker rm -f "$NAME" >/dev/null || { error "失败容器无法移除，原数据：$rollback"; exit 1; }; fi
         failed=$(mktemp -d "$(dirname "$DATA_DIR")/.nexterm-failed-update.XXXXXX") || exit 1
@@ -882,9 +915,50 @@ named_configure() {
 
 
 
+setup_app_log_rotation() {
+    [[ -d "$DATA_DIR/logs" ]] || return 0
+    command -v logrotate >/dev/null || {
+        if command -v apt-get >/dev/null; then
+            apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y logrotate || return 1
+        elif command -v dnf >/dev/null; then dnf install -y logrotate || return 1
+        elif command -v yum >/dev/null; then yum install -y logrotate || return 1
+        elif command -v apk >/dev/null; then apk add --no-cache logrotate || return 1
+        else error '请先安装logrotate'; return 1; fi
+    }
+    [[ -d /run/systemd/system ]] || { error '应用日志轮转需要systemd'; return 1; }
+    python3 - "$DATA_DIR" "$(command -v logrotate)" <<'PY_LOGROTATE'
+import os,sys,pathlib,subprocess,tempfile
+root=pathlib.Path(sys.argv[1]);binary=sys.argv[2]
+if any(c in str(root) for c in '\n\r"') or root.is_symlink():raise ValueError('日志路径不安全')
+marker='# Nexterm managed application log rotation\n'
+config=marker+'"'+str(root/'logs/*.log')+'" {\n    size 2M\n    rotate 3\n    missingok\n    notifempty\n    compress\n    delaycompress\n    copytruncate\n    su root root\n}\n'
+service=marker+'[Unit]\nDescription=Nexterm application log rotation\n[Service]\nType=oneshot\nUMask=0077\nExecStart='+binary+' --state /var/lib/nexterm-logrotate.status /etc/nexterm-logrotate.conf\n'
+timer=marker+'[Unit]\nDescription=Check Nexterm application logs hourly\n[Timer]\nOnCalendar=hourly\nPersistent=true\n[Install]\nWantedBy=timers.target\n'
+files={pathlib.Path('/etc/nexterm-logrotate.conf'):config,pathlib.Path('/etc/systemd/system/nexterm-logrotate.service'):service,pathlib.Path('/etc/systemd/system/nexterm-logrotate.timer'):timer}
+changed=False
+for p,body in files.items():
+    if p.is_symlink() or (p.exists() and not p.read_text().startswith(marker)):raise ValueError('拒绝覆盖非本脚本配置：'+str(p))
+# Validate before publishing any persistent file.
+fd,tmp=tempfile.mkstemp(prefix='.nexterm-logrotate-',dir='/etc')
+try:
+    with os.fdopen(fd,'w') as f:f.write(config)
+    subprocess.run([binary,'--debug',tmp],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+finally:os.unlink(tmp)
+for p,body in files.items():
+    if not p.exists() or p.read_text()!=body:
+        p.write_text(body);p.chmod(0o644);changed=True
+    if p.read_text()!=body:raise RuntimeError('日志轮转配置读回失败')
+if changed:subprocess.run(['systemctl','daemon-reload'],check=True)
+subprocess.run(['systemctl','enable','--now','nexterm-logrotate.timer'],check=True,stdout=subprocess.DEVNULL)
+subprocess.run(['systemctl','is-active','--quiet','nexterm-logrotate.timer'],check=True)
+subprocess.run(['systemctl','is-enabled','--quiet','nexterm-logrotate.timer'],check=True)
+PY_LOGROTATE
+}
+
 main() {
     [[ $EUID == 0 ]] || { error "请使用root或sudo运行。"; return 1; }
     ensure_environment || { error "环境准备失败，未执行应用操作。"; return 1; }
+    setup_app_log_rotation || error '日志轮转配置失败，请检查以上错误。'
     repair_remote_schedules
     local choice
     while true; do
