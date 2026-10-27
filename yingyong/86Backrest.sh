@@ -269,7 +269,7 @@ except Exception as e:
     sys.exit(1)
 PY
     ) || return 1
-    if ! tar -czf "$backup_file" --exclude='backrest/cache' --exclude='backrest/tmp' --exclude='backrest/logs' -C "$(dirname "$app_base_dir")" backrest; then
+    if ! tar -czf "$backup_file" --exclude='backrest/cache' --exclude='backrest/tmp' --exclude='backrest/data/processlogs' --exclude='backrest/data/tasklogs' -C "$(dirname "$app_base_dir")" backrest; then
         rm -f -- "$backup_file"; echo "❌ 备份失败。"; return 1
     fi
     chmod 600 "$backup_file" || return 1
@@ -345,6 +345,7 @@ PY
 }
 
 br_restore() (
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     local image source_choice selection confirm stage rollback running=false existed=false file listing
     local -a files=()
     command -v python3 >/dev/null || { echo "❌ 需要 Python 3。"; return 1; }
