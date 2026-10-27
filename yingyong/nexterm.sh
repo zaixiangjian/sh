@@ -4,14 +4,14 @@
 set -uo pipefail
 NAME="nexterm"
 DATA_DIR="/home/docker/nexterm"
-KEY_FILE="/home/docker/.nexterm-encryption-key"
 BACKUP_DIR="/home/备份/nexterm"
+KEY_FILE="$BACKUP_DIR/config/encryption-key"
 SEARCH_DIRS=("/home/备份/nexterm" "/home/备份" "/home")
 OFFICIAL_IMAGE="nexterm/aio:latest"
 CUSTOM_IMAGE="zaixiangjian/aio:latest"
 BIND_IP="127.0.0.1"
 PORT="6989"
-LOCK_FILE="/home/docker/.nexterm.lock"
+LOCK_FILE="$BACKUP_DIR/config/operation.lock"
 RETENTION_FILE="/home/备份/nexterm/config/local-retention.json"
 error() { echo "错误：$*" >&2; }
 exists() { docker container inspect "$NAME" >/dev/null 2>&1; }
@@ -982,7 +982,41 @@ main() {
         IFS= read -r -p "按回车继续..." _ || { echo "已退出"; return 0; }
     done
 }
+runtime_layout_init() {
+    python3 - "$BACKUP_DIR/config" <<'PY_LAYOUT'
+import os,sys,fcntl,stat
+from pathlib import Path
+root=Path(sys.argv[1]);root.mkdir(parents=True,exist_ok=True,mode=0o700)
+if root.is_symlink():raise SystemExit('config不能是链接')
+os.chmod(root,0o700)
+pairs=[(Path('/home/docker/.nexterm.lock'),root/'operation.lock'),(Path('/home/docker/.nexterm-encryption-key'),root/'encryption-key')]
+held=[];moved=[]
+try:
+ guard=os.open(root/'.layout-migration.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600);held.append(guard);fcntl.flock(guard,fcntl.LOCK_EX)
+ pending=[]
+ for src,dst in pairs:
+  if src.is_symlink():
+   if src.resolve()==dst.resolve() and dst.exists():continue
+   raise ValueError('旧路径链接冲突')
+  if not src.exists():continue
+  if dst.exists() or dst.is_symlink():raise ValueError('迁移目标已存在，未覆盖')
+  fd=os.open(src,os.O_RDWR|os.O_NOFOLLOW);held.append(fd);s=os.fstat(fd)
+  if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1:raise ValueError('源文件不安全')
+  fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB);pending.append((src,dst))
+ for src,dst in pending:
+  src.rename(dst);moved.append((src,dst));dst.chmod(0o600)
+  if dst.name=='operation.lock':src.symlink_to(dst)
+except BaseException:
+ for src,dst in reversed(moved):
+  if src.is_symlink():src.unlink()
+  dst.rename(src)
+ raise
+finally:
+ for fd in held:os.close(fd)
+PY_LAYOUT
+}
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    runtime_layout_init || exit 1
     if [[ ${1:-} == --remote-task ]]; then
         remote_locked_run "${3:-}@${2:-}" "${4:-}"
         exit $?
