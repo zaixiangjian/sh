@@ -100,9 +100,7 @@ resolve_volume_name() {
     find_volume_name "$logical_name" || echo "$prefixed_name"
 }
 
-backup_files() {
-    find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'sub2api-*.tar.gz' -o -name 'sub2api--*.tar.gz' \) 2>/dev/null | sort -r
-}
+
 
 # ==============================
 # 安装
@@ -484,7 +482,7 @@ restore_app() {
 
 REMOTE_APP_CONTAINER="sub2api"
 RETENTION_FILE="/home/备份/Sub2API/config/local-retention.json"
-LOCK_FILE="/home/docker/.sub2api-backup.lock"
+LOCK_FILE="$BACKUP_DIR/config/backup.lock"
 DATA_DIR="$APP_DIR"
 error() { echo "错误：$*" >&2; }
 exists() { docker container inspect "$REMOTE_APP_CONTAINER" >/dev/null 2>&1; }
@@ -946,7 +944,31 @@ PY
 # 菜单
 # ==============================
 
+runtime_layout_init() {
+    python3 - "$BACKUP_DIR/config" /home/docker/.sub2api-backup.lock <<'PY_LAYOUT'
+import os,sys,fcntl,stat
+from pathlib import Path
+root=Path(sys.argv[1]);root.mkdir(parents=True,exist_ok=True,mode=0o700)
+if root.is_symlink():raise SystemExit('config不能是链接')
+os.chmod(root,0o700)
+src=Path(sys.argv[2]);dst=root/'backup.lock'
+with (root/'.layout-migration.lock').open('a') as guard:
+ fcntl.flock(guard,fcntl.LOCK_EX)
+ if src.is_symlink():
+  if src.resolve()!=dst.resolve():raise SystemExit('旧锁链接冲突')
+ elif src.exists():
+  if dst.exists():raise SystemExit('新旧锁同时存在，拒绝迁移')
+  fd=os.open(src,os.O_RDWR|os.O_NOFOLLOW)
+  try:
+   s=os.fstat(fd)
+   if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1:raise SystemExit('锁文件不安全')
+   fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+   src.rename(dst);src.symlink_to(dst)
+  finally:os.close(fd)
+PY_LAYOUT
+}
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    runtime_layout_init || exit 1
     if [[ ${1:-} == --remote ]]; then remote_locked_run "$2" "${3:-}"; exit $?; fi
     ensure_environment || exit 1
     repair_remote_schedules
