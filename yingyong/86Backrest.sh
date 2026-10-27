@@ -630,10 +630,9 @@ PY_CANCEL
 }
 
 br_cloud_menu() {
-    local choice link_color='' description_color='' reset=''
+    local choice link_color='' reset=''
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
         link_color=$'\033[96m'
-        description_color=$'\033[33m'
         reset=$'\033[0m'
     fi
     while true; do
@@ -652,28 +651,28 @@ br_cloud_menu() {
         echo "=================================="
         echo "${link_color}1. Google Drive${reset}"
         echo '.\rclone.exe authorize "drive" "你的VPS显示的那段授权参数"'
-        echo "${description_color}谷歌网盘，适合文件备份与在线协作${reset}"
+        echo "谷歌网盘，适合文件备份与在线协作"
         echo "----------------------------------"
         echo "${link_color}2. OneDrive${reset}"
         echo '.\rclone.exe authorize "onedrive"'
-        echo "${description_color}微软网盘，与 Windows、Microsoft 365 集成${reset}"
+        echo "微软网盘，与 Windows、Microsoft 365 集成"
         echo "----------------------------------"
         echo "${link_color}3. pCloud${reset}"
         echo '.\rclone.exe authorize "pcloud"'
-        echo "${description_color}提供终身买断套餐，具体期限与权益以官方条款为准${reset}"
+        echo "提供终身买断套餐，具体期限与权益以官方条款为准"
         echo "----------------------------------"
         echo "${link_color}4. PikPak${reset}	新加坡提供商，支持加密货币与支付宝"
-        echo "${description_color}支持离线下载与文件存储，支付方式以购买页面为准${reset}"
+        echo "支持离线下载与文件存储，支付方式以购买页面为准"
         echo "----------------------------------"
         echo "${link_color}5. MEGA${reset}		免费容量20G，便宜点的存储，同时兼容 S3 API"
-        echo "${description_color}主打端到端加密；MEGA S4 为独立 S3 服务，非此网盘入口${reset}"
+        echo "主打端到端加密；MEGA S4 为独立 S3 服务，非此网盘入口"
         echo "----------------------------------"
         echo "${link_color}6. Dropbox${reset}"
         echo '.\rclone.exe authorize "dropbox"'
-        echo "${description_color}侧重跨设备文件同步、共享与团队协作${reset}"
+        echo "侧重跨设备文件同步、共享与团队协作"
         echo "----------------------------------"
         echo "${link_color}7. Box${reset}"
-        echo "${description_color}侧重企业文件管理、权限控制与团队协作${reset}"
+        echo "侧重企业文件管理、权限控制与团队协作"
         echo "----------------------------------"
         echo "9. 删除"
         echo "10. 退出配置向导"
