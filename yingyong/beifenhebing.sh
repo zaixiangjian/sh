@@ -1400,7 +1400,21 @@ def create(mode="backup"):
         except BaseException:
             if mode == 'backup': marker.unlink(missing_ok=True)
             raise
-    print('任务已保存: ' + task_id + '（SSH 尚未验证；请在菜单8选择任务核对指纹后执行）')
+    print('任务已保存: ' + task_id)
+    try:
+        trust(task_id)
+        task = task_by_id(task_id)
+        known = task / 'known_hosts'
+        if not known.is_file() or not known.stat().st_size:
+            print('未确认指纹：任务保留但SSH未验证，不能自动传送；可稍后在7重新验证。')
+        else:
+            c = load_task(task)
+            auth_call(['ssh'] + ssh_args(task, c) + [c.get('user', 'root') + '@' + c['host'], 'true'],
+                      c, timeout=30, capture_output=True)
+            probe_cache([dict(id='new:' + task_id, name=name, kind='new', config=c)])
+            print('SSH指纹及登录已验证，无需另选7；任务按配置自动运行。')
+    except (OSError, ValueError, subprocess.SubprocessError) as ex:
+        print('添加时SSH验证未完成（' + type(ex).__name__ + '）；配置已保留，可在7重试；未执行备份或上传。')
     if mode == 'backup': print('首个锚点(UTC): ' + dt.datetime.fromtimestamp(config['anchor_epoch'], dt.timezone.utc).isoformat())
     reconcile_cron()
     reconcile_worker()
