@@ -701,7 +701,7 @@ PY_NSUMMARY
         [ "$group" != ssh-backup ] && echo '==================================' || echo '------------------------'
     done
 }
-repremote_schedules() {
+repair_remote_schedules() {
     local selector failed=0
     while IFS= read -r selector; do
         [ -n "$selector" ] || continue
@@ -712,8 +712,8 @@ repremote_schedules() {
 remote_menu() {
     local scope="$1" choice name target selected confirm
     local -a selectors=()
-    ensure_environment || return 1
-    repremote_schedules
+    ensure_environment remote || return 1
+    repair_remote_schedules
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
         echo '=================================='
@@ -732,7 +732,7 @@ remote_menu() {
                 elif [ "$choice" = 1 ]; then target=ssh-backup; else target=ssh; fi
                 read -r -p '配置名称（小写字母开头，数字/横线/下划线，最多32位）: ' name || return 0
                 [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo '名称无效'; continue; }
-                if [ -e "$BACKUP_DIR/config/tasks/$name" ]; then echo '配置名称已存在，请使用新名称（不会修改正在运行的任务）。'; continue; fi
+                named_task_available "$name" || continue
                 configuration_locked "$target@$name" named_configure "$target" || echo '任务添加未完成，已保存配置可在重开菜单时重试定时修复。'
                 ;;
             7|8|9)
@@ -752,8 +752,42 @@ remote_menu() {
         esac
     done
 }
+named_task_available() {
+    python3 - "$BACKUP_DIR/config/tasks/$1" <<'PY_AVAILABLE'
+import os,sys,stat,fcntl,json
+from pathlib import Path
+p=Path(sys.argv[1]);held=[]
+try:
+    if p.is_symlink():raise ValueError('配置目录不能是链接')
+    if not p.exists():sys.exit(0)
+    if not p.is_dir():raise ValueError('配置路径不是目录')
+    for f in p.iterdir():
+        locks=('configuration.lock','ssh.lock','ssh-backup.lock','s3.lock')
+        allowed=locks+('local-retention.json','ssh-known-hosts','ssh-backup-known-hosts','s3-known-hosts')
+        if f.name not in allowed:raise ValueError('同名配置目录 '+str(p)+' 存在文件 '+repr(f.name)+'，未覆盖')
+        fd=os.open(f,(os.O_RDWR if f.name in locks else os.O_RDONLY)|os.O_NOFOLLOW);held.append(fd)
+        st=os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1:raise ValueError('配置/锁文件不安全')
+        if f.name in locks:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        elif f.name=='local-retention.json':
+            if st.st_size>4096:raise ValueError('保留数量配置过大')
+            with os.fdopen(os.dup(fd)) as stream:v=json.load(stream)
+            if not isinstance(v,dict) or set(v)!={'keep'} or type(v['keep']) is not int or not 1<=v['keep']<=100000:raise ValueError('保留数量配置无效')
+        elif st.st_size>1048576:raise ValueError('主机指纹文件过大')
+except BlockingIOError:sys.exit('同名任务正在配置或执行，请稍后重试')
+except (ValueError,OSError) as e:sys.exit(str(e))
+finally:
+    for fd in held:os.close(fd)
+PY_AVAILABLE
+}
+
 named_configure() {
-    local kind="$1"
+    local kind="$1" existing
+    for existing in ssh ssh-backup s3; do
+        if [[ -e "$REMOTE_DIR/$existing.json" || -e "$REMOTE_DIR/$existing.conf" ]]; then
+            error '本应用同名任务配置已存在，未覆盖。'; return 1
+        fi
+    done
     if [ "$kind" = ssh-backup ]; then configure_local_retention || return 1; fi
     remote_engine configure "$kind" || return 1
     [ -f "$REMOTE_DIR/$kind.json" ] && [ -f "$REMOTE_DIR/$kind.conf" ] || return 1
