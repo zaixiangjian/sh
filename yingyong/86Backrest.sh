@@ -20,7 +20,7 @@ DATA_MOUNTS=(
 # 缺少依赖时在 Debian/Ubuntu 自动安装；其他发行版明确报错，不继续破坏性操作。
 br_prepare_environment() {
     local mode=${1:-remote} cmd package
-    local -a missing=() checks=(python3:python3 flock:util-linux tar:tar gzip:gzip mktemp:coreutils)
+    local -a missing=() checks=(python3:python3 flock:util-linux tar:tar gzip:gzip mktemp:coreutils base64:coreutils)
     [ "$EUID" -eq 0 ] || { echo "❌ 请使用 root 运行环境准备。"; return 1; }
     case "$mode" in
         remote) checks+=(rclone:rclone ssh:openssh-client) ;;
@@ -357,10 +357,9 @@ br_restore() (
             echo "❌ 容器存在但读取失败，已取消恢复。"; return 1
         fi
     fi
-    listing=$(mktemp "$RESTORE_TMP_DIR/backrest-list.XXXXXX") || return 1
-    br_list_backups > "$listing" || { rm -f -- "$listing"; return 1; }
-    mapfile -d '' -t files < "$listing"
-    rm -f -- "$listing"
+    # 列表只保存在内存中；pipefail 保留目录读取失败状态。
+    listing=$(set -o pipefail; br_list_backups | base64 -w 0) || return 1
+    mapfile -d '' -t files < <(printf '%s' "$listing" | base64 -d)
     [ ${#files[@]} -gt 0 ] || { echo "没有找到备份。"; return 1; }
     echo "检测到以下备份文件："
     local i
@@ -382,7 +381,7 @@ br_restore() (
         esac
     fi
     echo "恢复镜像来源：$image"
-    echo "将用 ${file##*/} 替换 $app_base_dir；保留恢复前数据，不修改备份文件。"
+    echo "将用 ${file##*/} 替换 $app_base_dir；旧数据仅临时用于失败回滚，成功后清理，不修改备份文件。"
     IFS= read -r -p "输入小写 yes 确认恢复: " confirm || return 1
     [ "$confirm" = yes ] || { echo "已取消恢复。"; return 1; }
     [ ! -L "$app_base_dir" ] || return 1
@@ -391,7 +390,7 @@ br_restore() (
     cp -- "$file" "$stage/archive.tar.gz" && chmod 600 "$stage/archive.tar.gz" || return 1
     br_extract "$stage/archive.tar.gz" "$stage" || return 1
     mkdir -p "$stage/docker/backrest"/{data,config,cache,tmp,rclone} || return 1
-    # 回滚数据含凭据；放在 /root，避免位于容器的数据挂载目录内。
+    # 旧数据仅用于本次失败回滚；成功后删除，不清理历史回滚目录。
     mkdir -p /root/.backrest-rollback && chmod 700 /root/.backrest-rollback || return 1
     rollback=$(mktemp -d /root/.backrest-rollback/before-restore.XXXXXX) || return 1
     mkdir -p "$(dirname "$app_base_dir")" || return 1
@@ -418,7 +417,8 @@ br_restore() (
         fi
         echo "❌ 恢复启动失败，已尝试回滚；保留目录：$rollback"; return 1
     fi
-    echo "✅ 恢复完成；恢复前数据保留于 $rollback"
+    rm -rf -- "$rollback" || { echo "❌ 恢复已生效，但本次临时旧数据清理失败：$rollback"; return 1; }
+    echo "✅ 恢复完成，本次临时旧数据已清理。"
 )
 br_uninstall() {
     local confirm image
@@ -1536,9 +1536,6 @@ air_named_configure() {
     [ -f "$REMOTE_DIR/$kind.json" ] && [ -f "$REMOTE_DIR/$kind.conf" ] || return 1
     air_remote_schedule_unlocked "$kind" enable
 }
-
-
-
 
 air_manager_init() {
     BACKUP_PREFIX="backrest-"
