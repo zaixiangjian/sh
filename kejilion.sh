@@ -6023,7 +6023,7 @@ linux_panel() {
     echo -e "${gl_kjlan}998. ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}999. ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}1000. ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1001. ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}1002. ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1003. ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}1004. ${gl_bai}用105必装脚本 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1005. ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}1004. ${gl_bai}下载备份清理脚本 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1005. ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
     echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
@@ -11018,10 +11018,9 @@ EOF
 
 
       1004)
-        clear
-        echo "▶️ 正在启动105脚本必装模块..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidonghebinganzhuangjiaoben.sh)
-        echo "✅ 动105脚本必装模块执行完成。"
+        echo "▶️ 正在下载备份清理脚本..."
+        run_local_first_app_script "▶️ 下载beifen.sh清理脚本..." "/home/备份/beifen.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/beifen/beifen.sh"
+        echo "✅ 备份清理脚本安装完成。"
         ;;
 		
       1005)
