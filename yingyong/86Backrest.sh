@@ -629,13 +629,13 @@ br_cloud_menu() {
         echo "${green}2. OneDrive${reset}"
         echo '.\rclone.exe authorize "onedrive"'
         echo "----------------------------------"
-        echo "${green}3. pCloud${reset}"
+        echo "${green}3. pCloud${reset}    提供永久存储"
         echo '.\rclone.exe authorize "pcloud"'
         echo "----------------------------------"
         echo "${green}4. PikPak${reset}"
 
         echo "----------------------------------"
-        echo "${green}5. MEGA${reset}"
+        echo "${green}5. MEGA${reset}    便宜点的存储"
 
         echo "----------------------------------"
         echo "${green}6. Dropbox${reset}"
