@@ -48,7 +48,7 @@ operation_recover() {
     local rc=$?
     trap - EXIT INT TERM HUP
     [[ -z ${VW_TEMP_ARCHIVE:-} ]] || rm -f -- "$VW_TEMP_ARCHIVE"
-    if [[ ${VW_RECOVER_START:-1} == 1 ]]; then
+    if [[ ${VW_RECOVER_START:-1} == 1 ]] && container_exists; then
         docker start "$CONTAINER" >/dev/null 2>&1 || echo "操作结束/中断后启动失败，请人工检查 Vaultwarden。" >&2
     fi
     exit "$rc"
@@ -63,7 +63,7 @@ run_operation() {
     trap 'exit 143' TERM
     trap 'exit 129' HUP
     "$@" || rc=$?
-    if [[ "$VW_RECOVER_START" == 1 ]]; then
+    if [[ "$VW_RECOVER_START" == 1 ]] && container_exists; then
         if ! docker start "$CONTAINER" >/dev/null || ! verify_running; then
             echo "操作结束后容器启动/运行校验失败，请检查日志。" >&2
             rc=1
@@ -440,7 +440,7 @@ PY
 }
 
 restore_app_unlocked() {
-    local choice answer selected tmp listing stage before failed running index
+    local choice answer selected tmp listing stage before failed running index fresh=no
     local -a files=()
     command -v python3 >/dev/null 2>&1 || { echo "恢复需要 python3。"; return 1; }
     listing="$(mktemp)" || return 1
@@ -467,11 +467,45 @@ restore_app_unlocked() {
     IFS= read -r -p "确认恢复请输入小写 yes：" answer || return 0
     [[ "$answer" == yes ]] || { echo "已取消。"; return 0; }
     require_docker || return 1
-    container_exists || { echo "未安装，请先安装容器后再恢复。"; return 1; }
-    check_data_mount || return 1
+    if container_exists; then
+        check_data_mount || return 1
+    else
+        fresh=yes
+        VW_RECOVER_START=0
+        echo "未发现容器：校验备份后，将使用官方镜像创建 vaultwarden，端口3280，禁止新注册。"
+        IFS= read -r -p "确认创建并恢复请输入小写 yes：" answer || return 0
+        [[ "$answer" == yes ]] || return 0
+    fi
     [[ ! -L "$selected" && -f "$selected" ]] || { echo "备份文件不可用。"; return 1; }
+    mkdir -p "$(dirname "$INSTALL_DIR")" || return 1
     stage="$(mktemp -d "${INSTALL_DIR}.restore-stage.XXXXXX")" || return 1
     if ! extract_backup "$selected" "$stage"; then rm -rf -- "$stage"; return 1; fi
+    if [[ $fresh == yes ]]; then
+        if ! docker pull "$OFFICIAL_IMAGE"; then rm -rf -- "$stage"; return 1; fi
+        before="$(mktemp -d "${INSTALL_DIR}.before-restore.$(date +%Y%m%d%H%M%S).XXXXXX")" || { rm -rf -- "$stage"; return 1; }
+        mkdir -p "$INSTALL_DIR" || { rm -rf -- "$stage"; return 1; }
+        if [[ -L "$INSTALL_DIR" || -L "$INSTALL_DIR/data" ]]; then
+            echo "恢复目标不能为符号链接。"; rm -rf -- "$stage"; return 1
+        fi
+        if [[ -e "$INSTALL_DIR/data" ]]; then
+            mv -T -- "$INSTALL_DIR/data" "$before/data" || { rm -rf -- "$stage"; return 1; }
+        fi
+        if ! mv -T -- "$stage/data" "$INSTALL_DIR/data"; then
+            [[ ! -e "$before/data" ]] || mv -T -- "$before/data" "$INSTALL_DIR/data"
+            rm -rf -- "$stage"; return 1
+        fi
+        rmdir "$stage"
+        if docker run -d --name "$CONTAINER" -e SIGNUPS_ALLOWED=false --restart always \
+            -p 3280:80 -v "$INSTALL_DIR/data:/data" "$OFFICIAL_IMAGE" && verify_running; then
+            echo "恢复完成并已创建容器：$selected"
+            echo "数据目录：$INSTALL_DIR/data；端口3280；请配置原来的 HTTPS 反向代理。"
+            echo "恢复前目标数据（如有）：$before/data"
+            return 0
+        fi
+        echo "创建/启动失败：恢复数据保留在 $INSTALL_DIR/data，原数据保留在 $before/data；未删除任何密码库。"
+        echo "请检查端口占用及 docker logs vaultwarden；不会自动再次启动失败容器。"
+        return 1
+    fi
     running="$(docker inspect --format '{{.State.Running}}' "$CONTAINER")" || { rm -rf -- "$stage"; return 1; }
     before="$(mktemp -d "${INSTALL_DIR}.before-restore.$(date +%Y%m%d%H%M%S).XXXXXX")" || { rm -rf -- "$stage"; return 1; }
     if ! docker stop "$CONTAINER" >/dev/null; then
