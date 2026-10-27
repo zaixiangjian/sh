@@ -8,6 +8,7 @@ container_port="9898"
 # 备份输出目录；恢复仅查找下列目录的直接子文件，不递归。
 BACKUP_DIR="/home/备份/backrest"
 RESTORE_DIRS=("$BACKUP_DIR" "/home")
+RESTORE_TMP_DIR="/var/cache/backrest-manager"
 # 数据挂载：宿主机目录:容器目录；可添加多行，容器目录必须位于 /userdata/ 下。
 # /home 包含 /home/备份，二者会重复可见；/root 可能含密钥，请谨慎选择备份范围。
 DATA_MOUNTS=(
@@ -15,6 +16,46 @@ DATA_MOUNTS=(
     "/home:/userdata/home"
     "/root:/userdata/root"
 )
+
+# 缺少依赖时在 Debian/Ubuntu 自动安装；其他发行版明确报错，不继续破坏性操作。
+br_prepare_environment() {
+    local mode=${1:-remote} cmd package
+    local -a missing=() checks=(python3:python3 flock:util-linux tar:tar gzip:gzip mktemp:coreutils)
+    [ "$EUID" -eq 0 ] || { echo "❌ 请使用 root 运行环境准备。"; return 1; }
+    case "$mode" in
+        remote) checks+=(rclone:rclone ssh:openssh-client) ;;
+        restore) checks+=(sudo:sudo docker:docker.io systemctl:systemd) ;;
+        *) echo "❌ 未知环境检查模式。"; return 1 ;;
+    esac
+    for package in "${checks[@]}"; do
+        cmd=${package%%:*}
+        command -v "$cmd" >/dev/null 2>&1 || missing+=("${package#*:}")
+    done
+    if [ ${#missing[@]} -gt 0 ]; then
+        command -v apt-get >/dev/null || { echo "❌ 缺少依赖：${missing[*]}；当前系统不支持自动安装，请手动安装后重试。"; return 1; }
+        echo "安装所需依赖：${missing[*]}"
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates "${missing[@]}" || {
+            echo "❌ 依赖安装失败，未开始配置或恢复。"; return 1;
+        }
+    fi
+    for package in "${checks[@]}"; do
+        command -v "${package%%:*}" >/dev/null || { echo "❌ 依赖仍不可用：${package%%:*}"; return 1; }
+    done
+    python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)' || {
+        echo "❌ 需要 Python 3.9 或更新版本，请升级后重试。"; return 1;
+    }
+    if [ "$mode" = restore ]; then
+        if ! sudo docker info >/dev/null 2>&1; then
+            systemctl start docker || { echo "❌ Docker 启动失败，未开始恢复。"; return 1; }
+        fi
+        sudo docker info >/dev/null 2>&1 || { echo "❌ Docker 不可用，未开始恢复。"; return 1; }
+    fi
+}
+
+br_restore_entry() {
+    br_prepare_environment restore || return 1
+    br_operate br_restore
+}
 
 # 仅锁定实际操作，允许多个终端打开菜单。
 br_operate() (
@@ -256,7 +297,15 @@ try:
             seen.add(name)
         if not any(m.isfile() and m.name=='docker/backrest/config/config.json' for m in members):
             raise ValueError('缺少 config/config.json')
-        t.extractall(sys.argv[2],members=members,filter='data')
+        if hasattr(tarfile,'data_filter'):
+            t.extractall(sys.argv[2],members=members,filter='data')
+        else:
+            # 旧版 Python：成员已严格限制为应用根下的普通文件/目录。
+            for m in members:
+                m.mode &= 0o777
+                m.uid=m.gid=0
+                m.uname=m.gname=''
+            t.extractall(sys.argv[2],members=members)
 except Exception:
     print('❌ 备份结构无效或解压失败（拒绝路径穿越、链接和特殊文件）。',file=sys.stderr); sys.exit(1)
 PY
@@ -291,6 +340,8 @@ br_restore() (
     local image source_choice selection confirm stage rollback running=false existed=false file listing
     local -a files=()
     command -v python3 >/dev/null || { echo "❌ 需要 Python 3。"; return 1; }
+    [ ! -L "$RESTORE_TMP_DIR" ] || { echo "❌ 恢复临时目录不能为链接。"; return 1; }
+    mkdir -p -- "$RESTORE_TMP_DIR" && chmod 700 "$RESTORE_TMP_DIR" || return 1
     if br_exists; then
         existed=true
         image=$(br_current_image) || return 1
@@ -306,7 +357,7 @@ br_restore() (
             echo "❌ 容器存在但读取失败，已取消恢复。"; return 1
         fi
     fi
-    listing=$(mktemp "${TMPDIR:-/root/.hermes/cache/scratch}/backrest-list.XXXXXX") || return 1
+    listing=$(mktemp "$RESTORE_TMP_DIR/backrest-list.XXXXXX") || return 1
     br_list_backups > "$listing" || { rm -f -- "$listing"; return 1; }
     mapfile -d '' -t files < "$listing"
     rm -f -- "$listing"
@@ -335,7 +386,7 @@ br_restore() (
     IFS= read -r -p "输入小写 yes 确认恢复: " confirm || return 1
     [ "$confirm" = yes ] || { echo "已取消恢复。"; return 1; }
     [ ! -L "$app_base_dir" ] || return 1
-    stage=$(mktemp -d "${TMPDIR:-/root/.hermes/cache/scratch}/backrest-restore.XXXXXX") || return 1
+    stage=$(mktemp -d "$RESTORE_TMP_DIR/backrest-restore.XXXXXX") || return 1
     trap 'rm -rf -- "$stage"' EXIT
     cp -- "$file" "$stage/archive.tar.gz" && chmod 600 "$stage/archive.tar.gz" || return 1
     br_extract "$stage/archive.tar.gz" "$stage" || return 1
@@ -343,6 +394,7 @@ br_restore() (
     # 回滚数据含凭据；放在 /root，避免位于容器的数据挂载目录内。
     mkdir -p /root/.backrest-rollback && chmod 700 /root/.backrest-rollback || return 1
     rollback=$(mktemp -d /root/.backrest-rollback/before-restore.XXXXXX) || return 1
+    mkdir -p "$(dirname "$app_base_dir")" || return 1
     if $running; then sudo docker stop "$docker_name" >/dev/null || return 1; fi
     if [ -e "$app_base_dir" ]; then
         mv -T -- "$app_base_dir" "$rollback/data" || { $running && sudo docker start "$docker_name" >/dev/null; return 1; }
@@ -843,7 +895,7 @@ main() {
             11) br_operate br_install "$official_docker_img" ;;
             12) br_operate br_update "$official_docker_img" ;;
             13) br_operate br_backup ;;
-            14) br_operate br_restore ;;
+            14) br_restore_entry ;;
             0) echo "已退出"; break ;;
             *) echo "无效选择" ;;
         esac
@@ -873,13 +925,10 @@ air_locked() (
     "$@"
 )
 air_ensure_environment() {
-    local cmd
-    for cmd in python3 flock; do command -v "$cmd" >/dev/null || { air_error "请先安装$cmd"; return 1; }; done
     if [[ ${1:-} == remote ]]; then
-        if ! command -v rclone >/dev/null || ! command -v ssh >/dev/null; then
-            if command -v apt-get >/dev/null; then apt-get update && apt-get install -y rclone openssh-client || return 1
-            else air_error "请先安装rclone和OpenSSH客户端。"; return 1; fi
-        fi
+        br_prepare_environment remote
+    else
+        command -v python3 >/dev/null && command -v flock >/dev/null
     fi
 }
 air_remote_backup_app() (
