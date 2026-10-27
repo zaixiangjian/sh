@@ -589,17 +589,6 @@ single_remote_locked_run() (
     fi
     remote_run "$kind"
 )
-remote_choose_ssh() {
-    local selection
-    echo "1. SSH备份上传任务"
-    echo "2. SSH仅传送任务"
-    IFS= read -r -p "选择任务（0取消）：" selection || return 1
-    case "$selection" in 1) SELECTED_REMOTE=ssh-backup ;; 2) SELECTED_REMOTE=ssh ;; *) return 1 ;; esac
-}
-
-
-remote_summary() { named_summary "${1:-all}"; }
-
 show_menu() {
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     echo "=================================="
@@ -792,7 +781,7 @@ PY_NSUMMARY
         [ "$group" != ssh-backup ] && echo '==================================' || echo '------------------------'
     done
 }
-repremote_schedules() {
+repair_remote_schedules() {
     local selector failed=0
     while IFS= read -r selector; do
         [ -n "$selector" ] || continue
@@ -804,7 +793,7 @@ remote_menu() {
     local scope="$1" choice name target selected confirm
     local -a selectors=()
     ensure_environment remote || return 1
-    repremote_schedules
+    repair_remote_schedules
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
         echo '=================================='
