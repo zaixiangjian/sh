@@ -283,7 +283,8 @@ restore_app() (
     if run_container "$work/env" "$image"; then
         (( ! had )) || docker rm "$old" >/dev/null || { error "恢复完成但旧容器清理失败：$old"; exit 1; }
         cp "$key_source" "$KEY_FILE" && chmod 600 "$KEY_FILE" || error "密钥文件保存失败，容器中的密钥仍在。"
-        echo "恢复成功，映射：$BIND_IP:$PORT -> 6989；原数据：$rollback"
+        rm -rf -- "$rollback" || { error "恢复成功，但临时旧数据清理失败：$rollback"; exit 1; }
+        echo "恢复成功，映射：$BIND_IP:$PORT -> 6989"
     else
         if exists; then docker rm -f "$NAME" >/dev/null || { error "失败容器无法移除，原数据：$rollback"; exit 1; }; fi
         failed=$(mktemp -d "$(dirname "$DATA_DIR")/.nexterm-failed-restore.XXXXXX") || exit 1
@@ -334,7 +335,10 @@ if kind not in ('ssh-backup','ssh','s3'): raise ValueError('未知目标')
 root.mkdir(parents=True,exist_ok=True,mode=0o700); os.chmod(root,0o700)
 p=root/(kind+'.json'); conf=root/(kind+'.conf'); known=root/(kind+'-known-hosts')
 def run(args,**kw):
-    return subprocess.run(args,check=True,text=True,capture_output=True,timeout=900,**kw)
+    try:
+        return subprocess.run(args,check=True,text=True,capture_output=True,timeout=900,**kw)
+    except FileNotFoundError:
+        raise ValueError('缺少可执行程序：'+pathlib.Path(args[0]).name+'；请重新进入远程配置菜单修复依赖') from None
 def ask(label,default=''):
     s=input(label+(' [默认 '+default+']' if default else '')+'：').strip(); return s or default
 def valid(s):
@@ -799,7 +803,7 @@ repremote_schedules() {
 remote_menu() {
     local scope="$1" choice name target selected confirm
     local -a selectors=()
-    ensure_environment || return 1
+    ensure_environment remote || return 1
     repremote_schedules
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
@@ -841,7 +845,7 @@ remote_menu() {
 }
 named_task_available() {
     python3 - "$BACKUP_DIR/config/tasks/$1" <<'PY_AVAILABLE'
-import os,sys,stat,fcntl
+import os,sys,stat,fcntl,json
 from pathlib import Path
 p=Path(sys.argv[1]); held=[]
 try:
@@ -849,8 +853,21 @@ try:
     if not p.exists(): sys.exit(0)
     if not p.is_dir(): raise ValueError('配置路径不是目录')
     for f in p.iterdir():
+        if f.name in ('ssh-known-hosts','ssh-backup-known-hosts','s3-known-hosts'):
+            fd=os.open(f,os.O_RDONLY|os.O_NOFOLLOW);held.append(fd)
+            st=os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1 or st.st_size>1048576: raise ValueError('主机指纹文件不安全')
+            continue
+        if f.name == 'local-retention.json':
+            fd=os.open(f,os.O_RDONLY|os.O_NOFOLLOW);held.append(fd)
+            st=os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1 or st.st_size>4096: raise ValueError('保留数量配置不安全')
+            with os.fdopen(os.dup(fd)) as stream: value=json.load(stream)
+            if set(value)!={'keep'} or type(value['keep']) is not int or not 1<=value['keep']<=100000:
+                raise ValueError('保留数量配置无效，未覆盖')
+            continue
         if f.name not in ('configuration.lock','ssh.lock','ssh-backup.lock','s3.lock'):
-            raise ValueError('此应用已有同名配置或未完成配置文件，未覆盖；请在本应用菜单检查/删除任务')
+            raise ValueError('此应用配置目录 '+str(p)+' 存在文件 '+repr(f.name)+'；不是只有锁/保留数量的空任务，未覆盖')
         fd=os.open(f,os.O_RDWR|os.O_NOFOLLOW);held.append(fd)
         st=os.fstat(fd)
         if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1: raise ValueError('锁文件不安全')
