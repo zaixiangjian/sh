@@ -604,7 +604,11 @@ PY_CANCEL
 }
 
 br_cloud_menu() {
-    local choice
+    local choice green='' reset=''
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+        green=$'\033[1;94m'
+        reset=$'\033[0m'
+    fi
     while true; do
         if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ]; then clear; fi
         echo "=================================="
@@ -616,28 +620,28 @@ br_cloud_menu() {
         echo "rclone:gdrive:备份目录（这里的 gdrive 对应的是唯一名称）"
         echo "=================================="
         echo "------------------------------------------------"
-        echo "$env:HTTPS_PROXY = "http://127.0.0.1:10808""
+        echo '$env:HTTPS_PROXY = "http://127.0.0.1:10808"'
         echo "------------------------------------------------"
         echo "=================================="
-        echo "1. Google Drive"
-        echo ".\rclone.exe authorize "drive" "你的VPS显示的那段授权参数""
+        echo "${green}1. Google Drive${reset}"
+        echo '.\rclone.exe authorize "drive" "你的VPS显示的那段授权参数"'
         echo "----------------------------------"
-        echo "2. OneDrive"
+        echo "${green}2. OneDrive${reset}"
+        echo '.\rclone.exe authorize "onedrive"'
+        echo "----------------------------------"
+        echo "${green}3. pCloud${reset}"
+        echo '.\rclone.exe authorize "pcloud"'
+        echo "----------------------------------"
+        echo "${green}4. PikPak${reset}"
 
         echo "----------------------------------"
-        echo "3. pCloud"
-        echo ".\rclone.exe authorize "pcloud""
-        echo "----------------------------------"
-        echo "4. PikPak"
+        echo "${green}5. MEGA${reset}"
 
         echo "----------------------------------"
-        echo "5. MEGA"
-
+        echo "${green}6. Dropbox${reset}"
+        echo '.\rclone.exe authorize "dropbox"'
         echo "----------------------------------"
-        echo "6. Dropbox"
-
-        echo "----------------------------------"
-        echo "7. Box"
+        echo "${green}7. Box${reset}"
 
         echo "----------------------------------"
         echo "9. 删除"
