@@ -443,9 +443,27 @@ def invoke(state=None,answer=None):
         script='IFS= read -r state; IFS= read -r result; exec rclone config update "$1" --config "$2" --all --non-interactive --continue --state "$state" --result "$result"'
         args=[name,config];payload=state+'\n'+answer+'\n'
     p=subprocess.run(['sudo','docker','exec','-i',container,'sh','-c',script,'wizard',*args],input=payload,text=True,capture_output=True)
-    if p.returncode: raise ValueError('rclone 配置失败，请检查网络、账号或授权结果（为保护凭据不打印原始诊断）')
+    if p.returncode:
+        diagnostic=p.stderr.lower()
+        if 'failed to decode password' in diagnostic or "couldn't decrypt password" in diagnostic:
+            raise ValueError('rclone 密码格式解析失败，原配置未修改，请重新运行已修正的向导。')
+        if any(x in diagnostic for x in ('invalid password','invalid_grant','invalid_credentials','invalid_account_or_password')):
+            raise ValueError('网盘服务拒绝账号认证，请核对账号密码或服务商验证要求。')
+        if any(x in diagnostic for x in ('timeout','dial tcp','connection refused')):
+            raise ValueError('服务器无法连接网盘接口，请检查服务器网络或代理。')
+        raise ValueError('rclone 配置失败，请检查网络、账号或授权结果（为保护凭据不打印原始诊断）')
     try: return json.loads(p.stdout)
     except Exception: raise ValueError('rclone 未返回有效配置向导结果')
+
+def obscure_staged_password(password):
+    converted=subprocess.run(['sudo','docker','exec','-i',container,'rclone','obscure','-'],input=password+'\n',text=True,capture_output=True)
+    if converted.returncode or not converted.stdout.strip() or '\n' in converted.stdout.strip():
+        raise ValueError('网盘密码格式转换失败，原配置未修改')
+    generated=stage/'rclone.conf'
+    content,count=re.subn(r'^\s*pass\s*=.*$',lambda m:'pass = '+converted.stdout.strip(),generated.read_text(),flags=re.MULTILINE)
+    if count!=1: raise ValueError('网盘密码字段缺失或重复，原配置未修改')
+    generated.write_text(content)
+    generated.chmod(0o600)
 
 try:
     if backend not in ('drive','onedrive','pcloud','pikpak','mega','dropbox','box'): raise ValueError('未知网盘类型')
@@ -516,20 +534,14 @@ try:
         if answer=='' and default is not None: answer=display_default if default!='' else ''
         if backend=='mega' and key=='pass': mega_password=answer
         response=invoke(response['State'],answer)
+        # PikPak 在结束高级配置后立即登录；须先把 pass 转为 rclone 格式。
+        if backend=='pikpak' and key=='pass': obscure_staged_password(answer)
     else: raise ValueError('配置步骤过多，已取消')
     generated=stage/'rclone.conf';parser=configparser.RawConfigParser();parser.read(generated)
     if parser.sections()!=[name] or parser.get(name,'type',fallback='')!=backend: raise ValueError('向导未生成预期网盘配置')
     if backend=='mega':
         if not mega_password: raise ValueError('MEGA 密码不能为空，请重新配置')
-        obscured=subprocess.run(['sudo','docker','exec','-i',container,'rclone','obscure','-'],input=mega_password+'\n',text=True,capture_output=True)
-        if obscured.returncode or not obscured.stdout.strip() or '\n' in obscured.stdout.strip():
-            raise ValueError('MEGA 密码格式转换失败，未修改原配置')
-        encrypted=obscured.stdout.strip()
-        content=generated.read_text()
-        content,count=re.subn(r'^\s*pass\s*=.*$',lambda m:'pass = '+encrypted,content,flags=re.MULTILINE)
-        if count!=1: raise ValueError('MEGA 密码字段缺失或重复，未修改原配置')
-        generated.write_text(content)
-        generated.chmod(0o600)
+        obscure_staged_password(mega_password)
         mega_password=None
     newtext=generated.read_text()
     newlines=newtext.splitlines(keepends=True)
@@ -618,9 +630,10 @@ PY_CANCEL
 }
 
 br_cloud_menu() {
-    local choice green='' reset=''
+    local choice link_color='' description_color='' reset=''
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
-        green=$'\033[1;94m'
+        link_color=$'\033[96m'
+        description_color=$'\033[33m'
         reset=$'\033[0m'
     fi
     while true; do
@@ -637,26 +650,30 @@ br_cloud_menu() {
         echo '$env:HTTPS_PROXY = "http://127.0.0.1:10808"'
         echo "------------------------------------------------"
         echo "=================================="
-        echo "${green}1. Google Drive${reset}"
+        echo "${link_color}1. Google Drive${reset}"
         echo '.\rclone.exe authorize "drive" "你的VPS显示的那段授权参数"'
+        echo "${description_color}谷歌网盘，适合文件备份与在线协作${reset}"
         echo "----------------------------------"
-        echo "${green}2. OneDrive${reset}"
+        echo "${link_color}2. OneDrive${reset}"
         echo '.\rclone.exe authorize "onedrive"'
+        echo "${description_color}微软网盘，与 Windows、Microsoft 365 集成${reset}"
         echo "----------------------------------"
-        echo "${green}3. pCloud${reset}    提供永久存储"
+        echo "${link_color}3. pCloud${reset}"
         echo '.\rclone.exe authorize "pcloud"'
+        echo "${description_color}提供终身买断套餐，具体期限与权益以官方条款为准${reset}"
         echo "----------------------------------"
-        echo "${green}4. PikPak${reset}"
-
+        echo "${link_color}4. PikPak${reset}	新加坡提供商，支持加密货币与支付宝"
+        echo "${description_color}支持离线下载与文件存储，支付方式以购买页面为准${reset}"
         echo "----------------------------------"
-        echo "${green}5. MEGA${reset}    便宜点的存储"
-
+        echo "${link_color}5. MEGA${reset}		免费容量20G，便宜点的存储，同时兼容 S3 API"
+        echo "${description_color}主打端到端加密；MEGA S4 为独立 S3 服务，非此网盘入口${reset}"
         echo "----------------------------------"
-        echo "${green}6. Dropbox${reset}"
+        echo "${link_color}6. Dropbox${reset}"
         echo '.\rclone.exe authorize "dropbox"'
+        echo "${description_color}侧重跨设备文件同步、共享与团队协作${reset}"
         echo "----------------------------------"
-        echo "${green}7. Box${reset}"
-
+        echo "${link_color}7. Box${reset}"
+        echo "${description_color}侧重企业文件管理、权限控制与团队协作${reset}"
         echo "----------------------------------"
         echo "9. 删除"
         echo "10. 退出配置向导"
@@ -724,11 +741,11 @@ try:
         if m: fields[m[1]]=m[2]
     first=max([22]+[width(str(i)+'. '+n)+2 for i,(n,_,_) in enumerate(remotes,1)])
     second=max([20]+[width(r)+2 for _,r,_ in remotes])
-    print('唯一名称'+' '*(first-width('唯一名称'))+'备注名'+' '*(second-width('备注名'))+'网盘服务商')
+    print('唯一名称'+' '*(first-width('唯一名称'))+'备注名'+' '*(second-width('备注名'))+paint('网盘服务商','96'))
     if not remotes: print(paint('暂无','31'))
     for i,(name,remark,provider) in enumerate(remotes,1):
         label=str(i)+'. '+name
-        print(paint(label,'32')+' '*(first-width(label))+paint(remark,'33')+' '*(second-width(remark))+paint(provider,'1;94'))
+        print(paint(label,'32')+' '*(first-width(label))+paint(remark,'33')+' '*(second-width(remark))+paint(provider,'96'))
     if mode=='delete' and remotes:
         choice=ask('请选择要删除的网盘编号（0 取消）：')
         if not choice.isascii() or not choice.isdigit() or len(choice)>6 or not 1<=int(choice)<=len(remotes): raise EOFError
@@ -791,7 +808,11 @@ show_menu() {
     echo "4. 打标签推送镜像到 zaixiangjian/backrest:latest"
     echo "5. SSH 远程备份配置"
     echo "6. S3 API 兼容备份配置"
-    echo "8. 添加网盘配置"
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+        printf '\033[32m8. 添加网盘配置\033[0m\n'
+    else
+        echo "8. 添加网盘配置"
+    fi
     echo "9. 卸载（支持两个镜像源的方式）"
     echo "------------------------------------------------"
     echo "11. 官方安装"
