@@ -229,17 +229,49 @@ restart_app() {
 }
 
 validate_archive() {
-    python3 - "$1" <<'PY'
-import sys,tarfile,pathlib
+    python3 - "$1" "${2:-}" <<'PY'
+import sys,tarfile,pathlib,posixpath,copy
 with tarfile.open(sys.argv[1],'r:gz') as t:
-    seen=set(); has_data=False
-    for m in t:
+    members=t.getmembers(); seen=set(); has_data=False; links={}
+    def inside(name):
+        p=pathlib.PurePosixPath(name)
+        return not p.is_absolute() and bool(p.parts) and p.parts[0]=='open-webui' and chr(92) not in name and not any(ord(c)<32 for c in name)
+    def fail(m,reason): raise ValueError(reason+': '+repr(m.name))
+    for m in members:
         p=pathlib.PurePosixPath(m.name)
-        if p.is_absolute() or '..' in p.parts or not p.parts or p.parts[0]!='open-webui' or chr(92) in m.name or not (m.isdir() or m.isfile()) or m.mode&0o7000 or str(p) in seen:
-            raise ValueError('归档含不支持的成员')
+        if not inside(m.name) or '..' in p.parts: fail(m,'归档路径不安全')
+        if str(p) in seen: fail(m,'归档路径重复')
         seen.add(str(p))
+        if not (m.isdir() or m.isfile() or m.issym() or m.islnk()): fail(m,'不支持的特殊文件类型 '+repr(m.type))
+        if m.issym() or m.islnk():
+            raw=m.linkname
+            if not raw or raw.startswith('/') or chr(92) in raw or any(ord(c)<32 for c in raw): fail(m,'链接目标不安全')
+            target=posixpath.normpath(posixpath.join(str(p.parent),raw) if m.issym() else raw)
+            if not inside(target): fail(m,'链接指向备份目录外')
+            links[str(p)]=target
         if str(p)=='open-webui/data' and m.isdir(): has_data=True
+    # Reject link chains and entries nested beneath links, avoiding extraction-order tricks.
+    for m in members:
+        if any(str(parent) in links for parent in pathlib.PurePosixPath(m.name).parents): fail(m,'归档成员位于链接目录下')
+        if m.issym() or m.islnk():
+            target=links[str(pathlib.PurePosixPath(m.name))]
+            visited={str(pathlib.PurePosixPath(m.name))}
+            while target in links:
+                if target in visited: fail(m,'链接循环')
+                visited.add(target);target=links[target]
+            if any(str(p) in links for p in pathlib.PurePosixPath(target).parents): fail(m,'链接目标位于链接目录下')
+            if target not in seen: fail(m,'链接目标不在归档中')
+            if m.islnk():
+                match=next(x for x in members if str(pathlib.PurePosixPath(x.name))==target)
+                if not match.isfile() or match.islnk(): fail(m,'硬链接目标不是普通文件')
     if not has_data: raise ValueError('归档缺少data目录')
+    if sys.argv[2]:
+        if not hasattr(tarfile,'data_filter'): raise ValueError('安全恢复要求支持tarfile.data_filter的Python版本，请升级系统Python')
+        def safe_filter(member,destination):
+            member=copy.copy(member)
+            member.mode &= 0o777  # Never restore setuid/setgid/sticky bits from an archive.
+            return tarfile.data_filter(member,destination)
+        t.extractall(sys.argv[2],members=members,filter=safe_filter)
 PY
 }
 
@@ -294,7 +326,7 @@ backup_create() (
     echo "备份包含全部应用数据及配置，可能含账号、API Key等敏感信息。"
     tar -czf "$tmp" -C "$(dirname "$BASE_DIR")" "$(basename "$BASE_DIR")" || exit 1
     gzip -t "$tmp" && tar -tzf "$tmp" >/dev/null || exit 1
-    validate_archive "$tmp" || { error "归档含恢复器不支持的链接/特殊文件，未发布备份。"; exit 1; }
+    validate_archive "$tmp" || { error "归档安全校验失败，具体成员及原因见上方；未发布备份。"; exit 1; }
     while true; do
         final="$BACKUP_DIR/open-webui-$(date '+%Y%m%d-%H%M%S').tar.gz"
         # link是原子排他发布，已有同名文件或链接绝不覆盖。
@@ -360,21 +392,7 @@ restore_app() (
     trap restore_cleanup EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
-    python3 - "$selected" "$stage" <<'PY'
-import sys,tarfile,pathlib,gzip
-with gzip.open(sys.argv[1],'rb') as f:
-    for chunk in iter(lambda:f.read(1024*1024),b''): pass
-with tarfile.open(sys.argv[1],'r:gz') as t:
-    members=t.getmembers(); seen=set()
-    if not members: raise ValueError('空归档')
-    for m in members:
-        p=pathlib.PurePosixPath(m.name)
-        if p.is_absolute() or '..' in p.parts or not p.parts or p.parts[0]!='open-webui' or '\\' in m.name or not (m.isdir() or m.isfile()) or m.mode&0o7000 or str(p) in seen:
-            raise ValueError('归档包含危险路径、链接、特殊文件、重复路径或结构错误')
-        seen.add(str(p))
-    t.extractall(sys.argv[2],members=members)
-if not (pathlib.Path(sys.argv[2])/'open-webui'/'data').is_dir(): raise ValueError('缺少data目录')
-PY
+    gzip -t "$selected" && validate_archive "$selected" "$stage"
     [[ $? == 0 ]] || { error "备份校验失败，未修改现有应用。"; pause; exit 1; }
     install_docker || exit 1
     # 拉取失败时仅在已有本地镜像的情况下继续，不先破坏现有容器。
