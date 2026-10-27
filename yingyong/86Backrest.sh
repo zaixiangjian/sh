@@ -621,13 +621,25 @@ br_cloud_menu() {
         echo "=================================="
         echo "1. Google Drive"
         echo ".\rclone.exe authorize "drive" "你的VPS显示的那段授权参数""
+        echo "----------------------------------"
         echo "2. OneDrive"
+
+        echo "----------------------------------"
         echo "3. pCloud"
         echo ".\rclone.exe authorize "pcloud""
+        echo "----------------------------------"
         echo "4. PikPak"
+
+        echo "----------------------------------"
         echo "5. MEGA"
+
+        echo "----------------------------------"
         echo "6. Dropbox"
+
+        echo "----------------------------------"
         echo "7. Box"
+
+        echo "----------------------------------"
         echo "9. 删除"
         echo "10. 退出配置向导"
         echo "0. 返回上一级"
