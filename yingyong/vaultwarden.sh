@@ -440,7 +440,7 @@ PY
 }
 
 restore_app_unlocked() {
-    local choice answer selected tmp listing stage before failed running index fresh=no
+    local choice answer selected tmp listing stage before failed index fresh=no
     local -a files=()
     command -v python3 >/dev/null 2>&1 || { echo "恢复需要 python3。"; return 1; }
     listing="$(mktemp)" || return 1
@@ -463,7 +463,7 @@ restore_app_unlocked() {
     selected="${files[choice-1]}"
     echo "备份路径：$selected"
     echo "恢复目标：$INSTALL_DIR/data；将停止容器并替换整个 data 目录。"
-    echo "恢复前数据会保留在安装目录的同级目录中。"
+    echo "旧数据仅临时保留用于失败回滚；恢复并启动成功后自动清理。"
     IFS= read -r -p "确认恢复请输入小写 yes：" answer || return 0
     [[ "$answer" == yes ]] || { echo "已取消。"; return 0; }
     require_docker || return 1
@@ -497,16 +497,27 @@ restore_app_unlocked() {
         rmdir "$stage"
         if docker run -d --name "$CONTAINER" -e SIGNUPS_ALLOWED=false --restart always \
             -p 3280:80 -v "$INSTALL_DIR/data:/data" "$OFFICIAL_IMAGE" && verify_running; then
+            rm -rf -- "$before" || { echo "恢复已成功，但临时旧数据清理失败：$before"; return 1; }
             echo "恢复完成并已创建容器：$selected"
             echo "数据目录：$INSTALL_DIR/data；端口3280；请配置原来的 HTTPS 反向代理。"
-            echo "恢复前目标数据（如有）：$before/data"
             return 0
         fi
-        echo "创建/启动失败：恢复数据保留在 $INSTALL_DIR/data，原数据保留在 $before/data；未删除任何密码库。"
+        if container_exists; then
+            if ! docker stop "$CONTAINER" >/dev/null; then
+                echo "无法停止失败容器，旧数据保留在 $before/data，未回滚正在写入的目录。"; return 1
+            fi
+        fi
+        failed="$(mktemp -d "${INSTALL_DIR}.failed-restore.XXXXXX")" || return 1
+        mv -T -- "$INSTALL_DIR/data" "$failed/data" || return 1
+        if [[ -e "$before/data" ]]; then
+            mv -T -- "$before/data" "$INSTALL_DIR/data" || { echo "回滚失败，旧数据保留在 $before/data。"; return 1; }
+        fi
+        rmdir "$before" 2>/dev/null || true
+        echo "创建/启动失败：已回滚恢复前的数据状态；失败恢复数据保留在 $failed/data。"
         echo "请检查端口占用及 docker logs vaultwarden；不会自动再次启动失败容器。"
         return 1
     fi
-    running="$(docker inspect --format '{{.State.Running}}' "$CONTAINER")" || { rm -rf -- "$stage"; return 1; }
+
     before="$(mktemp -d "${INSTALL_DIR}.before-restore.$(date +%Y%m%d%H%M%S).XXXXXX")" || { rm -rf -- "$stage"; return 1; }
     if ! docker stop "$CONTAINER" >/dev/null; then
         rm -rf -- "$stage"; rmdir "$before"; echo "停止失败，数据未替换。"; return 1
@@ -519,8 +530,8 @@ restore_app_unlocked() {
     if mv -T -- "$stage/data" "$INSTALL_DIR/data"; then
         rmdir "$stage"
         if docker start "$CONTAINER" >/dev/null && verify_running; then
+            rm -rf -- "$before" || { echo "恢复已成功，但临时旧数据清理失败：$before"; return 1; }
             echo "恢复完成：$selected"
-            echo "恢复前数据：$before/data"
             echo "Vaultwarden 已启动"
             return 0
         fi
@@ -538,9 +549,8 @@ restore_app_unlocked() {
     if ! mv -T -- "$before/data" "$INSTALL_DIR/data"; then
         echo "回滚失败，原数据保留在 $before/data。"; return 1
     fi
-    if true; then
-        docker start "$CONTAINER" >/dev/null && verify_running || { echo "原数据已恢复，但容器启动失败。"; return 1; }
-    fi
+    rmdir "$before" 2>/dev/null || true
+    docker start "$CONTAINER" >/dev/null && verify_running || { echo "原数据已恢复，但容器启动失败。"; return 1; }
     echo "恢复失败，已回滚原数据；失败数据保留位置：$failed"
     return 1
 }
