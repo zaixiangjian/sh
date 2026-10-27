@@ -561,6 +561,137 @@ generated_s3 = files['beifenhebing-web-s3.py'].decode('utf-8').replace('beifenhe
 for name, body in [('beifenhebing-generated.py', generated), ('beifenhebing-generated-s3.py', generated_s3)]:
     compile(body, name, 'exec'); files[name] = body.encode('utf-8')
 bulk_overrides = '# Overrides for recursive local archive transfer; no local deletions.\nimport stat\n\ndef transfer_source():\n    while True:\n        try:\n            p = local_path(prompt(\'本地备份读取路径（包含下级目录）\', \'/home/备份\'))\n            if not p.is_dir(): raise ValueError(\'读取目录不存在\')\n            return p, None\n        except ValueError as ex: print(str(ex))\n\ndef local_path(text):\n    if not text.strip() or any(ord(x)<32 for x in text): raise ValueError(\'目录不能为空或含控制字符\')\n    p=Path(\'/\'+text.strip().lstrip(\'/\')).resolve()\n    if p==Path(\'/\'): raise ValueError(\'不能使用根目录\')\n    return p\n\ndef snapshot(c):\n    root=local_path(c[\'local_dir\']); result={}\n    for directory, dirs, names in os.walk(root, followlinks=False):\n        dirs[:]=[n for n in dirs if not (Path(directory)/n).is_symlink() and (Path(directory)/n).resolve()!=Path(\'/home/备份/data\').resolve()]\n        for name in names:\n            p=Path(directory)/name\n            if not name.endswith(\'.tar.gz\') or p.is_symlink() or not p.is_file(): continue\n            result[p.relative_to(root).as_posix()]=signature(p)\n    return result\n\ndef remote_command(c,task,program,args):\n    target=c.get(\'user\',\'root\')+\'@\'+c[\'host\']\n    command=\'python3 -c \'+shlex.quote(program)+\' \'+ \' \'.join(shlex.quote(str(x)) for x in args)\n    return auth_call([\'ssh\']+ssh_args(task,c)+[target,command],c,capture_output=True)\n\ndef ssh_send(task,c,p,rel,checksum):\n    base=remote_path(c[\'remote_dir\']);dest=posixpath.join(base,rel);part=dest+\'.partial-\'+uuid.uuid4().hex\n    cmd=\'umask 077; mkdir -p -- \'+shlex.quote(posixpath.dirname(dest))+\'; t=\'+shlex.quote(part)+\'; trap \\\'rm -f -- "$t"\\\' EXIT; cat > "$t" && mv -- "$t" \'+shlex.quote(dest)\n    with p.open(\'rb\') as f:auth_call([\'ssh\']+ssh_args(task,c)+[c.get(\'user\',\'root\')+\'@\'+c[\'host\'],cmd],c,stdin=f)\n    result=remote_command(c,task,"import hashlib,sys;h=hashlib.sha256();f=open(sys.argv[1],\'rb\');\\nfor b in iter(lambda:f.read(1048576),b\'\'):h.update(b)\\nprint(h.hexdigest())",[dest])\n    if result.stdout.decode().strip()!=checksum:raise ValueError(\'SSH远端校验失败\')\n\ndef safe_rel(value):\n    return bool(value) and not value.startswith(\'/\') and all(x not in (\'\',\'.\',\'..\') for x in value.split(\'/\')) and \'\\\\\' not in value and all(ord(x)>=32 for x in value)\n\ndef s3_rows(client,c):\n    rows=[]\n    for page in client.get_paginator(\'list_objects_v2\').paginate(Bucket=c[\'bucket\'],Prefix=c[\'prefix\']):\n        for item in page.get(\'Contents\',[]):\n            rel=item[\'Key\'][len(c[\'prefix\']):]\n            if safe_rel(rel) and rel.endswith(\'.tar.gz\'):rows.append((rel,item[\'Key\']))\n    return rows\n\ndef transfer_tick(task,c,now=None,force=False):\n    now=time.time() if now is None else now\n    path=task/\'bulk-state.json\';state=json.loads(path.read_text()) if path.exists() else {}\n    current=snapshot(c)\n    if not current:return # Never turn an empty/missing source into remote deletion.\n    if state.get(\'observed\')!=current:\n        state.update(observed=current,changed_at=now,attempts=0,next_attempt=0)\n        atomic_json(path,state);return\n    if now-state[\'changed_at\']<c.get(\'quiet_seconds\',5):return\n    if state.get(\'completed\')==current:return\n    sl=slot(c,now)\n    if state.get(\'attempts\',0)>=c.get(\'retries\',3):\n        if sl is None or sl<=state.get(\'fallback_slot\',-1):return\n        state[\'fallback_slot\']=sl\n    elif now<state.get(\'next_attempt\',0):return\n    state[\'attempts\']=state.get(\'attempts\',0)+1;state[\'next_attempt\']=now+c.get(\'retry_seconds\',60)\n    atomic_json(path,state)\n    root=local_path(c[\'local_dir\']);sent=state.setdefault(\'sent\',{})\n    client=None;module=None\n    try:\n        for rel,sig in current.items():\n            if not safe_rel(rel):raise ValueError(\'不安全相对路径\')\n            if sent.get(rel)==sig:continue\n            p=root/rel;checksum=checked_checksum(p)\n            if signature(p)!=sig:raise ValueError(\'文件变化\')\n            if c.get(\'mode\')==\'s3\':\n                if client is None:\n                    module=s3_module();client=module.client(c);module.ensure_bucket(client,c)\n                from boto3.s3.transfer import TransferConfig\n                cfg=TransferConfig(multipart_threshold=8*1024*1024,multipart_chunksize=8*1024*1024,max_concurrency=2)\n                key=c[\'prefix\']+rel\n                client.upload_file(str(p),c[\'bucket\'],key,Config=cfg,ExtraArgs={\'Metadata\':{\'sha256\':checksum}})\n                body=client.get_object(Bucket=c[\'bucket\'],Key=key)[\'Body\'];digest=hashlib.sha256()\n                try:\n                    for block in iter(lambda:body.read(1048576),b\'\'):digest.update(block)\n                finally:body.close()\n                if digest.hexdigest()!=checksum:raise ValueError(\'S3读回校验失败\')\n            else:ssh_send(task,c,p,rel,checksum)\n            if signature(p)!=sig:raise ValueError(\'上传期间本地变化\')\n            sent[rel]=sig;atomic_json(path,state)\n        if snapshot(c)!=current:raise ValueError(\'目录变化，未清理\')\n        if BULK_SYNC:\n            if c.get(\'mode\')==\'s3\':\n                if client is None:module=s3_module();client=module.client(c)\n                for rel,key in s3_rows(client,c):\n                    if rel not in current:client.delete_object(Bucket=c[\'bucket\'],Key=key)\n                if any(rel not in current for rel,key in s3_rows(client,c)):raise ValueError(\'远端删除未完成\')\n            else:\n                manifest=json.dumps(list(current),ensure_ascii=False)\n                program="import os,sys,json,pathlib;root=pathlib.Path(sys.argv[1]);keep=set(json.loads(sys.argv[2]));\\nif root.is_symlink():raise ValueError(\'unsafe root\')\\nfor d,dirs,names in os.walk(root,followlinks=False):\\n dirs[:]=[n for n in dirs if not (pathlib.Path(d)/n).is_symlink()]\\n for n in names:\\n  p=pathlib.Path(d)/n\\n  if n.endswith(\'.tar.gz\') and not p.is_symlink() and p.is_file() and p.relative_to(root).as_posix() not in keep:p.unlink()\\nremaining={p.relative_to(root).as_posix() for p in root.rglob(\'*.tar.gz\') if p.is_file() and not p.is_symlink()}\\nassert not remaining-keep"\n                remote_command(c,task,program,[remote_path(c[\'remote_dir\']),manifest])\n        state[\'completed\']=current;state[\'sent\']={r:sent[r] for r in current};atomic_json(path,state)\n    except Exception as ex:\n        print(\'本地归档传送未完成：\'+type(ex).__name__+\'；未标记完成\',file=sys.stderr)\n\n# Explicit confirmation of each task\'s remote destination; normalize slash variants.\n_bulk_prompt = prompt\ndef remote_path(text):\n    text = text.strip()\n    if not text or any(ord(x)<32 for x in text): raise ValueError(\'远程目录不能为空或含控制字符\')\n    value = posixpath.normpath(\'/\' + text.lstrip(\'/\'))\n    if value == \'/\': raise ValueError(\'远程目录不能是根目录\')\n    return value\n\ndef prompt(label, default=None):\n    if label not in (\'远程目录\',) and not label.startswith(\'S3桶内保存路径\'):\n        return _bulk_prompt(label, default)\n    while True:\n        text = _bulk_prompt(label, default)\n        try:\n            if label == \'远程目录\': normalized = remote_path(text)\n            else:\n                text = text or (label.split(\'回车默认 \',1)[1].split(\' ）\',1)[0].strip() if \'回车默认 \' in label else \'/备份/web\')\n                normalized = s3_module().normalize_prefix(text)\n        except ValueError as ex:\n            print(str(ex));continue\n        print(\'本任务远程保存位置：\' + normalized)\n        if _bulk_prompt(\'与本任务配置的备份传送目录一致请输入 yes 确认\') == \'yes\':\n            return normalized\n        print(\'未确认，请重新输入远程保存位置。\')\n'
+# Category99-only integrity pipeline and independent file retries.
+bulk_overrides += r'''
+
+class _BulkHashReader:
+    def __init__(self, stream):
+        self.stream = stream
+        self.digest = hashlib.sha256()
+    def read(self, size=-1):
+        block = self.stream.read(size)
+        self.digest.update(block)
+        return block
+
+def checked_checksum(p):
+    before = signature(p)
+    with p.open('rb') as stream:
+        reader = _BulkHashReader(stream)
+        with gzip.GzipFile(fileobj=reader, mode='rb') as decoded:
+            with tarfile.open(fileobj=decoded, mode='r|') as archive:
+                for member in archive:
+                    if member.isfile():
+                        data = archive.extractfile(member)
+                        if data:
+                            while data.read(1024*1024): pass
+            # tar EOF is not gzip EOF: drain trailer and concatenated members.
+            while decoded.read(1024*1024): pass
+        while reader.read(1024*1024): pass
+        checksum = reader.digest.hexdigest()
+    if signature(p) != before:
+        raise ValueError('归档校验期间变化')
+    return checksum
+
+# Keep existing verified upload and deletion implementations, but invoke upload
+# on one immutable selection at a time. Its snapshot recheck must see the real
+# source tree, so the new loop implements upload directly instead of rebinding it.
+def transfer_tick(task, c, now=None, force=False):
+    clock = time.time if now is None else lambda: now
+    now = clock()
+    path = task / 'bulk-state.json'
+    state = json.loads(path.read_text()) if path.exists() else {}
+    current = snapshot(c)
+    if not current: return
+    sent = state.setdefault('sent', {})
+    files = state.setdefault('files', {})
+    previous = state.get('observed', {})
+    initial = not files and not previous
+    changed = previous != current
+    for rel, sig in current.items():
+        entry = files.get(rel)
+        if entry is None or entry.get('signature') != sig:
+            # Preserve legacy quiet period only for an unchanged observed file.
+            since = state.get('changed_at', now) if previous.get(rel) == sig else now
+            files[rel] = {'signature': sig, 'changed_at': since,
+                          'attempts': 0, 'next_attempt': 0}
+    if changed:
+        state['observed'] = current
+        state['changed_at'] = now
+    if changed or initial: atomic_json(path, state)
+    client = None
+    root = local_path(c['local_dir'])
+    for rel, sig in current.items():
+        if sent.get(rel) == sig: continue
+        entry = files[rel]
+        now = clock()
+        if now - entry['changed_at'] < c.get('quiet_seconds', 5): continue
+        if now < entry.get('next_attempt', 0): continue
+        if entry.get('attempts', 0) >= c.get('retries', 3):
+            current_slot = slot(c, now)
+            if current_slot is None or current_slot <= entry.get('fallback_slot', -1): continue
+            # Do not add an immediate fourth try in the slot that exhausted retries.
+            entry['fallback_slot'] = current_slot
+        entry['attempts'] = entry.get('attempts', 0) + 1
+        entry['next_attempt'] = now + c.get('retry_seconds', 60)
+        atomic_json(path, state)
+        stage = 'local-validation'
+        try:
+            if not safe_rel(rel): raise ValueError('不安全相对路径')
+            p = root / rel
+            if signature(p) != sig: raise ValueError('文件变化')
+            checksum = checked_checksum(p)
+            if signature(p) != sig: raise ValueError('文件变化')
+            stage = 'upload-verify'
+            if c.get('mode') == 's3':
+                if client is None:
+                    module = s3_module(); client = module.client(c); module.ensure_bucket(client, c)
+                from boto3.s3.transfer import TransferConfig
+                cfg = TransferConfig(multipart_threshold=8*1024*1024, multipart_chunksize=8*1024*1024, max_concurrency=2)
+                key = c['prefix'] + rel
+                client.upload_file(str(p), c['bucket'], key, Config=cfg, ExtraArgs={'Metadata': {'sha256': checksum}})
+                body = client.get_object(Bucket=c['bucket'], Key=key)['Body']
+                digest = hashlib.sha256()
+                try:
+                    for block in iter(lambda: body.read(1048576), b''): digest.update(block)
+                finally: body.close()
+                if digest.hexdigest() != checksum: raise ValueError('S3读回校验失败')
+            else:
+                ssh_send(task, c, p, rel, checksum)
+            if signature(p) != sig: raise ValueError('上传期间本地变化')
+            sent[rel] = sig
+            entry.pop('error', None)
+            entry.pop('stage', None)
+            entry['completed_at'] = clock()
+        except Exception as ex:
+            entry['error'] = type(ex).__name__
+            entry['stage'] = stage
+            if entry['attempts'] >= c.get('retries', 3):
+                failed_slot = slot(c, clock())
+                if failed_slot is not None: entry['fallback_slot'] = failed_slot
+            print('本地归档传送失败：' + json.dumps(rel, ensure_ascii=False) + ' ' + stage + ' ' + type(ex).__name__, file=sys.stderr)
+            runtime_log(task, 'file-failed', json.dumps(rel, ensure_ascii=False) + ' ' + stage + ' ' + type(ex).__name__)
+        atomic_json(path, state)
+    # Never clean against an incomplete or changed manifest.
+    if any(sent.get(rel) != sig for rel, sig in current.items()): return
+    if snapshot(c) != current: return
+    if state.get('completed') == current: return
+    if BULK_SYNC:
+        if c.get('mode') == 's3':
+            if client is None: client = s3_module().client(c)
+            for rel, key in s3_rows(client, c):
+                if rel not in current: client.delete_object(Bucket=c['bucket'], Key=key)
+            if any(rel not in current for rel, key in s3_rows(client, c)):
+                raise ValueError('远端删除未完成')
+        else:
+            manifest = json.dumps(list(current), ensure_ascii=False)
+            program = "import os,sys,json,pathlib;root=pathlib.Path(sys.argv[1]);keep=set(json.loads(sys.argv[2]));\nif root.is_symlink():raise ValueError('unsafe root')\nremaining=set()\nfor d,dirs,names in os.walk(root,followlinks=False,onerror=lambda e:(_ for _ in ()).throw(e)):\n dirs[:]=[n for n in dirs if n not in ('config','logs') and not (pathlib.Path(d)/n).is_symlink()]\n for n in names:\n  p=pathlib.Path(d)/n\n  if n.endswith('.tar.gz') and not p.is_symlink() and p.is_file():\n   rel=p.relative_to(root).as_posix()\n   if rel not in keep:p.unlink()\n   else:remaining.add(rel)\nassert not remaining-keep"
+            program += "\nremaining=set()\nfor d,dirs,names in os.walk(root,followlinks=False,onerror=lambda e:(_ for _ in ()).throw(e)):\n dirs[:]=[n for n in dirs if n not in ('config','logs') and not (pathlib.Path(d)/n).is_symlink()]\n for n in names:\n  p=pathlib.Path(d)/n\n  if n.endswith('.tar.gz') and not p.is_symlink() and p.is_file():remaining.add(p.relative_to(root).as_posix())\nassert not remaining-keep"
+            remote_command(c, task, program, [remote_path(c['remote_dir']), manifest])
+    state['completed'] = current
+    state['sent'] = {rel: sent[rel] for rel in current}
+    state['files'] = {rel: files[rel] for rel in current}
+    atomic_json(path, state)
+'''
 for mode, sync in [('sync', True), ('keep', False)]:
     stem = 'beifenhebing-local-' + mode
     bulk = files['beifenhebing-web.py'].decode('utf-8').replace('beifenhebing-web', stem).replace('网站', '本地归档')
