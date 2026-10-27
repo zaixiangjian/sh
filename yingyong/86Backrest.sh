@@ -269,7 +269,7 @@ except Exception as e:
     sys.exit(1)
 PY
     ) || return 1
-    if ! tar -czf "$backup_file" --exclude='docker/backrest/cache' --exclude='docker/backrest/tmp' --exclude='docker/backrest/logs' -C "$(dirname "$(dirname "$app_base_dir")")" docker/backrest; then
+    if ! tar -czf "$backup_file" --exclude='backrest/cache' --exclude='backrest/tmp' --exclude='backrest/logs' -C "$(dirname "$app_base_dir")" backrest; then
         rm -f -- "$backup_file"; echo "❌ 备份失败。"; return 1
     fi
     chmod 600 "$backup_file" || return 1
@@ -288,14 +288,22 @@ br_extract() {
 import tarfile,sys,pathlib
 try:
     with tarfile.open(sys.argv[1],'r:gz') as t:
-        members=t.getmembers(); seen=set()
+        members=t.getmembers(); seen=set(); layout=None
         for m in members:
             name=m.name
             parts=pathlib.PurePosixPath(name).parts
-            if name.startswith('/') or '..' in parts or parts[:2]!=('docker','backrest') or not (m.isdir() or m.isfile()) or name in seen:
+            if parts[:1]==('backrest',): current='new'
+            elif parts[:2]==('docker','backrest'): current='legacy'
+            else: raise ValueError('不属于 Backrest 的归档成员')
+            if layout is not None and layout!=current: raise ValueError('归档混合新旧根目录')
+            layout=current
+            if name.startswith('/') or '..' in parts or not (m.isdir() or m.isfile()):
                 raise ValueError('不安全的归档成员')
-            seen.add(name)
-        if not any(m.isfile() and m.name=='docker/backrest/config/config.json' for m in members):
+            # 恢复暂存统一为 backrest/，旧归档只去掉 docker/ 一层。
+            m.name=str(pathlib.PurePosixPath(*(parts[1:] if current=='legacy' else parts)))
+            if m.name in seen: raise ValueError('归档成员重复')
+            seen.add(m.name)
+        if not any(m.isfile() and m.name=='backrest/config/config.json' for m in members):
             raise ValueError('缺少 config/config.json')
         if hasattr(tarfile,'data_filter'):
             t.extractall(sys.argv[2],members=members,filter='data')
@@ -389,7 +397,7 @@ br_restore() (
     trap 'rm -rf -- "$stage"' EXIT
     cp -- "$file" "$stage/archive.tar.gz" && chmod 600 "$stage/archive.tar.gz" || return 1
     br_extract "$stage/archive.tar.gz" "$stage" || return 1
-    mkdir -p "$stage/docker/backrest"/{data,config,cache,tmp,rclone} || return 1
+    mkdir -p "$stage/backrest"/{data,config,cache,tmp,rclone} || return 1
     # 旧数据仅用于本次失败回滚；成功后删除，不清理历史回滚目录。
     mkdir -p /root/.backrest-rollback && chmod 700 /root/.backrest-rollback || return 1
     rollback=$(mktemp -d /root/.backrest-rollback/before-restore.XXXXXX) || return 1
@@ -398,7 +406,7 @@ br_restore() (
     if [ -e "$app_base_dir" ]; then
         mv -T -- "$app_base_dir" "$rollback/data" || { $running && sudo docker start "$docker_name" >/dev/null; return 1; }
     fi
-    if ! mv -T -- "$stage/docker/backrest" "$app_base_dir"; then
+    if ! mv -T -- "$stage/backrest" "$app_base_dir"; then
         [ ! -e "$rollback/data" ] || mv -T -- "$rollback/data" "$app_base_dir"
         $running && sudo docker start "$docker_name" >/dev/null
         echo "❌ 替换失败，回滚数据：$rollback"; return 1
