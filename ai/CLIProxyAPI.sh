@@ -261,7 +261,7 @@ uninstall_app() {
 
 REMOTE_APP_CONTAINER="cli-proxy-api"
 RETENTION_FILE="/home/备份/CLIProxyAPI/config/local-retention.json"
-LOCK_FILE="/home/docker/.cliproxyapi-backup.lock"
+LOCK_FILE="$BACKUP_DIR/config/backup.lock"
 DATA_DIR="$APP_DIR"
 error() { echo "错误：$*" >&2; }
 exists() { docker container inspect "$REMOTE_APP_CONTAINER" >/dev/null 2>&1; }
@@ -495,9 +495,7 @@ single_configuration_locked() (
     "$@"
 )
 remote_schedule() { configuration_locked "$1" remote_schedule_unlocked "$@"; }
-configure_remote_task() {
-    remote_engine configure "$1" && remote_schedule_unlocked "$1" enable
-}
+
 delete_remote_task() {
     remote_schedule_unlocked "$1" remove && remote_engine delete "$1"
 }
@@ -603,16 +601,7 @@ single_remote_locked_run() (
     fi
     remote_run "$kind"
 )
-remote_choose_ssh() {
-    local selection
-    echo "1. SSH备份上传任务"
-    echo "2. SSH仅传送任务"
-    IFS= read -r -p "选择任务（0取消）：" selection || return 1
-    case "$selection" in 1) SELECTED_REMOTE=ssh-backup ;; 2) SELECTED_REMOTE=ssh ;; *) return 1 ;; esac
-}
 
-
-remote_summary() { named_summary "${1:-all}"; }
 
 
 
@@ -824,7 +813,31 @@ show_menu() {
     echo
 }
 
+runtime_layout_init() {
+    python3 - "$BACKUP_DIR/config" /home/docker/.cliproxyapi-backup.lock <<'PY_LAYOUT'
+import os,sys,fcntl,stat
+from pathlib import Path
+root=Path(sys.argv[1]);root.mkdir(parents=True,exist_ok=True,mode=0o700)
+if root.is_symlink():raise SystemExit('config不能是链接')
+os.chmod(root,0o700)
+src=Path(sys.argv[2]);dst=root/'backup.lock'
+with (root/'.layout-migration.lock').open('a') as guard:
+ fcntl.flock(guard,fcntl.LOCK_EX)
+ if src.is_symlink():
+  if src.resolve()!=dst.resolve():raise SystemExit('旧锁链接冲突')
+ elif src.exists():
+  if dst.exists():raise SystemExit('新旧锁同时存在，拒绝迁移')
+  fd=os.open(src,os.O_RDWR|os.O_NOFOLLOW)
+  try:
+   s=os.fstat(fd)
+   if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1:raise SystemExit('锁文件不安全')
+   fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+   src.rename(dst);src.symlink_to(dst)
+  finally:os.close(fd)
+PY_LAYOUT
+}
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    runtime_layout_init || exit 1
     if [[ ${1:-} == --remote-task ]]; then
         remote_locked_run "${3:-}@${2:-}" "${4:-}"
         return $?
