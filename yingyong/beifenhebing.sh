@@ -8,6 +8,7 @@ website_backup_menu() {
     local choice
     local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
     export WEB_CONNECTION_SESSION
+    /usr/bin/python3 /root/yingyong/beifenhebing-web.py install-cron >/dev/null || echo '网站调度修复异常' >&2
     /usr/bin/python3 /root/yingyong/beifenhebing-web.py probe || echo '连接检测异常'
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
@@ -27,8 +28,8 @@ website_backup_menu() {
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
-            1) operation_1 ;;
-            2) operation_2 ;;
+            1) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create ;;
+            2) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create-transfer ;;
             3) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create-s3 ;;
             4) /usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-control ;;
             7) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-test ;;
@@ -192,8 +193,8 @@ local_archive_menu() {
         echo "=================================="
         local_archive_overview summary || echo "任务检测异常"
         echo "=================================="
-        echo "1. 本地*.tar.gz备份同步传送"
-        echo "2. 本地*.tar.gz备份传送不删除远程文件"
+        echo "1. 传送*.tar.gz备份同步删除远程"
+        echo "2. 传送*.tar.gz备份不删除远程文件"
         echo "------------------------"
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
@@ -218,7 +219,7 @@ show_menu() {
     /usr/bin/python3 /root/yingyong/beifenhebing-forum.py count || echo "任务检测异常"
     echo "论坛生成备份传送 详情进入 3 查看"
     /usr/bin/python3 /root/yingyong/beifenhebing-generated.py count || echo "任务检测异常"
-    echo "备份本地*.tar.gz（home/备份）详情进入 99 查看"
+    echo "只传送本地*.tar.gz（home/备份）详情进入 99 查看"
     local_archive_overview count || echo "任务检测异常"
     echo "=================================="
       echo "1. 网站备份（/home/web）（$(/usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-label)）"
@@ -226,7 +227,7 @@ show_menu() {
       echo "------------------------"
       echo "3. 论坛生成备份传送"
       echo "------------------------"
-      echo "99. 备份本地*.tar.gz（home/备份）"
+      echo "99. 只传送本地*.tar.gz（home/备份）"
       echo "------------------------"
       echo "SSH重置密码连接 1.1.1.1 更改远程对应的 IP 地址"
       echo "------------------------"
@@ -234,14 +235,6 @@ show_menu() {
       echo "------------------------"
       echo "0. 退出"
 }
-
-operation_1() (
-    python3 /root/yingyong/beifenhebing-web.py create
-)
-
-operation_2() (
-    python3 /root/yingyong/beifenhebing-web.py create-transfer
-)
 
 forum_restore() (
     /usr/bin/python3 - 3<&0 <<'FORUM_RESTORE_PY'
@@ -519,7 +512,7 @@ for mode, sync in [('sync', True), ('keep', False)]:
     bulk = bulk.replace("[('backup', '备份任务'), ('transfer', '备份传送'), ('s3', 'S3 API 兼容传送任务')]", "[('transfer', '备份传送'), ('s3', 'S3 API 兼容传送任务')]")
     bulk = bulk.replace("'transfer-state.json', 'known_hosts'", "'transfer-state.json', 'bulk-state.json', 'known_hosts'")
     bulk = bulk.replace("确认专用目录并保存任务，输入 yes", "确认递归传送且同步模式会删除专用远端内本地不存在的.tar.gz，输入 yes")
-    bulk = bulk.replace('仅扫描选中目录第一层最新归档；不打包、不清理本地。定时为额外兜底，时区UTC。', '递归传送所选目录内全部.tar.gz，保留相对目录；已成功且未变化则跳过。不打包、不清理本地，时区UTC。')
+    bulk = bulk.replace('仅扫描选中目录第一层最新归档；不打包、不清理本地。自动监控文件变化，稳定后传送。', '递归传送所选目录内全部.tar.gz，保留相对目录；已成功且未变化则跳过。不打包、不清理本地，时区UTC。')
     bulk = bulk.replace("    private_root()\n    with lock(ROOT / '.scheduler.lock'),", "    private_root()\n    with lock(ROOT / '.scheduler.lock'),")
     bulk = bulk.replace("    host = prompt(", "    if any(c.get('id') == task_id for _, c in configs()):\n        print('同名任务已存在，请使用其他任务名称；如需重建，请先通过9删除。')\n        return\n    host = prompt(")
     pos = bulk.rfind("if __name__ == '__main__':")
@@ -538,11 +531,133 @@ for category, root in runtime_roots.items():
     name='beifenhebing-'+category+'.py'
     text=files[name].decode('utf-8')
     text=re.sub(r"^ROOT = Path\('[^']+'\)", 'ROOT = Path('+repr(root)+')',text,flags=re.M)
+    if category in ('web','forum'):
+        previous_begin=re.search(r'^BEGIN = (.+)$',text,re.M).group(1)
+        previous_end=re.search(r'^END = (.+)$',text,re.M).group(1)
+        title='网站备份（/home/web）' if category=='web' else '论坛全量备份（/var/discourse）'
+        text=re.sub(r'^BEGIN = .+$','BEGIN = '+repr('# '+title),text,flags=re.M)
+        text=re.sub(r'^END = .+$','END = '+repr('# '+title+' 结束'),text,flags=re.M)
+        text=text.replace('def cron_text(text, enabled):', 'def cron_text(text, enabled):\n    aliases = {'+previous_begin+': BEGIN, '+previous_end+': END}\n    text = "".join(aliases.get(line.rstrip("\\r\\n"), line.rstrip("\\r\\n")) + ("\\n" if line.endswith("\\n") else "") for line in text.splitlines(keepends=True))')
+    if category in ('local-sync', 'local-keep'):
+        text=text.replace('def transfer_source():\n    while True:', "_PENDING_CONFIG_BASE = None\n\ndef transfer_source():\n    global _PENDING_CONFIG_BASE\n    while True:")
+        text=text.replace('            return p, None', "            _PENDING_CONFIG_BASE = local_path(prompt('传送配置保存路径', '/home/备份/全部备份传送/'))\n            return p, None")
+        text=text.replace("runtime_dir = ROOT / task_id", "runtime_dir = _PENDING_CONFIG_BASE / 'config' / task_id")
+        tag = category.removeprefix('local-')
+        text=text.replace("'transfer-' +", repr('transfer-'+tag+'-')+' +')
+        text=text.replace("dirs[:]=[n for n in dirs if", "dirs[:]=[n for n in dirs if n not in ('config','logs') and")
+        text=text.replace("root=local_path(c['local_dir']); result={}", "root=local_path(c['local_dir']); result={}; newest={}")
+        text=text.replace("for directory, dirs, names in os.walk(root, followlinks=False):", "def walk_error(error): raise error\n    for directory, dirs, names in os.walk(root, followlinks=False, onerror=walk_error):")
+        text=text.replace("            result[p.relative_to(root).as_posix()]=signature(p)", "            relative=p.relative_to(root).as_posix()\n            key=(p.stat().st_mtime_ns,p.name)\n            group=p.parent.relative_to(root).as_posix()\n            if group not in newest or key>newest[group][0]: newest[group]=(key,relative,signature(p))")
+        text=text.replace("    return result\n\ndef remote_command", "    return {rel:sig for _,rel,sig in newest.values()}\n\ndef remote_command")
+        text=text.replace('递归传送所选目录内全部.tar.gz，保留相对目录；已成功且未变化则跳过。', '递归检查各目录，每个目录仅传送修改时间最新的一个.tar.gz，保留相对目录；已成功且未变化则跳过。')
+    if category == 'generated':
+        text=text.replace("if path.name == 'location.json' and _PENDING_SOURCE:", "if path.name == 'location.json' and value.get('config_file') and _PENDING_SOURCE:")
+        text=text.replace("    local = local_path(c.get('archive_destination', c['local_dir']))", "    if c.get('send_original'): return p\n    local = local_path(c.get('archive_destination', c['local_dir']))")
+        text=text.replace("transport['local_dir'] = c.get('archive_destination',c['local_dir'])", "transport['local_dir'] = str(p.parent) if c.get('send_original') else c.get('archive_destination',c['local_dir'])")
+        text=text.replace("c['source_dir'], c['generated_site'] = _PENDING_SOURCE", "c['source_dir'], c['generated_site'] = _PENDING_SOURCE\n        c['send_original'] = True")
+        text=text.replace("default = reuse['local_dir'] if reuse else '/home/备份/' + site", "default = '/home/备份/论坛传送/'")
+        text=text.replace("prompt('配置保存目录', default)", "prompt('传送配置保存路径', default)")
+        text=text.replace("prompt('请手动输入本地路径（例如 /home/备份/备注名）')", "prompt('传送配置保存路径', '/home/备份/论坛传送/')")
+    if category in ('web', 'forum', 'generated', 'local-sync', 'local-keep'):
+        text=text.replace('runtime_dir = ROOT / task_id', "runtime_dir = local / 'config' / task_id")
+        text=text.replace("print('归档目录：' + str(local) + '；配置及凭据保存到上面的 data 分类目录。')", "print('归档目录：' + str(local) + '；配置位于 config/，轮转日志位于 logs/。')")
+        text=text.replace('for x in local.iterdir()))):', "for x in local.iterdir() if not (x.name in ('config', 'logs') and x.is_dir() and not x.is_symlink())))):")
     pos=text.rfind("if __name__ == '__main__':")
-    text=text[:pos]+central_overrides+'\n'+text[pos:]
+    selected_runtime = central_overrides
+    if category == 'generated':
+        text=text.replace("if path.name == 'location.json' and value.get('config_file') and _PENDING_SOURCE:", "if False and path.name == 'location.json' and value.get('config_file') and _PENDING_SOURCE:")
+        selected_runtime=selected_runtime.replace('c["source_dir"], c["generated_site"] = pending', 'c["source_dir"], c["generated_site"] = pending\n            c["send_original"] = True')
+    if category in ('web', 'forum', 'generated', 'local-sync', 'local-keep'):
+        selected_runtime += r'''
+
+_layout_config_path = config_path
+_layout_task_by_id = task_by_id
+_layout_configs = configs
+_layout_atomic_json = atomic_json
+_layout_delete = delete
+
+def private_directory(path):
+    path = Path(path)
+    if path.is_symlink(): raise ValueError('配置/日志目录不能是链接')
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path, 0o700)
+    return path
+
+def layout_task(task):
+    pointer = task / 'location.json'
+    if pointer.is_file() and not pointer.is_symlink():
+        loc = json.loads(pointer.read_text())
+        if loc.get('runtime_dir'):
+            local = local_path(loc.get('config_base', loc['local_dir']))
+            expected = local / 'config' / task.name
+            if str(expected) != loc['runtime_dir'] or expected.is_symlink() or expected.parent.is_symlink():
+                raise ValueError('配置目录定位异常')
+            return expected
+    return task
+
+def task_by_id(identifier):
+    return layout_task(_layout_task_by_id(identifier))
+
+def config_path(task):
+    return _layout_config_path(layout_task(task))
+
+def configs():
+    return [(layout_task(t), c) for t, c in _layout_configs()]
+
+def atomic_json(path, value):
+    if path.name == 'location.json' and value.get('config_file'):
+        local = local_path(value['local_dir'])
+        original = local / value['config_file']
+        c = read_config(original)
+        base = Path(globals().get('_PENDING_CONFIG_BASE') or local)
+        if globals().get('_PENDING_CONFIG_BASE'):
+            c['config_base'] = str(base)
+            rows = original.read_text().splitlines(keepends=True)
+            original.write_text(''.join('# BEIFEN_CONFIG '+json.dumps(c,ensure_ascii=False)+'\n' if r.startswith('# BEIFEN_CONFIG ') else r for r in rows))
+        parent = private_directory(base / 'config')
+        target_task = parent / c['id']
+        if target_task.exists() and any(p.name != 'run.lock' for p in target_task.iterdir()):
+            raise ValueError('配置目录已有任务或未知文件')
+        private_directory(target_task)
+        private_directory(base / 'logs')
+        # Reuse the original central writer with the destination set to the task-local directory.
+        _layout_atomic_json(target_task / 'location.json', value)
+        _runtime_atomic_json(path, {'runtime_dir': str(target_task), 'local_dir': str(local), 'config_base': str(base)})
+        return
+    return _layout_atomic_json(path, value)
+
+def runtime_log(task, event, status):
+    c = load_task(task)
+    logs = private_directory(Path(c.get('config_base', c['local_dir'])) / 'logs')
+    with lock(logs / '.rotation.lock'):
+        handler = logging.handlers.RotatingFileHandler(logs / (ENGINE.stem + '-' + task.name + '.log'), maxBytes=2*1024*1024, backupCount=5, encoding='utf-8')
+        try:
+            handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+            record = logging.LogRecord('backup', logging.INFO, '', 0, '%s %s', (event, status), None)
+            handler.emit(record)
+            os.chmod(handler.baseFilename, 0o600)
+        finally: handler.close()
+
+def delete(identifier):
+    if identifier.startswith('legacy:'): return _layout_delete(identifier)
+    central = _layout_task_by_id(identifier)
+    task = layout_task(central)
+    result = _layout_delete(identifier)
+    if task != central and not (task / 'location.json').exists():
+        with lock(ROOT / '.scheduler.lock'):
+            (central / 'location.json').unlink(missing_ok=True)
+    return result
+'''
+    pos=text.rfind("if __name__ == '__main__':")
+    text=text[:pos]+selected_runtime+'\n'+text[pos:]
     compile(text,name,'exec');files[name]=text.encode('utf-8')
     s3name='beifenhebing-'+category+'-s3.py'
     text=files[s3name].decode('utf-8')
+    if category in ('local-sync','local-keep'):
+        text=text.replace("'s3-' +", repr('s3-'+category.removeprefix('local-')+'-')+' +')
+        text=text.replace("runtime_script = e.ROOT / ident / script.name", "runtime_script = e._PENDING_CONFIG_BASE / 'config' / ident / script.name")
+    if category in ('web', 'forum', 'generated', 'local-sync', 'local-keep'):
+        text=text.replace('runtime_script = e.ROOT / ident / script.name', "runtime_script = local / 'config' / ident / script.name")
     text=text.replace("expected = Path(c['local_dir']) / (c['name'] + '-s3.credentials')", "expected = e.config_path(e.task_by_id(c['id'])).with_suffix('.credentials')")
     text=text.replace('    validate(c)\n    expected =', '    validate(c)\n    e = engine()\n    expected =')
     compile(text,s3name,'exec');files[s3name]=text.encode('utf-8')
@@ -951,29 +1066,6 @@ def transfer_source():
     return local, rule
 
 
-def transfer_local(backup_prefix, label_title=None):
-    if label_title:
-        print(label_title)
-    # 仅用注册表里的备份目录，不搜索其他位置。
-    choices = list(dict.fromkeys(c['local_dir'] for _, c in configs()
-                                if c.get('mode', 'backup') == 'backup' and c.get('backup_prefix') == backup_prefix))
-    default = '/home/备份/' + backup_prefix + '/'
-    if len(choices) == 1: default = choices[0]
-    elif choices:
-        for i, directory in enumerate(choices, 1): print(f'{i}. {directory}/')
-        while True:
-            selected = prompt('选择默认备份目录编号', '1')
-            if selected.isdigit() and 1 <= int(selected) <= len(choices):
-                default = choices[int(selected)-1]; break
-            print('编号无效')
-    while True:
-        label = f'（回车默认已有网站备份{default.rstrip("/")}/）: ' if default else '（请手动指定本地备份目录）: '
-        text = input(label)
-        if not text and default: text = default
-        try: return local_path(text)
-        except ValueError as e: print(str(e))
-
-
 def worker_unit():
     return ('[Unit]\nDescription=Named website archive transfer watcher\nAfter=network.target\n'
             '[Service]\nType=simple\nUser=root\nUMask=0077\nExecStart=/usr/bin/python3 '
@@ -1054,6 +1146,48 @@ def upload_existing(task, c, p):
     command = ('umask 077; t=' + shlex.quote(staging) + '; trap \'rm -f -- "$t"\' EXIT; '
                'cat > "$t" && mv -- "$t" ' + shlex.quote(target))
     with p.open('rb') as data: auth_call(['ssh'] + options + [destination, command], c, stdin=data)
+    prune_remote(task, c, p)
+
+
+def prune_remote(task, c, uploaded):
+    # Legacy tasks without this field keep all remote archives; never enable deletion implicitly.
+    keep = c.get('remote_retention', 0)
+    if type(keep) is not int or not 0 <= keep <= 100000:
+        raise ValueError('远程保留数量无效')
+    if keep == 0: return
+    digest = hashlib.sha256()
+    with uploaded.open('rb') as data:
+        for block in iter(lambda: data.read(1024 * 1024), b''): digest.update(block)
+    program = r'''
+import os,sys,re,stat,hashlib,datetime
+root,pattern,keep,name,expected=sys.argv[1:];keep=int(keep)
+fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+try:
+    f=os.open(name,os.O_RDONLY|os.O_NOFOLLOW,dir_fd=fd)
+    h=hashlib.sha256()
+    with os.fdopen(f,'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):raise ValueError('not regular')
+        for block in iter(lambda:stream.read(1024*1024),b''):h.update(block)
+    if h.hexdigest()!=expected:raise ValueError('uploaded checksum mismatch; no cleanup')
+    rule=re.compile(pattern)
+    def owned():
+        rows=[]
+        for n in os.listdir(fd):
+            m=rule.fullmatch(n)
+            if not m:continue
+            if m.lastindex:
+                try:datetime.datetime.strptime(m.group(1),'%Y-%m-%d-%H%M%S')
+                except ValueError:continue
+            st=os.stat(n,dir_fd=fd,follow_symlinks=False)
+            if stat.S_ISREG(st.st_mode):rows.append(n)
+        return sorted(rows,reverse=True)
+    for n in owned()[keep:]:os.unlink(n,dir_fd=fd)
+    if len(owned())>keep:raise ValueError('retention readback failed')
+finally:os.close(fd)
+'''
+    args = [remote_path(c['remote_dir']), archive_pattern(c).pattern, str(keep), uploaded.name, digest.hexdigest()]
+    command = 'python3 -c ' + shlex.quote(program) + ' ' + ' '.join(shlex.quote(x) for x in args)
+    auth_call(['ssh'] + ssh_args(task, c) + [c.get('user', 'root') + '@' + c['host'], command], c, capture_output=True)
 
 
 def transfer_tick(task, c, now=None, force=False):
@@ -1162,16 +1296,20 @@ def create(mode="backup"):
         password = getpass.getpass('远程服务器密码（隐藏输入）: ')
         if not password or len(password.encode()) > 4096 or any(c in password for c in '\n\r\0'):
             raise ValueError('密码不能为空/含换行或NUL/超过4096字节')
-    interval = prompt('间隔仅支持 1h/2h/4h/6h/12h/1d/2d/3d/5d/7d', '2d').strip()
-    while interval not in INTERVALS:
-        print('不支持的间隔，仅支持 1h/2h/4h/6h/12h/1d/2d/3d/5d/7d')
-        interval = input('请输入完整间隔（例如：2d）: ').strip()
-    if interval.endswith('h'):
-        h = '0'
-        print('小时周期按UTC整点对齐，例如2h为00、02、04等小时。')
+    if mode == 'transfer':
+        interval, h, m = '1h', '0', '0'
+        print('自动监控备份变化，文件稳定后传送；无需设置备份周期。')
     else:
-        h = prompt('几点 0-23，UTC', '5')
-    m = prompt('几分 0-59', '0')
+        interval = prompt('间隔仅支持 1h/2h/4h/6h/12h/1d/2d/3d/5d/7d', '2d').strip()
+        while interval not in INTERVALS:
+            print('不支持的间隔，仅支持 1h/2h/4h/6h/12h/1d/2d/3d/5d/7d')
+            interval = input('请输入完整间隔（例如：2d）: ').strip()
+        if interval.endswith('h'):
+            h = '0'
+            print('小时周期按UTC整点对齐，例如2h为00、02、04等小时。')
+        else:
+            h = prompt('几点 0-23，UTC', '5')
+        m = prompt('几分 0-59', '0')
     if not re.fullmatch(r'\d{1,2}', h) or not 0 <= int(h) <= 23: raise ValueError('小时无效')
     if not re.fullmatch(r'\d{1,2}', m) or not 0 <= int(m) <= 59: raise ValueError('分钟无效')
     if mode == 'transfer':
@@ -1185,18 +1323,27 @@ def create(mode="backup"):
         print('保留数量必须为 1~100000 的整数')
         retention_text = prompt('本地保留备份数量', '3').strip()
     retention = int(retention_text)
+    remote_retention = None
+    if 'local-sync' not in ENGINE.stem and 'local-keep' not in ENGINE.stem:
+        while True:
+            text = prompt('远程保留备份（0不删除远程备份数量，回车保存 7 ）').strip() or '7'
+            if text.isascii() and text.isdigit() and 0 <= int(text) <= 100000:
+                remote_retention = int(text); break
+            print('远程保留数量必须为 0~100000 的整数')
     quiet = retry_delay = retries = None
     suffix = '-chuansong' if mode == 'transfer' else ''
     if mode == 'transfer':
         quiet = positive_prompt('文件静默秒数', 5)
         retry_delay = positive_prompt('失败重试间隔秒数', 60)
         retries = positive_prompt('总尝试次数（包含首次）', 3)
-        print('仅扫描选中目录第一层最新归档；不打包、不清理本地。定时为额外兜底，时区UTC。')
+        print('仅扫描选中目录第一层最新归档；不打包、不清理本地。自动监控文件变化，稳定后传送。')
     else:
         print('网站保持运行：热备不能保证数据库/正在写入文件的一致性；tar 失败不会上传或清理。')
         print(f'本地专用目录成功上传后保留最新{retention}个备份。')
-    print(str(local / (name + suffix + '.sh')) + '，权限0700，明文保存；依赖共享engine和任务注册表。')
-    if password is not None: print(str(local / (name + suffix + '.password')) + '，权限0600，明文密码文件。')
+    runtime_dir = ROOT / task_id
+    print(str(runtime_dir / (name + suffix + '.sh')) + '，权限0700，明文保存；依赖共享engine和任务注册表。')
+    if password is not None: print(str(runtime_dir / (name + suffix + '.password')) + '，权限0600，明文密码文件。')
+    print('归档目录：' + str(local) + '；配置及凭据保存到上面的 data 分类目录。')
     if prompt('确认专用目录并保存任务，输入 yes') != 'yes':
         print('已取消'); return
     private_root()
@@ -1233,6 +1380,8 @@ def create(mode="backup"):
                           hour=int(h), minute=int(m), anchor_epoch=schedule_anchor(interval, int(h), int(m)),
                           local_dir=str(local), remote_dir=remote, retention=retention)
             config['mode'] = mode
+            if mode == 'transfer': config['trigger'] = 'watch'
+            if remote_retention is not None: config['remote_retention'] = remote_retention
             if backup_prefix is not None: config['backup_prefix'] = backup_prefix
             config['schedule_version'] = 2
             if mode == 'transfer': config.update(quiet_seconds=quiet, retry_seconds=retry_delay, retries=retries)
@@ -1252,7 +1401,7 @@ def create(mode="backup"):
             if mode == 'backup': marker.unlink(missing_ok=True)
             raise
     print('任务已保存: ' + task_id + '（SSH 尚未验证；请在菜单8选择任务核对指纹后执行）')
-    print('首个锚点(UTC): ' + dt.datetime.fromtimestamp(config['anchor_epoch'], dt.timezone.utc).isoformat())
+    if mode == 'backup': print('首个锚点(UTC): ' + dt.datetime.fromtimestamp(config['anchor_epoch'], dt.timezone.utc).isoformat())
     reconcile_cron()
     reconcile_worker()
 
@@ -1276,6 +1425,8 @@ def load_task(task):
     if c['interval_seconds'] != INTERVALS[c['interval']]: raise ValueError('间隔配置不一致')
     if not isinstance(c.get('retention', 3), int) or not 1 <= c.get('retention', 3) <= 100000:
         raise ValueError('本地保留数量无效')
+    if type(c.get('remote_retention', 0)) is not int or not 0 <= c.get('remote_retention', 0) <= 100000:
+        raise ValueError('远程保留数量无效')
     return c
 
 
@@ -1363,6 +1514,7 @@ def archive_and_transfer(task, c):
                    'cat > "$t" && mv -- "$t" ' + shlex.quote(target))
         with final.open('rb') as data:
             auth_call(['ssh'] + options + [destination, command], c, stdin=data)
+        prune_remote(task, c, final)
         # 仅该任务专用目录下的正规本任务命名归档；不触及其他 tar.gz。
         files = [p for p in local.iterdir() if archive_sort_key(p.name, c) is not None
                  and p.is_file() and not p.is_symlink()]
@@ -1580,6 +1732,7 @@ def menu_summary(count_only=False):
                 name = ''.join(x for x in row['name'] if x.isprintable())
                 timing = (f"每 {c['interval'][:-1]} 小时第 {c['minute']} 分" if c['interval'].endswith('h')
                           else f"每 {c['interval'][:-1]} 天 {c['hour']}点 {c['minute']}分")
+                if group != 'backup': timing = '自动检测变化，稳定后'
                 print(f"{index}. {name}   {connection_label(connections.get(row['id']))} {timing}{action}（{state}）")
             else:
                 print(f"{index}. {row['name']}   {connection_label('unknown')} 旧任务（原定时规则；\033[31m未验证\033[0m）")
@@ -1840,11 +1993,8 @@ def create(e=None):
     region = e.prompt('Region', 'us-east-1').strip()
     style = e.prompt('寻址方式 1.path 2.virtual', '1').strip()
     if style not in ('1', '2'): raise ValueError('寻址方式无效')
-    interval = e.prompt('间隔 1h/2h/4h/6h/12h/1d/2d/3d/5d/7d', '2d').strip()
-    while interval not in e.INTERVALS: interval = e.prompt('请输入完整间隔（例如：2d）').strip()
-    hour = 0 if interval.endswith('h') else int(e.prompt('几点 0-23，UTC', '5'))
-    minute = int(e.prompt('几分 0-59', '0'))
-    if not 0 <= hour <= 23 or not 0 <= minute <= 59: raise ValueError('时间无效')
+    interval, hour, minute = '1h', 0, 0
+    print('自动监控备份变化，文件稳定后传送；无需设置备份周期。')
     local, backup_prefix = e.transfer_source()
     default_prefix = '/备份/' + (backup_prefix or 'web')
     prefix_text = e.prompt('S3桶内保存路径（回车默认 ' + default_prefix + ' ）').strip()
@@ -1861,9 +2011,11 @@ def create(e=None):
              quiet_seconds=e.positive_prompt('文件静默秒数', 5),
              retry_seconds=e.positive_prompt('失败重试间隔秒数', 60), retries=e.positive_prompt('总尝试次数（包含首次）', 3))
     if backup_prefix is not None: c['backup_prefix'] = backup_prefix
+    c['trigger'] = 'watch'
     validate(c)
     script = local / (name + '-s3.sh')
-    print(str(script) + '，0700；独立凭据' + c['credential_file'] + '，0600，明文保存。')
+    runtime_script = e.ROOT / ident / script.name
+    print(str(runtime_script) + '，0700；独立凭据' + str(runtime_script.with_suffix('.credentials')) + '，0600，明文保存。')
     print('仅第一层最新web归档，不打包/不清本地。仅上传并真实读回SHA256成功后清理本前缀；应使用专用前缀。')
     print('仅Bucket404时创建；403不创建。版本化桶删除仅创建删除标记，不清理历史versions，需配置生命周期。')
     print('HTTPS严格校验；8MiB分片、并发2。超过10000分片时SDK自动扩大part，极大文件可能超过100MB代理限制。')
@@ -1906,7 +2058,7 @@ def save(e, c, secret):
         except BaseException:
             script.unlink(missing_ok=True); credential.unlink(missing_ok=True)
             raise
-    print('S3任务已保存（未发起连接）；定时兜底UTC，成功归档重启后也跳过。')
+    print('S3任务已保存（未发起连接）；后台自动监控，成功且未变化的归档重启后也跳过。')
 
 
 def worker_unit(e):
