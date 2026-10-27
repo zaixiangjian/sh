@@ -819,7 +819,7 @@ remote_menu() {
                 elif [ "$choice" = 1 ]; then target=ssh-backup; else target=ssh; fi
                 read -r -p '配置名称（小写字母开头，数字/横线/下划线，最多32位）: ' name || return 0
                 [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo '名称无效'; continue; }
-                if [ -e "$BACKUP_DIR/config/tasks/$name" ]; then echo '配置名称已存在，请使用新名称（不会修改正在运行的任务）。'; continue; fi
+                if ! named_task_available "$name"; then continue; fi
                 configuration_locked "$target@$name" named_configure "$target" || echo '任务添加未完成，已保存配置可在重开菜单时重试定时修复。'
                 ;;
             7|8|9)
@@ -839,8 +839,35 @@ remote_menu() {
         esac
     done
 }
+named_task_available() {
+    python3 - "$BACKUP_DIR/config/tasks/$1" <<'PY_AVAILABLE'
+import os,sys,stat,fcntl
+from pathlib import Path
+p=Path(sys.argv[1]); held=[]
+try:
+    if p.is_symlink(): raise ValueError('配置目录是链接，拒绝使用')
+    if not p.exists(): sys.exit(0)
+    if not p.is_dir(): raise ValueError('配置路径不是目录')
+    for f in p.iterdir():
+        if f.name not in ('configuration.lock','ssh.lock','ssh-backup.lock','s3.lock'):
+            raise ValueError('此应用已有同名配置或未完成配置文件，未覆盖；请在本应用菜单检查/删除任务')
+        fd=os.open(f,os.O_RDWR|os.O_NOFOLLOW);held.append(fd)
+        st=os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1: raise ValueError('锁文件不安全')
+        fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+except BlockingIOError: sys.exit('同名任务正在配置或执行，请稍后重试')
+except (ValueError,OSError) as e: sys.exit(str(e))
+finally:
+    for fd in held: os.close(fd)
+PY_AVAILABLE
+}
+
 named_configure() {
     local kind="$1"
+    # Recheck while holding the task configuration/transfer locks; never overwrite another creator.
+    if [[ -e "$REMOTE_DIR/ssh.json" || -e "$REMOTE_DIR/ssh.conf" || -e "$REMOTE_DIR/ssh-backup.json" || -e "$REMOTE_DIR/ssh-backup.conf" || -e "$REMOTE_DIR/s3.json" || -e "$REMOTE_DIR/s3.conf" ]]; then
+        error '本应用同名任务配置已存在，未覆盖。'; return 1
+    fi
     if [ "$kind" = ssh-backup ]; then configure_local_retention || return 1; fi
     remote_engine configure "$kind" || return 1
     [ -f "$REMOTE_DIR/$kind.json" ] && [ -f "$REMOTE_DIR/$kind.conf" ] || return 1
