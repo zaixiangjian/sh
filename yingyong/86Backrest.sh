@@ -386,13 +386,13 @@ br_uninstall() {
 br_push() {
     local source source_id target_id remote_json remote_id
     command -v python3 >/dev/null || { echo "❌ 需要 Python 3 验证远端镜像。"; return 1; }
+    source=$(br_current_image) || return 1
+    # 使用容器实际关联的镜像 ID，避免 latest 标签移动后推错版本。
+    source_id=$(sudo docker inspect --format '{{.Image}}' "$docker_name") || return 1
+    [[ $source_id == sha256:* ]] || { echo "❌ 无法取得当前容器镜像 ID。"; return 1; }
+    echo "源镜像：$source（当前容器使用的镜像）"
     echo "目标镜像：$my_docker_img"
-    echo "输入已有本地镜像名称或 ID；不会自动拉取或构建。"
-    IFS= read -r -p "源镜像（回车使用 $my_docker_img，0 取消）: " source || return 1
-    [ "$source" != 0 ] || return 0
-    source=${source:-$my_docker_img}
-    [[ $source != -* ]] || { echo "❌ 镜像名称无效。"; return 1; }
-    source_id=$(sudo docker image inspect --format '{{.Id}}' "$source") || return 1
+    sudo docker image inspect --format '{{.Id}}' "$source_id" >/dev/null || return 1
     sudo docker tag "$source_id" "$my_docker_img" || return 1
     sudo docker push "$my_docker_img" || { echo "❌ 推送失败，请检查登录状态和仓库权限。"; return 1; }
     remote_json=$(sudo docker manifest inspect "$my_docker_img") || { echo "❌ 推送命令成功，但远端校验失败。"; return 1; }
