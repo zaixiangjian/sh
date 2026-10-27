@@ -412,24 +412,51 @@ br_cloud_add() {
     mount_source=$(sudo docker inspect -f '{{range .Mounts}}{{if eq .Destination "/root/.config/rclone"}}{{.Source}}{{end}}{{end}}' "$docker_name") || return 1
     [ "$mount_source" = "$app_base_dir/rclone" ] || { echo "❌ 容器 rclone 挂载路径不匹配，拒绝修改。"; return 1; }
     python3 - "$app_base_dir" "$docker_name" "$backend" 3<&0 <<'PY'
-import configparser,getpass,json,os,pathlib,re,shutil,subprocess,sys,tempfile
+import configparser,getpass,json,os,pathlib,re,shutil,subprocess,sys,tempfile,signal,select,threading
 base,container,backend=sys.argv[1:]
 stage=pending=None
+watch_stop=threading.Event()
+
+def cancelled(signum,frame):
+    raise EOFError
+
+def process_identity(pid):
+    try:
+        fields=pathlib.Path('/proc/'+str(pid)+'/stat').read_text().rsplit(')',1)[1].split()
+        return fields[19],int(fields[1]),fields[0]
+    except (OSError,ValueError,IndexError): return None
+
+parent=os.getppid()
+parent_identity=process_identity(parent)
+menu_parent=parent_identity[1] if parent_identity else 1
+watched={pid:process_identity(pid) for pid in (parent,menu_parent) if pid>1}
+
+def watch_session():
+    terminal=select.poll()
+    if os.isatty(3): terminal.register(3,select.POLLHUP|select.POLLERR|select.POLLNVAL)
+    while not watch_stop.wait(0.25):
+        abandoned=any((now:=process_identity(pid)) is None or now[0]!=identity[0] or now[2]=='Z'
+                      for pid,identity in watched.items() if identity is not None)
+        if abandoned or any(events & (select.POLLHUP|select.POLLERR|select.POLLNVAL) for _,events in terminal.poll(0)):
+            os.kill(os.getpid(),signal.SIGINT)
+            return
 
 def ask(prompt,secret=False):
     print(prompt,end='',flush=True)
-    if secret and os.isatty(3): return getpass.getpass('',stream=sys.stdout)
-    raw=bytearray()
-    while True:
-        c=os.read(3,1)
-        if not c:
-            if not raw: raise EOFError
-            break
-        if c==b'\n': break
-        raw.extend(c)
-    value=raw.decode().removesuffix('\r')
+    if secret and os.isatty(3):
+        value=getpass.getpass('',stream=sys.stdout)
+    else:
+        raw=bytearray()
+        while True:
+            c=os.read(3,1)
+            if not c:
+                if not raw: raise EOFError
+                break
+            if c==b'\n': break
+            raw.extend(c)
+        value=raw.decode().removesuffix('\r')
     if any(ord(c)<32 or ord(c)==127 for c in value): raise ValueError('答案不能含控制字符')
-    if value==':cancel': raise EOFError
+    if value in (':cancel', ':quit', '退出配置向导'): raise EOFError
     return value
 
 def invoke(state=None,answer=None):
@@ -446,6 +473,9 @@ def invoke(state=None,answer=None):
 
 try:
     if backend not in ('drive','onedrive','pcloud','pikpak','mega','dropbox','box'): raise ValueError('未知网盘类型')
+    signal.signal(signal.SIGHUP,cancelled)
+    signal.signal(signal.SIGTERM,cancelled)
+    threading.Thread(target=watch_session,daemon=True).start()
     directory=pathlib.Path(base)/'rclone';path=directory/'rclone.conf'
     if not pathlib.Path(base).is_dir() or any(p.is_symlink() for p in (directory,*directory.parents)): raise ValueError('安装目录无效或含符号链接')
     if path.is_symlink() or (path.exists() and not path.is_file()): raise ValueError('配置必须是普通文件')
@@ -454,6 +484,7 @@ try:
     if text.startswith('RCLONE_ENCRYPT_V'): raise ValueError('加密配置请使用 rclone config 管理')
     lines=text.splitlines(keepends=True);header=re.compile(r'^\s*\[([^\]\r\n]+)\]\s*(?:[#;].*)?$')
     sections=[(i,m[1]) for i,line in enumerate(lines) if (m:=header.fullmatch(line.rstrip('\r\n')))]
+    print('退出配置向导：任意输入处输入 :quit 或 退出配置向导，再按回车；也可按 Ctrl+C。')
     name=ask('请输入网盘名称（唯一名称例如 gdrive，0 取消）：')
     if name=='0': raise EOFError
     if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*',name): raise ValueError('名称只能使用字母、数字、下划线、点和连字符')
@@ -465,7 +496,7 @@ try:
     directory.mkdir(mode=0o700,exist_ok=True)
     stage=pathlib.Path(tempfile.mkdtemp(prefix='.cloud-config.',dir=directory))
     config='/root/.config/rclone/'+stage.name+'/rclone.conf'
-    print('进入 rclone 官方向导，回车使用默认值，输入 :cancel 取消。')
+    print('进入 rclone 官方向导，回车使用默认值；输入 :quit / :cancel / 退出配置向导可取消，敏感输入处同样有效。')
     print('服务器无浏览器时，浏览器授权问题选择 false；按提示在电脑运行 rclone authorize，再粘贴授权结果。')
     response=invoke()
     for step in range(150):
@@ -542,6 +573,9 @@ except (EOFError,KeyboardInterrupt): print('\n已取消，原配置未修改。'
 except Exception as e:
     print('❌ '+(str(e) if isinstance(e,ValueError) else '网盘配置失败，请检查容器、目录和权限。'),file=sys.stderr);sys.exit(1)
 finally:
+    watch_stop.set()
+    # 断线可能连续触发信号；清理阶段不再让信号打断删除暂存凭据。
+    for sig in (signal.SIGINT,signal.SIGHUP,signal.SIGTERM): signal.signal(sig,signal.SIG_IGN)
     if pending: os.unlink(pending)
     if stage: shutil.rmtree(stage)
 PY
@@ -565,6 +599,7 @@ br_cloud_menu() {
         echo "7. Box"
         echo "9. 删除"
         echo "0. 返回上一级"
+        echo "退出配置向导：输入 :quit 或 退出配置向导（不会保存未完成配置）"
         echo "------------------------------------------------"
         IFS= read -r -p "请输入操作编号: " choice || return 0
         case "$choice" in
@@ -576,7 +611,7 @@ br_cloud_menu() {
             6) br_operate br_cloud_add dropbox ;;
             7) br_operate br_cloud_add box ;;
             9) br_operate br_cloud_delete ;;
-            0) return 0 ;;
+            0|:quit|:cancel|退出配置向导) return 0 ;;
             *) echo "无效选择" ;;
         esac
         IFS= read -r -p "按回车继续..." _ || return 0
