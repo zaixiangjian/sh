@@ -415,6 +415,7 @@ br_cloud_add() {
 import configparser,getpass,json,os,pathlib,re,shutil,subprocess,sys,tempfile
 base,container,backend=sys.argv[1:]
 stage=pending=None
+mega_password=None
 
 def ask(prompt,secret=False):
     print(prompt,end='',flush=True)
@@ -507,16 +508,29 @@ try:
         }
         label=labels.get(key,key or '配置项')
         if key=='scope' and backend!='drive': label=key
-        secret=option.get('IsPassword',False) or key in ('pass','config_token') or any(x in key.lower() for x in ('token','secret','password'))
+        secret=option.get('IsPassword',False) or key in ('pass','config_token','2fa') or any(x in key.lower() for x in ('token','secret','password'))
         print('当前配置项：'+label)
         display_default = '留空' if default is None or default=='' else str(default).lower() if isinstance(default,bool) else str(default)
         prompt_label='是否在这台服务器打开浏览器授权（有浏览器输入 true）' if key=='config_is_local' else label
         answer=ask('请输入 '+prompt_label+('（敏感内容不回显）' if secret else '（默认：'+display_default+'）')+'：',secret)
         if answer=='' and default is not None: answer=display_default if default!='' else ''
+        if backend=='mega' and key=='pass': mega_password=answer
         response=invoke(response['State'],answer)
     else: raise ValueError('配置步骤过多，已取消')
     generated=stage/'rclone.conf';parser=configparser.RawConfigParser();parser.read(generated)
     if parser.sections()!=[name] or parser.get(name,'type',fallback='')!=backend: raise ValueError('向导未生成预期网盘配置')
+    if backend=='mega':
+        if not mega_password: raise ValueError('MEGA 密码不能为空，请重新配置')
+        obscured=subprocess.run(['sudo','docker','exec','-i',container,'rclone','obscure','-'],input=mega_password+'\n',text=True,capture_output=True)
+        if obscured.returncode or not obscured.stdout.strip() or '\n' in obscured.stdout.strip():
+            raise ValueError('MEGA 密码格式转换失败，未修改原配置')
+        encrypted=obscured.stdout.strip()
+        content=generated.read_text()
+        content,count=re.subn(r'^\s*pass\s*=.*$',lambda m:'pass = '+encrypted,content,flags=re.MULTILINE)
+        if count!=1: raise ValueError('MEGA 密码字段缺失或重复，未修改原配置')
+        generated.write_text(content)
+        generated.chmod(0o600)
+        mega_password=None
     newtext=generated.read_text()
     newlines=newtext.splitlines(keepends=True)
     for i,line in enumerate(newlines):
