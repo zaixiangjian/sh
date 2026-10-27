@@ -64,6 +64,8 @@ forum_backup_menu() {
         echo "8. 执行某个任务"
         echo "9. 删除任务"
         echo "------------------------"
+        echo "99. 备份恢复"
+        echo "------------------------"
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
@@ -75,6 +77,7 @@ forum_backup_menu() {
             7) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-test ;;
             8) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-run ;;
             9) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-delete ;;
+            99) forum_extract_backup ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
         esac
@@ -235,6 +238,62 @@ show_menu() {
       echo "------------------------"
       echo "0. 退出"
 }
+
+forum_extract_backup() (
+    /usr/bin/python3 - 3<&0 <<'FORUM_EXTRACT_PY'
+import os,sys,tarfile,gzip,tempfile,shutil,importlib.util
+from pathlib import Path
+sys.stdin=os.fdopen(3)
+target=Path('/var/discourse')
+spec=importlib.util.spec_from_file_location('forum_extract_engine','/root/yingyong/beifenhebing-forum.py')
+e=importlib.util.module_from_spec(spec);sys.modules[spec.name]=e;spec.loader.exec_module(e)
+roots=[Path(c['local_dir']) for _,c in e.configs() if c.get('mode','backup')=='backup']
+roots += [Path('/home')]
+files={}
+for root in roots:
+    if root.is_dir():
+        for p in root.glob('*.tar.gz'):
+            if p.is_file() and not p.is_symlink():files[str(p.resolve())]=p
+ordered=sorted(files.values(),key=lambda p:p.stat().st_mtime_ns,reverse=True)
+for i,p in enumerate(ordered,1):print(f'{i}. {p}')
+choice=input('选择备份编号（回车最新，或输入归档绝对路径；0取消）: ').strip()
+if choice=='0':raise SystemExit(0)
+if choice.startswith('/'):selected=Path(choice)
+elif ordered and (not choice or choice.isdigit() and 1<=int(choice)<=len(ordered)):
+    selected=ordered[int(choice)-1 if choice else 0]
+else:raise SystemExit('未找到可选备份或编号无效；可输入归档绝对路径')
+if selected.is_symlink() or not selected.is_file():raise SystemExit('归档必须是普通文件，不能是链接')
+print('仅解压到 /var/discourse，覆盖同名文件，不删除其他文件；不停止/启动/重建论坛。')
+print('请先自行停止论坛及数据库，运行中覆盖数据可能损坏数据库。')
+if input('确认已停止论坛并覆盖解压，输入小写 yes: ')!='yes':raise SystemExit('已取消')
+if target.is_symlink():raise SystemExit('目标不能是符号链接')
+work=Path(tempfile.mkdtemp(prefix='.forum-extract-',dir=target.parent))
+try:
+    os.chmod(work,0o700)
+    archive=work/'backup.tar.gz';shutil.copyfile(selected,archive);archive.chmod(0o600)
+    with gzip.open(archive,'rb') as f:
+        while f.read(1024*1024):pass
+    with tarfile.open(archive,'r:gz') as t:
+        members=t.getmembers();seen=set()
+        if not members:raise ValueError('归档为空')
+        for m in members:
+            p=Path(m.name)
+            if p.is_absolute() or not p.parts or p.parts[0]!='discourse' or '..' in p.parts or '\\' in m.name or not(m.isdir() or m.isfile()) or str(p) in seen:
+                raise ValueError('不安全或非论坛全量备份成员：'+repr(m.name))
+            seen.add(str(p))
+            dest=target.parent/p
+            if any(x.is_symlink() for x in (dest,*dest.parents)):raise ValueError('目标包含符号链接：'+repr(m.name))
+        # Validate/extract fully in staging first; retain ownership/modes required by PostgreSQL.
+        t.extractall(work/'staged',members=members,filter='fully_trusted')
+    tree=work/'staged'/'discourse'
+    if not tree.is_dir():raise ValueError('归档缺少discourse目录')
+    target.mkdir(parents=True,exist_ok=True)
+    import subprocess
+    subprocess.run(['cp','-a',str(tree)+'/.',str(target)+'/'],check=True)
+    print('解压完成：'+str(target)+'；未执行任何论坛服务或重建操作。')
+finally:shutil.rmtree(work)
+FORUM_EXTRACT_PY
+)
 
 forum_restore() (
     /usr/bin/python3 - 3<&0 <<'FORUM_RESTORE_PY'
@@ -545,11 +604,10 @@ for category, root in runtime_roots.items():
         tag = category.removeprefix('local-')
         text=text.replace("'transfer-' +", repr('transfer-'+tag+'-')+' +')
         text=text.replace("dirs[:]=[n for n in dirs if", "dirs[:]=[n for n in dirs if n not in ('config','logs') and")
-        text=text.replace("root=local_path(c['local_dir']); result={}", "root=local_path(c['local_dir']); result={}; newest={}")
+        # First scan includes all existing archives; later scans retain unsent history.
+        # Send oldest mtime first, with relative path as a deterministic tie-breaker.
         text=text.replace("for directory, dirs, names in os.walk(root, followlinks=False):", "def walk_error(error): raise error\n    for directory, dirs, names in os.walk(root, followlinks=False, onerror=walk_error):")
-        text=text.replace("            result[p.relative_to(root).as_posix()]=signature(p)", "            relative=p.relative_to(root).as_posix()\n            key=(p.stat().st_mtime_ns,p.name)\n            group=p.parent.relative_to(root).as_posix()\n            if group not in newest or key>newest[group][0]: newest[group]=(key,relative,signature(p))")
-        text=text.replace("    return result\n\ndef remote_command", "    return {rel:sig for _,rel,sig in newest.values()}\n\ndef remote_command")
-        text=text.replace('递归传送所选目录内全部.tar.gz，保留相对目录；已成功且未变化则跳过。', '递归检查各目录，每个目录仅传送修改时间最新的一个.tar.gz，保留相对目录；已成功且未变化则跳过。')
+        text=text.replace("    return result\n\ndef remote_command", "    return dict(sorted(result.items(), key=lambda item: (item[1][4], item[0])))\n\ndef remote_command")
     if category == 'generated':
         text=text.replace("if path.name == 'location.json' and _PENDING_SOURCE:", "if path.name == 'location.json' and value.get('config_file') and _PENDING_SOURCE:")
         text=text.replace("    local = local_path(c.get('archive_destination', c['local_dir']))", "    if c.get('send_original'): return p\n    local = local_path(c.get('archive_destination', c['local_dir']))")
