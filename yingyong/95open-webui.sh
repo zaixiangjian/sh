@@ -323,8 +323,8 @@ backup_create() (
         error "缺少Docker，无法确认写入服务，取消备份。"; exit 1
     fi
     tmp=$(mktemp "$BACKUP_DIR/.open-webui-pack.XXXXXX") || exit 1
-    echo "备份包含全部应用数据及配置，可能含账号、API Key等敏感信息。"
-    tar -czf "$tmp" -C "$(dirname "$BASE_DIR")" "$(basename "$BASE_DIR")" || exit 1
+    echo "备份保留应用数据及配置（可能含账号、API Key），排除可重新下载的模型缓存；恢复后可能需要联网重新下载模型。"
+    tar -czf "$tmp" --exclude='open-webui/cache' --exclude='open-webui/data/cache' -C "$(dirname "$BASE_DIR")" "$(basename "$BASE_DIR")" || exit 1
     gzip -t "$tmp" && tar -tzf "$tmp" >/dev/null || exit 1
     validate_archive "$tmp" || { error "归档安全校验失败，具体成员及原因见上方；未发布备份。"; exit 1; }
     while true; do
