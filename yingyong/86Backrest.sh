@@ -412,34 +412,9 @@ br_cloud_add() {
     mount_source=$(sudo docker inspect -f '{{range .Mounts}}{{if eq .Destination "/root/.config/rclone"}}{{.Source}}{{end}}{{end}}' "$docker_name") || return 1
     [ "$mount_source" = "$app_base_dir/rclone" ] || { echo "❌ 容器 rclone 挂载路径不匹配，拒绝修改。"; return 1; }
     python3 - "$app_base_dir" "$docker_name" "$backend" 3<&0 <<'PY'
-import configparser,getpass,json,os,pathlib,re,shutil,subprocess,sys,tempfile,signal,select,threading
+import configparser,getpass,json,os,pathlib,re,shutil,subprocess,sys,tempfile
 base,container,backend=sys.argv[1:]
 stage=pending=None
-watch_stop=threading.Event()
-
-def cancelled(signum,frame):
-    raise EOFError
-
-def process_identity(pid):
-    try:
-        fields=pathlib.Path('/proc/'+str(pid)+'/stat').read_text().rsplit(')',1)[1].split()
-        return fields[19],int(fields[1]),fields[0]
-    except (OSError,ValueError,IndexError): return None
-
-parent=os.getppid()
-parent_identity=process_identity(parent)
-menu_parent=parent_identity[1] if parent_identity else 1
-watched={pid:process_identity(pid) for pid in (parent,menu_parent) if pid>1}
-
-def watch_session():
-    terminal=select.poll()
-    if os.isatty(3): terminal.register(3,select.POLLHUP|select.POLLERR|select.POLLNVAL)
-    while not watch_stop.wait(0.25):
-        abandoned=any((now:=process_identity(pid)) is None or now[0]!=identity[0] or now[2]=='Z'
-                      for pid,identity in watched.items() if identity is not None)
-        if abandoned or any(events & (select.POLLHUP|select.POLLERR|select.POLLNVAL) for _,events in terminal.poll(0)):
-            os.kill(os.getpid(),signal.SIGINT)
-            return
 
 def ask(prompt,secret=False):
     print(prompt,end='',flush=True)
@@ -473,9 +448,6 @@ def invoke(state=None,answer=None):
 
 try:
     if backend not in ('drive','onedrive','pcloud','pikpak','mega','dropbox','box'): raise ValueError('未知网盘类型')
-    signal.signal(signal.SIGHUP,cancelled)
-    signal.signal(signal.SIGTERM,cancelled)
-    threading.Thread(target=watch_session,daemon=True).start()
     directory=pathlib.Path(base)/'rclone';path=directory/'rclone.conf'
     if not pathlib.Path(base).is_dir() or any(p.is_symlink() for p in (directory,*directory.parents)): raise ValueError('安装目录无效或含符号链接')
     if path.is_symlink() or (path.exists() and not path.is_file()): raise ValueError('配置必须是普通文件')
@@ -573,12 +545,62 @@ except (EOFError,KeyboardInterrupt): print('\n已取消，原配置未修改。'
 except Exception as e:
     print('❌ '+(str(e) if isinstance(e,ValueError) else '网盘配置失败，请检查容器、目录和权限。'),file=sys.stderr);sys.exit(1)
 finally:
-    watch_stop.set()
-    # 断线可能连续触发信号；清理阶段不再让信号打断删除暂存凭据。
-    for sig in (signal.SIGINT,signal.SIGHUP,signal.SIGTERM): signal.signal(sig,signal.SIG_IGN)
     if pending: os.unlink(pending)
     if stage: shutil.rmtree(stage)
 PY
+}
+
+br_cloud_cancel_other() {
+    [ "$EUID" -eq 0 ] || { echo "❌ 请使用 root 运行此操作。"; return 1; }
+    python3 - "$app_base_dir" "$docker_name" "${BASH_SOURCE[0]}" <<'PY_CANCEL'
+import json,os,pathlib,signal,subprocess,sys,time
+base,container,manager=sys.argv[1:]
+manager=str(pathlib.Path(manager).resolve())
+lock='/run/lock/backrest-manager.lock'
+allowed={'drive','onedrive','pcloud','pikpak','mega','dropbox','box'}
+def owners():
+    result=subprocess.run(['lslocks','--json','--output','PID,COMMAND,PATH'],text=True,capture_output=True,check=True)
+    return [int(x['pid']) for x in json.loads(result.stdout).get('locks',[]) if x.get('path')==lock]
+def identity(pid):
+    p=pathlib.Path('/proc')/str(pid)
+    fields=(p/'stat').read_text().rsplit(')',1)[1].split()
+    args=[os.fsdecode(a) for a in (p/'cmdline').read_bytes().split(b'\0') if a]
+    return fields[19],int(fields[1]),args
+try:
+    held=owners()
+    if not held:
+        print('当前没有占用操作锁的网盘配置向导。');sys.exit(0)
+    if len(held)!=1: raise ValueError('锁状态不明确，未终止任何进程。')
+    parent=held[0];parent_info=identity(parent)
+    if pathlib.Path(parent_info[2][0]).name not in ('bash','sh') or manager not in parent_info[2]:
+        raise ValueError('当前锁并非可确认的本脚本网盘向导，未终止任何进程。')
+    children=(pathlib.Path('/proc')/str(parent)/'task'/str(parent)/'children').read_text().split()
+    candidates=[]
+    for value in children:
+        pid=int(value);info=identity(pid);args=info[2]
+        if (info[1]==parent and len(args)==5 and pathlib.Path(args[0]).name in ('python3','python')
+                and args[1:4]==['-',base,container] and args[4] in allowed):
+            candidates.append((pid,info))
+    if len(candidates)!=1: raise ValueError('当前可能在更新、备份或推送，未找到唯一网盘向导，未终止进程。')
+    pid,info=candidates[0]
+    # pidfd固定进程身份，防止检查后PID被其他进程复用。
+    fd=os.pidfd_open(pid)
+    try:
+        if owners()!=held or identity(parent)!=parent_info or identity(pid)!=info:
+            raise ValueError('进程或锁已变化，请重试。')
+        signal.pidfd_send_signal(fd,signal.SIGINT)
+    finally: os.close(fd)
+    for _ in range(50):
+        if parent not in owners():
+            print('✅ 已退出 '+info[2][4]+' 配置向导，操作锁已释放；已保存配置不变。')
+            break
+        time.sleep(0.1)
+    else: raise ValueError('已发送取消信号，但操作锁尚未释放；未强制杀死进程，请检查原终端。')
+except (ProcessLookupError,FileNotFoundError):
+    print('❌ 进程已变化或缺少检查工具，请重试。');sys.exit(1)
+except Exception as e:
+    print('❌ '+(str(e) if isinstance(e,ValueError) else '无法安全取消向导，未执行强制终止。'));sys.exit(1)
+PY_CANCEL
 }
 
 br_cloud_menu() {
@@ -598,8 +620,8 @@ br_cloud_menu() {
         echo "6. Dropbox"
         echo "7. Box"
         echo "9. 删除"
+        echo "10. 退出配置向导"
         echo "0. 返回上一级"
-        echo "退出配置向导：输入 :quit 或 退出配置向导（不会保存未完成配置）"
         echo "------------------------------------------------"
         IFS= read -r -p "请输入操作编号: " choice || return 0
         case "$choice" in
@@ -611,6 +633,7 @@ br_cloud_menu() {
             6) br_operate br_cloud_add dropbox ;;
             7) br_operate br_cloud_add box ;;
             9) br_operate br_cloud_delete ;;
+            10) br_cloud_cancel_other ;;
             0|:quit|:cancel|退出配置向导) return 0 ;;
             *) echo "无效选择" ;;
         esac
@@ -1272,7 +1295,7 @@ air_remote_locked_run() (
 )
 air_task_selectors() {
     python3 - "$BACKUP_DIR/config" "${1:-all}" <<'PY_NTASKS'
-import sys,json,re
+import sys,re
 from pathlib import Path
 root=Path(sys.argv[1]); scope=sys.argv[2]
 kinds=['ssh-backup','ssh'] if scope=='ssh' else ['s3'] if scope=='s3' else ['ssh-backup','ssh','s3']
