@@ -11,8 +11,8 @@ RESTORE_DIRS=("$BACKUP_DIR" "/home")
 # 数据挂载：宿主机目录:容器目录；可添加多行，容器目录必须位于 /userdata/ 下。
 # /home 包含 /home/备份，二者会重复可见；/root 可能含密钥，请谨慎选择备份范围。
 DATA_MOUNTS=(
-    "/home/备份:/userdata/home"
-    "/home:/userdata/all-home"
+    "/home/备份:/userdata/备份"
+    "/home:/userdata/home"
     "/root:/userdata/root"
 )
 
@@ -490,7 +490,7 @@ try:
     print('进入 rclone 官方向导，回车使用默认值；输入 :quit / :cancel / 退出配置向导可取消，敏感输入处同样有效。')
     print('服务器无浏览器时，浏览器授权问题选择 false；按提示在电脑运行 rclone authorize，再粘贴授权结果。')
     response=invoke()
-    for step in range(150):
+    for _ in range(150):
         if not response.get('State'): break
         option=response.get('Option')
         if not option:
@@ -851,8 +851,6 @@ main() {
     done
 }
 
-# 远程备份引擎及启动分派在下方，支持 systemd 调用此单文件。
-
 # Reusable adaptation of CLIProxyAPI.sh original single-kind SSH/S3 engine.
 # Parent supplies BACKUP_DIR BACKUP_PREFIX (including separator), REMOTE_DIR,
 # LOCK_FILE RETENTION_FILE AI_APP_ID AI_APP_LABEL and ai_local_backup.
@@ -940,7 +938,6 @@ AI_LOG_BACKUPS=3
 air_single_remote_engine() {
     python3 - "$REMOTE_DIR" "$BACKUP_DIR" "$BACKUP_PREFIX" "$AI_APP_ID" "$AI_APP_LABEL" "$@" 3<&0 <<'PY'
 import os,sys,pathlib,json,re,subprocess,urllib.parse,tempfile,time,hashlib,tarfile
-sys.stdin=os.fdopen(3)
 def input(prompt=''):
     print(prompt,end='',flush=True)
     raw=bytearray()
