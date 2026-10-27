@@ -1257,7 +1257,8 @@ def ssh_args(task, batch=True):
             '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3']
     if password_mode:
         args += ['-o', 'BatchMode=no', '-o', 'PubkeyAuthentication=no',
-                 '-o', 'PreferredAuthentications=password', '-o', 'NumberOfPasswordPrompts=1']
+                 '-o', 'PreferredAuthentications=password,keyboard-interactive',
+                 '-o', 'KbdInteractiveAuthentication=yes', '-o', 'NumberOfPasswordPrompts=1']
     else:
         args += ['-i', task['key']]
         if batch:
