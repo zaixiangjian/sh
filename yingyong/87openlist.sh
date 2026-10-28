@@ -977,6 +977,12 @@ def add():
     if not user or not password:raise ValueError('账号密码不能为空')
     remote=ask('远程目录（回车/）：') or '/'
     if not remote.startswith('/') or any(x in ('.','..') for x in remote.split('/')):raise ValueError('远程目录必须为绝对路径且不能穿越')
+    print('是否忽略远程文件修改时间')
+    print('不支持 SetModTime 的服务选 yes 支持的服务输入 no')
+    while True:
+        no_modtime=ask('请输入你的选择（不知道怎么选直接回车默认 yes ）：') or 'yes'
+        if no_modtime in ('yes','no'):break
+        print('请输入小写 yes 或 no，回车默认 yes。')
     colored=sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb'
     def hint(text,color):
         print('\033['+color+'m'+text+'\033[0m' if colored else text)
@@ -996,13 +1002,14 @@ def add():
         (MOUNT/n).mkdir(mode=0);(CACHE/n).mkdir(mode=0o700)
         def quote(v):return '"'+str(v).replace('\\','\\\\').replace('"','\\"').replace('%','%%')+'"'
         args=[shutil.which('rclone'),'mount','remote:'+remote,str(MOUNT/n),'--config',str(conf),'--allow-other','--default-permissions','--uid','1000','--gid','1000','--umask','007','--dir-perms','0770','--file-perms','0660','--vfs-cache-mode','writes','--cache-dir',str(CACHE/n),'--vfs-cache-max-size',size,'--vfs-cache-max-age','24h','--contimeout','10s','--timeout','1m','--log-level','ERROR']
+        if no_modtime=='yes':args+=['--no-modtime']
         helptext=run([args[0],'mount','--help']).decode()
         if '--vfs-cache-min-free-space' in helptext:args+=['--vfs-cache-min-free-space','1G']
         # 实际解析全部参数后再安装服务，防止旧版本收到未知flag后反复重启。
         run(args+['--help'])
         text='[Unit]\nDescription=OpenList FTPS '+n+'\nRequires=openlist-ftps-anchor.service\nAfter=network-online.target openlist-ftps-anchor.service\nWants=network-online.target\n[Service]\nType=notify\nUMask=0077\nExecStart='+' '.join(map(quote,args))+'\nExecStop='+shutil.which('fusermount3')+' -u '+quote(MOUNT/n)+'\nRestart=on-failure\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=180\n[Install]\nWantedBy=multi-user.target\n'
         write(service,text,0o644)
-        write(BASE/(n+'.json'),json.dumps({'name':n,'remote':remote,'cache_size':size},ensure_ascii=False))
+        write(BASE/(n+'.json'),json.dumps({'name':n,'remote':remote,'cache_size':size,'no_modtime':no_modtime=='yes'},ensure_ascii=False))
         run(['systemctl','daemon-reload']);run(['systemctl','enable','--now',unit(n)],timeout=120);check(n)
         print('挂载及只读验证成功；容器本机存储根目录：/mnt/ftps/'+n+'；尚未验证上传。')
     except BaseException:
