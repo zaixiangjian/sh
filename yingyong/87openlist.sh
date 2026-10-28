@@ -14,10 +14,42 @@ confirm() {
     IFS= read -r -p "确认请输入小写 yes：" answer || return 1
     [ "$answer" = yes ]
 }
+install_packages() {
+    if command -v apt-get >/dev/null; then
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+    else
+        echo "当前自动安装仅支持 Debian/Ubuntu（apt-get），未修改系统。请先安装所需依赖：$*"
+        return 1
+    fi
+}
+prepare_base() {
+    [[ $EUID -eq 0 ]] || { echo '请使用 root 运行。';return 1; }
+    local -a packages=()
+    command -v python3 >/dev/null || packages+=(python3)
+    command -v clear >/dev/null || packages+=(ncurses-bin)
+    command -v mountpoint >/dev/null && command -v findmnt >/dev/null && command -v flock >/dev/null || packages+=(util-linux)
+    command -v ls >/dev/null && command -v mkdir >/dev/null && command -v chmod >/dev/null && command -v chown >/dev/null || packages+=(coreutils)
+    [[ -s /etc/ssl/certs/ca-certificates.crt ]] || packages+=(ca-certificates)
+    if ((${#packages[@]}));then
+        echo "正在准备基础环境：${packages[*]}"
+        install_packages "${packages[@]}" || { echo '基础依赖安装失败，停止运行。';return 1; }
+    fi
+    python3 -c 'import sys,ssl,sqlite3,fcntl,termios; assert sys.version_info >= (3,9)' || { echo '需要完整 Python 3.9+（包含ssl、sqlite3等标准库）。';return 1; }
+    mkdir -p /run/lock || return 1
+}
 require_docker() {
-    command -v docker >/dev/null && docker info >/dev/null 2>&1 || {
-        echo "请先安装并启动 Docker。"; return 1;
-    }
+    if ! command -v docker >/dev/null;then
+        echo '缺少 Docker，正在安装 docker.io。'
+        install_packages docker.io || return 1
+    fi
+    if ! docker info >/dev/null 2>&1;then
+        if command -v systemctl >/dev/null && [[ -d /run/systemd/system ]];then
+            systemctl enable --now docker || { echo 'Docker启动失败，停止操作。';return 1; }
+        else
+            echo 'Docker不可用且没有运行中的systemd；请先启动Docker，本次操作已停止。';return 1
+        fi
+    fi
+    docker info >/dev/null 2>&1 || { echo 'Docker仍不可用，停止操作。';return 1; }
 }
 engine() {
     LC_ALL=C.UTF-8 PYTHONUTF8=1 python3 - "$1" "$NAME" "$APP_DIR" "$IMAGE" "${2:-}" "${3:-}" <<'PYENGINE'
@@ -105,9 +137,12 @@ def addresses():
 
 def validate(x, image_id=None):
     hc, cfg, mounts = x['HostConfig'], x['Config'], x['Mounts']
-    if len(mounts) != 1 or mounts[0].get('Type') != 'bind' or mounts[0].get('Source') != str(root / 'data') or mounts[0].get('Destination') != '/opt/openlist/data' or not mounts[0].get('RW') or mounts[0].get('Propagation', 'rprivate') != 'rprivate':
+    data=[m for m in mounts if m.get('Destination')=='/opt/openlist/data']
+    extra=[m for m in mounts if m.get('Destination')!='/opt/openlist/data']
+    if len(data)!=1 or data[0].get('Source')!=str(root/'data') or data[0].get('Type')!='bind' or not data[0].get('RW') or data[0].get('Propagation','rprivate')!='rprivate':
         raise RuntimeError('挂载与本管理器不符，拒绝自动重建')
-    if not (cfg['Image'].startswith(('openlistteam/openlist:', 'zaixiangjian/openlist:', 'zaixiangjian/openliat:')) or cfg['Image'] == image_id) or cfg.get('User') != '1000:1000':
+    if len(extra)>1 or any(m.get('Type')!='bind' or m.get('Source')!='/home/docker/挂载目录' or m.get('Destination')!='/mnt/ftps' or m.get('Propagation')!='rslave' or not m.get('RW') for m in extra):raise RuntimeError('不支持额外挂载')
+    if not (cfg['Image'].startswith(('openlistteam/openlist:', 'zaixiangjian/openlist:', 'zaixiangjian/openliat:')) or cfg['Image'] in (image_id, x['Image'])) or cfg.get('User') != '1000:1000':
         raise RuntimeError('非受支持的镜像/用户，拒绝自动重建')
     # Fail closed: every nonempty HostConfig field must be represented or an explicit Docker default.
     preserved = {'Binds', 'PortBindings', 'RestartPolicy', 'NetworkMode', 'LogConfig'}
@@ -132,7 +167,8 @@ def validate(x, image_id=None):
                 raise RuntimeError('不支持自定义 HostConfig：' + k)
         elif v not in (None, False, 0, '', [], {}):
             raise RuntimeError('不支持额外 HostConfig：' + k)
-    if hc.get('NetworkMode') != 'bridge' or hc.get('Binds') not in ([str(root / 'data') + ':/opt/openlist/data'], [str(root / 'data') + ':/opt/openlist/data:rw']):
+    allowed_binds={str(root/'data')+':/opt/openlist/data',str(root/'data')+':/opt/openlist/data:rw','/home/docker/挂载目录:/mnt/ftps:rw,rslave','/home/docker/挂载目录:/mnt/ftps:rslave'}
+    if hc.get('NetworkMode') != 'bridge' or len(hc.get('Binds') or [])!=len(mounts) or any(b not in allowed_binds for b in hc.get('Binds') or []):
         raise RuntimeError('不支持自定义网络/挂载选项')
     if hc.get('LogConfig', {}).get('Type') not in ('json-file', 'local'):
         raise RuntimeError('不支持此日志驱动')
@@ -187,10 +223,22 @@ def existing_containers():
     ids = docker('ps', '-aq').split()
     return [inspect(i) for i in ids]
 
+def ftps_anchor_ready():
+    anchor=Path('/home/docker/挂载目录')
+    if any(p.is_symlink() for p in (anchor,*anchor.parents)):return False
+    try:
+        p=subprocess.run(['mountpoint','-q',str(anchor)],capture_output=True,timeout=3)
+        if p.returncode:return False
+        p=subprocess.run(['findmnt','-n','-o','PROPAGATION','--mountpoint',str(anchor)],capture_output=True,text=True,timeout=3)
+        return p.returncode==0 and 'shared' in p.stdout.strip().split(',')
+    except (OSError,subprocess.TimeoutExpired):return False
+
 def update():
     safe_paths()
     x = inspect(name)
     validate(x)
+    if any(m.get('Destination')=='/mnt/ftps' for m in x['Mounts']):
+        if not ftps_anchor_ready():raise RuntimeError('FTPS父挂载点未就绪或不是shared，拒绝更新')
     docker('pull', image)
     target = json.loads(docker('image', 'inspect', image))[0]['Id']
     if target == x['Image']:
@@ -211,6 +259,7 @@ def update():
         args = ['create', '--name', candidate, '--restart', restart, '--network', 'bridge',
                 '--user', cfg['User'], '--env-file', str(env),
                 '-v', str(root / 'data') + ':/opt/openlist/data']
+        if any(m.get('Destination')=='/mnt/ftps' for m in x['Mounts']):args+=['-v','/home/docker/挂载目录:/mnt/ftps:rw,rslave']
         for port, binds in (hc.get('PortBindings') or {}).items():
             for bind in binds or []:
                 ip = bind['HostIp']
@@ -260,15 +309,21 @@ def s3_switch():
         if path.is_symlink() or not path.is_file(): raise RuntimeError('config.json 不安全或不存在')
         original=path.read_bytes(); cfg=json.loads(original); section=cfg.get('s3',{})
         if type(section.get('enable')) is not bool: raise RuntimeError('s3.enable 配置无效')
-        enabled=mode=='s3-enable'
-        if section['enable']==enabled: print('S3 已是所选状态'); return
+        mounting=mode in ('mount-rebuild','mount-detach')
+        detaching=mode=='mount-detach'
+        if detaching and not any(m.get('Destination')=='/mnt/ftps' for m in x['Mounts']):
+            print('容器未映射FTPS目录，无需卸载。');return
+        enabled=section['enable'] if mounting else mode=='s3-enable'
+        if section['enable']==enabled and not mounting: print('S3 已是所选状态'); return
         port=section.get('port',5246)
         if type(port) is not int or not 1<=port<=65535 or port==5244: raise RuntimeError('需要独立有效 S3 端口')
         hc,runtime=x['HostConfig'],x['Config']
         if any(e.split('=',1)[0].upper().endswith(('S3_ENABLE','S3_PORT')) for e in runtime.get('Env',[])): raise RuntimeError('存在S3环境变量覆盖，拒绝修改')
-        if enabled and (s3_bind not in ('127.0.0.1','0.0.0.0') or not s3_host_port.isdigit() or not 1<=int(s3_host_port)<=65535): raise RuntimeError('绑定地址/端口无效')
-        ports=dict(hc.get('PortBindings') or {}); ports.pop(str(port)+'/tcp',None)
-        if enabled: ports[str(port)+'/tcp']=[{'HostIp':s3_bind,'HostPort':s3_host_port}]
+        if enabled and not mounting and (s3_bind not in ('127.0.0.1','0.0.0.0') or not s3_host_port.isdigit() or not 1<=int(s3_host_port)<=65535): raise RuntimeError('绑定地址/端口无效')
+        ports=dict(hc.get('PortBindings') or {})
+        if not mounting:
+            ports.pop(str(port)+'/tcp',None)
+            if enabled: ports[str(port)+'/tcp']=[{'HostIp':s3_bind,'HostPort':s3_host_port}]
         section['enable']=enabled; cfg['s3']=section; info=path.stat()
         def write(content):
             fd,tmp=tempfile.mkstemp(prefix='.s3-config.',dir=path.parent)
@@ -284,6 +339,10 @@ def s3_switch():
         rp=hc.get('RestartPolicy') or {}; policy=rp.get('Name') or 'no'
         if policy=='on-failure' and rp.get('MaximumRetryCount'):policy+=':'+str(rp['MaximumRetryCount'])
         args=['create','--name',candidate,'--network','bridge','--restart',policy,'--user',runtime['User'],'-v',str(root/'data')+':/opt/openlist/data']
+        if not detaching and (mounting or any(m.get('Destination')=='/mnt/ftps' for m in x['Mounts'])):
+            anchor=Path('/home/docker/挂载目录')
+            if not ftps_anchor_ready():raise RuntimeError('FTPS父挂载点未就绪或不是shared')
+            args+=['-v',str(anchor)+':/mnt/ftps:rw,rslave']
         for e in runtime.get('Env') or []:args+=['-e',e]
         for k,v in (runtime.get('Labels') or {}).items():args+=['--label',k+'='+v]
         for k,flag in [('Hostname','--hostname'),('WorkingDir','--workdir')]:
@@ -305,7 +364,10 @@ def s3_switch():
             write((json.dumps(cfg,ensure_ascii=False,indent=2)+'\n').encode())
             docker('rename',ident,name);docker('start',name);ready(name)
             if json.loads(path.read_text()).get('s3',{}).get('enable') is not enabled:raise RuntimeError('开关读回校验失败')
-            if enabled:
+            if mounting:
+                present=any(m.get('Destination')=='/mnt/ftps' and m.get('Propagation')=='rslave' for m in inspect(name)['Mounts'])
+                if present==detaching:raise RuntimeError('FTPS映射读回失败')
+            if enabled and not mounting:
                 if not inspect(name)['HostConfig'].get('PortBindings',{}).get(str(port)+'/tcp'):raise RuntimeError('端口映射校验失败')
                 for attempt in range(20):
                     try:
@@ -319,8 +381,11 @@ def s3_switch():
             if stopped:docker('start',name);ready(name)
             raise
         docker('rm',old)
-        print('S3 已'+('启用' if enabled else '关闭')+'；旧容器已清理，未复制数据。')
-        if enabled:print('S3端口：'+s3_bind+':'+s3_host_port+'；未验证账号认证及网盘读写。')
+        if detaching:print('容器FTPS映射已移除并验证，旧容器已清理；宿主机挂载、配置、缓存及远程文件保留。')
+        elif mounting:print('FTPS映射已验证；本机存储根目录请填写 /mnt/ftps/唯一名称。旧容器已清理。')
+        else:
+            print('S3 已'+('启用' if enabled else '关闭')+'；旧容器已清理，未复制数据。')
+            if enabled:print('S3端口：'+s3_bind+':'+s3_host_port+'；未验证账号认证及网盘读写。')
 
 def uninstall():
     safe_paths()
@@ -365,7 +430,7 @@ try:
         addresses()
     elif mode == 'update':
         update()
-    elif mode in ('s3-enable','s3-disable'):
+    elif mode in ('s3-enable','s3-disable','mount-rebuild','mount-detach'):
         s3_switch()
     elif mode == 'uninstall':
         uninstall()
@@ -407,6 +472,11 @@ install_official() {
         echo "目录或同名容器已存在，不覆盖。已有安装按来源选择 2 或 12 号更新。"; return 1
     fi
     local host_port bind
+    local -a ftps_binds=()
+    if [[ -f /etc/systemd/system/openlist-ftps-anchor.service ]];then
+        ftps_engine verify-all || return 1
+        ftps_binds=(-v '/home/docker/挂载目录:/mnt/ftps:rw,rslave')
+    fi
     IFS= read -r -p "请输入地址（回车默认 127.0.0.1；可选 127.0.0.1 或 0.0.0.0）：" bind || return 1
     bind=${bind:-127.0.0.1}
     [[ "$bind" = 127.0.0.1 || "$bind" = 0.0.0.0 ]] || { echo "绑定地址无效。"; return 1; }
@@ -430,6 +500,7 @@ PYPATH
         --restart always \
         -p "$bind:$host_port:5244" \
         -v "$APP_DIR/data:/opt/openlist/data" \
+        "${ftps_binds[@]}" \
         --user 1000:1000 \
         "$IMAGE" || return 1
     ready || return 1
@@ -787,6 +858,306 @@ if sys.argv[1] not in d:sys.exit("API 远端摘要不匹配，无法确认推送
 print("API 远端摘要与本地一致，推送验证通过。")
 ' "$local_id"
 }
+ftps_engine() {
+    python3 - "$1" 3<&0 <<'PYFTPS'
+import os,sys,pathlib,json,re,subprocess,tempfile,shutil,termios,fcntl
+BASE=pathlib.Path('/home/docker/openlist-ftps');MOUNT=pathlib.Path('/home/docker/挂载目录');CACHE=BASE;SYSTEM=pathlib.Path('/etc/systemd/system')
+def run(args,**kw):
+    p=subprocess.run(args,capture_output=True,timeout=kw.pop('timeout',90),**kw)
+    if p.returncode:raise RuntimeError('操作失败：'+args[0]+' '+args[1]+'；请在本机查看服务日志，不要公开凭据')
+    return p.stdout
+def ask(prompt,secret=False):
+    print(prompt,end='',flush=True);old=None
+    try:
+        if secret and os.isatty(3):
+            old=termios.tcgetattr(3);new=old[:];new[3]&=~termios.ECHO;termios.tcsetattr(3,termios.TCSADRAIN,new)
+        raw=bytearray()
+        while True:
+            b=os.read(3,1)
+            if not b:raise EOFError
+            if b==b'\n':break
+            raw.extend(b)
+    finally:
+        if old is not None:termios.tcsetattr(3,termios.TCSADRAIN,old);print()
+    v=raw.decode().removesuffix('\r')
+    if v in (':quit',':cancel','退出配置向导'):raise EOFError
+    if any(ord(c)<32 or ord(c)==127 for c in v):raise ValueError('输入含控制字符')
+    return v
+def safe(p):
+    if any(q.is_symlink() for q in (p,*p.parents)):raise ValueError('拒绝符号链接路径')
+def records():
+    safe(BASE)
+    if not BASE.exists():return []
+    if BASE.stat().st_uid!=0 or BASE.stat().st_mode&0o077:raise ValueError('配置目录需root:0700')
+    rs=[]
+    for p in sorted(BASE.glob('*.json')):
+        safe(p)
+        if p.stat().st_uid!=0 or p.stat().st_mode&0o077:raise ValueError('记录权限不安全')
+        r=json.loads(p.read_text());n=r.get('name','')
+        if not re.fullmatch('[a-z][a-z0-9_-]{0,31}',n) or p.name!=n+'.json':raise ValueError('记录名称无效')
+        rs.append(r)
+    return rs
+def unit(n):return 'openlist-ftps-'+n+'.service'
+def write(p,text,mode=0o600):
+    safe(p);fd,tmp=tempfile.mkstemp(prefix='.ftps-',dir=p.parent)
+    try:
+        with os.fdopen(fd,'w') as f:os.fchmod(f.fileno(),mode);f.write(text);f.flush();os.fsync(f.fileno())
+        os.replace(tmp,p)
+    finally:
+        if os.path.exists(tmp):os.unlink(tmp)
+def select():
+    rs=records()
+    if not rs:raise ValueError('暂无挂载配置')
+    for i,r in enumerate(rs,1):print(str(i)+'. '+r['name'])
+    v=ask('选择编号（0取消）：')
+    if v=='0':raise EOFError
+    if not v.isascii() or not v.isdigit() or not 1<=int(v)<=len(rs):raise ValueError('编号无效')
+    return rs[int(v)-1]['name']
+def check(n):
+    if subprocess.run(['mountpoint','-q',str(MOUNT/n)],capture_output=True,timeout=3).returncode:
+        raise ValueError(n+'：本地目录未挂载，请先选择3启动挂载')
+    remote=next(r['remote'] for r in records() if r['name']==n)
+    args=['rclone','lsf','remote:'+remote,'--config',str(BASE/(n+'.conf')),'--max-depth','1','--contimeout','10s','--timeout','20s','--retries','1','--low-level-retries','1']
+    reason='远程读取失败'
+    for attempt in range(2):
+        try:
+            p=subprocess.run(args,capture_output=True,timeout=40)
+            if p.returncode==0:break
+            diagnostic=p.stderr.decode(errors='replace').lower()
+            if any(k in diagnostic for k in ('certificate','x509')):reason='TLS证书验证失败';break
+            if any(k in diagnostic for k in ('530','authentication failed','login incorrect')):reason='账号认证失败';break
+            if any(k in diagnostic for k in ('timeout','timed out')):reason='远程连接或读取超时'
+            elif any(k in diagnostic for k in ('421','too many')):reason='远程服务繁忙或连接数受限'
+        except subprocess.TimeoutExpired:reason='远程读取超过40秒'
+        if attempt==0:print(n+'：远程读取暂未通过，重试一次……')
+    else:raise ValueError(n+'：'+reason+'；未重建容器，配置和缓存保留')
+    if reason in ('TLS证书验证失败','账号认证失败'):raise ValueError(n+'：'+reason+'；未重建容器')
+    try:
+        p=subprocess.run(['ls','-A',str(MOUNT/n)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+    except subprocess.TimeoutExpired:raise ValueError(n+'：本地FUSE挂载读取超时，远程检查已通过；未重建容器，请检查挂载服务')
+    if p.returncode:raise ValueError(n+'：本地FUSE挂载读取失败；未重建容器，请检查挂载服务')
+def preflight():
+    if not pathlib.Path('/run/systemd/system').is_dir():raise ValueError('需要正在运行的systemd')
+    if any(not shutil.which(x) for x in ('rclone','fusermount3','mountpoint','mount','ls','findmnt')):
+        print('需安装rclone/fuse3/util-linux/coreutils')
+        if ask('输入yes安装依赖（其他取消）：')!='yes':raise EOFError
+        if not shutil.which('apt-get'):raise ValueError('请先安装依赖，此系统不支持自动安装')
+        run(['apt-get','update'],timeout=180);run(['apt-get','install','-y','rclone','fuse3','util-linux','coreutils','ca-certificates'],timeout=300)
+    missing=[x for x in ('rclone','fusermount3','mountpoint','mount','ls','findmnt') if not shutil.which(x)]
+    if missing:raise ValueError('依赖安装后仍缺少：'+', '.join(missing))
+    if not pathlib.Path('/dev/fuse').exists() and shutil.which('modprobe'):
+        subprocess.run(['modprobe','fuse'],capture_output=True,timeout=10)
+    if not pathlib.Path('/dev/fuse').exists():raise ValueError('未找到/dev/fuse；需要宿主机启用FUSE，受限容器/VPS无法通过安装软件解决')
+    helptext=run(['rclone','mount','--help']).decode()
+    required=('--vfs-cache-mode','--vfs-cache-max-size','--allow-other','--default-permissions')
+    if any(flag not in helptext for flag in required):raise ValueError('rclone缺少所需挂载能力，请升级后重试')
+    for p in (BASE,MOUNT,SYSTEM):safe(p)
+    BASE.mkdir(mode=0o700,parents=True,exist_ok=True);records()
+    MOUNT.mkdir(mode=0o755,parents=True,exist_ok=True)
+    p=SYSTEM/'openlist-ftps-anchor.service'
+    text='[Unit]\nDescription=OpenList FTPS shared anchor\nAfter=local-fs.target\nBefore=docker.service\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/bin/mount --bind /home/docker/挂载目录 /home/docker/挂载目录\nExecStart=/bin/mount --make-rshared /home/docker/挂载目录\n[Install]\nWantedBy=multi-user.target\n'
+    safe(p)
+    if p.exists() and p.read_text()!=text:raise ValueError('同名anchor服务不属于本管理器')
+    if not p.exists():
+        if subprocess.run(['mountpoint','-q',str(MOUNT)]).returncode==0 or any(MOUNT.iterdir()):raise ValueError('挂载根目录已被使用，拒绝接管')
+        write(p,text,0o644)
+    run(['systemctl','daemon-reload']);run(['systemctl','enable','--now',p.name])
+    if 'shared' not in run(['findmnt','-n','-o','PROPAGATION','--target',str(MOUNT)]).decode():raise ValueError('父挂载点传播未生效')
+def add():
+    preflight();n=ask('唯一名称（小写字母开头，最多32位，例如namecrane）：')
+    if not re.fullmatch('[a-z][a-z0-9_-]{0,31}',n):raise ValueError('名称无效')
+    for p in (BASE/(n+'.json'),BASE/(n+'.conf'),SYSTEM/unit(n),MOUNT/n,CACHE/n):
+        safe(p)
+        if p.exists():raise ValueError('同名配置或目录已存在，不覆盖')
+    host=ask('FTPS主机（例如eu1.workspace.org）：')
+    if not re.fullmatch('[A-Za-z0-9][A-Za-z0-9.:-]*',host):raise ValueError('主机无效')
+    port=ask('端口（回车21；该服务填8221）：') or '21'
+    if not port.isascii() or not port.isdigit() or not 1<=int(port)<=65535:raise ValueError('端口无效')
+    user=ask('账号：');password=ask('密码（隐藏输入）：',True)
+    if not user or not password:raise ValueError('账号密码不能为空')
+    remote=ask('远程目录（回车/）：') or '/'
+    if not remote.startswith('/') or any(x in ('.','..') for x in remote.split('/')):raise ValueError('远程目录必须为绝对路径且不能穿越')
+    colored=sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb'
+    def hint(text,color):
+        print('\033['+color+'m'+text+'\033[0m' if colored else text)
+    hint('VFS 缓存软上限（非硬性限制，实际占用可能超过设定值）','32')
+    hint('推荐设置：10GB 磁盘 → 1G，100GB 磁盘 → 10G，以此类推','32')
+    hint('上传 5GB、10GB 大文件，占用超过VFS缓存软上限','33')
+    hint('频繁读写或处理大文件建议 5G 以上，并确保磁盘有足够剩余空间','33')
+    size=ask('VFS缓存软上限（如10G，回车默认1G）：') or '1G'
+    if not re.fullmatch('[1-9][0-9]{0,4}[MG]',size):raise ValueError('缓存格式无效')
+    print('启用STARTTLS及证书验证；缓存是软上限，待上传/打开文件可超限。不会创建远程目录。')
+    if ask('输入小写yes添加：')!='yes':raise EOFError
+    secret=run(['rclone','obscure','-'],input=(password+'\n').encode()).decode().strip();password=None
+    conf=BASE/(n+'.conf');service=SYSTEM/unit(n)
+    try:
+        write(conf,'[remote]\ntype = ftp\nhost = '+host+'\nport = '+str(int(port))+'\nuser = '+user+'\npass = '+secret+'\nexplicit_tls = true\ntls = false\nno_check_certificate = false\n')
+        run(['rclone','lsf','remote:'+remote,'--config',str(conf),'--max-depth','1','--contimeout','10s','--timeout','20s','--retries','1'],timeout=40)
+        (MOUNT/n).mkdir(mode=0);(CACHE/n).mkdir(mode=0o700)
+        def quote(v):return '"'+str(v).replace('\\','\\\\').replace('"','\\"').replace('%','%%')+'"'
+        args=[shutil.which('rclone'),'mount','remote:'+remote,str(MOUNT/n),'--config',str(conf),'--allow-other','--default-permissions','--uid','1000','--gid','1000','--umask','007','--dir-perms','0770','--file-perms','0660','--vfs-cache-mode','writes','--cache-dir',str(CACHE/n),'--vfs-cache-max-size',size,'--vfs-cache-max-age','24h','--contimeout','10s','--timeout','1m','--log-level','ERROR']
+        helptext=run([args[0],'mount','--help']).decode()
+        if '--vfs-cache-min-free-space' in helptext:args+=['--vfs-cache-min-free-space','1G']
+        # 实际解析全部参数后再安装服务，防止旧版本收到未知flag后反复重启。
+        run(args+['--help'])
+        text='[Unit]\nDescription=OpenList FTPS '+n+'\nRequires=openlist-ftps-anchor.service\nAfter=network-online.target openlist-ftps-anchor.service\nWants=network-online.target\n[Service]\nType=notify\nUMask=0077\nExecStart='+' '.join(map(quote,args))+'\nExecStop='+shutil.which('fusermount3')+' -u '+quote(MOUNT/n)+'\nRestart=on-failure\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=180\n[Install]\nWantedBy=multi-user.target\n'
+        write(service,text,0o644)
+        write(BASE/(n+'.json'),json.dumps({'name':n,'remote':remote,'cache_size':size},ensure_ascii=False))
+        run(['systemctl','daemon-reload']);run(['systemctl','enable','--now',unit(n)],timeout=120);check(n)
+        print('挂载及只读验证成功；容器本机存储根目录：/mnt/ftps/'+n+'；尚未验证上传。')
+    except BaseException:
+        print('添加未完成，本次配置/缓存保留供检查，不代表挂载成功；不删除可能的待上传数据。');raise
+def stop(n,delete=False):
+    p=subprocess.run(['docker','inspect','-f','{{.State.Running}}','openlist'],capture_output=True,text=True)
+    if p.returncode or p.stdout.strip()!='false':raise ValueError('请先停止OpenList容器；无法确认停止时拒绝操作')
+    print('请确认无其他程序使用且缓存已上传；不会删除远程文件。')
+    if ask('输入小写yes确认：')!='yes':raise EOFError
+    run(['systemctl','stop',unit(n)],timeout=200)
+    if subprocess.run(['mountpoint','-q',str(MOUNT/n)]).returncode==0:raise ValueError('仍然挂载，未清理')
+    if delete:
+        cache=CACHE/n;safe(cache)
+        if cache.exists() and any(p.is_file() and p.stat().st_size for p in cache.rglob('*')):raise ValueError('缓存非空，可能有待上传数据，已停止但拒绝删除；请先启动并确认上传完成')
+        run(['systemctl','disable',unit(n)])
+        for p in (SYSTEM/unit(n),BASE/(n+'.conf'),BASE/(n+'.json')):safe(p);p.unlink()
+        if cache.exists():shutil.rmtree(cache)
+        (MOUNT/n).rmdir();run(['systemctl','daemon-reload']);print('配置已删除；远程文件未删除。')
+    else:print('挂载已停止，开机自启保留；底层目录禁止容器写入。')
+try:
+    if os.geteuid()!=0:raise ValueError('请使用root')
+    lock=open('/run/lock/openlist-manager.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    action=sys.argv[1]
+    if action=='list':
+        rs=records()
+        import unicodedata
+        def width(value):return sum(2 if unicodedata.east_asian_width(c) in ('W','F') else 1 for c in value)
+        rows=[]
+        def health(r):
+            n=r['name']
+            try:
+                def probe(args,seconds):
+                    return subprocess.run(args,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=seconds).returncode==0
+                mounted=probe(['mountpoint','-q',str(MOUNT/n)],2)
+                active=probe(['systemctl','is-active','--quiet',unit(n)],2)
+                if not mounted:return '异常（服务运行但未挂载）' if active else '未挂载'
+                if not active:return '错误（挂载服务未运行）'
+                if not probe(['ls','-A',str(MOUNT/n)],4):return '错误（本地读取失败）'
+                if not probe(['rclone','lsf','remote:'+r['remote'],'--config',str(BASE/(n+'.conf')),'--max-depth','1','--contimeout','3s','--timeout','4s','--retries','1','--low-level-retries','1'],6):return '异常（远程连接失败）'
+                return '已挂载（正常）'
+            except subprocess.TimeoutExpired:return '异常（检测超时）'
+            except Exception:return '错误（检测失败）'
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            states=list(pool.map(health,rs))
+        for r,state in zip(rs,states):
+            n=r['name']
+            rows.append((n,state,str(MOUNT/n),'/mnt/ftps/'+n))
+        headers=('名称','状态','本地目录','容器目录')
+        widths=[max([width(headers[i])]+[width(row[i]) for row in rows])+3 for i in range(3)]
+        colored=sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb'
+        for index,row in enumerate([headers]+rows):
+            label='\033[32m'+row[0]+'\033[0m' if colored and index>0 else row[0]
+            state=row[1]
+            if colored and index>0:
+                if state=='已挂载（正常）':
+                    state='已挂载\033[32m（正常）\033[0m'
+                elif state.startswith('错误（'):
+                    state='\033[31m'+state+'\033[0m'
+                else:
+                    state='\033[33m'+state+'\033[0m'
+            print(label+' '*(widths[0]-width(row[0]))+state+' '*(widths[1]-width(row[1]))+row[2]+' '*(widths[2]-width(row[2]))+row[3])
+        if not rs:print('暂无FTPS挂载')
+    elif action=='add':add()
+    elif action=='verify-all':
+        rs=records()
+        if not rs:raise ValueError('请先添加挂载')
+        for r in rs:check(r['name'])
+    elif action=='start':
+        n=select();run(['systemctl','start',unit(n)],timeout=120);check(n);print('挂载启动并验证成功')
+    elif action in ('stop','delete'):stop(select(),action=='delete')
+    else:raise ValueError('未知操作')
+except (EOFError,KeyboardInterrupt):print('\n已取消');sys.exit(1)
+except BlockingIOError:print('另一项OpenList操作正在进行');sys.exit(1)
+except Exception as e:print(str(e) if isinstance(e,(ValueError,RuntimeError)) else 'FTPS操作失败；请在本机检查服务日志，勿公开凭据');sys.exit(1)
+PYFTPS
+}
+ftps_attach() {
+    require_docker || return 1
+    ftps_engine verify-all || return 1
+    echo '将重建OpenList，增加 /home/docker/挂载目录 → /mnt/ftps（rslave）映射，短暂中断服务。'
+    confirm || return 1
+    engine mount-rebuild
+}
+ftps_detach() {
+    require_docker || return 1
+    echo '将重建OpenList并移除全部 /mnt/ftps 容器映射，相关本机存储会不可用。'
+    echo '请先暂停相关上传下载；宿主机挂载、配置、缓存和远程文件均保留。'
+    confirm || return 1
+    engine mount-detach
+}
+ftps_summary() {
+    local view=${1:-main}
+    python3 - "$view" <<'PYFTPS_SUMMARY'
+import json,pathlib,subprocess,sys,os
+count=0
+try:
+    base=pathlib.Path('/home/docker/openlist-ftps')
+    for p in base.glob('*.json'):
+        if p.is_symlink():continue
+        r=json.loads(p.read_text())
+        if r.get('name')==p.stem:count+=1
+    total='有 '+str(count)+' 个挂载'
+except Exception:total='挂载数量检测失败'
+try:
+    p=subprocess.run(['docker','inspect','openlist'],capture_output=True,text=True,timeout=3)
+    if p.returncode:raise ValueError()
+    x=json.loads(p.stdout)[0]
+    mapped=any(m.get('Type')=='bind' and m.get('Source')=='/home/docker/挂载目录' and m.get('Destination')=='/mnt/ftps' and m.get('Propagation')=='rslave' for m in x.get('Mounts',[]))
+    state='已挂载到容器' if mapped else '未挂载到容器'
+    color='32' if mapped else '33'
+except Exception:state='容器映射检测失败';color='33'
+colored=sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb'
+if colored:state='\033['+color+'m'+state+'\033[0m'
+if sys.argv[1]=='main':
+    title='7. FTPS 本地挂载管理'
+    if colored:title='\033[32m'+title+'\033[0m'
+    print(title+'（'+total+'，'+state+'）')
+else:print('6. 将挂载目录映射到OpenList（重建容器）（'+state+'）')
+PYFTPS_SUMMARY
+}
+ftps_menu() {
+    local choice
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]];then clear;fi
+        echo '=================================='
+        echo '       FTPS 本地挂载管理'
+        echo '=================================='
+        ftps_engine list
+        echo '=================================='
+        echo '1. 添加 FTPS 挂载'
+        echo '2. 查看挂载状态'
+        echo '3. 启动挂载'
+        echo '4. 停止挂载（先停止OpenList）'
+        echo '5. 删除挂载配置（不删除远程文件）'
+        ftps_summary submenu
+        echo '7. 卸载挂载（重建容器）'
+        echo '----------------------------------'
+        echo '0. 返回上一级'
+        echo '----------------------------------'
+        IFS= read -r -p '请输入选项：' choice || return 0
+        case "$choice" in
+            1) ftps_engine add && ftps_attach ;;
+            2) ftps_engine list ;;
+            3) ftps_engine start ;;
+            4) ftps_engine stop ;;
+            5) ftps_engine delete ;;
+            6) ftps_attach ;;
+            7) ftps_detach ;;
+            0) return 0 ;;
+            *) echo '无效选项' ;;
+        esac
+        pause || return 0
+    done
+}
 openlist_s3_state() {
     python3 - "$APP_DIR/data/config.json" <<'PY_STATE'
 import json,sys,pathlib
@@ -839,8 +1210,7 @@ openlist_s3_menu() {
     done
 }
 main() {
-    [ "$(id -u)" -eq 0 ] || { echo "请使用 root 运行。"; return 1; }
-    command -v python3 >/dev/null || { echo "缺少 python3。"; return 1; }
+    prepare_base || return 1
     local choice s3_state s3_label
     while true; do
         [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && clear
@@ -856,6 +1226,7 @@ main() {
         echo "3. 登录 Docker Hub"
         echo "4. 打上标签推送到zaixiangjian/openlist:latest"
         echo "-----------------------------------"
+        ftps_summary main
         s3_state=$(openlist_s3_state)
         case "$s3_state" in enabled) s3_label='开启';;disabled) s3_label='关闭';;*) s3_label='检测失败';;esac
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
@@ -892,6 +1263,7 @@ main() {
             2) update_custom ;;
             3) login_docker ;;
             4) push_custom ;;
+            7) ftps_menu; continue ;;
             8) openlist_s3_menu; continue ;;
             9) uninstall_app ;;
             11) install_official ;;
