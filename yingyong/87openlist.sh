@@ -924,6 +924,7 @@ def check(n):
             p=subprocess.run(args,capture_output=True,timeout=40)
             if p.returncode==0:break
             diagnostic=p.stderr.decode(errors='replace').lower()
+            if '401' in diagnostic and any(k in diagnostic for k in ('refresh token','retrieve token')):reason='远端后端授权失效（401），不是本地登录失败';break
             if any(k in diagnostic for k in ('certificate','x509')):reason='TLS证书验证失败';break
             if any(k in diagnostic for k in ('530','authentication failed','login incorrect')):reason='账号认证失败';break
             if any(k in diagnostic for k in ('timeout','timed out')):reason='远程连接或读取超时'
@@ -931,7 +932,7 @@ def check(n):
         except subprocess.TimeoutExpired:reason='远程读取超过40秒'
         if attempt==0:print(n+'：远程读取暂未通过，重试一次……')
     else:raise ValueError(n+'：'+reason+'；未重建容器，配置和缓存保留')
-    if reason in ('TLS证书验证失败','账号认证失败'):raise ValueError(n+'：'+reason+'；未重建容器')
+    if reason in ('TLS证书验证失败','账号认证失败','远端后端授权失效（401），不是本地登录失败'):raise ValueError(n+'：'+reason+'；未重建容器')
     try:
         p=subprocess.run(['ls','-A',str(MOUNT/n)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
     except subprocess.TimeoutExpired:raise ValueError(n+'：本地FUSE挂载读取超时，远程检查已通过；未重建容器，请检查挂载服务')
@@ -1007,13 +1008,106 @@ def add():
         if '--vfs-cache-min-free-space' in helptext:args+=['--vfs-cache-min-free-space','1G']
         # 实际解析全部参数后再安装服务，防止旧版本收到未知flag后反复重启。
         run(args+['--help'])
-        text='[Unit]\nDescription=OpenList FTPS '+n+'\nRequires=openlist-ftps-anchor.service\nAfter=network-online.target openlist-ftps-anchor.service\nWants=network-online.target\n[Service]\nType=notify\nUMask=0077\nExecStart='+' '.join(map(quote,args))+'\nExecStop='+shutil.which('fusermount3')+' -u '+quote(MOUNT/n)+'\nRestart=on-failure\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=180\n[Install]\nWantedBy=multi-user.target\n'
+        text='[Unit]\nDescription=OpenList FTPS '+n+'\nRequires=openlist-ftps-anchor.service\nAfter=network-online.target openlist-ftps-anchor.service\nWants=network-online.target\n[Service]\nType=notify\nUMask=0077\nExecStart='+' '.join(map(quote,args))+'\nExecStop='+shutil.which('fusermount3')+' -u '+quote(MOUNT/n)+'\nRestart=on-failure\nRestartSec=10\nTimeoutStartSec=infinity\nTimeoutStopSec=180\n[Install]\nWantedBy=multi-user.target\n'
         write(service,text,0o644)
         write(BASE/(n+'.json'),json.dumps({'name':n,'remote':remote,'cache_size':size,'no_modtime':no_modtime=='yes'},ensure_ascii=False))
-        run(['systemctl','daemon-reload']);run(['systemctl','enable','--now',unit(n)],timeout=120);check(n)
+        run(['systemctl','daemon-reload'])
+        if not start_mount(n,enable=True):raise SystemExit(2)
         print('挂载及只读验证成功；容器本机存储根目录：/mnt/ftps/'+n+'；尚未验证上传。')
     except BaseException:
         print('添加未完成，本次配置/缓存保留供检查，不代表挂载成功；不删除可能的待上传数据。');raise
+def start_mount(n,enable=False):
+    import time
+    if enable:run(['systemctl','enable',unit(n)])
+    run(['systemctl','start','--no-block',unit(n)])
+    for attempt in range(10):
+        p=subprocess.run(['systemctl','show',unit(n),'-p','ActiveState','--value'],capture_output=True,text=True,timeout=3)
+        state=p.stdout.strip()
+        if state=='active':
+            check(n);print('挂载已启动，实际挂载及只读检查通过；未验证上传。');return True
+        if state in ('failed','inactive'):raise ValueError('挂载启动失败，配置和缓存保留；请选择2查看诊断')
+        time.sleep(1)
+    print('启动请求已提交，服务尚未就绪，可能正在恢复缓存；不会因菜单等待结束而终止服务。请稍后选择2检查，不要重复重启。')
+    return False
+
+def error_kind(text):
+    text=text.lower()
+    if '401' in text and any(k in text for k in ('refresh token','retrieve token')):return '远端后端授权失效（401），不是本地登录失败'
+    if any(k in text for k in ('x509','certificate')):return 'TLS证书验证失败'
+    if 'setmodtime is not supported' in text:return '远端不支持设置修改时间'
+    if any(k in text for k in ('530','login incorrect','authentication failed')):return 'FTPS账号认证失败'
+    if any(k in text for k in ('timeout','timed out')):return '连接或读取超时'
+    if any(k in text for k in ('failed to upload','failed to copy','object not found')):return '上传或远端文件操作失败'
+    return '其他服务错误（原始日志请在本机查看，勿公开凭据）'
+def telemetry(n,detail=False):
+    p=subprocess.run(['systemctl','show',unit(n),'-p','StatusText','--value'],capture_output=True,text=True,timeout=3)
+    status=p.stdout.strip() if p.returncode==0 else ''
+    match=re.search(r'to upload\s+(\d+),\s*uploading\s+(\d+)',status)
+    result={'pending':int(match[1]) if match else None,'uploading':int(match[2]) if match else None}
+    if detail:
+        print(n+'：待上传 '+str(result['pending'] if match else '未知')+'，正在上传 '+str(result['uploading'] if match else '未知')+'（服务最近一次上报，不是实时完成保证）')
+        try:
+            p=subprocess.run(['du','-sh','--',str(CACHE/n)],capture_output=True,text=True,timeout=5)
+            print('缓存磁盘占用：'+(p.stdout.split()[0] if p.returncode==0 and p.stdout.split() else '无法读取'))
+        except subprocess.TimeoutExpired:print('缓存占用统计超时')
+        p=subprocess.run(['journalctl','-u',unit(n),'--since','15 minutes ago','-n','100','--no-pager','-o','cat'],capture_output=True,text=True,timeout=5)
+        if p.returncode:print('近期错误日志读取失败，不能据此判断上传正常')
+        else:
+            errors=[line for line in p.stdout.splitlines() if any(k in line.lower() for k in ('error','fatal','failed'))]
+            kinds=list(dict.fromkeys(error_kind(line) for line in errors))
+            print('近15分钟日志：'+('；'.join(kinds) if kinds else '未发现错误记录（不代表全部上传完成）'))
+    return result
+
+def edit():
+    import shlex
+    n=select();meta=BASE/(n+'.json');service=SYSTEM/unit(n)
+    safe(meta);safe(service)
+    cfg=json.loads(meta.read_text());original=service.read_text()
+    line=next((l for l in original.splitlines() if l.startswith('ExecStart=')),None)
+    if not line:raise ValueError('未找到服务启动参数')
+    args=shlex.split(line.split('=',1)[1])
+    if args[:2]!=[shutil.which('rclone'),'mount'] or args.count('--vfs-cache-max-size')!=1:raise ValueError('非预期服务参数，拒绝修改')
+    current=args[args.index('--vfs-cache-max-size')+1]
+    size=ask('缓存软上限（回车保留'+current+'）：') or current
+    if not re.fullmatch('[1-9][0-9]{0,4}[MG]',size):raise ValueError('缓存格式无效')
+    print('是否忽略远程文件修改时间')
+    print('不支持 SetModTime 的服务选 yes 支持的服务输入 no')
+    choice=ask('请输入你的选择（不知道怎么选直接回车默认 yes ）：') or 'yes'
+    if choice not in ('yes','no'):raise ValueError('请输入yes或no')
+    timeout_value=args[args.index('--timeout')+1] if '--timeout' in args else '1m'
+    timeout_value=ask('I/O无活动超时（如5m，回车保留'+timeout_value+'）：') or timeout_value
+    if not re.fullmatch('[1-9][0-9]{0,3}[smh]',timeout_value):raise ValueError('超时格式无效')
+    transfers=args[args.index('--transfers')+1] if '--transfers' in args else '4'
+    transfers=ask('上传并发（1–16，回车保留'+transfers+'）：') or transfers
+    if not transfers.isascii() or not transfers.isdigit() or not 1<=int(transfers)<=16:raise ValueError('并发无效')
+    for flag,value in (('--timeout',timeout_value),('--transfers',transfers)):
+        if args.count(flag)>1:raise ValueError('服务参数重复，拒绝修改')
+        if flag in args:args[args.index(flag)+1]=value
+        else:args.extend([flag,value])
+    args[args.index('--vfs-cache-max-size')+1]=size
+    args=[a for a in args if a!='--no-modtime']
+    if choice=='yes':args.append('--no-modtime')
+    run(args+['--help'])
+    if ask('输入yes保存（不重启，不删除缓存；下次启动生效）：')!='yes':raise EOFError
+    def quote(v):return '"'+v.replace('\\','\\\\').replace('"','\\"').replace('%','%%')+'"'
+    updated=original.replace(line,'ExecStart='+' '.join(quote(a) for a in args),1)
+    updated=re.sub(r'^TimeoutStartSec=.*$','TimeoutStartSec=infinity',updated,flags=re.M)
+    if not re.search(r'^TimeoutStartSec=',updated,re.M):updated=updated.replace('[Service]','[Service]\nTimeoutStartSec=infinity',1)
+    cfg.update(cache_size=size,no_modtime=choice=='yes',io_timeout=timeout_value,transfers=int(transfers))
+    if service.read_text()!=original:raise ValueError('配置期间服务文件已变化，未覆盖')
+    before=meta.read_text()
+    try:
+        write(service,updated,0o644);write(meta,json.dumps(cfg,ensure_ascii=False));run(['systemctl','daemon-reload'])
+    except BaseException:
+        write(service,original,0o644);write(meta,before);run(['systemctl','daemon-reload']);raise
+    print('已保存，仅下次启动生效，当前运行参数未改变。')
+    if ask('现在应用需停止OpenList且缓存无待上传数据；输入yes尝试应用，回车不重启：')!='yes':return
+    info=telemetry(n)
+    if info['pending'] is None or info['pending'] or info['uploading']:raise ValueError('上传队列未知或非空，拒绝重启；设置已保存')
+    cache=CACHE/n
+    if any(p.is_file() and p.stat().st_size for p in cache.rglob('*')):raise ValueError('缓存非空，保守拒绝自动重启；设置已保存')
+    stop(n);start_mount(n)
+
 def stop(n,delete=False):
     p=subprocess.run(['docker','inspect','-f','{{.State.Running}}','openlist'],capture_output=True,text=True)
     if p.returncode or p.stdout.strip()!='false':raise ValueError('请先停止OpenList容器；无法确认停止时拒绝操作')
@@ -1033,7 +1127,7 @@ try:
     if os.geteuid()!=0:raise ValueError('请使用root')
     lock=open('/run/lock/openlist-manager.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     action=sys.argv[1]
-    if action=='list':
+    if action in ('list','status'):
         rs=records()
         import unicodedata
         def width(value):return sum(2 if unicodedata.east_asian_width(c) in ('W','F') else 1 for c in value)
@@ -1044,12 +1138,18 @@ try:
                 def probe(args,seconds):
                     return subprocess.run(args,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=seconds).returncode==0
                 mounted=probe(['mountpoint','-q',str(MOUNT/n)],2)
-                active=probe(['systemctl','is-active','--quiet',unit(n)],2)
+                service_state=subprocess.run(['systemctl','show',unit(n),'-p','ActiveState','--value'],capture_output=True,text=True,timeout=3).stdout.strip()
+                if service_state=='activating':return '启动中（缓存恢复/等待就绪）'
+                active=service_state=='active'
                 if not mounted:return '异常（服务运行但未挂载）' if active else '未挂载'
                 if not active:return '错误（挂载服务未运行）'
-                if not probe(['ls','-A',str(MOUNT/n)],4):return '错误（本地读取失败）'
-                if not probe(['rclone','lsf','remote:'+r['remote'],'--config',str(BASE/(n+'.conf')),'--max-depth','1','--contimeout','3s','--timeout','4s','--retries','1','--low-level-retries','1'],6):return '异常（远程连接失败）'
-                return '已挂载（正常）'
+                info=telemetry(n)
+                if action=='status':
+                    try:check(n)
+                    except ValueError as e:return '错误（'+str(e)+'）'
+                if info['pending'] or info['uploading']:return '传送中（最近上报：'+str(info['pending'])+'待传/'+str(info['uploading'])+'上传中）'
+                if info['pending'] is None:return '已挂载（队列未知）'
+                return '已挂载（本地正常）'
             except subprocess.TimeoutExpired:return '异常（检测超时）'
             except Exception:return '错误（检测失败）'
         from concurrent.futures import ThreadPoolExecutor
@@ -1060,26 +1160,33 @@ try:
             rows.append((n,state,str(MOUNT/n),'/mnt/ftps/'+n))
         headers=('名称','状态','本地目录','容器目录')
         widths=[max([width(headers[i])]+[width(row[i]) for row in rows])+3 for i in range(3)]
+        if action=='list':
+            print('菜单仅检测本地服务/挂载及最近上报队列；远程、缓存占用和错误诊断请选择 2')
+            print('----------------------------------')
         colored=sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb'
         for index,row in enumerate([headers]+rows):
             label='\033[32m'+row[0]+'\033[0m' if colored and index>0 else row[0]
             state=row[1]
             if colored and index>0:
-                if state=='已挂载（正常）':
-                    state='已挂载\033[32m（正常）\033[0m'
+                if state=='已挂载（本地正常）':
+                    state='已挂载\033[32m（本地正常）\033[0m'
                 elif state.startswith('错误（'):
                     state='\033[31m'+state+'\033[0m'
                 else:
                     state='\033[33m'+state+'\033[0m'
             print(label+' '*(widths[0]-width(row[0]))+state+' '*(widths[1]-width(row[1]))+row[2]+' '*(widths[2]-width(row[2]))+row[3])
         if not rs:print('暂无FTPS挂载')
+        if action=='status':
+            for r in rs:telemetry(r['name'],True)
+
     elif action=='add':add()
+    elif action=='edit':edit()
     elif action=='verify-all':
         rs=records()
         if not rs:raise ValueError('请先添加挂载')
         for r in rs:check(r['name'])
     elif action=='start':
-        n=select();run(['systemctl','start',unit(n)],timeout=120);check(n);print('挂载启动并验证成功')
+        n=select();start_mount(n)
     elif action in ('stop','delete'):stop(select(),action=='delete')
     else:raise ValueError('未知操作')
 except (EOFError,KeyboardInterrupt):print('\n已取消');sys.exit(1)
@@ -1147,18 +1254,20 @@ ftps_menu() {
         echo '5. 删除挂载配置（不删除远程文件）'
         ftps_summary submenu
         echo '7. 卸载挂载（重建容器）'
+        echo '8. 修改已有挂载设置（缓存/修改时间/超时/并发）'
         echo '----------------------------------'
         echo '0. 返回上一级'
         echo '----------------------------------'
         IFS= read -r -p '请输入选项：' choice || return 0
         case "$choice" in
             1) ftps_engine add && ftps_attach ;;
-            2) ftps_engine list ;;
+            2) ftps_engine status ;;
             3) ftps_engine start ;;
             4) ftps_engine stop ;;
             5) ftps_engine delete ;;
             6) ftps_attach ;;
             7) ftps_detach ;;
+            8) ftps_engine edit ;;
             0) return 0 ;;
             *) echo '无效选项' ;;
         esac
