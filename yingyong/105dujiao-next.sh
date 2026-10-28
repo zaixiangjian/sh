@@ -964,6 +964,11 @@ try:
             f=max(files,key=lambda x:x.stat().st_mtime_ns)
         st=f.stat()
         if not explicit and time.time()-st.st_mtime<60: print('最新归档尚未稳定，稍后再传。'); sys.exit(0)
+        state=root/(kind+'-sent.json')
+        identity=[f.name,st.st_size,st.st_mtime_ns,st.st_ctime_ns,st.st_dev,st.st_ino]
+        previous=json.loads(state.read_text()) if state.exists() else None
+        if isinstance(previous,dict) and previous.get('version')==2 and previous.get('identity')==identity:
+            print('最新归档已传送，跳过。'); sys.exit(0)
         with tarfile.open(f,'r:gz') as archive: archive.getmembers()
         import gzip
         with gzip.open(f,'rb') as stream:
@@ -972,9 +977,12 @@ try:
         with f.open('rb') as stream:
             for chunk in iter(lambda:stream.read(1024*1024),b''): digest_hash.update(chunk)
         digest=digest_hash.hexdigest()
-        state=root/(kind+'-sent.json')
         signature=[f.name,st.st_size,digest]
-        if state.exists() and json.loads(state.read_text())==signature:
+        now=f.stat()
+        if [f.name,now.st_size,now.st_mtime_ns,now.st_ctime_ns,now.st_dev,now.st_ino]!=identity: raise ValueError('归档在校验中发生变化')
+        record={'version':2,'identity':identity,'signature':signature}
+        if previous==signature or (isinstance(previous,dict) and previous.get('signature')==signature):
+            save(state,json.dumps(record))
             print('最新归档已传送，跳过。'); sys.exit(0)
         target=d['dest'].rstrip('/')+'/'+f.name
         if kind in ('ssh','ssh-backup'):
@@ -994,7 +1002,9 @@ try:
             remaining=json.loads(rc(['lsjson',d['dest'],'--max-depth','1']).stdout)
             if any(x.get('Path') in owned[keep:] for x in remaining): raise ValueError('远端保留清理验证失败')
         if f.stat().st_size!=st.st_size or f.stat().st_mtime_ns!=st.st_mtime_ns: raise ValueError('归档在传送中发生变化')
-        save(state,json.dumps(signature))
+        now=f.stat()
+        if [f.name,now.st_size,now.st_mtime_ns,now.st_ctime_ns,now.st_dev,now.st_ino]!=identity: raise ValueError('归档在传送中发生变化；未提交成功记录')
+        save(state,json.dumps(record))
         retention='远端不删除' if d.get('keep',0)==0 else '远端保留最新'+str(d['keep'])+'份当前前缀归档'
         print('上传并校验成功：'+f.name+'；'+retention+'；本地数量由本地备份设置独立控制。')
     else: raise ValueError('未知操作')
