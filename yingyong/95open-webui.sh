@@ -663,7 +663,12 @@ try:
             if time.time()-st.st_mtime<60: print('最新归档尚未稳定，稍后再传。'); sys.exit(0)
             snapshot=pathlib.Path(tempfile.mkdtemp(prefix='.upload-',dir=backups))
             f=snapshot/source.name
-            os.link(source,f)
+            # 独立快照不改变源文件ctime，避免硬链接创建/清理使快速缓存永久失效。
+            shutil.copyfile(source,f)
+            os.utime(f,ns=(st.st_atime_ns,st.st_mtime_ns))
+            current=source.stat()
+            if [source.name,current.st_dev,current.st_ino,current.st_size,current.st_mtime_ns,current.st_ctime_ns]!=token:
+                raise ValueError('归档在创建传送快照时发生变化')
         # 完整读取归档与gzip尾，不能只检查成员表。
         with tarfile.open(f,'r:gz') as archive:
             for member in archive:
@@ -700,6 +705,8 @@ try:
             remaining=json.loads(rc(['lsjson',d['dest'],'--max-depth','1']).stdout)
             if any(x.get('Path') in owned[keep:] for x in remaining): raise ValueError('远端保留清理验证失败')
         if f.stat().st_size!=st.st_size or f.stat().st_mtime_ns!=st.st_mtime_ns: raise ValueError('归档在传送中发生变化')
+        current=source.stat()
+        if [source.name,current.st_dev,current.st_ino,current.st_size,current.st_mtime_ns,current.st_ctime_ns]!=token: raise ValueError('源归档在传送中发生变化；未提交成功记录')
         save(state,json.dumps(signature))
         save(cached,json.dumps(token))
         retention='SSH远端不删除' if kind in ('ssh','ssh-backup') else 'S3远端保留最新'+str(d.get('keep',3))+'份'
