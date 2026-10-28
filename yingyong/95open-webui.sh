@@ -680,6 +680,10 @@ try:
         state=root/(kind+'-sent.json')
         signature=[f.name,st.st_size,digest]
         if state.exists() and json.loads(state.read_text())==signature:
+            current=source.stat()
+            if [source.name,current.st_dev,current.st_ino,current.st_size,current.st_mtime_ns,current.st_ctime_ns]!=token:
+                raise ValueError('归档在校验期间发生变化，未更新快速检测记录')
+            save(cached,json.dumps(token))
             print('最新归档已传送，跳过。'); sys.exit(0)
         target=d['dest'].rstrip('/')+'/'+f.name
         rc(['copyto',str(f),target,'--immutable','--s3-upload-cutoff','32Mi','--s3-chunk-size','8Mi'])
