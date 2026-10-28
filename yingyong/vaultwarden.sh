@@ -8,6 +8,7 @@ INSTALL_DIR="/home/docker/vaultwarden"
 OFFICIAL_IMAGE="vaultwarden/server:latest"
 CUSTOM_IMAGE="zaixiangjian/vaultwarden:latest"
 BACKUP_DIR="/home/备份/vaultwarden"  # 本地备份目录，支持末尾 /
+
 QUIET_SECONDS=5                      # 文件连续无变化等待秒数
 DAILY_BACKUP_TIME="05:00"             # 每日打包并传送（主机时区）
 DAILY_TRANSFER_TIME="05:05"           # SSH/S3 每日只传最新备份（主机时区）
@@ -2229,16 +2230,34 @@ def run(force=False):
         if not files: return
         path = files[0]
         if time.time() - path.stat().st_mtime < vw.QUIET_SECONDS: return
+        def identity():
+            st=path.stat()
+            return [path.name,st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns,st.st_ctime_ns]
+        source_identity=identity()
+        state = vw.load(STATE, {})
+        # Each task keeps its own acknowledged source; force explicitly bypasses this fast path.
+        pending=[]
+        for task in tasks:
+            record=state.get(task['id'],{})
+            unchanged=record.get('source_identity')==source_identity
+            complete=record.get('done') and record.get('done')==record.get('token')
+            exhausted=record.get('token') and record.get('failures',0)>=vw.TRANSFER_MAX_ATTEMPTS
+            if force or not (unchanged and (complete or exhausted)):pending.append(task)
+        if not pending:return
         if not vw.valid_archive(path):
             print('最新备份不完整或格式非法，S3未传送：' + path.name, flush=True)
             return
-        state = vw.load(STATE, {})
         checksum = vw.digest(path)
-        for task in tasks:
+        if identity()!=source_identity:raise RuntimeError('归档在校验中变化，S3未传送')
+        for task in pending:
             token = path.name + ':' + checksum
             record = state.get(task['id'], {})
             if not force and (record.get('done') == token or
-                             record.get('token') == token and record.get('failures', 0) >= vw.TRANSFER_MAX_ATTEMPTS): continue
+                             record.get('token') == token and record.get('failures', 0) >= vw.TRANSFER_MAX_ATTEMPTS):
+                record['source_identity']=source_identity
+                state[task['id']]=record
+                vw.save(STATE,state)
+                continue
             if record.get('token') != token: record = {'token': token, 'failures': 0}
             try:
                 upload_prune(client(task), task, path)
@@ -2256,6 +2275,8 @@ def run(force=False):
                 if error_code: detail += ' S3=' + re.sub(r'[^A-Za-z0-9_.-]', '', str(error_code))[:80]
                 if http_status: detail += ' HTTP=' + str(http_status)
                 print('S3上传或清理失败：' + task['name'] + '；失败次数 ' + str(record['failures']) + '；' + detail, flush=True)
+            if identity()!=source_identity:raise RuntimeError('归档在传送中变化，未提交S3成功记录')
+            record['source_identity']=source_identity
             state[task['id']] = record
             vw.save(STATE, state)
 
@@ -2582,7 +2603,9 @@ if __name__=='__main__':
 SINGLEFILE_SOURCE_VAULTWARDEN_FINAL_SEND_PY
 }
 
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     singlefile_bootstrap || exit 1
+
     main "$@"
 fi
