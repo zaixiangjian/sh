@@ -527,7 +527,7 @@ def obscure_staged_password(password):
     generated.chmod(0o600)
 
 try:
-    if backend not in ('drive','onedrive','pcloud','pikpak','mega','dropbox','box'): raise ValueError('未知网盘类型')
+    if backend not in ('drive','onedrive','pcloud','pikpak','mega','dropbox','box','sftp','ftp'): raise ValueError('未知网盘类型')
     directory=pathlib.Path(base)/'rclone';path=directory/'rclone.conf'
     if not pathlib.Path(base).is_dir() or any(p.is_symlink() for p in (directory,*directory.parents)): raise ValueError('安装目录无效或含符号链接')
     if path.is_symlink() or (path.exists() and not path.is_file()): raise ValueError('配置必须是普通文件')
@@ -548,9 +548,33 @@ try:
     directory.mkdir(mode=0o700,exist_ok=True)
     stage=pathlib.Path(tempfile.mkdtemp(prefix='.cloud-config.',dir=directory))
     config='/root/.config/rclone/'+stage.name+'/rclone.conf'
-    print('进入 rclone 官方向导，回车使用默认值；输入 :quit / :cancel / 退出配置向导可取消，敏感输入处同样有效。')
-    print('服务器无浏览器时，浏览器授权问题选择 false；按提示在电脑运行 rclone authorize，再粘贴授权结果。')
-    response=invoke()
+    if backend not in ('sftp','ftp'):
+        print('进入 rclone 官方向导，回车使用默认值；输入 :quit / :cancel / 退出配置向导可取消，敏感输入处同样有效。')
+        print('服务器无浏览器时，浏览器授权问题选择 false；按提示在电脑运行 rclone authorize，再粘贴授权结果。')
+    if backend in ('sftp','ftp'):
+        protocol='SFTP' if backend=='sftp' else 'FTPS'
+        host=ask('请输入 '+protocol+' 主机（例如 eu1.workspace.org）：')
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.:-]*',host): raise ValueError('主机地址无效，不要包含协议或路径')
+        port=ask('请输入 SFTP 端口（回车22；该服务示例为8222）：') or '22' if backend=='sftp' else ask('请输入 FTPS 端口（回车21；该服务示例为8221）：') or '21'
+        if not port.isascii() or not port.isdigit() or not 1<=int(port)<=65535: raise ValueError('端口无效')
+        user=ask('请输入 '+protocol+' 用户名 / 登录账号：')
+        if not user or user!=user.strip(): raise ValueError('用户名不能为空或含首尾空白')
+        password=ask('请输入 '+protocol+' 密码（隐藏输入）：',True)
+        if not password: raise ValueError('密码不能为空')
+        if backend=='sftp':
+            print('注意：此连接使用密码认证，不使用 SSH 私钥；未校验服务器主机指纹，有中间人风险。')
+        else:
+            print('使用显式 FTPS（STARTTLS），启用 TLS 加密及服务器证书验证，不允许明文回退。')
+        if ask('输入小写 yes 确认保存此连接（其他取消）：')!='yes': raise EOFError
+        generated=stage/'rclone.conf'
+        options='key_use_agent = false\nknown_hosts_file = \n' if backend=='sftp' else 'explicit_tls = true\ntls = false\nno_check_certificate = false\n'
+        generated.write_text('['+name+']\ntype = '+backend+'\nhost = '+host+'\nport = '+str(int(port))+'\nuser = '+user+'\npass = pending\n'+options)
+        generated.chmod(0o600)
+        obscure_staged_password(password)
+        password=None
+        response={'State':''}
+    else:
+        response=invoke()
     for _ in range(150):
         if not response.get('State'): break
         option=response.get('Option')
@@ -627,7 +651,7 @@ try:
         f.write(updated.encode());f.flush();os.fsync(f.fileno())
     os.replace(pending,path);pending=None
     print('✅ 已保存网盘 ['+name+']（'+backend+'），其他配置保留。')
-    print('Backrest 仓库可使用 rclone:'+name+':备份目录；尚未测试仓库读写。')
+    print('Backrest 仓库可使用 rclone:'+name+':全部备份；尚未测试仓库读写。')
 except (EOFError,KeyboardInterrupt): print('\n已取消，原配置未修改。')
 except Exception as e:
     print('❌ '+(str(e) if isinstance(e,ValueError) else '网盘配置失败，请检查容器、目录和权限。'),file=sys.stderr);sys.exit(1)
@@ -644,7 +668,7 @@ import json,os,pathlib,signal,subprocess,sys,time
 base,container,manager=sys.argv[1:]
 manager=str(pathlib.Path(manager).resolve())
 lock='/run/lock/backrest-manager.lock'
-allowed={'drive','onedrive','pcloud','pikpak','mega','dropbox','box'}
+allowed={'drive','onedrive','pcloud','pikpak','mega','dropbox','box','sftp','ftp'}
 def owners():
     result=subprocess.run(['lslocks','--json','--output','PID,COMMAND,PATH'],text=True,capture_output=True,check=True)
     return [int(x['pid']) for x in json.loads(result.stdout).get('locks',[]) if x.get('path')==lock]
@@ -704,7 +728,7 @@ br_cloud_menu() {
         br_cloud_list
         echo "=================================="
         echo "仓库URL填写下面内容 更换唯一的名称 gdrive"
-        echo "rclone:gdrive:备份目录（这里的 gdrive 对应的是唯一名称）"
+        echo "rclone:gdrive:全部备份（这里的 gdrive 对应的是唯一名称）"
         echo "=================================="
         echo "------------------------------------------------"
         echo '$env:HTTPS_PROXY = "http://127.0.0.1:10808"'
@@ -735,8 +759,14 @@ br_cloud_menu() {
         echo "${link_color}7. Box${reset}"
         echo "侧重企业文件管理、权限控制与团队协作"
         echo "----------------------------------"
-        echo "9. 删除"
-        echo "10. 退出配置向导"
+        echo "${link_color}8. SFTP（账号密码）${reset}"
+        echo "使用主机、端口及账号密码连接远程文件存储"
+        echo "----------------------------------"
+        echo "${link_color}9. FTPS${reset}"
+        echo "通过 STARTTLS 加密连接远程文件存储，使用账号密码认证"
+        echo "----------------------------------"
+        echo "19. 删除"
+        echo "20. 退出配置向导"
         echo "0. 返回上一级"
         echo "------------------------------------------------"
         IFS= read -r -p "请输入操作编号: " choice || return 0
@@ -748,8 +778,10 @@ br_cloud_menu() {
             5) br_operate br_cloud_add mega ;;
             6) br_operate br_cloud_add dropbox ;;
             7) br_operate br_cloud_add box ;;
-            9) br_operate br_cloud_delete ;;
-            10) br_cloud_cancel_other ;;
+            8) br_operate br_cloud_add sftp ;;
+            9) br_operate br_cloud_add ftp ;;
+            19) br_operate br_cloud_delete ;;
+            20) br_cloud_cancel_other ;;
             0|:quit|:cancel|退出配置向导) return 0 ;;
             *) echo "无效选择" ;;
         esac
@@ -776,7 +808,7 @@ def ask(prompt):
         if c==b'\n': break
         raw.extend(c)
     return raw.decode().removesuffix('\r')
-providers={'drive':'Google Drive','onedrive':'OneDrive','pcloud':'pCloud','pikpak':'PikPak','mega':'MEGA','dropbox':'Dropbox','box':'Box'}
+providers={'drive':'Google Drive','onedrive':'OneDrive','pcloud':'pCloud','pikpak':'PikPak','mega':'MEGA','dropbox':'Dropbox','box':'Box','sftp':'SFTP','ftp':'FTPS'}
 def safe(value): return ''.join(c for c in value if c.isprintable())
 def width(value): return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in ('W','F') else 1 for c in value)
 def paint(value,color):
@@ -792,12 +824,14 @@ try:
         header=re.fullmatch(r'\s*\[([^\]]+)\]\s*(?:[#;].*)?',line)
         if header:
             if name is not None and fields.get('type') in providers:
-                remotes.append((safe(name),safe(fields.get('remark') or fields.get('description') or '未填写'),providers[fields['type']]))
+                provider=providers[fields['type']]
+                if fields['type']=='ftp' and not any(fields.get(k,'').lower() in ('true','1','yes') for k in ('explicit_tls','tls')): provider='FTP（未加密）'
+                remotes.append((safe(name),safe(fields.get('remark') or fields.get('description') or '未填写'),provider))
             name=header[1];fields={};continue
         # 仅读取展示字段，不输出账号、密码或 token。
         m=re.fullmatch(r'\s*#\s*backrest_remark\s*=\s*(.*)',line)
         if m: fields['remark']=m[1].strip();continue
-        m=re.fullmatch(r'\s*(type|description)\s*=\s*(.*?)\s*',line)
+        m=re.fullmatch(r'\s*(type|description|explicit_tls|tls)\s*=\s*(.*?)\s*',line)
         if m: fields[m[1]]=m[2]
     first=max([22]+[width(str(i)+'. '+n)+2 for i,(n,_,_) in enumerate(remotes,1)])
     second=max([20]+[width(r)+2 for _,r,_ in remotes])
@@ -857,7 +891,7 @@ show_menu() {
     echo "AWS_SECRET_ACCESS_KEY=访问密钥"
     echo "AWS_DEFAULT_REGION=auto"
     echo "=================================="
-    echo "网盘配置 rclone:gdrive:备份目录（这里的 gdrive 对应的是唯一名称）"
+    echo "网盘配置 rclone:gdrive:全部备份（这里的 gdrive 对应的是唯一名称）"
     br_cloud_list
     echo "=================================="
     echo "远程归档任务（与网页 Restic 仓库独立）"
