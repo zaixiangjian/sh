@@ -20,7 +20,7 @@ require_docker() {
     }
 }
 engine() {
-    LC_ALL=C.UTF-8 PYTHONUTF8=1 python3 - "$1" "$NAME" "$APP_DIR" "$IMAGE" <<'PYENGINE'
+    LC_ALL=C.UTF-8 PYTHONUTF8=1 python3 - "$1" "$NAME" "$APP_DIR" "$IMAGE" "${2:-}" "${3:-}" <<'PYENGINE'
 import json
 import os
 from pathlib import Path
@@ -31,7 +31,8 @@ import tempfile
 import time
 import urllib.request
 
-mode, name, root, image = sys.argv[1:]
+mode, name, root, image = sys.argv[1:5]
+s3_bind, s3_host_port = sys.argv[5:7]
 root = Path(root)
 manager = root / '.openlist-manager'
 
@@ -247,6 +248,80 @@ def update():
                 print('此流程不备份、不自动回滚。')
             raise
 
+def s3_switch():
+    import fcntl, socket, uuid
+    with open('/run/lock/openlist-manager.lock','a') as lock:
+        try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError: raise RuntimeError('另一项 OpenList 操作正在进行')
+        safe_paths()
+        x=inspect(name); validate(x)
+        if not x['State']['Running']: raise RuntimeError('请先启动 OpenList')
+        path=root/'data'/'config.json'
+        if path.is_symlink() or not path.is_file(): raise RuntimeError('config.json 不安全或不存在')
+        original=path.read_bytes(); cfg=json.loads(original); section=cfg.get('s3',{})
+        if type(section.get('enable')) is not bool: raise RuntimeError('s3.enable 配置无效')
+        enabled=mode=='s3-enable'
+        if section['enable']==enabled: print('S3 已是所选状态'); return
+        port=section.get('port',5246)
+        if type(port) is not int or not 1<=port<=65535 or port==5244: raise RuntimeError('需要独立有效 S3 端口')
+        hc,runtime=x['HostConfig'],x['Config']
+        if any(e.split('=',1)[0].upper().endswith(('S3_ENABLE','S3_PORT')) for e in runtime.get('Env',[])): raise RuntimeError('存在S3环境变量覆盖，拒绝修改')
+        if enabled and (s3_bind not in ('127.0.0.1','0.0.0.0') or not s3_host_port.isdigit() or not 1<=int(s3_host_port)<=65535): raise RuntimeError('绑定地址/端口无效')
+        ports=dict(hc.get('PortBindings') or {}); ports.pop(str(port)+'/tcp',None)
+        if enabled: ports[str(port)+'/tcp']=[{'HostIp':s3_bind,'HostPort':s3_host_port}]
+        section['enable']=enabled; cfg['s3']=section; info=path.stat()
+        def write(content):
+            fd,tmp=tempfile.mkstemp(prefix='.s3-config.',dir=path.parent)
+            try:
+                with os.fdopen(fd,'wb') as f:
+                    os.fchown(f.fileno(),info.st_uid,info.st_gid);os.fchmod(f.fileno(),info.st_mode&0o777)
+                    f.write(content);f.flush();os.fsync(f.fileno())
+                os.replace(tmp,path)
+            finally:
+                if os.path.exists(tmp):os.unlink(tmp)
+        old=name+'-s3-before-'+uuid.uuid4().hex[:12]
+        candidate=name+'-s3-new-'+uuid.uuid4().hex[:12]
+        rp=hc.get('RestartPolicy') or {}; policy=rp.get('Name') or 'no'
+        if policy=='on-failure' and rp.get('MaximumRetryCount'):policy+=':'+str(rp['MaximumRetryCount'])
+        args=['create','--name',candidate,'--network','bridge','--restart',policy,'--user',runtime['User'],'-v',str(root/'data')+':/opt/openlist/data']
+        for e in runtime.get('Env') or []:args+=['-e',e]
+        for k,v in (runtime.get('Labels') or {}).items():args+=['--label',k+'='+v]
+        for k,flag in [('Hostname','--hostname'),('WorkingDir','--workdir')]:
+            if runtime.get(k):args+=[flag,runtime[k]]
+        log=hc['LogConfig'];args+=['--log-driver',log['Type']]
+        for k,v in (log.get('Config') or {}).items():args+=['--log-opt',k+'='+v]
+        for dest,bindings in ports.items():
+            for b in bindings or []:
+                ip=b.get('HostIp','');ip='['+ip+']' if ':' in ip else ip
+                args+=['-p',(ip+':' if ip else '')+b['HostPort']+':'+dest]
+        ep=runtime.get('Entrypoint') or []
+        if ep:args+=['--entrypoint',ep[0]]
+        args+=[x['Image']]+(runtime.get('Cmd') or [])
+        ident=docker(*args);stopped=renamed=False
+        try:
+            docker('stop',name);stopped=True
+            if path.read_bytes()!=original:raise RuntimeError('配置已变化，未覆盖')
+            docker('rename',name,old);renamed=True
+            write((json.dumps(cfg,ensure_ascii=False,indent=2)+'\n').encode())
+            docker('rename',ident,name);docker('start',name);ready(name)
+            if json.loads(path.read_text()).get('s3',{}).get('enable') is not enabled:raise RuntimeError('开关读回校验失败')
+            if enabled:
+                if not inspect(name)['HostConfig'].get('PortBindings',{}).get(str(port)+'/tcp'):raise RuntimeError('端口映射校验失败')
+                for attempt in range(20):
+                    try:
+                        with socket.create_connection(('127.0.0.1' if s3_bind=='0.0.0.0' else s3_bind,int(s3_host_port)),timeout=1):break
+                    except OSError:
+                        if attempt==19:raise RuntimeError('S3端口验证超时')
+                        time.sleep(1)
+        except BaseException:
+            docker('rm','-f',ident)
+            if renamed:write(original);docker('rename',old,name)
+            if stopped:docker('start',name);ready(name)
+            raise
+        docker('rm',old)
+        print('S3 已'+('启用' if enabled else '关闭')+'；旧容器已清理，未复制数据。')
+        if enabled:print('S3端口：'+s3_bind+':'+s3_host_port+'；未验证账号认证及网盘读写。')
+
 def uninstall():
     safe_paths()
     records = dict((ident, p) for p, ident in managed_backups())
@@ -290,6 +365,8 @@ try:
         addresses()
     elif mode == 'update':
         update()
+    elif mode in ('s3-enable','s3-disable'):
+        s3_switch()
     elif mode == 'uninstall':
         uninstall()
     else:
@@ -710,10 +787,61 @@ if sys.argv[1] not in d:sys.exit("API 远端摘要不匹配，无法确认推送
 print("API 远端摘要与本地一致，推送验证通过。")
 ' "$local_id"
 }
+openlist_s3_state() {
+    python3 - "$APP_DIR/data/config.json" <<'PY_STATE'
+import json,sys,pathlib
+try:
+    p=pathlib.Path(sys.argv[1])
+    if p.is_symlink():raise ValueError()
+    value=json.loads(p.read_text())['s3']['enable']
+    if type(value) is not bool:raise ValueError()
+    print('enabled' if value else 'disabled')
+except Exception:print('unknown')
+PY_STATE
+}
+openlist_s3_menu() {
+    local state choice bind port green='' yellow='' reset=''
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then green=$'\033[32m';yellow=$'\033[33m';reset=$'\033[0m';fi
+    while true; do
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear;fi
+        state=$(openlist_s3_state)
+        echo "=================================="
+        echo "      OpenList 映射为 S3 协议"
+        echo "=================================="
+        case "$state" in
+            disabled) echo "${green}1.开启 S3 协议${reset}" ;;
+            enabled) echo "${yellow}2.关闭 S3 协议${reset}" ;;
+            *) echo "无法读取 S3 状态，请先安装并检查 config.json。" ;;
+        esac
+        echo "0. 返回上一级"
+        IFS= read -r -p "请输入选项：" choice || return 0
+        case "$choice:$state" in
+            0:*) return 0 ;;
+            1:disabled)
+                require_docker || { pause;continue; }
+                IFS= read -r -p "S3绑定地址（回车127.0.0.1，可选0.0.0.0）：" bind || return 0
+                bind=${bind:-127.0.0.1}
+                IFS= read -r -p "S3宿主机端口（回车5246）：" port || return 0
+                port=${port:-5246}
+                [[ $bind == 127.0.0.1 || $bind == 0.0.0.0 ]] && [[ $port =~ ^[1-9][0-9]{0,4}$ ]] && ((10#$port<=65535)) || { echo "地址或端口无效";pause;continue; }
+                [[ $bind != 0.0.0.0 ]] || echo "注意：S3将监听外网，请配置认证、防火墙及HTTPS反向代理。"
+                echo "将重建当前容器并启用 S3，不复制数据，短暂中断服务。"
+                confirm && engine s3-enable "$bind" "$port"
+                ;;
+            2:enabled)
+                require_docker || { pause;continue; }
+                echo "将关闭S3并移除对应端口映射，短暂中断服务。"
+                confirm && engine s3-disable
+                ;;
+            *) echo "无效选项" ;;
+        esac
+        pause || return 0
+    done
+}
 main() {
     [ "$(id -u)" -eq 0 ] || { echo "请使用 root 运行。"; return 1; }
     command -v python3 >/dev/null || { echo "缺少 python3。"; return 1; }
-    local choice
+    local choice s3_state s3_label
     while true; do
         [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && clear
         echo "=================================="
@@ -728,6 +856,12 @@ main() {
         echo "3. 登录 Docker Hub"
         echo "4. 打上标签推送到zaixiangjian/openlist:latest"
         echo "-----------------------------------"
+        s3_state=$(openlist_s3_state)
+        case "$s3_state" in enabled) s3_label='开启';;disabled) s3_label='关闭';;*) s3_label='检测失败';;esac
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+            if [[ $s3_state == enabled ]];then s3_label=$'\033[32m'"$s3_label"$'\033[0m';else s3_label=$'\033[33m'"$s3_label"$'\033[0m';fi
+        fi
+        echo "8. OpenList 映射为 S3 协议（ S3 状态：$s3_label）"
         echo "9. 卸载（需 yes 确认）"
         echo "-----------------------------------"
         echo "11. 官方安装（默认端口 5244）"
@@ -758,6 +892,7 @@ main() {
             2) update_custom ;;
             3) login_docker ;;
             4) push_custom ;;
+            8) openlist_s3_menu; continue ;;
             9) uninstall_app ;;
             11) install_official ;;
             12) update_official ;;
