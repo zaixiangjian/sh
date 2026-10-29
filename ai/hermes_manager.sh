@@ -913,7 +913,7 @@ else:
         from types import SimpleNamespace
         with urllib.request.urlopen('https://github.com/NousResearch/hermes-agent/releases/latest',timeout=4) as response:
             url=response.url
-        match=re.fullmatch(r'https://github.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+\.[0-9]+\.[0-9]+)',url)
+        match=re.fullmatch(r'https://github.com/NousResearch/hermes-agent/releases/tag/(v[0-9]+[.][0-9]+[.][0-9]+)',url)
         if not match:
             raise ValueError('invalid official release redirect')
         tag=match[1]
