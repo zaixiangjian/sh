@@ -5934,6 +5934,16 @@ linux_panel() {
         fi
     fi
 
+    # 1004/1005 按编号接在 991 后；仅检测真实定时任务，不以下载文件/启用标记代替。
+    local backup_menu_cron
+    backup_menu_cron="$(crontab -l 2>/dev/null | LC_ALL=C grep -Ev '^[[:space:]]*(#|$)' | LC_ALL=C grep -E '^([[:space:]]*[^#[:space:]]+[[:space:]]+){5}|^[[:space:]]*@(reboot|yearly|annually|monthly|weekly|daily|midnight|hourly)[[:space:]]+' || true)"
+    if [ -f '/home/备份/beifen.sh' ] && printf '%s\n' "$backup_menu_cron" | grep -Eq '(^|[[:space:]])(/bin/bash[[:space:]]+|bash[[:space:]]+)?/home/备份/beifen\.sh([[:space:]]|$)'; then
+        installed_items+=("1004")
+    fi
+    if printf '%s\n' "$backup_menu_cron" | grep -Eq '(^|[[:space:]])/root/yingyong/beifenhebing-(web|forum|generated|local-sync|local-keep)\.py[[:space:]]+(check|scheduled-run)([[:space:]]|$)'; then
+        installed_items+=("1005")
+    fi
+
     panel_item_installed() {
         local num="$1"
         printf '%s
@@ -6023,7 +6033,7 @@ linux_panel() {
     echo -e "${gl_kjlan}998. ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}999. ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}1000. ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1001. ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}1002. ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1003. ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}1004. ${gl_bai}下载备份清理脚本 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1005. ${gl_bai}网站密码论坛备份合并 ${gl_huang}★${gl_bai}"
+    echo -e "$(panel_menu_item_green_if_installed 1004 "${gl_kjlan}1004. ${gl_bai}下载备份清理脚本 ${gl_huang}★${gl_bai}" "1004. 下载备份清理脚本 ★")\033[48G$(panel_menu_item_green_if_installed 1005 "${gl_kjlan}1005. ${gl_bai}网站论坛与其他备份合并 ${gl_huang}★${gl_bai}" "1005. 网站论坛与其他备份合并 ★")"
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}91自编译有48.80.83.84.85.86.87.88.89"
     echo -e "${gl_kjlan}0.   ${gl_bai}返回主菜单"
@@ -11018,9 +11028,113 @@ EOF
 
 
       1004)
-        echo "▶️ 正在下载备份清理脚本..."
-        run_local_first_app_script "▶️ 下载beifen.sh清理脚本..." "/home/备份/beifen.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/beifen/beifen.sh"
-        echo "✅ 备份清理脚本安装完成。"
+        (
+          # 仅安装/管理定时任务，不在打开此选项时执行删除备份。
+          local_script='/home/备份/beifen.sh'
+          github_script='https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/beifen/beifen.sh'
+          if [[ $EUID -ne 0 ]]; then echo '请使用root操作。'; exit 1; fi
+          if ! command -v python3 >/dev/null 2>&1; then echo '需先安装python3，未作修改。'; exit 1; fi
+          mkdir -p '/home/备份' || exit 1
+          if [[ -L "$local_script" ]]; then echo '脚本路径是符号链接，拒绝操作。'; exit 1; fi
+          if [[ ! -f "$local_script" ]]; then
+            echo '▶️ 正在下载备份清理脚本...'
+            tmp_script=$(mktemp '/home/备份/.beifen-download.XXXXXXXX') || exit 1
+            trap 'rm -f -- "$tmp_script"' EXIT
+            if ! curl -fsSL --connect-timeout 10 --max-time 60 "$github_script" -o "$tmp_script" ||
+               [[ ! -s "$tmp_script" ]] || ! bash -n "$tmp_script"; then
+              echo '❌ 下载失败或脚本语法错误，未安装、未添加任务。'; exit 1
+            fi
+            chmod 700 "$tmp_script" && mv -f -- "$tmp_script" "$local_script" || exit 1
+            echo '✅ 备份清理脚本安装完成（未执行清理）。'
+          else
+            echo "本地脚本：$local_script（不执行清理）"
+            tmp_script=$(mktemp '/home/备份/.beifen-check.XXXXXXXX') || exit 1
+            trap 'rm -f -- "$tmp_script"' EXIT
+            if ! curl -fsSL --connect-timeout 3 --max-time 10 "$github_script" -o "$tmp_script" ||
+               [[ ! -s "$tmp_script" ]] || ! bash -n "$tmp_script"; then
+              echo '远程更新检测失败或远程脚本语法异常，继续使用本地文件。'
+            elif cmp -s -- "$local_script" "$tmp_script"; then
+              echo '本地与远程内容一致，无需更新。'
+            else
+              echo '检测到远程与本地内容不同。更新会覆盖本地清理规则。'
+              echo '1. 继续使用本地文件（默认）'
+              echo '2. 更新为远程文件（先备份本地文件）'
+              echo '0. 返回上一级'
+              IFS= read -r -p '请选择 [默认1]：' script_choice || exit 0
+              case "${script_choice:-1}" in
+                1) echo '保留本地文件，继续检查定时任务。' ;;
+                2)
+                  IFS= read -r -p '确认覆盖本地清理规则？[y/N]：' update_confirm || exit 0
+                  case "$update_confirm" in
+                    [Yy]|[Yy][Ee][Ss])
+                      backup_script=$(mktemp '/home/备份/beifen.sh.before-update.XXXXXXXX') || exit 1
+                      if ! cp -p -- "$local_script" "$backup_script"; then
+                        echo '本地备份失败，取消更新。'; exit 1
+                      fi
+                      chmod 700 "$tmp_script" && mv -f -- "$tmp_script" "$local_script" || exit 1
+                      echo "远程文件已更新；本地原文件备份：$backup_script（未执行清理）"
+                      ;;
+                    *) echo '已取消更新，继续使用本地文件。' ;;
+                  esac
+                  ;;
+                0) exit 0 ;;
+                *) echo '无效选项，未更新或修改定时任务。'; exit 1 ;;
+              esac
+            fi
+          fi
+          if ! bash -n "$local_script"; then echo '脚本语法错误，未配置定时任务。'; exit 1; fi
+          if ! command -v crontab >/dev/null 2>&1; then
+            echo '未安装crontab，请先安装cron/cronie后重新进入此选项。'; exit 1
+          fi
+          python3 - 3<&0 <<'PY_BE清理'
+import fcntl,os,pathlib,re,subprocess,sys,tempfile,time
+start='# 备份清理';end='# 备份清理结束'
+job='*/5 * * * * /bin/bash /home/备份/beifen.sh >/dev/null 2>&1'
+state=pathlib.Path('/home/备份/.beifen-cron-enabled')
+def readcron():
+    p=subprocess.run(['crontab','-l'],capture_output=True,text=True,env={**os.environ,'LC_ALL':'C'})
+    if p.returncode==0:return p.stdout
+    if p.returncode==1 and 'no crontab for' in p.stderr.lower():return ''
+    raise ValueError('无法读取crontab，拒绝覆盖现有任务')
+def task(line):
+    s=line.strip()
+    return bool(s and not s.startswith('#') and re.search(r'(?<![\w/])/home/备份/beifen\.sh(?=[\s\"\x27;]|$)',s))
+def ask():
+    print('是否添加每5分钟执行一次的备份清理任务？将按脚本规则自动删除旧备份。[y/N]：',end='',flush=True)
+    with os.fdopen(os.dup(3)) as inp:return inp.readline().strip().lower() in ('y','yes')
+try:
+    with open('/run/lock/kejilion-beifen-cron.lock','a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        if state.is_symlink():raise ValueError('启用状态文件是符号链接，拒绝操作')
+        original=readcron();lines=original.splitlines()
+        enabled=state.exists() or any(task(line) for line in lines)
+        if not enabled and not ask():
+            print('未启用定时清理；下次进入仍会询问。');sys.exit(0)
+        # Remove only this task and its markers, leaving unrelated cron lines untouched.
+        kept=[line for line in lines if line.strip() not in (start,end) and not task(line)]
+        desired='\n'.join(kept+[start,job,end])+'\n'
+        if original!=desired:
+            backup=pathlib.Path('/home/备份')/('crontab.before-beifen-'+str(time.time_ns())+'.bak')
+            fd=os.open(backup,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+            with os.fdopen(fd,'w') as out:out.write(original)
+            if readcron()!=original:raise ValueError('其他程序修改了crontab，本次取消，请重试')
+            subprocess.run(['crontab','-'],input=desired,text=True,check=True)
+            print('原定时任务已备份：'+str(backup))
+        if readcron()!=desired:raise ValueError('定时任务读回不一致，未确认成功，请检查crontab')
+        fd,tmp=tempfile.mkstemp(prefix='.beifen-enabled-',dir=state.parent)
+        try:
+            with os.fdopen(fd,'w') as out:out.write('enabled\n')
+            os.replace(tmp,state)
+        finally:
+            if os.path.exists(tmp):os.unlink(tmp)
+        print('✅ 备份清理定时任务已启用并校验（每5分钟，已去重/修复）。')
+        print(start+'\n'+job+'\n'+end)
+        print('任务被意外删除后，再次进入此选项会自动恢复。')
+        print('若要彻底停用，请同时删除此任务块和 /home/备份/.beifen-cron-enabled 状态文件。')
+except BlockingIOError:print('另一窗口正在配置备份清理任务，请稍后重试。');sys.exit(1)
+except (OSError,ValueError,subprocess.SubprocessError) as e:print('❌ 定时任务配置失败：'+str(e));sys.exit(1)
+PY_BE清理
+        )
         ;;
 		
       1005)
