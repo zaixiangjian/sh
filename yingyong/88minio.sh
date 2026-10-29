@@ -443,17 +443,8 @@ def run(name,scheduled=False):
         exclusions=['--exclude=/runtime.env.replication','--exclude=**/.ssh/***','--exclude=**/id_*','--exclude=*.key','--exclude=*.pem','--exclude=*.p12','--exclude=*.pfx','--exclude=**/credentials*','--exclude=**/task.json','--exclude=**/'+marker,'--exclude=*.lock','--exclude=*.tmp','--exclude=/.replication-*/***']
         exclusions += ['--exclude=/'+n+'/***' for n in tasks()]
         exclusions += ['--exclude=**/.replication-*/***','--exclude=**/*.tmp/***','--exclude=**/.staging*/***','--exclude=**/tmp/***','--exclude=**/temp/***']
-        # 避免任意文件名的 PEM/OpenSSH 私钥进入镜像；不读取/输出 runtime.env。
-        for directory, dirs, files in os.walk(root,followlinks=False):
-            if pathlib.Path(directory)==root: dirs[:]=[d for d in dirs if d not in tasks()]
-            for filename in files:
-                f=pathlib.Path(directory)/filename
-                if f.is_symlink() or f.name=='runtime.env': continue
-                try:
-                    with f.open('rb') as stream: header=stream.read(4096)
-                except OSError: fail('源文件不可读取，取消同步以防不完整镜像。')
-                if b'PRIVATE KEY-----' in header:
-                    exclusions.append('--exclude=/'+f.relative_to(root).as_posix())
+        # 不预读文件内容；凭证按上述路径/文件名规则排除，变化由 rsync 增量判断。
+        # 非标准名称的私钥不能再靠内容识别，请勿将其放入同步范围。
         # 不解引用符号链接；排除部署凭证以外的复制凭证。runtime.env/compose.yaml 明确保留。
         checked(['rsync','-a','--safe-links','--delete','--protect-args','--chmod=Du=rwx,Dgo=,Fu=rw,Fgo=']+exclusions+['-e',shlex.join(options),'--',str(root)+'/',target+':'+c['destination']+'/'])
     else:
