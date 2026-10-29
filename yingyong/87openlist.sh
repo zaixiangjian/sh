@@ -964,6 +964,8 @@ def preflight():
         write(p,text,0o644)
     run(['systemctl','daemon-reload']);run(['systemctl','enable','--now',p.name])
     if 'shared' not in run(['findmnt','-n','-o','PROPAGATION','--target',str(MOUNT)]).decode():raise ValueError('父挂载点传播未生效')
+def systemd_quote(value):
+    return '"'+str(value).replace('\\','\\\\').replace('"','\\"').replace('%','%%')+'"'
 def add():
     preflight();n=ask('唯一名称（小写字母开头，最多32位，例如namecrane）：')
     if not re.fullmatch('[a-z][a-z0-9_-]{0,31}',n):raise ValueError('名称无效')
@@ -989,28 +991,45 @@ def add():
         print('\033['+color+'m'+text+'\033[0m' if colored else text)
     hint('VFS 缓存软上限（非硬性限制，实际占用可能超过设定值）','32')
     hint('推荐设置：10GB 磁盘 → 1G，100GB 磁盘 → 10G，以此类推','32')
-    hint('上传 5GB、10GB 大文件，占用超过VFS缓存软上限','33')
+    hint('上传 5GB、10GB 大文件，占用可能超过VFS缓存软上限','33')
     hint('频繁读写或处理大文件建议 5G 以上，并确保磁盘有足够剩余空间','33')
+    hint('缓存是软上限，待上传/打开文件可超限。','31')
     size=ask('VFS缓存软上限（如10G，回车默认1G）：') or '1G'
     if not re.fullmatch('[1-9][0-9]{0,4}[MG]',size):raise ValueError('缓存格式无效')
-    print('启用STARTTLS及证书验证；缓存是软上限，待上传/打开文件可超限。不会创建远程目录。')
-    if ask('输入小写yes添加：')!='yes':raise EOFError
+    hint('网络容易卡顿，或远端接收完文件后处理较慢，最多等多久才判定失败。','33')
+    hint('不是要求整个文件在 5 分钟内传完','32')
+    while True:
+        io_timeout=ask('I/O无活动超时（回车保留5m）：') or '5m'
+        if re.fullmatch('[1-9][0-9]{0,3}[smh]',io_timeout):break
+        print('超时格式无效，请输入如30s、1m、5m。')
+    while True:
+        transfers=ask('上传并发（1–16，回车默认 2）：') or '2'
+        if transfers.isascii() and transfers.isdigit() and 1<=int(transfers)<=16:break
+        print('请输入1–16之间的整数。')
+    print('启用STARTTLS及证书验证（默认）；STARTTLS加密始终启用。')
+    while True:
+        verify_certificate=ask('是否启用证书验证（回车默认 yes，输入 no 不验证）：') or 'yes'
+        if verify_certificate in ('yes','no'):break
+        print('请输入小写yes或no，回车默认yes。')
+    if verify_certificate=='no':
+        print('警告：关闭证书验证后无法确认服务端身份，可能泄露密码和数据；STARTTLS加密仍启用。')
+        if ask('输入小写yes确认关闭证书验证（其他取消）：')!='yes':raise EOFError
+    print('不会创建远程目录；下一步将验证连接并添加挂载。')
     secret=run(['rclone','obscure','-'],input=(password+'\n').encode()).decode().strip();password=None
     conf=BASE/(n+'.conf');service=SYSTEM/unit(n)
     try:
-        write(conf,'[remote]\ntype = ftp\nhost = '+host+'\nport = '+str(int(port))+'\nuser = '+user+'\npass = '+secret+'\nexplicit_tls = true\ntls = false\nno_check_certificate = false\n')
+        write(conf,'[remote]\ntype = ftp\nhost = '+host+'\nport = '+str(int(port))+'\nuser = '+user+'\npass = '+secret+'\nexplicit_tls = true\ntls = false\nno_check_certificate = '+('true' if verify_certificate=='no' else 'false')+'\n')
         run(['rclone','lsf','remote:'+remote,'--config',str(conf),'--max-depth','1','--contimeout','10s','--timeout','20s','--retries','1'],timeout=40)
         (MOUNT/n).mkdir(mode=0);(CACHE/n).mkdir(mode=0o700)
-        def quote(v):return '"'+str(v).replace('\\','\\\\').replace('"','\\"').replace('%','%%')+'"'
-        args=[shutil.which('rclone'),'mount','remote:'+remote,str(MOUNT/n),'--config',str(conf),'--allow-other','--default-permissions','--uid','1000','--gid','1000','--umask','007','--dir-perms','0770','--file-perms','0660','--vfs-cache-mode','writes','--cache-dir',str(CACHE/n),'--vfs-cache-max-size',size,'--vfs-cache-max-age','24h','--contimeout','10s','--timeout','1m','--log-level','ERROR']
+        args=[shutil.which('rclone'),'mount','remote:'+remote,str(MOUNT/n),'--config',str(conf),'--allow-other','--default-permissions','--uid','1000','--gid','1000','--umask','007','--dir-perms','0770','--file-perms','0660','--vfs-cache-mode','writes','--cache-dir',str(CACHE/n),'--vfs-cache-max-size',size,'--vfs-cache-max-age','24h','--contimeout','10s','--timeout',io_timeout,'--transfers',str(int(transfers)),'--log-level','ERROR']
         if no_modtime=='yes':args+=['--no-modtime']
         helptext=run([args[0],'mount','--help']).decode()
         if '--vfs-cache-min-free-space' in helptext:args+=['--vfs-cache-min-free-space','1G']
         # 实际解析全部参数后再安装服务，防止旧版本收到未知flag后反复重启。
         run(args+['--help'])
-        text='[Unit]\nDescription=OpenList FTPS '+n+'\nRequires=openlist-ftps-anchor.service\nAfter=network-online.target openlist-ftps-anchor.service\nWants=network-online.target\n[Service]\nType=notify\nUMask=0077\nExecStart='+' '.join(map(quote,args))+'\nExecStop='+shutil.which('fusermount3')+' -u '+quote(MOUNT/n)+'\nRestart=on-failure\nRestartSec=10\nTimeoutStartSec=infinity\nTimeoutStopSec=180\n[Install]\nWantedBy=multi-user.target\n'
+        text='[Unit]\nDescription=OpenList FTPS '+n+'\nRequires=openlist-ftps-anchor.service\nAfter=network-online.target openlist-ftps-anchor.service\nWants=network-online.target\n[Service]\nType=notify\nUMask=0077\nExecStart='+' '.join(map(systemd_quote,args))+'\nExecStop='+shutil.which('fusermount3')+' -u '+systemd_quote(MOUNT/n)+'\nRestart=on-failure\nRestartSec=10\nTimeoutStartSec=infinity\nTimeoutStopSec=180\n[Install]\nWantedBy=multi-user.target\n'
         write(service,text,0o644)
-        write(BASE/(n+'.json'),json.dumps({'name':n,'remote':remote,'cache_size':size,'no_modtime':no_modtime=='yes'},ensure_ascii=False))
+        write(BASE/(n+'.json'),json.dumps({'name':n,'remote':remote,'cache_size':size,'no_modtime':no_modtime=='yes','io_timeout':io_timeout,'transfers':int(transfers),'verify_certificate':verify_certificate=='yes'},ensure_ascii=False))
         run(['systemctl','daemon-reload'])
         if not start_mount(n,enable=True):raise SystemExit(2)
         print('挂载及只读验证成功；容器本机存储根目录：/mnt/ftps/'+n+'；尚未验证上传。')
@@ -1089,8 +1108,7 @@ def edit():
     if choice=='yes':args.append('--no-modtime')
     run(args+['--help'])
     if ask('输入yes保存（不重启，不删除缓存；下次启动生效）：')!='yes':raise EOFError
-    def quote(v):return '"'+v.replace('\\','\\\\').replace('"','\\"').replace('%','%%')+'"'
-    updated=original.replace(line,'ExecStart='+' '.join(quote(a) for a in args),1)
+    updated=original.replace(line,'ExecStart='+' '.join(map(systemd_quote,args)),1)
     updated=re.sub(r'^TimeoutStartSec=.*$','TimeoutStartSec=infinity',updated,flags=re.M)
     if not re.search(r'^TimeoutStartSec=',updated,re.M):updated=updated.replace('[Service]','[Service]\nTimeoutStartSec=infinity',1)
     cfg.update(cache_size=size,no_modtime=choice=='yes',io_timeout=timeout_value,transfers=int(transfers))
@@ -1238,8 +1256,39 @@ if sys.argv[1]=='main':
 else:print('6. 将挂载目录映射到OpenList（重建容器）（'+state+'）')
 PYFTPS_SUMMARY
 }
+ftps_openlist_state() {
+    docker inspect -f '{{.State.Status}}' openlist 2>/dev/null
+}
+ftps_openlist_toggle() {
+    local shown="$1" current action confirm after
+    current=$(ftps_openlist_state) || { echo '无法读取OpenList容器状态，未操作。'; return 1; }
+    [[ "$current" == "$shown" ]] || { echo '容器状态已变化，请重新选择。'; return 1; }
+    case "$current" in
+        running) action=stop ;;
+        exited|created) action=start ;;
+        *) echo "当前状态：$current；拒绝自动启停，请先检查容器。"; return 1 ;;
+    esac
+    echo "将执行 docker $action openlist；停止会中断OpenList服务，但不会停止FTPS挂载或清理缓存。"
+    IFS= read -r -p '输入小写yes确认（其他取消）：' confirm || return 1
+    [[ "$confirm" == yes ]] || { echo '已取消。'; return 0; }
+    current=$(ftps_openlist_state) || { echo '无法确认容器状态，未操作。'; return 1; }
+    [[ "$current" == "$shown" ]] || { echo '确认期间容器状态已变化，未操作。'; return 1; }
+    docker "$action" openlist || { echo '容器启停失败，请检查Docker。'; return 1; }
+    after=$(ftps_openlist_state) || { echo '操作后状态读取失败，不能确认成功。'; return 1; }
+    if [[ "$action" == stop && "$after" == exited ]]; then
+        echo '已确认OpenList停止；挂载和缓存保留。'
+    elif [[ "$action" == start && "$after" == running ]]; then
+        echo '已确认OpenList容器运行；不代表应用健康检查已通过。'
+    else
+        echo "操作后状态：$after；未达到预期状态。"; return 1
+    fi
+}
 ftps_menu() {
-    local choice
+    local choice openlist_state green red reset
+    green=''; red=''; reset=''
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+        green=$'\033[32m'; red=$'\033[31m'; reset=$'\033[0m'
+    fi
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]];then clear;fi
         echo '=================================='
@@ -1255,6 +1304,12 @@ ftps_menu() {
         ftps_summary submenu
         echo '7. 卸载挂载（重建容器）'
         echo '8. 修改已有挂载设置（缓存/修改时间/超时/并发）'
+        openlist_state=$(ftps_openlist_state) || openlist_state=unknown
+        case "$openlist_state" in
+            running) printf '9. openlist选择停止（%s正在运行%s）\n' "$green" "$reset" ;;
+            exited|created) printf '9. openlist选择启动（%s已停止%s）\n' "$red" "$reset" ;;
+            *) printf '9. openlist启停不可用（状态：%s）\n' "$openlist_state" ;;
+        esac
         echo '----------------------------------'
         echo '0. 返回上一级'
         echo '----------------------------------'
@@ -1268,6 +1323,7 @@ ftps_menu() {
             6) ftps_attach ;;
             7) ftps_detach ;;
             8) ftps_engine edit ;;
+            9) ftps_openlist_toggle "$openlist_state" ;;
             0) return 0 ;;
             *) echo '无效选项' ;;
         esac
