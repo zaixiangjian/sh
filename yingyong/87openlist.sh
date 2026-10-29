@@ -1249,6 +1249,13 @@ def cache_clean(n,discard=False):
     print('已清理 '+str(removed)+' 个已核验缓存文件；保留 '+str(kept)+' 条待上传/未知/未通过校验记录。')
     print('挂载与OpenList仍保持停止；需要时请回主菜单启动。')
 
+def cache_clean_locked(n,discard=False):
+    with open('/run/lock/openlist-manager.lock','a') as operation_lock:
+        try:fcntl.flock(operation_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:raise ValueError('另一项OpenList操作正在进行，请稍后重试')
+        try:cache_clean(n,discard)
+        finally:fcntl.flock(operation_lock,fcntl.LOCK_UN)
+
 def cache_usage(n):
     root=CACHE/n;safe(root)
     if not root.exists():return '0 B（缓存目录尚未创建）'
@@ -1282,8 +1289,8 @@ def cache_menu():
         try:
             if choice=='1':cache_report(n)
             elif choice=='2':cache_report(n,True)
-            elif choice=='3':cache_clean(n)
-            elif choice=='4':cache_clean(n,True)
+            elif choice=='3':cache_clean_locked(n)
+            elif choice=='4':cache_clean_locked(n,True)
             else:print('无效选项')
         except EOFError:print('已取消')
         except (ValueError,RuntimeError,OSError,subprocess.SubprocessError) as e:
@@ -1307,8 +1314,9 @@ def stop(n,delete=False):
     else:print('挂载已停止，开机自启保留；底层目录禁止容器写入。')
 try:
     if os.geteuid()!=0:raise ValueError('请使用root')
-    lock=open('/run/lock/openlist-manager.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     action=sys.argv[1]
+    lock=open('/run/lock/openlist-manager.lock','a')
+    if action!='cache':fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     if action in ('list','status'):
         rs=records()
         import unicodedata
