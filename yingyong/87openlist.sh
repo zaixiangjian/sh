@@ -1126,6 +1126,170 @@ def edit():
     if any(p.is_file() and p.stat().st_size for p in cache.rglob('*')):raise ValueError('缓存非空，保守拒绝自动重启；设置已保存')
     stop(n);start_mount(n)
 
+def cache_files(n):
+    root=CACHE/n;safe(root)
+    if not root.exists():return [],[]
+    if not root.is_dir():raise ValueError('缓存路径不是目录')
+    if os.path.ismount(root):raise ValueError('缓存目录本身是挂载点，拒绝操作')
+    files=[];dirs=[]
+    for current,children,names in os.walk(root,followlinks=False):
+        for name in children+names:
+            p=pathlib.Path(current)/name;safe(p)
+            if p.is_dir():
+                if os.path.ismount(p):raise ValueError('缓存内有其他挂载，拒绝操作')
+                dirs.append(p)
+            elif p.is_file():files.append(p)
+            else:raise ValueError('缓存内有特殊文件，拒绝操作')
+    return files,dirs
+
+def cache_inventory(n):
+    files,_=cache_files(n);root=CACHE/n;rows=[];seen=set()
+    for p in files:
+        relative=p.relative_to(root)
+        if relative.parts[0]!='vfs':continue
+        meta=root/'vfsMeta'/pathlib.Path(*relative.parts[1:]);seen.add(meta)
+        state='未知（元数据缺失/损坏）';info={}
+        try:
+            safe(meta);info=json.loads(meta.read_text())
+            if not isinstance(info,dict):info={}
+            if info.get('Dirty') is True:state='待上传 / 上传中 / 尚未关闭'
+            elif info.get('Dirty') is False:state='本地标记干净（清理前仍需核对远端）'
+        except (OSError,ValueError):pass
+        rows.append((p,meta,state,info))
+    for p in files:
+        relative=p.relative_to(root)
+        if relative.parts[0]=='vfsMeta' and p not in seen:
+            rows.append((None,p,'未知（只有元数据，缺少缓存文件）',{}))
+        elif relative.parts[0] not in ('vfs','vfsMeta'):
+            rows.append((p,None,'未知（非标准缓存文件）',{}))
+    return rows,files
+
+def cache_report(n,pending_only=False):
+    rows,files=cache_inventory(n)
+    telemetry(n)
+    used=sum(p.stat().st_blocks*512 for p in files)
+    print('指定挂载：'+n+'；缓存磁盘占用：'+str(used)+' 字节；文件数：'+str(len(files)))
+    print('以下为磁盘元数据快照；运行中可能变化，不能区分排队、上传中及未关闭文件。')
+    shown=0
+    for p,meta,state,info in rows:
+        if pending_only and info.get('Dirty') is False:continue
+        shown+=1;path=p if p is not None else meta
+        print(state+' | '+json.dumps(str(path.relative_to(CACHE/n)),ensure_ascii=False))
+    if not shown:print('未发现对应记录；不代表实时队列为空或全部上传完成。')
+
+def cache_offline(n):
+    p=subprocess.run(['docker','inspect','-f','{{.State.Running}}','openlist'],capture_output=True,text=True,timeout=10)
+    if p.returncode or p.stdout.strip()!='false':raise ValueError('请先停止OpenList；无法确认停止时拒绝清理')
+    p=subprocess.run(['systemctl','show',unit(n),'-p','ActiveState','-p','MainPID'],capture_output=True,text=True,timeout=5)
+    values=dict(line.split('=',1) for line in p.stdout.splitlines() if '=' in line)
+    if p.returncode or values.get('ActiveState') not in ('inactive','failed') or values.get('MainPID')!='0':
+        raise ValueError('请先通过主菜单4停止此挂载；运行中/启动中/状态未知时拒绝清理')
+    p=subprocess.run(['mountpoint','-q',str(MOUNT/n)],capture_output=True,timeout=5)
+    if p.returncode!=32:raise ValueError('挂载尚未卸载或状态未知，拒绝清理')
+    root=str(CACHE/n);mount=str(MOUNT/n)
+    for proc in pathlib.Path('/proc').iterdir():
+        if not proc.name.isdigit() or proc.name==str(os.getpid()):continue
+        try:
+            args=(proc/'cmdline').read_bytes().split(b'\0')
+            if any(b'rclone' in a for a in args[:1]) and any(os.fsencode(x) in args for x in (root,mount)):
+                raise ValueError('另有rclone进程使用此挂载/缓存，拒绝清理')
+            for fd in (proc/'fd').iterdir():
+                try:target=os.readlink(fd)
+                except FileNotFoundError:continue
+                if target==root or target.startswith(root+'/'):raise ValueError('另有进程打开此缓存，拒绝清理')
+        except (FileNotFoundError,ProcessLookupError):continue
+        except PermissionError:raise ValueError('无法检查进程占用，拒绝清理')
+    cache_files(n)
+
+def cache_remote_matches(n,p,meta,info):
+    r=next(r for r in records() if r['name']==n)
+    remote=r['remote'];base=pathlib.PurePosixPath('remote')/remote.lstrip('/')
+    relative=p.relative_to(CACHE/n/'vfs')
+    try:name=relative.relative_to(base)
+    except ValueError:return False
+    if not name.parts or '..' in name.parts:return False
+    if info.get('Dirty') is not False or not isinstance(info.get('Fingerprint'),str) or not info['Fingerprint']:return False
+    if type(info.get('Size')) is not int or info['Size']!=p.stat().st_size:return False
+    safe(BASE/(n+'.conf'))
+    import hashlib,threading
+    args=['rclone','cat','remote:'+remote.rstrip('/')+'/'+name.as_posix(),'--config',str(BASE/(n+'.conf')),'--contimeout','10s','--timeout','30s','--retries','1','--low-level-retries','1']
+    proc=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+    timer=threading.Timer(300,proc.kill);timer.start()
+    try:
+        local=hashlib.sha256();other=hashlib.sha256();count=0
+        with p.open('rb') as f:
+            for chunk in iter(lambda:f.read(1024*1024),b''):local.update(chunk)
+        for chunk in iter(lambda:proc.stdout.read(1024*1024),b''):
+            count+=len(chunk);other.update(chunk)
+        return proc.wait()==0 and count==info['Size'] and local.digest()==other.digest()
+    finally:
+        timer.cancel()
+        if proc.poll() is None:proc.kill()
+        proc.wait();proc.stdout.close()
+
+def cache_clean(n,discard=False):
+    print('仅处理 '+n+' 的本地缓存；不删除配置或远程文件。不自动启动服务。')
+    print('操作前请停止所有使用该挂载的程序，并勿在清理期间手动启动挂载。')
+    cache_offline(n)
+    if discard:
+        print('\033[31m危险：未上传文件及其修改将永久丢失，无法恢复！\033[0m')
+        if ask('输入完整挂载名称 '+n+' 确认丢弃：')!=n:raise EOFError
+        cache_offline(n);root=CACHE/n
+        if root.exists():shutil.rmtree(root)
+        if root.exists():raise ValueError('清空后检查失败')
+        print('指定本地缓存已全部丢弃；配置及远程文件未删除。');return
+    print('仅清理Dirty=false、有远端指纹且与远端内容逐字节校验一致的文件；会下载远端内容，消耗流量。')
+    if ask('输入yes开始校验和清理：')!='yes':raise EOFError
+    rows,_=cache_inventory(n);removed=0;kept=0
+    for p,meta,state,info in rows:
+        if p is None or meta is None or not cache_remote_matches(n,p,meta,info):kept+=1;continue
+        cache_offline(n)
+        if json.loads(meta.read_text())!=info:kept+=1;continue
+        p.unlink();meta.unlink();removed+=1
+    print('已清理 '+str(removed)+' 个已核验缓存文件；保留 '+str(kept)+' 条待上传/未知/未通过校验记录。')
+    print('挂载与OpenList仍保持停止；需要时请回主菜单启动。')
+
+def cache_usage(n):
+    root=CACHE/n;safe(root)
+    if not root.exists():return '0 B（缓存目录尚未创建）'
+    try:
+        p=subprocess.run(['du','-s','-B1','--',str(root)],capture_output=True,text=True,timeout=5)
+        if p.returncode:return '未知（统计失败）'
+        size=int(p.stdout.split()[0]);value=float(size)
+        for suffix in ('B','KiB','MiB','GiB','TiB','PiB'):
+            if value<1024 or suffix=='PiB':
+                return (str(size)+' B') if suffix=='B' else (format(value,'.2f').rstrip('0').rstrip('.')+' '+suffix)
+            value/=1024
+    except (OSError,ValueError,IndexError,subprocess.TimeoutExpired):return '未知（统计失败或超时）'
+
+def cache_menu():
+    n=select()
+    while True:
+        if sys.stdout.isatty() and os.environ.get('TERM','dumb')!='dumb':
+            print('\033[2J\033[H',end='',flush=True)
+        print('==================================')
+        print('管理当前挂载：'+n)
+        print('挂载本机目录为：'+str(MOUNT/n))
+        print('==================================')
+        print('当前本地缓存路径\n'+str(CACHE/n))
+        print('本机缓存占用\n'+cache_usage(n))
+        print('----------------------------------')
+        print('1. 查看缓存占用及上传状态\n2. 查看待上传 / 上传中文件\n3. 清理已确认上传完成的缓存')
+        print('\033[31m4. 丢弃全部本地缓存（危险）\033[0m')
+        print('----------------------------------\n0. 返回上一级\n----------------------------------')
+        choice=ask('请输入选项：')
+        if choice=='0':return
+        try:
+            if choice=='1':cache_report(n)
+            elif choice=='2':cache_report(n,True)
+            elif choice=='3':cache_clean(n)
+            elif choice=='4':cache_clean(n,True)
+            else:print('无效选项')
+        except EOFError:print('已取消')
+        except (ValueError,RuntimeError,OSError,subprocess.SubprocessError) as e:
+            print(str(e) if isinstance(e,ValueError) else '缓存操作失败，未完成的文件保留；请在本机检查，不要公开凭据。')
+        ask('按回车键返回缓存管理菜单：')
+
 def stop(n,delete=False):
     p=subprocess.run(['docker','inspect','-f','{{.State.Running}}','openlist'],capture_output=True,text=True)
     if p.returncode or p.stdout.strip()!='false':raise ValueError('请先停止OpenList容器；无法确认停止时拒绝操作')
@@ -1199,6 +1363,7 @@ try:
 
     elif action=='add':add()
     elif action=='edit':edit()
+    elif action=='cache':cache_menu()
     elif action=='verify-all':
         rs=records()
         if not rs:raise ValueError('请先添加挂载')
@@ -1310,6 +1475,11 @@ ftps_menu() {
             exited|created) printf '9. openlist选择启动（%s已停止%s）\n' "$red" "$reset" ;;
             *) printf '9. openlist启停不可用（状态：%s）\n' "$openlist_state" ;;
         esac
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+            printf '\033[33m10. 指定挂载缓存管理\033[0m\n'
+        else
+            echo '10. 指定挂载缓存管理'
+        fi
         echo '----------------------------------'
         echo '0. 返回上一级'
         echo '----------------------------------'
@@ -1324,6 +1494,7 @@ ftps_menu() {
             7) ftps_detach ;;
             8) ftps_engine edit ;;
             9) ftps_openlist_toggle "$openlist_state" ;;
+            10) ftps_engine cache ;;
             0) return 0 ;;
             *) echo '无效选项' ;;
         esac
