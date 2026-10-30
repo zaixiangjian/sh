@@ -847,6 +847,59 @@ def connection_menu():
         input('按回车继续...')
 
 
+def uninstall_receiver():
+    root()
+    if not (BASE/'owner').exists():print('接收端未安装或缺少所有权标记，未删除任何文件。');return
+    if (BASE/'owner').read_text()!=MARK:raise ValueError('接收端所有权标记异常')
+    if not UNIT.exists() or UNIT.is_symlink() or not UNIT.read_text().startswith(MARK):raise ValueError('接收服务身份异常，拒绝卸载')
+    users=[p.stem for p in configs()]
+    gate=INST.parent/'ssh-backup-login'
+    deny=P('/etc/ssh/sshd_config.d/90-backup-receiver-deny.conf')
+    targets=[UNIT,INST,gate]
+    for p in (INST,gate):
+        if p.is_symlink() or not p.is_file():raise ValueError('安装程序路径异常：'+str(p))
+    if not gate.read_text().startswith('#!/bin/sh\n'+MARK):raise ValueError('账号登录入口身份异常')
+    if deny.exists() and (deny.is_symlink() or not deny.read_text().startswith(MARK)):raise ValueError('原SSH限制片段不属于本脚本')
+    for user in users:
+        load(user);account=pwd.getpwnam(user)
+        if account.pw_uid==0 or account.pw_shell!=str(gate):raise ValueError('投递账号身份异常')
+        sudoers=P('/etc/sudoers.d')/('ssh-backup-'+user)
+        if sudoers.is_symlink() or not sudoers.is_file() or not sudoers.read_text().startswith(MARK):raise ValueError('账号授权文件身份异常')
+    print('将卸载B接收端：接收服务、投递账号、公钥授权、专用主机密钥、接收配置和安装程序。')
+    print('保留全部归档、A端任务、当前管理脚本、系统OpenSSH及其他账号的公私钥。')
+    print('涉及投递账号：'+('、'.join(users) if users else '暂无'))
+    if ask('确认卸载请输入精确小写 yes')!='yes':return
+    import contextlib
+    with contextlib.ExitStack() as locks:
+        # Guard both versions; active receivers fail closed instead of being terminated.
+        for path in [BASE/'receive-global.lock',*[BASE/(u+'.receive.lock') for u in users]]:
+            lock=locks.enter_context(open(path,'a'));fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        for user in users:
+            account=pwd.getpwnam(user)
+            result=subprocess.run(['pgrep','-u',str(account.pw_uid)],stdout=subprocess.DEVNULL)
+            if result.returncode==0:raise ValueError('投递账号仍有会话/进程，请结束后重试：'+user)
+            if result.returncode!=1:raise ValueError('无法确认账号会话状态，取消卸载')
+        run(['systemctl','disable','--now','ssh-backup-receiver.service'])
+        if subprocess.run(['systemctl','is-active','--quiet','ssh-backup-receiver.service']).returncode==0:raise ValueError('接收服务停止失败')
+        for user in users:
+            run(['userdel',user])
+            (P('/etc/sudoers.d')/('ssh-backup-'+user)).unlink()
+        # Accounts removed first, so removing old-service denial cannot expose them.
+        if deny.exists():
+            previous=deny.read_text();deny.unlink()
+            try:run([shutil.which('sshd'),'-t'])
+            except BaseException:
+                write(deny,previous,0o644);raise
+            main='ssh.service' if subprocess.run(['systemctl','is-active','--quiet','ssh.service']).returncode==0 else 'sshd.service'
+            run(['systemctl','reload',main])
+        for path in targets:path.unlink()
+        # BASE is root-owned; don't follow links when removing owned receiver tree.
+        secure_dir(BASE);shutil.rmtree(BASE)
+        run(['systemctl','daemon-reload'])
+    if UNIT.exists() or BASE.exists():raise ValueError('卸载校验失败，仍有接收配置残留')
+    print('B接收端已卸载，历史备份和A端配置保留。')
+
+
 def menu():
     while True:
         if sys.stdout.isatty() and os.environ.get('TERM') not in (None,'dumb'): print('\033[2J\033[H',end='')
@@ -863,6 +916,7 @@ def menu():
         print('11. B 接收端：接收服务（'+colored_service_label()+'）')
         print('12. B 接收端：添加账号与管理账号')
         print('13. B 接收端：SSH 登录统计')
+        print('19. B 接收端：卸载')
         print('------------------------')
         print('0. 退出')
         print('------------------------')
@@ -877,7 +931,7 @@ def menu():
         if choice=='12':
             accounts_menu()
             continue
-        action={'11':service_action,'2':upload}.get(choice)
+        action={'11':service_action,'2':upload,'19':uninstall_receiver}.get(choice)
         try:
             if action: action()
             else: print('无效选项')
