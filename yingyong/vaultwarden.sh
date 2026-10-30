@@ -174,15 +174,21 @@ update_app_unlocked() {
     fi
     # 从实际容器复制环境、数据挂载、端口、重启策略等；敏感信息不输出。
     if ! python3 - "$tmp/inspect.json" "$tmp/args" "$image" <<'PY'
-import json, sys
+import json, sys, subprocess
 c = json.load(open(sys.argv[1]))[0]
 h, cfg = c['HostConfig'], c['Config']
+try:
+    original_image = json.loads(subprocess.check_output(
+        ['docker', 'image', 'inspect', c['Image']], stderr=subprocess.DEVNULL,
+        text=True))[0]['Config']
+except (subprocess.SubprocessError, OSError, ValueError, KeyError, IndexError):
+    sys.exit('无法读取当前容器原镜像的默认启动配置，已取消更新。')
 networks = c.get('NetworkSettings', {}).get('Networks', {})
 if len(networks) > 1:
     sys.exit('检测到多网络部署，为避免丢失网络配置，请使用原部署工具更新。')
 if h.get('Privileged') or h.get('Devices') or h.get('VolumesFrom') or h.get('Links') or h.get('AutoRemove') or h.get('CapAdd') or h.get('CapDrop') or h.get('SecurityOpt') or h.get('ReadonlyRootfs') or h.get('Tmpfs') or h.get('NetworkMode', '').startswith('container:'):
     sys.exit('检测到特殊容器配置，为避免改变部署，请使用原部署工具更新。')
-if cfg.get('Cmd') or cfg.get('Entrypoint') not in (None, [], ['/start.sh']):
+if any(cfg.get(key) != original_image.get(key) for key in ('Cmd', 'Entrypoint')):
     sys.exit('检测到自定义启动命令，为避免丢失设置，请使用原部署工具更新。')
 args = ['run', '-d', '--name', 'vaultwarden']
 restart = h.get('RestartPolicy', {})
