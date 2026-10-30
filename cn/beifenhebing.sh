@@ -15,6 +15,7 @@ website_backup_menu() {
         echo "=================================="
         echo "        网站备份（/home/web）"
         echo "=================================="
+        ( web_local_context website && bsl_engine summary ) || echo "本地备份检测异常"
         /usr/bin/python3 /root/yingyong/beifenhebing-web.py summary || echo "任务检测异常"
         echo "=================================="
         echo "1. 网站备份"
@@ -55,6 +56,7 @@ forum_backup_menu() {
         echo "=================================="
         echo "        论坛备份（/var/discourse）"
         echo "=================================="
+        ( web_local_context forum && bsl_engine summary ) || echo "本地备份检测异常"
         /usr/bin/python3 /root/yingyong/beifenhebing-forum.py summary || echo "任务检测异常"
         echo "=================================="
         echo "1. 论坛全量备份"
@@ -222,8 +224,10 @@ show_menu() {
     echo "=================================="
     echo "网站备份任务 详情进入 1 查看"
     /usr/bin/python3 /root/yingyong/beifenhebing-web.py count || echo "任务检测异常"
+    ( web_local_context website && bsl_engine count ) || echo "本地任务检测异常"
     echo "论坛备份任务 详情进入 2 查看"
     /usr/bin/python3 /root/yingyong/beifenhebing-forum.py count || echo "任务检测异常"
+    ( web_local_context forum && bsl_engine count ) || echo "本地任务检测异常"
     echo "论坛生成备份传送 详情进入 3 查看"
     /usr/bin/python3 /root/yingyong/beifenhebing-generated.py count || echo "任务检测异常"
     echo "只传送本地*.tar.gz（home/备份）详情进入 99 查看"
@@ -2410,6 +2414,11 @@ elif mode=='purge':
             if last.exists() and not last.is_symlink():last.unlink()
         if targets:subprocess.run(['systemctl','daemon-reload'],check=True)
     print('本地定时备份配置及自有定时器已清理，归档与稳定锁保留。')
+elif mode=='count':
+    count=len(rows())
+    text='本地定时备份：'+('已有 '+str(count)+' 个' if count else '暂无')
+    if sys.stdout.isatty() and os.environ.get('TERM') not in (None,'dumb'):text='\033['+('32' if count else '31')+'m'+text+'\033[0m'
+    print(text)
 elif mode=='summary':
     warning='注意本地备份不会上传到远程目标地址'
     print('\033[31m'+warning+'\033[0m' if sys.stdout.isatty() and os.environ.get('TERM') not in (None,'dumb') else warning)
