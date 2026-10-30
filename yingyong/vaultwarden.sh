@@ -135,7 +135,7 @@ install_app_unlocked() {
     docker pull "$image" || return 1
     mkdir -p "$INSTALL_DIR/data" || return 1
     if ! docker run -d --name "$CONTAINER" \
-        -e SIGNUPS_ALLOWED=false --restart always \
+        -e SIGNUPS_ALLOWED=false -e WEB_VAULT_ENABLED=false --restart always \
         -p 3280:80 -v "$INSTALL_DIR/data:/data" "$image"; then
         echo "安装失败，数据目录已保留。请检查容器日志与端口占用。"
         return 1
@@ -164,6 +164,8 @@ verify_running() {
 
 update_app_unlocked() {
     local image="$1" old running backup tmp
+    local web_enabled="${2:-}"
+    [[ -z $web_enabled || $web_enabled == true || $web_enabled == false ]] || return 1
     require_docker || return 1
     command -v python3 >/dev/null 2>&1 || { echo "更新需要 python3。"; return 1; }
     container_exists || { echo "未安装，请先选择安装。"; return 1; }
@@ -173,7 +175,7 @@ update_app_unlocked() {
         rm -rf -- "$tmp"; return 1
     fi
     # 从实际容器复制环境、数据挂载、端口、重启策略等；敏感信息不输出。
-    if ! python3 - "$tmp/inspect.json" "$tmp/args" "$image" <<'PY'
+    if ! python3 - "$tmp/inspect.json" "$tmp/args" "$image" "$web_enabled" <<'PY'
 import json, sys, subprocess
 c = json.load(open(sys.argv[1]))[0]
 h, cfg = c['HostConfig'], c['Config']
@@ -196,9 +198,14 @@ policy = restart.get('Name') or 'no'
 if policy == 'on-failure' and restart.get('MaximumRetryCount'):
     policy += ':' + str(restart['MaximumRetryCount'])
 args += ['--restart', policy]
+web_enabled = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else 'false'
 for env in cfg.get('Env', []):
+    if web_enabled and env.startswith('WEB_VAULT_ENABLED='):
+        continue
     if not env.startswith('SIGNUPS_ALLOWED='):
         args += ['-e', env]
+if web_enabled:
+    args += ['-e', 'WEB_VAULT_ENABLED=' + web_enabled]
 # 保留现有注册环境变量；config.json（如存在）仍优先覆盖。
 signups = next((e for e in cfg.get('Env', []) if e.startswith('SIGNUPS_ALLOWED=')), 'SIGNUPS_ALLOWED=false')
 args += ['-e', signups]
@@ -245,7 +252,7 @@ PY
     local -a args=()
     mapfile -d '' -t args < "$tmp/args"
     rm -rf -- "$tmp"
-    docker pull "$image" || return 1
+    if [[ -z $web_enabled ]]; then docker pull "$image" || return 1; fi
     old="$(docker inspect --format '{{.Image}}' "$CONTAINER")" || return 1
     backup_app || { echo "更新前完整数据备份失败，已取消更新。"; return 1; }
     local data_backup
@@ -487,6 +494,9 @@ restore_app_unlocked() {
     mkdir -p "$(dirname "$INSTALL_DIR")" || return 1
     stage="$(mktemp -d "${INSTALL_DIR}.restore-stage.XXXXXX")" || return 1
     if ! extract_backup "$selected" "$stage"; then rm -rf -- "$stage"; return 1; fi
+    if [[ $fresh != yes ]]; then
+        if ! ensure_web_closed update_app_unlocked; then rm -rf -- "$stage"; return 1; fi
+    fi
     if [[ $fresh == yes ]]; then
         if ! docker pull "$OFFICIAL_IMAGE"; then rm -rf -- "$stage"; return 1; fi
         before="$(mktemp -d "${INSTALL_DIR}.before-restore.$(date +%Y%m%d%H%M%S).XXXXXX")" || { rm -rf -- "$stage"; return 1; }
@@ -502,7 +512,7 @@ restore_app_unlocked() {
             rm -rf -- "$stage"; return 1
         fi
         rmdir "$stage"
-        if docker run -d --name "$CONTAINER" -e SIGNUPS_ALLOWED=false --restart always \
+        if docker run -d --name "$CONTAINER" -e SIGNUPS_ALLOWED=false -e WEB_VAULT_ENABLED=false --restart always \
             -p 3280:80 -v "$INSTALL_DIR/data:/data" "$OFFICIAL_IMAGE" && verify_running; then
             rm -rf -- "$before" || { echo "恢复已成功，但临时旧数据清理失败：$before"; return 1; }
             echo "恢复完成并已创建容器：$selected"
@@ -878,6 +888,62 @@ s3_backup_menu() {
     done
 }
 
+ensure_web_closed() {
+    local image value
+    container_exists || return 0
+    value=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER" | python3 -c 'import sys; v=[s.strip().split("=",1)[1].lower() for s in sys.stdin if s.startswith("WEB_VAULT_ENABLED=")]; print(v[-1] if v else "true")') || return 1
+    [[ $value == false ]] && return 0
+    echo '默认安全策略：使用当前镜像关闭Web密码库，将备份并重建容器。'
+    image=$(docker inspect --format '{{.Image}}' "$CONTAINER") || return 1
+    "${1:-update_app}" "$image" false
+}
+
+show_web_vault_action() {
+    local state color='' reset=''
+    state=$(python3 - "$CONTAINER" <<'PY_WEB_STATE'
+import json,subprocess,sys
+try:
+ x=json.loads(subprocess.check_output(['docker','inspect',sys.argv[1]],stderr=subprocess.DEVNULL,text=True))[0]
+ values=[e.split('=',1)[1].lower() for e in x['Config'].get('Env',[]) if e.startswith('WEB_VAULT_ENABLED=')]
+ value=values[-1] if values else 'true'
+ print('closed' if value in ('false','0','no','off') else 'open' if value in ('true','1','yes','on') else 'unknown')
+except Exception:print('unknown')
+PY_WEB_STATE
+    )
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+        reset=$'\033[0m'
+        case $state in closed) color=$'\033[32m';; open) color=$'\033[31m';; *) color=$'\033[33m';; esac
+    fi
+    case $state in
+        closed) printf '8. Web网页访问密码库管理（%s关闭网页访问%s）\n' "$color" "$reset" ;;
+        open) printf '8. Web网页访问密码库管理（%s开启网页访问%s）\n' "$color" "$reset" ;;
+        *) printf '8. Web网页访问密码库管理（%s状态未知/未安装%s）\n' "$color" "$reset" ;;
+    esac
+}
+
+web_vault_menu() {
+    local choice enabled image answer
+    require_docker && container_exists || { echo '请先安装Vaultwarden。'; return 1; }
+    echo '1. 关闭Web密码库（WEB_VAULT_ENABLED=false）'
+    echo '2. 开启Web密码库（WEB_VAULT_ENABLED=true）'
+    echo '0. 返回'
+    echo '仅关闭网页密码库；API、客户端同步和/admin不因此关闭，不代替HTTPS或访问控制。'
+    IFS= read -r -p '请输入选项：' choice || return 0
+    case "$choice" in 1) enabled=false ;; 2) enabled=true ;; 0) return 0 ;; *) echo '无效选项'; return 1 ;; esac
+    echo '将使用当前镜像备份数据并重建容器，短暂中断服务，不拉取新版本。'
+    IFS= read -r -p '确认请输入小写yes：' answer || return 0
+    [[ $answer == yes ]] || return 0
+    image=$(docker inspect --format '{{.Image}}' "$CONTAINER") || return 1
+    update_app "$image" "$enabled" || return 1
+    python3 - "$CONTAINER" "$enabled" <<'PY_WEB_VERIFY'
+import json,subprocess,sys
+x=json.loads(subprocess.check_output(['docker','inspect',sys.argv[1]],text=True))[0]
+values=[v for v in x['Config'].get('Env',[]) if v.startswith('WEB_VAULT_ENABLED=')]
+if values!=['WEB_VAULT_ENABLED='+sys.argv[2]]:sys.exit('环境变量读回不一致，请检查容器')
+print('容器配置已验证：'+values[0]+'；请另行确认网页访问效果。')
+PY_WEB_VERIFY
+}
+
 show_menu() {
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
     echo "=================================="
@@ -895,6 +961,7 @@ show_menu() {
     show_registration_status inline
     echo "6. SSH 远程备份配置"
     echo "7. S3 API 兼容备份配置"
+    show_web_vault_action
     echo "9. 卸载"
     echo "------------------------"
     echo "21. 自己安装zaixiangjian/vaultwarden:latest"
@@ -964,11 +1031,12 @@ main() {
         case "$choice" in
             1) install_app "$OFFICIAL_IMAGE" ;;
             2) update_app "$OFFICIAL_IMAGE" ;;
-            3) backup_app ;;
+            3) ensure_web_closed && backup_app ;;
             4) restore_app ;;
             5) registration_menu ;;
             6) ssh_backup_menu ;;
             7) s3_backup_menu ;;
+            8) web_vault_menu ;;
             9) uninstall_app ;;
             21) install_app "$CUSTOM_IMAGE" ;;
             22) update_app "$CUSTOM_IMAGE" ;;
