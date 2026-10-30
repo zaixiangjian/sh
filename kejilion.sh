@@ -7909,27 +7909,8 @@ EOF
         ;;
 
       52)
-      docker_name="emby"
-      docker_img="emby/embyserver:latest"
-      docker_port=8096
-      docker_rum="docker run -d \
-              --name emby \
-              --restart=unless-stopped \
-              -v /home/docker/emby/config:/config \
-              -v /home/docker/emby/电影:/mnt/embydianying \
-              -v /home/docker/emby/电视剧:/mnt/embydianshiju \
-
-              -v /home/挂载/电视剧:/mnt/dianshiju \
-              -v /home/挂载/电影:/mnt/dianying \
-
-              -p 8096:8096 \
-              -p 8920:8920 \
-              emby/embyserver:latest"
-      docker_describe="Emby 媒体服务器，支持电影和电视剧挂载"
-      docker_url="官网介绍: https://emby.media/"
-      docker_use=""
-      docker_passwd=""
-      docker_app
+        run_local_first_app_script "▶️ 安装Emby..." "/root/yingyong/52Emby.sh" "https://raw.githubusercontent.com/zaixiangjian/sh/refs/heads/main/yingyong/52Emby.sh"
+        echo "✅ Emby 安装成功..."
         ;;
 
       53)
