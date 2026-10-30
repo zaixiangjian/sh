@@ -1,5 +1,5 @@
 #!/bin/bash
-sh_v="0.0.21"
+sh_v="0.0.22"
 
 bai='\033[0m'
 hui='\e[37m'
@@ -1848,122 +1848,138 @@ current_timezone() {
 
 
 set_timedate() {
-	shiqu="$1"
-	if grep -q 'Alpine' /etc/issue; then
-		install tzdata
-		cp /usr/share/zoneinfo/${shiqu} /etc/localtime
-		hwclock --systohc
-	else
-		timedatectl set-timezone ${shiqu}
-	fi
+  local shiqu="${1:-}"
+  # 限定为 zoneinfo 相对名称，拒绝空值、选项、路径穿越和多余参数。
+  if (( $# != 1 )) || [[ ! "$shiqu" =~ ^[A-Za-z0-9_][A-Za-z0-9_+-]*(/[A-Za-z0-9_][A-Za-z0-9_+-]*)*$ ]]; then
+    echo "时区参数无效，例如：Asia/Shanghai 或 UTC。" >&2
+    return 1
+  fi
+  if (( EUID != 0 )); then
+    echo "请以 root 身份设置时区。" >&2
+    return 1
+  fi
+
+  if [[ -f /etc/alpine-release ]]; then
+    if ! command -v apk >/dev/null 2>&1; then
+      echo "未找到 Alpine 包管理器 apk。" >&2
+      return 1
+    fi
+    apk add --no-cache tzdata || return 1
+    if [[ ! -f "/usr/share/zoneinfo/$shiqu" ]] ||
+       [[ "$(LC_ALL=C head -c 4 "/usr/share/zoneinfo/$shiqu" 2>/dev/null)" != TZif ]]; then
+      echo "不存在有效的时区数据：$shiqu" >&2
+      return 1
+    fi
+    # 先移除 localtime 链接，避免 cp 沿旧链接覆盖其他时区数据。
+    ln -sfn "/usr/share/zoneinfo/$shiqu" /etc/localtime || return 1
+    printf '%s\n' "$shiqu" > /etc/timezone || return 1
+    # 设置时区无需写硬件时钟，容器通常也没有 RTC。
+  else
+    if ! command -v timedatectl >/dev/null 2>&1; then
+      echo "未找到 timedatectl，无法设置系统时区。" >&2
+      return 1
+    fi
+    # 由 timedatectl 验证时区是否存在，并保留失败状态。
+    timedatectl set-timezone "$shiqu" || return 1
+  fi
+  return 0
 }
 
 
 wait_for_lock() {
-	while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-		echo "等待dpkg锁释放..."
-		sleep 1
-	done
+  local timeout="${1:-300}" start=$SECONDS
+  local locks=(/var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
+               /var/lib/apt/lists/lock /var/cache/apt/archives/lock)
+  [[ "$timeout" =~ ^[0-9]+$ ]] || return 1
+  if ! command -v fuser >/dev/null 2>&1; then
+    echo "提示：未安装 fuser，由包管理器自行检查锁。" >&2
+    return 0
+  fi
+  while fuser "${locks[@]}" >/dev/null 2>&1; do
+    if (( SECONDS - start >= timeout )); then
+      echo "等待软件包管理器锁超时，停止操作。" >&2
+      return 1
+    fi
+    echo "等待软件包管理器释放锁..."
+    sleep 2
+  done
 }
 
-# 修复dpkg中断问题
 fix_dpkg() {
-	DEBIAN_FRONTEND=noninteractive dpkg --configure -a
+  DEBIAN_FRONTEND=noninteractive dpkg --configure -a
 }
 
-
+_linux_require_root() {
+  if (( EUID != 0 )); then
+    echo "请以 root 身份运行。" >&2
+    return 1
+  fi
+}
 
 linux_update() {
-	echo -e "${gl_huang}正在系统更新...${gl_bai}"
-	if command -v dnf &>/dev/null; then
-		dnf -y update
-	elif command -v yum &>/dev/null; then
-		yum -y update
-	elif command -v apt &>/dev/null; then
-		wait_for_lock
-		fix_dpkg
-		DEBIAN_FRONTEND=noninteractive apt update -y
-		DEBIAN_FRONTEND=noninteractive apt full-upgrade -y
-	elif command -v apk &>/dev/null; then
-		apk update && apk upgrade
-	elif command -v pacman &>/dev/null; then
-		pacman -Syu --noconfirm
-	elif command -v zypper &>/dev/null; then
-		zypper refresh
-		zypper update
-	elif command -v opkg &>/dev/null; then
-		opkg update
-	else
-		echo "未知的包管理器!"
-		return
-	fi
+  _linux_require_root || return 1
+  echo -e "${gl_huang}正在系统更新...${gl_bai}"
+  if command -v dnf >/dev/null 2>&1; then
+    dnf -y update || return 1
+  elif command -v yum >/dev/null 2>&1; then
+    yum -y update || return 1
+  elif command -v apt-get >/dev/null 2>&1; then
+    wait_for_lock 300 || return 1
+    fix_dpkg || return 1
+    DEBIAN_FRONTEND=noninteractive apt-get \
+      -o DPkg::Lock::Timeout=300 -o APT::Update::Error-Mode=any update || return 1
+    # 常规升级，不自动移除已安装软件包。
+    DEBIAN_FRONTEND=noninteractive apt-get \
+      -o DPkg::Lock::Timeout=300 -y upgrade || return 1
+  elif command -v apk >/dev/null 2>&1; then
+    apk update || return 1
+    apk upgrade || return 1
+  elif command -v pacman >/dev/null 2>&1; then
+    pacman -Syu --noconfirm || return 1
+  elif command -v zypper >/dev/null 2>&1; then
+    zypper --non-interactive refresh || return 1
+    zypper --non-interactive update || return 1
+  elif command -v opkg >/dev/null 2>&1; then
+    opkg update || return 1
+    echo "软件包列表已刷新；未执行 OpenWrt 全量软件包升级。"
+    return 0
+  else
+    echo "未知的包管理器！" >&2
+    return 1
+  fi
+  echo "系统更新命令执行完成（可能仍有保留的软件包或需要重启）。"
+  return 0
 }
 
-
-
 linux_clean() {
-	echo -e "${gl_huang}正在系统清理...${gl_bai}"
-	if command -v dnf &>/dev/null; then
-		dnf autoremove -y
-		dnf clean all
-		dnf makecache
-		journalctl --rotate
-		journalctl --vacuum-time=1s
-		journalctl --vacuum-size=500M
-
-	elif command -v yum &>/dev/null; then
-		yum autoremove -y
-		yum clean all
-		yum makecache
-		journalctl --rotate
-		journalctl --vacuum-time=1s
-		journalctl --vacuum-size=500M
-
-	elif command -v apt &>/dev/null; then
-		wait_for_lock
-		fix_dpkg
-		apt autoremove --purge -y
-		apt clean -y
-		apt autoclean -y
-		journalctl --rotate
-		journalctl --vacuum-time=1s
-		journalctl --vacuum-size=500M
-
-	elif command -v apk &>/dev/null; then
-		echo "清理包管理器缓存..."
-		apk cache clean
-		echo "删除系统日志..."
-		rm -rf /var/log/*
-		echo "删除APK缓存..."
-		rm -rf /var/cache/apk/*
-		echo "删除临时文件..."
-		rm -rf /tmp/*
-
-	elif command -v pacman &>/dev/null; then
-		pacman -Rns $(pacman -Qdtq) --noconfirm
-		pacman -Scc --noconfirm
-		journalctl --rotate
-		journalctl --vacuum-time=1s
-		journalctl --vacuum-size=500M
-
-	elif command -v zypper &>/dev/null; then
-		zypper clean --all
-		zypper refresh
-		journalctl --rotate
-		journalctl --vacuum-time=1s
-		journalctl --vacuum-size=500M
-
-	elif command -v opkg &>/dev/null; then
-		echo "删除系统日志..."
-		rm -rf /var/log/*
-		echo "删除临时文件..."
-		rm -rf /tmp/*
-
-	else
-		echo "未知的包管理器!"
-		return
-	fi
-	return
+  _linux_require_root || return 1
+  echo -e "${gl_huang}正在清理软件包缓存...${gl_bai}"
+  # 只清包缓存，不卸载软件，不清日志和临时目录。
+  if command -v dnf >/dev/null 2>&1; then
+    dnf clean packages || return 1
+  elif command -v yum >/dev/null 2>&1; then
+    yum clean packages || return 1
+  elif command -v apt-get >/dev/null 2>&1; then
+    wait_for_lock 300 || return 1
+    apt-get -o DPkg::Lock::Timeout=300 clean || return 1
+  elif command -v apk >/dev/null 2>&1; then
+    apk cache clean || return 1
+  elif command -v pacman >/dev/null 2>&1; then
+    if command -v paccache >/dev/null 2>&1; then
+      paccache -rk2 || return 1
+    else
+      echo "未安装 paccache，跳过包缓存清理，保留回退所需的软件包。"
+    fi
+  elif command -v zypper >/dev/null 2>&1; then
+    zypper --non-interactive clean || return 1
+  elif command -v opkg >/dev/null 2>&1; then
+    echo "跳过 OpenWrt 缓存清理，不删除 /tmp 中的运行状态。"
+  else
+    echo "未知的包管理器！" >&2
+    return 1
+  fi
+  echo "清理完成：未卸载软件，未清理系统日志或临时目录。"
+  return 0
 }
 
 
@@ -5758,10 +5774,11 @@ linux_panel() {
     # ================= 动态检测已安装面板服务 =================
     declare -a installed_items=()
     # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
-    # 现在只执行一次 docker ps -a，把所有容器名缓存起来，后面用 grep 精确匹配。
-    local docker_container_list=""
+    # 一次读取容器名和镜像；包括已停止容器，不为每个应用重复查询 Docker。
+    local docker_container_list="" docker_container_records=""
     if command -v docker &>/dev/null; then
-        docker_container_list="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+        docker_container_records="$(docker ps -a --format '{{.Names}}\t{{.Image}}' 2>/dev/null || true)"
+        docker_container_list="$(printf '%s\n' "$docker_container_records" | cut -f1)"
     fi
     check_docker() {
         local num="$1"
@@ -5865,7 +5882,14 @@ linux_panel() {
     check_docker "69" "it-tools"
     check_docker "70" "pansou"
     check_docker "71" "zfile"
-    check_docker "72" "discourse"
+    # Discourse 官方 launcher 默认容器名为 app，按镜像识别，不能仅匹配通用名称 app。
+    if printf '%s\n' "$docker_container_list" | grep -Fxq 'discourse' ||
+       printf '%s\n' "$docker_container_records" | awk -F '\t' '
+         $2 ~ /^local_discourse\/[^\/:@]+([:@].*)?$/ { found=1 }
+         END { exit !found }
+       '; then
+        installed_items+=("72")
+    fi
     check_docker "73" "matrix-synapse-1"
     check_docker "74" "mattermost-mattermost-1"
     check_docker "75" "certimate"
