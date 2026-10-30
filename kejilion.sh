@@ -5770,11 +5770,9 @@ show_kejilion_update_status() {
 linux_panel() {
   while true; do
     clear
-    # send_stats "面板工具"
-    # ================= 动态检测已安装面板服务 =================
+    # Docker 项按运行中容器检测；非 Docker 项沿用各自的安装/配置检测。
     declare -a installed_items=()
-    # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
-    # 一次读取正在运行的容器名和镜像；已停止容器不标绿。
+    # 一次读取容器名和镜像，供所有 Docker 项复用。
     local docker_container_list="" docker_container_records=""
     if command -v docker &>/dev/null; then
         docker_container_records="$(docker ps --filter status=running --format '{{.Names}}\t{{.Image}}' 2>/dev/null || true)"
@@ -5971,7 +5969,7 @@ linux_panel() {
         printf '%s
 ' "${installed_items[@]}" | grep -qx "$num"
     }
-    # 面板菜单项染色：第2个参数保持原版显示；第3个参数只在已安装时整项变绿
+    # 命中检测条件时整项变绿，否则保留原样；不设置黄色停止状态。
     panel_menu_item_green_if_installed() {
         local num="$1"
         local normal_text="$2"
