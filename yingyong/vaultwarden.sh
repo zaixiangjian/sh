@@ -182,7 +182,7 @@ h, cfg = c['HostConfig'], c['Config']
 try:
     original_image = json.loads(subprocess.check_output(
         ['docker', 'image', 'inspect', c['Image']], stderr=subprocess.DEVNULL,
-        text=True))[0]['Config']
+        text=True, timeout=30))[0]['Config']
 except (subprocess.SubprocessError, OSError, ValueError, KeyError, IndexError):
     sys.exit('无法读取当前容器原镜像的默认启动配置，已取消更新。')
 networks = c.get('NetworkSettings', {}).get('Networks', {})
@@ -200,12 +200,11 @@ if policy == 'on-failure' and restart.get('MaximumRetryCount'):
 args += ['--restart', policy]
 web_enabled = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else 'false'
 for env in cfg.get('Env', []):
-    if web_enabled and env.startswith('WEB_VAULT_ENABLED='):
+    if env.startswith('WEB_VAULT_ENABLED='):
         continue
     if not env.startswith('SIGNUPS_ALLOWED='):
         args += ['-e', env]
-if web_enabled:
-    args += ['-e', 'WEB_VAULT_ENABLED=' + web_enabled]
+args += ['-e', 'WEB_VAULT_ENABLED=' + web_enabled]
 # 保留现有注册环境变量；config.json（如存在）仍优先覆盖。
 signups = next((e for e in cfg.get('Env', []) if e.startswith('SIGNUPS_ALLOWED=')), 'SIGNUPS_ALLOWED=false')
 args += ['-e', signups]
@@ -254,7 +253,7 @@ PY
     rm -rf -- "$tmp"
     if [[ -z $web_enabled ]]; then docker pull "$image" || return 1; fi
     old="$(docker inspect --format '{{.Image}}' "$CONTAINER")" || return 1
-    backup_app || { echo "更新前完整数据备份失败，已取消更新。"; return 1; }
+    backup_app_unlocked || { echo "重建前完整数据备份失败，已取消操作。"; return 1; }
     local data_backup
     data_backup="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["archive"])' "$INSTALL_DIR/backup-db-baseline.json")" || return 1
     echo "更新前完整数据备份：$data_backup"
@@ -266,9 +265,22 @@ PY
         return 1
     fi
     if docker "${args[@]}" && verify_running; then
-        echo "更新完成：$image；Vaultwarden 已启动。"
-        echo "旧容器：$backup；旧镜像：$old；完整数据备份：$data_backup"
+        if [[ -n $web_enabled ]]; then
+            docker rm "$backup" || { echo '设置已应用，但本次临时旧容器清理失败。'; return 1; }
+            echo "Web密码库设置已应用；完整数据备份：$data_backup"
+        else
+            echo "更新完成：$image；Vaultwarden 已启动。"
+            echo "旧容器：$backup；旧镜像：$old；完整数据备份：$data_backup"
+        fi
         return 0
+    fi
+    if [[ -n $web_enabled ]]; then
+        # 同镜像开关重建可以安全恢复旧容器，不涉及版本/数据库降级。
+        if container_exists; then docker rm -f "$CONTAINER" || return 1; fi
+        docker rename "$backup" "$CONTAINER" || return 1
+        docker start "$CONTAINER" >/dev/null || return 1
+        echo 'Web开关应用失败，已恢复原容器。'
+        return 1
     fi
     echo "更新失败；可能已迁移数据库，不自动回退旧镜像或数据库。"
     echo "完整数据备份：$data_backup；旧容器：$backup。请人工选择匹配版本恢复。"
@@ -280,7 +292,7 @@ uninstall_app_unlocked() {
     require_docker || return 1
     container_exists || { echo "未找到容器，未删除安装目录。"; return 1; }
     echo "正在打包"
-    backup_app || { echo "备份失败，禁止卸载。"; return 1; }
+    backup_app_unlocked || { echo "备份失败，禁止卸载。"; return 1; }
     archive="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["archive"])' "$INSTALL_DIR/backup-db-baseline.json")" || return 1
     echo "打包成功尝试传送：$archive"
     if ! /usr/bin/python3 /root/yingyong/vaultwarden-final-send.py "$archive"; then
@@ -494,6 +506,8 @@ restore_app_unlocked() {
     mkdir -p "$(dirname "$INSTALL_DIR")" || return 1
     stage="$(mktemp -d "${INSTALL_DIR}.restore-stage.XXXXXX")" || return 1
     if ! extract_backup "$selected" "$stage"; then rm -rf -- "$stage"; return 1; fi
+    # 恢复安全策略：配置文件优先于环境变量，必须覆盖旧备份中的注册开关及白名单。
+    if ! restore_disable_registration "$stage/data/config.json"; then rm -rf -- "$stage"; return 1; fi
     if [[ $fresh != yes ]]; then
         if ! ensure_web_closed update_app_unlocked; then rm -rf -- "$stage"; return 1; fi
     fi
@@ -570,6 +584,29 @@ restore_app_unlocked() {
     docker start "$CONTAINER" >/dev/null && verify_running || { echo "原数据已恢复，但容器启动失败。"; return 1; }
     echo "恢复失败，已回滚原数据；失败数据保留位置：$failed"
     return 1
+}
+
+restore_disable_registration() {
+    python3 - "$1" <<'PY_RESTORE_REG'
+import json,os,sys,tempfile
+from pathlib import Path
+p=Path(sys.argv[1])
+if p.is_symlink():sys.exit('恢复配置不能为符号链接')
+cfg=json.loads(p.read_text()) if p.exists() else {}
+if not isinstance(cfg,dict):sys.exit('恢复配置格式无效')
+st=p.stat() if p.exists() else p.parent.stat()
+cfg['signups_allowed']=False
+cfg['signups_domains_whitelist']=''
+fd,tmp=tempfile.mkstemp(prefix='.restore-registration-',dir=p.parent)
+try:
+ with os.fdopen(fd,'w') as f:
+  os.fchown(f.fileno(),st.st_uid,st.st_gid)
+  os.fchmod(f.fileno(),(st.st_mode & 0o777) if p.exists() else 0o600)
+  json.dump(cfg,f,ensure_ascii=False,indent=2);f.flush();os.fsync(f.fileno())
+ os.replace(tmp,p)
+finally:
+ if os.path.exists(tmp):os.unlink(tmp)
+PY_RESTORE_REG
 }
 
 registration_config() {
@@ -890,9 +927,10 @@ s3_backup_menu() {
 
 ensure_web_closed() {
     local image value
+    require_docker || return 1
     container_exists || return 0
     value=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER" | python3 -c 'import sys; v=[s.strip().split("=",1)[1].lower() for s in sys.stdin if s.startswith("WEB_VAULT_ENABLED=")]; print(v[-1] if v else "true")') || return 1
-    [[ $value == false ]] && return 0
+    [[ $value == false || $value == 0 || $value == no || $value == off ]] && return 0
     echo '默认安全策略：使用当前镜像关闭Web密码库，将备份并重建容器。'
     image=$(docker inspect --format '{{.Image}}' "$CONTAINER") || return 1
     "${1:-update_app}" "$image" false
@@ -924,10 +962,16 @@ PY_WEB_STATE
 web_vault_menu() {
     local choice enabled image answer
     require_docker && container_exists || { echo '请先安装Vaultwarden。'; return 1; }
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
+    echo '=================================='
+    echo 'Web网页访问密码库管理'
+    echo '仅关闭网页密码库；API、客户端同步和/admin不因此关闭，不代替HTTPS或访问控制。'
+    echo '=================================='
     echo '1. 关闭Web密码库（WEB_VAULT_ENABLED=false）'
     echo '2. 开启Web密码库（WEB_VAULT_ENABLED=true）'
+    echo '------------------------'
     echo '0. 返回'
-    echo '仅关闭网页密码库；API、客户端同步和/admin不因此关闭，不代替HTTPS或访问控制。'
+    echo '------------------------'
     IFS= read -r -p '请输入选项：' choice || return 0
     case "$choice" in 1) enabled=false ;; 2) enabled=true ;; 0) return 0 ;; *) echo '无效选项'; return 1 ;; esac
     echo '将使用当前镜像备份数据并重建容器，短暂中断服务，不拉取新版本。'
