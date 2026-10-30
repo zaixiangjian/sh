@@ -8,19 +8,19 @@ website_backup_menu() {
     local choice
     local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
     export WEB_CONNECTION_SESSION
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py install-cron >/dev/null || echo '网站调度修复异常' >&2
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py probe || echo '连接检测异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-web.py install-cron >/dev/null || echo '网站调度修复异常' >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-web.py probe || echo '连接检测异常'
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
         echo "=================================="
         echo "        网站备份（/home/web）"
         echo "=================================="
-        /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py summary || echo "任务检测异常"
+        /usr/bin/python3 /root/yingyong/beifenhebing-web.py summary || echo "任务检测异常"
         echo "=================================="
         echo "1. 网站备份"
         echo "2. 备份传送"
         echo "3. S3 API兼容备份配置"
-        echo "4. 全局控制（$(/usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py mode-label)）"
+        echo "4. 全局控制（$(/usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-label)）"
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then printf '\033[33m6. 本地定时备份到指定目录\033[0m\n'; else echo '6. 本地定时备份到指定目录'; fi
         echo "7. 测试连接"
         echo "8. 执行某个任务"
@@ -29,14 +29,14 @@ website_backup_menu() {
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
-            1) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py create ;;
-            2) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py create-transfer ;;
-            3) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py create-s3 ;;
-            4) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py mode-control ;;
+            1) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create ;;
+            2) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create-transfer ;;
+            3) /usr/bin/python3 /root/yingyong/beifenhebing-web.py create-s3 ;;
+            4) /usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-control ;;
             6) web_local_menu website; continue ;;
-            7) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py select-test ;;
-            8) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py select-run ;;
-            9) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py select-delete ;;
+            7) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-test ;;
+            8) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-run ;;
+            9) /usr/bin/python3 /root/yingyong/beifenhebing-web.py select-delete ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
         esac
@@ -48,19 +48,19 @@ forum_backup_menu() {
     local choice
     local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
     export WEB_CONNECTION_SESSION
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py install-cron >/dev/null || echo '论坛调度修复异常'
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py probe || echo '连接检测异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py install-cron >/dev/null || echo '论坛调度修复异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py probe || echo '连接检测异常'
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
         echo "=================================="
         echo "        论坛备份（/var/discourse）"
         echo "=================================="
-        /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py summary || echo "任务检测异常"
+        /usr/bin/python3 /root/yingyong/beifenhebing-forum.py summary || echo "任务检测异常"
         echo "=================================="
         echo "1. 论坛全量备份"
         echo "2. 论坛全量传送"
         echo "3. 论坛全量传送S3 API兼容备份配置"
-        echo "4. 全局控制（$(/usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py mode-label)）"
+        echo "4. 全局控制（$(/usr/bin/python3 /root/yingyong/beifenhebing-forum.py mode-label)）"
         echo "5. 论坛全量备份恢复（从 /home 检测备份）"
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then printf '\033[33m6. 本地定时备份到指定目录\033[0m\n'; else echo '6. 本地定时备份到指定目录'; fi
         echo "7. 测试连接"
@@ -72,15 +72,15 @@ forum_backup_menu() {
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
-            1) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py create ;;
-            2) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py create-transfer ;;
-            3) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py create-s3 ;;
+            1) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create ;;
+            2) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-transfer ;;
+            3) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py create-s3 ;;
             5) forum_restore ;;
-            4) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py mode-control ;;
+            4) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py mode-control ;;
             6) web_local_menu forum; continue ;;
-            7) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py select-test ;;
-            8) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py select-run ;;
-            9) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py select-delete ;;
+            7) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-test ;;
+            8) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-run ;;
+            9) /usr/bin/python3 /root/yingyong/beifenhebing-forum.py select-delete ;;
             99) forum_extract_backup ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
@@ -93,14 +93,14 @@ forum_generated_menu() {
     local choice
     local WEB_CONNECTION_SESSION=menu-${BASHPID}-${RANDOM}
     export WEB_CONNECTION_SESSION
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py install-cron >/dev/null || echo '论坛调度修复异常'
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py probe || echo '连接检测异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-generated.py install-cron >/dev/null || echo '论坛调度修复异常'
+    /usr/bin/python3 /root/yingyong/beifenhebing-generated.py probe || echo '连接检测异常'
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
         echo "=================================="
         echo "        论坛内部生成备份传送"
         echo "=================================="
-        /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py summary || echo "任务检测异常"
+        /usr/bin/python3 /root/yingyong/beifenhebing-generated.py summary || echo "任务检测异常"
         echo "=================================="
         echo "1. 论坛内部生成备份传送"
         echo "2. 论坛内部生成备份S3 API兼容备份配置"
@@ -111,11 +111,11 @@ forum_generated_menu() {
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
-            1) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py create-transfer ;;
-            2) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py create-s3 ;;
-            7) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py select-test ;;
-            8) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py select-run ;;
-            9) /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py select-delete ;;
+            1) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py create-transfer ;;
+            2) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py create-s3 ;;
+            7) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py select-test ;;
+            8) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py select-run ;;
+            9) /usr/bin/python3 /root/yingyong/beifenhebing-generated.py select-delete ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
         esac
@@ -165,7 +165,7 @@ import importlib.util,sys
 from pathlib import Path
 modules=[]
 for mode in ('sync','keep'):
-    path=Path('/root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-'+mode+'.py')
+    path=Path('/root/yingyong/beifenhebing-local-'+mode+'.py')
     spec=importlib.util.spec_from_file_location('overview_'+mode,path)
     module=importlib.util.module_from_spec(spec);sys.modules[spec.name]=module;spec.loader.exec_module(module)
     modules.append(module)
@@ -191,8 +191,8 @@ local_archive_menu() {
     local choice
     local WEB_CONNECTION_SESSION=local-overview-${BASHPID}-${RANDOM}
     export WEB_CONNECTION_SESSION
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-sync.py probe || echo "同步任务连接检测异常"
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-keep.py probe || echo "传送任务连接检测异常"
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-sync.py probe || echo "同步任务连接检测异常"
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-keep.py probe || echo "传送任务连接检测异常"
     while true; do
         if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then clear; fi
         echo "=================================="
@@ -206,8 +206,8 @@ local_archive_menu() {
         echo "0. 返回上一级"
         IFS= read -r -p "请输入选项：" choice || return 0
         case "$choice" in
-            1) local_archive_mode_menu /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-sync.py '本地归档同步传送（删除远端多余归档）' ;;
-            2) local_archive_mode_menu /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-keep.py '本地归档传送（不删除远端）' ;;
+            1) local_archive_mode_menu /root/yingyong/beifenhebing-local-sync.py '本地归档同步传送（删除远端多余归档）' ;;
+            2) local_archive_mode_menu /root/yingyong/beifenhebing-local-keep.py '本地归档传送（不删除远端）' ;;
             0) return 0 ;;
             *) echo "无效选项。" ;;
         esac
@@ -221,16 +221,16 @@ show_menu() {
     echo "明文任务配置、定时备份及文件变化监控传送"
     echo "=================================="
     echo "网站备份任务 详情进入 1 查看"
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py count || echo "任务检测异常"
+    /usr/bin/python3 /root/yingyong/beifenhebing-web.py count || echo "任务检测异常"
     echo "论坛备份任务 详情进入 2 查看"
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py count || echo "任务检测异常"
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py count || echo "任务检测异常"
     echo "论坛生成备份传送 详情进入 3 查看"
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py count || echo "任务检测异常"
+    /usr/bin/python3 /root/yingyong/beifenhebing-generated.py count || echo "任务检测异常"
     echo "只传送本地*.tar.gz（home/备份）详情进入 99 查看"
     local_archive_overview count || echo "任务检测异常"
     echo "=================================="
-      echo "1. 网站备份（/home/web）（$(/usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py mode-label)）"
-      echo "2. 论坛备份（/var/discourse）（$(/usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py mode-label)）"
+      echo "1. 网站备份（/home/web）（$(/usr/bin/python3 /root/yingyong/beifenhebing-web.py mode-label)）"
+      echo "2. 论坛备份（/var/discourse）（$(/usr/bin/python3 /root/yingyong/beifenhebing-forum.py mode-label)）"
       echo "------------------------"
       echo "3. 论坛生成备份传送"
       echo "------------------------"
@@ -249,7 +249,7 @@ import os,sys,tarfile,gzip,tempfile,shutil,importlib.util
 from pathlib import Path
 sys.stdin=os.fdopen(3)
 target=Path('/var/discourse')
-spec=importlib.util.spec_from_file_location('forum_extract_engine','/root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py')
+spec=importlib.util.spec_from_file_location('forum_extract_engine','/root/yingyong/beifenhebing-forum.py')
 e=importlib.util.module_from_spec(spec);sys.modules[spec.name]=e;spec.loader.exec_module(e)
 roots=[Path(c['local_dir']) for _,c in e.configs() if c.get('mode','backup')=='backup']
 roots += [Path('/home')]
@@ -398,11 +398,11 @@ main() {
     web_local_context website; bsl_engine repair >/dev/null || echo "网站本地调度修复异常" >&2
     web_local_context forum; bsl_engine repair >/dev/null || echo "论坛本地调度修复异常" >&2
     repair_dependencies || { echo "依赖自动修复失败，请处理以上错误后重试。" >&2; return 1; }
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py install-cron >/dev/null || echo "网站备份定时任务检测异常，未覆盖其他任务。" >&2
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-forum.py install-cron >/dev/null || echo "论坛调度修复异常" >&2
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-generated.py install-cron >/dev/null || echo "论坛生成备份传送调度修复异常" >&2
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-sync.py install-cron >/dev/null || echo "本地同步调度修复异常" >&2
-    /usr/bin/python3 /root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-local-keep.py install-cron >/dev/null || echo "本地传送调度修复异常" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-web.py install-cron >/dev/null || echo "网站备份定时任务检测异常，未覆盖其他任务。" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-forum.py install-cron >/dev/null || echo "论坛调度修复异常" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-generated.py install-cron >/dev/null || echo "论坛生成备份传送调度修复异常" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-sync.py install-cron >/dev/null || echo "本地同步调度修复异常" >&2
+    /usr/bin/python3 /root/yingyong/beifenhebing-local-keep.py install-cron >/dev/null || echo "本地传送调度修复异常" >&2
     while true; do
         show_menu
         IFS= read -r -p "请输入选项：" choice || { echo "已退出"; return 0; }
@@ -1017,7 +1017,7 @@ def backup_local(prefix):
 
 ROOT = Path('/home/web/beifen/tasks')
 SOURCE = Path('/home/web')
-ENGINE = Path('/root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py')
+ENGINE = Path('/root/yingyong/beifenhebing-web.py')
 BEGIN = '# 网站备份 /home/web （勿删）'
 END = '# 网站备份 /home/web 结束（勿删）'
 OLD_BEGIN = '# BEGIN beifenhebing-web managed'
@@ -2045,7 +2045,7 @@ S3_MULTIPART_CHUNK_MB = 8
 S3_UPLOAD_CONCURRENCY = 2
 SERVICE = 'beifenhebing-web-s3.service'
 SERVICE_FILE = Path('/etc/systemd/system') / SERVICE
-ENGINE = Path('/root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-web.py')
+ENGINE = Path('/root/yingyong/beifenhebing-web.py')
 
 
 def engine():
@@ -2508,7 +2508,7 @@ bsl_produce() (
     python3 - "$BSL_CATEGORY" "$BSL_DEST" "$BSL_KEEP" "$BSL_PREFIX" <<'PY_WEB_LOCAL'
 import importlib.util,pathlib,sys,os,gzip,tarfile
 category,dest,keep,prefix=sys.argv[1:]
-p=pathlib.Path('/root/.hermes/cache/scratch/tmpwt4x1cr2/beifenhebing-'+('web' if category=='website' else 'forum')+'.py')
+p=pathlib.Path('/root/yingyong/beifenhebing-'+('web' if category=='website' else 'forum')+'.py')
 spec=importlib.util.spec_from_file_location('local_backup_native',p);e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e)
 root=e.local_path(dest);root.mkdir(parents=True,exist_ok=True,mode=0o700)
 if root==e.SOURCE or e.SOURCE in root.parents:raise ValueError('归档目录不能位于备份源内')

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # SSH 只投递备份：独立 SSH 服务；安装操作仅在明确选择后执行。
 set -euo pipefail
+# 修改此处统一设置新增A任务及首次B安装的默认端口（不迁移现有配置）。
+SSH_BACKUP_PORT=22222
+export SBR_DEFAULT_PORT="$SSH_BACKUP_PORT"
 if ! command -v python3 >/dev/null 2>&1; then
     if [[ $EUID -ne 0 ]] || ! command -v apt-get >/dev/null 2>&1; then
         printf '%s\n' '需要 Python 3；请以 root 在 Debian/Ubuntu 安装 python3。' >&2
@@ -73,7 +76,8 @@ def write(path, data, mode=0o600):
         if os.path.exists(tmp): os.unlink(tmp)
 
 def configs():
-    return sorted(BASE.glob('sbr_*.json'))
+    # Only exact login-account names are configs; .budget/.admission are runtime state.
+    return sorted(p for p in BASE.glob('sbr_*.json') if NAME.fullmatch(p.stem))
 
 def load(user):
     if not NAME.fullmatch(user): raise ValueError('非法投递账号')
@@ -99,162 +103,186 @@ def receive(user=None):
     c=load(user)
     dest=secure_dir(c['path'])
     os.umask(0o077)
-    # 全局单上传：对不同账号同样生效；探测也受限，防认证后进程堆积。
-    with open(BASE/'receive-global.lock','a') as guard:
+    # 每账号最多一个接收；空闲客户端不能占住其他账号的接收锁。
+    with open(BASE/(user+'.receive.lock'),'a') as guard:
         try: fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except BlockingIOError: raise ValueError('接收端忙，请稍后重试')
-        incoming=secure_dir(dest/'.incoming',True)
-        # 兼容旧接收器；有旧上传持锁则拒绝切换。
-        with open(incoming/'lock','a') as oldlock:
-            fcntl.flock(oldlock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            for stale in incoming.glob('upload-*'):
-                s=stale.lstat()
-                if stat.S_ISREG(s.st_mode) and s.st_uid==0: stale.unlink()
-            used=0;count=0;existing_sizes={}
-            for p in dest.iterdir():
-                if p.name=='.incoming': continue
-                s=p.lstat()
-                if not stat.S_ISREG(s.st_mode): raise ValueError('归档区存在非普通文件')
-                used+=s.st_size;count+=1;existing_sizes[p.name]=s.st_size
-            space=shutil.disk_usage(dest)
-            reserve=max(c.get('reserve_bytes',2*1024**3),int(space.total*.1))
-            free_budget=max(0,space.free-reserve)
+        except BlockingIOError: raise ValueError('该账号正在接收，请稍后重试')
+        # 限制连续重新连接；只存服务端时间，不接受客户端计数。
+        import time
+        ratepath=BASE/(user+'.admission.json')
+        now=time.time()
+        previous=json.loads(ratepath.read_text()) if ratepath.exists() else {}
+        if 0<=now-previous.get('started',0)<c.get('receive_min_interval',5):
+            raise ValueError('该账号连接过于频繁，请稍后重试')
+        write(ratepath,json.dumps({'started':now}))
+        # 有界全服务接收槽；不等待锁，避免无限排队/进程堆积。
+        slot=None
+        for index in range(4):
+            candidate=open(BASE/('receive-slot-'+str(index)+'.lock'),'a')
+            try: fcntl.flock(candidate,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:
+                candidate.close();continue
+            slot=candidate;break
+        if slot is None: raise ValueError('接收端并发已满，请稍后重试')
+        try:
+            return receive_account_locked(user,account,c,dest)
+        finally:slot.close()
+
+
+def receive_account_locked(user,account,c,dest):
+    import resource,ctypes
+    incoming=secure_dir(dest/'.incoming',True)
+    # 兼容旧接收器；有旧上传持锁则拒绝切换。
+    with open(incoming/'lock','a') as oldlock:
+        fcntl.flock(oldlock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        for stale in incoming.glob('upload-*'):
+            s=stale.lstat()
+            if stat.S_ISREG(s.st_mode) and s.st_uid==0: stale.unlink()
+        used=0;count=0;existing_sizes={}
+        for p in dest.iterdir():
+            if p.name=='.incoming': continue
+            s=p.lstat()
+            if not stat.S_ISREG(s.st_mode): raise ValueError('归档区存在非普通文件')
+            used+=s.st_size;count+=1;existing_sizes[p.name]=s.st_size
+        space=shutil.disk_usage(dest)
+        reserve=max(c.get('reserve_bytes',2*1024**3),int(space.total*.1))
+        free_budget=max(0,space.free-reserve)
+        statepath=BASE/(user+'.budget.json')
+        budget=json.loads(statepath.read_text()) if statepath.exists() else {}
+        day=datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        if budget.get('day')!=day:budget={'day':day,'bytes':0,'files':0}
+        remaining_bytes=max(0,c.get('daily_bytes',c['max_total'])-budget['bytes'])
+        remaining_files=max(0,c.get('daily_files',100)-budget['files'])
+        fd,tmp=tempfile.mkstemp(prefix='upload-',dir=incoming)
+        r,w=os.pipe()
+        pid=None
+        try:
+            pid=os.fork()
+            if pid==0:
+                try:
+                    os.close(r)
+                    # 空根目录，无程序、网络凭据或历史归档；唯一可写对象为继承的临时文件。
+                    jail=secure_dir(BASE/'empty-jail',True)
+                    os.chroot(jail);os.chdir('/')
+                    os.setgroups([]);os.setgid(account.pw_gid);os.setuid(account.pw_uid)
+                    if ctypes.CDLL(None).prctl(38,1,0,0,0)!=0: os._exit(90)
+                    keep={0,1,2,fd,w}
+                    for n in range(3, min(resource.getrlimit(resource.RLIMIT_NOFILE)[0],65536)):
+                        if n not in keep:
+                            try:os.close(n)
+                            except OSError:pass
+                    resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+                    resource.setrlimit(resource.RLIMIT_FSIZE,(c['max_file'],c['max_file']))
+                    resource.setrlimit(resource.RLIMIT_AS,(256*1024**2,256*1024**2))
+                    resource.setrlimit(resource.RLIMIT_CPU,(120,120))
+                    resource.setrlimit(resource.RLIMIT_NOFILE,(32,32))
+                    resource.setrlimit(resource.RLIMIT_NPROC,(0,0))
+                    def expired(*_):raise TimeoutError('接收超时')
+                    signal.signal(signal.SIGALRM,expired);signal.alarm(30)
+                    stream=sys.stdin.buffer;line=stream.readline(4097)
+                    if len(line)>4096 or not line.endswith(b'\n'): raise ValueError('无效协议头')
+                    h=json.loads(line)
+                    if isinstance(h,dict) and set(h)=={'version','action','nonce'} and h['version']==1 and h['action'] in ('probe','info'):
+                        if not isinstance(h['nonce'],str) or not re.fullmatch('[0-9a-f]{32}',h['nonce']):raise ValueError('编号无效')
+                        result={'probe':h['nonce']}
+                        if h['action']=='info':result['info']=True
+                    else:
+                        if not isinstance(h,dict) or set(h)!={'version','name','size','sha256','nonce'}:raise ValueError('无效协议字段')
+                        name,size,sha,nonce=h['name'],h['size'],h['sha256'],h['nonce']
+                        if type(h['version']) is not int or h['version']!=1 or not isinstance(name,str) or not FILE.fullmatch(name) or name.startswith('.') or len(name.encode())>240:raise ValueError('文件名无效')
+                        if type(size) is not int or not 0<size<=c['max_file']:raise ValueError('文件过大')
+                        if not isinstance(sha,str) or not re.fullmatch('[0-9a-f]{64}',sha) or not isinstance(nonce,str) or not re.fullmatch('[0-9a-f]{32}',nonce):raise ValueError('摘要或编号无效')
+                        retry=name in existing_sizes and existing_sizes[name]==size
+                        if not retry and (used+size>c['max_total'] or count>=c.get('max_files',10000)):raise ValueError('归档配额不足，不删除历史备份')
+                        if size>free_budget:raise ValueError('磁盘安全余量不足')
+                        if not retry and (size>remaining_bytes or remaining_files<1):raise ValueError('B端每日额度不足')
+                        signal.alarm(c['timeout'])
+                        with os.fdopen(fd,'wb',closefd=False) as out:
+                            left=size
+                            while left:
+                                block=stream.read(min(left,1024*1024))
+                                if not block:raise ValueError('数据不足')
+                                space_now=os.fstatvfs(fd)
+                                if space_now.f_bavail*space_now.f_frsize<len(block)+reserve:raise ValueError('磁盘安全余量不足')
+                                out.write(block);left-=len(block)
+                            if stream.read(1):raise ValueError('数据过长')
+                            out.flush();os.fsync(fd)
+                        result=h
+                    encoded=json.dumps(result).encode()
+                    if len(encoded)>4096:raise ValueError('回执过长')
+                    os.write(w,encoded);os._exit(0)
+                except BaseException:
+                    os._exit(91)
+            os.close(w);w=None
+            _,status=os.waitpid(pid,0);pid=None
+            raw=os.read(r,4097)
+            if status!=0:raise ValueError('受限接收失败：协议、配额、超时或数据异常')
+            h=json.loads(raw)
+            if set(h) in ({'probe'},{'probe','info'}) and re.fullmatch('[0-9a-f]{32}',h['probe']):
+                response={'version':1,'status':'ready','nonce':h['probe'],'protocol':'backup-put-v1','verification':'sha256-readback','history_readable':False}
+                if h.get('info') is True:response['target']=str(dest)
+                print(json.dumps(response),flush=True)
+                return
+            # 不能信任降权子进程：归档监督器再次检查所有输出及真实文件。
+            if set(h)!={'version','name','size','sha256','nonce'}:raise ValueError('内部协议异常')
+            name,size,sha,nonce=h['name'],h['size'],h['sha256'],h['nonce']
+            if type(h['version']) is not int or h['version']!=1 or not isinstance(name,str) or not FILE.fullmatch(name) or name.startswith('.') or len(name.encode())>240:raise ValueError('文件名无效')
+            if type(size) is not int or not 0<size<=c['max_file']:raise ValueError('配额不足')
+            if not isinstance(sha,str) or not re.fullmatch('[0-9a-f]{64}',sha) or not isinstance(nonce,str) or not re.fullmatch('[0-9a-f]{32}',nonce):raise ValueError('摘要/编号无效')
+            reserve=max(c.get('reserve_bytes',2*1024**3),int(shutil.disk_usage(dest).total*.1))
+            if shutil.disk_usage(dest).free<reserve:raise ValueError('磁盘安全余量不足，拒绝归档，不删除历史备份')
             statepath=BASE/(user+'.budget.json')
             budget=json.loads(statepath.read_text()) if statepath.exists() else {}
             day=datetime.now(timezone.utc).strftime('%Y-%m-%d')
             if budget.get('day')!=day:budget={'day':day,'bytes':0,'files':0}
-            remaining_bytes=max(0,c.get('daily_bytes',c['max_total'])-budget['bytes'])
-            remaining_files=max(0,c.get('daily_files',100)-budget['files'])
-            fd,tmp=tempfile.mkstemp(prefix='upload-',dir=incoming)
-            r,w=os.pipe()
-            pid=None
-            try:
-                pid=os.fork()
-                if pid==0:
-                    try:
-                        os.close(r)
-                        # 空根目录，无程序、网络凭据或历史归档；唯一可写对象为继承的临时文件。
-                        jail=secure_dir(BASE/'empty-jail',True)
-                        os.chroot(jail);os.chdir('/')
-                        os.setgroups([]);os.setgid(account.pw_gid);os.setuid(account.pw_uid)
-                        if ctypes.CDLL(None).prctl(38,1,0,0,0)!=0: os._exit(90)
-                        keep={0,1,2,fd,w}
-                        for n in range(3, min(resource.getrlimit(resource.RLIMIT_NOFILE)[0],65536)):
-                            if n not in keep:
-                                try:os.close(n)
-                                except OSError:pass
-                        resource.setrlimit(resource.RLIMIT_CORE,(0,0))
-                        resource.setrlimit(resource.RLIMIT_FSIZE,(c['max_file'],c['max_file']))
-                        resource.setrlimit(resource.RLIMIT_AS,(256*1024**2,256*1024**2))
-                        resource.setrlimit(resource.RLIMIT_CPU,(120,120))
-                        resource.setrlimit(resource.RLIMIT_NOFILE,(32,32))
-                        resource.setrlimit(resource.RLIMIT_NPROC,(0,0))
-                        def expired(*_):raise TimeoutError('接收超时')
-                        signal.signal(signal.SIGALRM,expired);signal.alarm(30)
-                        stream=sys.stdin.buffer;line=stream.readline(4097)
-                        if len(line)>4096 or not line.endswith(b'\n'): raise ValueError('无效协议头')
-                        h=json.loads(line)
-                        if isinstance(h,dict) and set(h)=={'version','action','nonce'} and h['version']==1 and h['action'] in ('probe','info'):
-                            if not isinstance(h['nonce'],str) or not re.fullmatch('[0-9a-f]{32}',h['nonce']):raise ValueError('编号无效')
-                            result={'probe':h['nonce']}
-                            if h['action']=='info':result['info']=True
-                        else:
-                            if not isinstance(h,dict) or set(h)!={'version','name','size','sha256','nonce'}:raise ValueError('无效协议字段')
-                            name,size,sha,nonce=h['name'],h['size'],h['sha256'],h['nonce']
-                            if type(h['version']) is not int or h['version']!=1 or not isinstance(name,str) or not FILE.fullmatch(name) or name.startswith('.') or len(name.encode())>240:raise ValueError('文件名无效')
-                            if type(size) is not int or not 0<size<=c['max_file']:raise ValueError('文件过大')
-                            if not isinstance(sha,str) or not re.fullmatch('[0-9a-f]{64}',sha) or not isinstance(nonce,str) or not re.fullmatch('[0-9a-f]{32}',nonce):raise ValueError('摘要或编号无效')
-                            retry=name in existing_sizes and existing_sizes[name]==size
-                            if not retry and (used+size>c['max_total'] or count>=c.get('max_files',10000)):raise ValueError('归档配额不足，不删除历史备份')
-                            if size>free_budget:raise ValueError('磁盘安全余量不足')
-                            if not retry and (size>remaining_bytes or remaining_files<1):raise ValueError('B端每日额度不足')
-                            signal.alarm(c['timeout'])
-                            with os.fdopen(fd,'wb',closefd=False) as out:
-                                left=size
-                                while left:
-                                    block=stream.read(min(left,1024*1024))
-                                    if not block:raise ValueError('数据不足')
-                                    space_now=os.fstatvfs(fd)
-                                    if space_now.f_bavail*space_now.f_frsize<len(block)+reserve:raise ValueError('磁盘安全余量不足')
-                                    out.write(block);left-=len(block)
-                                if stream.read(1):raise ValueError('数据过长')
-                                out.flush();os.fsync(fd)
-                            result=h
-                        encoded=json.dumps(result).encode()
-                        if len(encoded)>4096:raise ValueError('回执过长')
-                        os.write(w,encoded);os._exit(0)
-                    except BaseException:
-                        os._exit(91)
-                os.close(w);w=None
-                _,status=os.waitpid(pid,0);pid=None
-                raw=os.read(r,4097)
-                if status!=0:raise ValueError('受限接收失败：协议、配额、超时或数据异常')
-                h=json.loads(raw)
-                if set(h) in ({'probe'},{'probe','info'}) and re.fullmatch('[0-9a-f]{32}',h['probe']):
-                    response={'version':1,'status':'ready','nonce':h['probe'],'protocol':'backup-put-v1','verification':'sha256-readback','history_readable':False}
-                    if h.get('info') is True:response['target']=str(dest)
-                    print(json.dumps(response),flush=True)
-                    return
-                # 不能信任降权子进程：归档监督器再次检查所有输出及真实文件。
-                if set(h)!={'version','name','size','sha256','nonce'}:raise ValueError('内部协议异常')
-                name,size,sha,nonce=h['name'],h['size'],h['sha256'],h['nonce']
-                if type(h['version']) is not int or h['version']!=1 or not isinstance(name,str) or not FILE.fullmatch(name) or name.startswith('.') or len(name.encode())>240:raise ValueError('文件名无效')
-                if type(size) is not int or not 0<size<=c['max_file']:raise ValueError('配额不足')
-                if not isinstance(sha,str) or not re.fullmatch('[0-9a-f]{64}',sha) or not isinstance(nonce,str) or not re.fullmatch('[0-9a-f]{32}',nonce):raise ValueError('摘要/编号无效')
-                reserve=max(c.get('reserve_bytes',2*1024**3),int(shutil.disk_usage(dest).total*.1))
-                if shutil.disk_usage(dest).free<reserve:raise ValueError('磁盘安全余量不足，拒绝归档，不删除历史备份')
-                statepath=BASE/(user+'.budget.json')
-                budget=json.loads(statepath.read_text()) if statepath.exists() else {}
-                day=datetime.now(timezone.utc).strftime('%Y-%m-%d')
-                if budget.get('day')!=day:budget={'day':day,'bytes':0,'files':0}
-                s=os.fstat(fd)
-                if not stat.S_ISREG(s.st_mode) or s.st_uid!=0 or s.st_nlink!=1 or s.st_size!=size:raise ValueError('暂存文件异常')
-                os.lseek(fd,0,0);digest=hashlib.sha256()
-                while True:
-                    block=os.read(fd,1024*1024)
-                    if not block:break
-                    digest.update(block)
-                if digest.hexdigest()!=sha:raise ValueError('独立读回摘要不一致')
-                final=dest/name
-                if final.exists() or final.is_symlink():
-                    # 完整重传证明持有相同内容；不提供只凭文件名/摘要查询历史的接口。
-                    oldfd=os.open(final,os.O_RDONLY|os.O_NOFOLLOW)
-                    try:
-                        oldstat=os.fstat(oldfd)
-                        if not stat.S_ISREG(oldstat.st_mode) or oldstat.st_uid!=0 or oldstat.st_nlink!=1:raise ValueError('归档身份异常，禁止覆盖')
-                        if oldstat.st_size!=size:
-                            print(json.dumps({**h,'status':'conflict'}),flush=True)
-                            return
-                        oldhash=hashlib.sha256()
-                        while True:
-                            block=os.read(oldfd,1024*1024)
-                            if not block:break
-                            oldhash.update(block)
-                        if oldhash.hexdigest()!=sha:
-                            print(json.dumps({**h,'status':'conflict'}),flush=True)
-                            return
-                        after=os.fstat(oldfd)
-                        if (oldstat.st_size,oldstat.st_mtime_ns,oldstat.st_ctime_ns)!=(after.st_size,after.st_mtime_ns,after.st_ctime_ns):raise ValueError('归档被其他管理进程修改')
-                        os.fsync(oldfd);directory_sync(dest)
-                    finally:os.close(oldfd)
-                    print(json.dumps({**h,'status':'archived'}),flush=True)
-                    return
-                if used+size>c['max_total'] or count>=c.get('max_files',10000):raise ValueError('归档配额不足')
-                if budget['files']>=c.get('daily_files',100) or budget['bytes']+size>c.get('daily_bytes',c['max_total']):raise ValueError('达到B端每日投递额度')
-                os.fchmod(fd,0o400)
-                os.link(tmp,final,follow_symlinks=False)
-                os.unlink(tmp);directory_sync(dest);directory_sync(incoming)
-                budget['files']+=1;budget['bytes']+=size
-                write(statepath,json.dumps(budget))
+            s=os.fstat(fd)
+            if not stat.S_ISREG(s.st_mode) or s.st_uid!=0 or s.st_nlink!=1 or s.st_size!=size:raise ValueError('暂存文件异常')
+            os.lseek(fd,0,0);digest=hashlib.sha256()
+            while True:
+                block=os.read(fd,1024*1024)
+                if not block:break
+                digest.update(block)
+            if digest.hexdigest()!=sha:raise ValueError('独立读回摘要不一致')
+            final=dest/name
+            if final.exists() or final.is_symlink():
+                # 完整重传证明持有相同内容；不提供只凭文件名/摘要查询历史的接口。
+                oldfd=os.open(final,os.O_RDONLY|os.O_NOFOLLOW)
+                try:
+                    oldstat=os.fstat(oldfd)
+                    if not stat.S_ISREG(oldstat.st_mode) or oldstat.st_uid!=0 or oldstat.st_nlink!=1:raise ValueError('归档身份异常，禁止覆盖')
+                    if oldstat.st_size!=size:
+                        print(json.dumps({**h,'status':'conflict'}),flush=True)
+                        return
+                    oldhash=hashlib.sha256()
+                    while True:
+                        block=os.read(oldfd,1024*1024)
+                        if not block:break
+                        oldhash.update(block)
+                    if oldhash.hexdigest()!=sha:
+                        print(json.dumps({**h,'status':'conflict'}),flush=True)
+                        return
+                    after=os.fstat(oldfd)
+                    if (oldstat.st_size,oldstat.st_mtime_ns,oldstat.st_ctime_ns)!=(after.st_size,after.st_mtime_ns,after.st_ctime_ns):raise ValueError('归档被其他管理进程修改')
+                    os.fsync(oldfd);directory_sync(dest)
+                finally:os.close(oldfd)
                 print(json.dumps({**h,'status':'archived'}),flush=True)
-            finally:
-                if pid:
-                    try:os.kill(pid,signal.SIGKILL)
-                    except ProcessLookupError:pass
-                    os.waitpid(pid,0)
-                os.close(fd);os.close(r)
-                if w is not None:os.close(w)
-                if os.path.exists(tmp):os.unlink(tmp)
+                return
+            if used+size>c['max_total'] or count>=c.get('max_files',10000):raise ValueError('归档配额不足')
+            if budget['files']>=c.get('daily_files',100) or budget['bytes']+size>c.get('daily_bytes',c['max_total']):raise ValueError('达到B端每日投递额度')
+            os.fchmod(fd,0o400)
+            os.link(tmp,final,follow_symlinks=False)
+            os.unlink(tmp);directory_sync(dest);directory_sync(incoming)
+            budget['files']+=1;budget['bytes']+=size
+            write(statepath,json.dumps(budget))
+            print(json.dumps({**h,'status':'archived'}),flush=True)
+        finally:
+            if pid:
+                try:os.kill(pid,signal.SIGKILL)
+                except ProcessLookupError:pass
+                os.waitpid(pid,0)
+            os.close(fd);os.close(r)
+            if w is not None:os.close(w)
+            if os.path.exists(tmp):os.unlink(tmp)
 
 def ensure_environment(role):
     root()
@@ -317,7 +345,7 @@ def service_label():
 def install():
     root(); ensure_environment('receiver'); dependencies()
     print('部署独立 SSH 接收服务；给系统 SSH 添加投递账号禁入片段，不改变管理账号登录。不自动开放防火墙。输入 :quit 取消。')
-    port=int(ask('独立接收 SSH 端口',22222))
+    port=int(ask('独立接收 SSH 端口',int(os.environ.get('SBR_DEFAULT_PORT','22222'))))
     if not 1024<=port<=65535: raise ValueError('端口须为 1024–65535')
     bind=ask('监听地址（公网接收选 0.0.0.0，或填本机 IPv4）','0.0.0.0')
     socket.inet_pton(socket.AF_INET,bind)
@@ -566,7 +594,7 @@ def upload():
     if not path.is_file() or not FILE.fullmatch(path.name) or path.name.startswith('.'): raise ValueError('备份文件名无效')
     host=ask('B 服务器地址')
     if not host or host.startswith('-') or any(ch.isspace() for ch in host) or any(ch in host for ch in '@\x00'): raise ValueError('地址无效')
-    port=int(ask('B 接收 SSH 端口',22222))
+    port=int(ask('B 接收 SSH 端口',int(os.environ.get('SBR_DEFAULT_PORT','22222'))))
     if not 1<=port<=65535: raise ValueError('端口无效')
     user=ask('B 投递账号（sbr_ 开头）')
     if not NAME.fullmatch(user): raise ValueError('账号格式无效')
@@ -857,7 +885,7 @@ def menu():
         except Exception as e: print('失败：'+str(e),file=sys.stderr)
         input('按回车继续...')
 
-SENDER_SOURCE='#!/usr/bin/python3\n"""Independent safe-drop tasks; no changes to ordinary SSH/S3 categories."""\nimport os,sys,json,re,stat,pathlib,tempfile,subprocess,hashlib,secrets,time,fcntl,getpass,tarfile,gzip,logging,logging.handlers\nP=pathlib.Path\nROOT=P(\'/etc/ssh-backup-receiver-sender\')\nENGINE=P(os.environ[\'SBR_SOURCE\'])\nUNITDIR=P(\'/etc/systemd/system\')\nMARK=\'# ssh-backup-receiver-sender owned v1\\n\'\nclass Cancel(Exception):pass\nclass Conflict(Exception):pass\n\ndef prompt(label,default=None,secret=False):\n    v=getpass.getpass(label+\'：\') if secret else input(label+(\' [默认 \'+str(default)+\']\' if default is not None else \'\')+\'：\')\n    if v in (\':quit\',\':cancel\',\'退出配置向导\'):raise Cancel()\n    return v if v else default\n\ndef safe_dir(p,create=False):\n    p=P(p)\n    if not p.is_absolute() or \'..\' in p.parts:raise ValueError(\'必须使用不含 .. 的绝对路径\')\n    for part in [*reversed(p.parents),p]:\n        if not part.exists() and not part.is_symlink() and create:part.mkdir(mode=0o700)\n        s=part.lstat()\n        if not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode&0o022:raise ValueError(\'目录须为 root 所有、非链接且不可被其他用户写入：\'+str(part))\n    return p\n\ndef init():\n    if os.geteuid()!=0:raise ValueError(\'请以 root 运行任务管理\')\n    safe_dir(ROOT,True)\n\ndef atomic(p,value):\n    if p.is_symlink():raise ValueError(\'拒绝配置链接\')\n    fd,tmp=tempfile.mkstemp(dir=p.parent,prefix=\'.write-\')\n    try:\n        with os.fdopen(fd,\'w\') as f:\n            os.fchmod(f.fileno(),0o600);json.dump(value,f,ensure_ascii=False);f.flush();os.fsync(f.fileno())\n        os.replace(tmp,p)\n    finally:\n        if os.path.exists(tmp):os.unlink(tmp)\n\ndef read_json(p):\n    s=p.lstat()\n    if not stat.S_ISREG(s.st_mode) or s.st_uid!=0 or s.st_mode&0o077:raise ValueError(\'配置/凭据权限异常\')\n    return json.loads(p.read_text())\n\ndef taskpath(name):\n    if not re.fullmatch(\'[a-z][a-z0-9_-]{0,31}\',name):raise ValueError(\'名称须小写字母开头，只含小写字母/数字/_/-，最多32字符\')\n    locator=ROOT/(name+\'.json\')\n    if locator.exists():\n        data=read_json(locator);return safe_dir(P(data[\'local\'])/\'ssh_backup_receiver\'/name)\n    return ROOT/name\n\ndef rows():\n    result=[]\n    for locator in sorted(ROOT.glob(\'*.json\')):\n        try:\n            task=taskpath(locator.stem);c=read_json(task/\'config.json\');result.append((task,c))\n        except Exception: print(\'任务配置异常：\'+locator.stem,file=sys.stderr)\n    return result\n\ndef emit(task,message):\n    path=task/\'transfer.log\'\n    if path.is_symlink() or (task/\'log.lock\').is_symlink():raise ValueError(\'日志/锁不能是符号链接\')\n    with open(task/\'log.lock\',\'a\') as lock:\n        os.chmod(task/\'log.lock\',0o600);fcntl.flock(lock,fcntl.LOCK_EX)\n        if not path.exists():\n            fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600);os.close(fd)\n        os.chmod(path,0o600)\n        h=logging.handlers.RotatingFileHandler(path,maxBytes=2*1024*1024,backupCount=3,encoding=\'utf-8\')\n        try:\n            h.setFormatter(logging.Formatter(\'%(asctime)s %(message)s\'))\n            h.emit(logging.LogRecord(\'safe-drop\',20,\'\',0,message,(),None))\n            os.chmod(path,0o600)\n        finally:h.close()\n\ndef run(args,**kw):return subprocess.run(args,check=True,**kw)\n\ndef ssh(task,c):\n    args=[\'ssh\',\'-F\',\'/dev/null\',\'-T\',\'-p\',str(c[\'port\']),\'-o\',\'StrictHostKeyChecking=yes\',\'-o\',\'UserKnownHostsFile=\'+str(task/\'known_hosts\'),\'-o\',\'ConnectTimeout=15\',\'-o\',\'ServerAliveInterval=15\',\'-o\',\'ServerAliveCountMax=3\',\'-o\',\'ClearAllForwardings=yes\',\'-o\',\'BatchMode=yes\']\n    fd=None\n    if c[\'auth\']==\'key\':args+=[\'-i\',c[\'key\'],\'-o\',\'IdentitiesOnly=yes\',\'-o\',\'PasswordAuthentication=no\',\'-o\',\'KbdInteractiveAuthentication=no\']\n    else:\n        args[args.index(\'BatchMode=yes\')]=\'BatchMode=no\'\n        args+=[\'-o\',\'PubkeyAuthentication=no\',\'-o\',\'PreferredAuthentications=password\',\'-o\',\'KbdInteractiveAuthentication=no\',\'-o\',\'NumberOfPasswordPrompts=1\']\n        # 不将秘密放到 argv、环境变量或日志；FD 为受保护的匿名临时文件。\n        password=read_json(task/\'password.json\')[\'password\']\n        f=tempfile.TemporaryFile(dir=task);f.write((password+\'\\n\').encode());f.seek(0)\n        fd=f.fileno();args=[\'sshpass\',\'-d\',str(fd),*args]\n    args+=[c[\'user\']+\'@\'+c[\'host\'],\'backup-put\']\n    return args,(f if fd is not None else None)\n\ndef exchange(task,c,header,path=None):\n    args,secret=ssh(task,c)\n    # 单笔传输硬超时：独立进程组 watchdog 负责阻断可能阻塞的 stdin 写入。\n    proc=None\n    import threading,signal\n    def abort():\n        if proc and proc.poll() is None:\n            try:os.killpg(proc.pid,signal.SIGKILL)\n            except ProcessLookupError:pass\n    timer=None\n    try:\n        with tempfile.TemporaryFile(dir=task) as err:\n            proc=subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=err,pass_fds=(() if secret is None else (secret.fileno(),)),start_new_session=True)\n            timer=threading.Timer(c.get(\'timeout\',3600),abort);timer.daemon=True;timer.start()\n            try:\n                proc.stdin.write((json.dumps(header)+\'\\n\').encode())\n                if path:\n                    with path.open(\'rb\') as f:\n                        for block in iter(lambda:f.read(1024*1024),b\'\'):proc.stdin.write(block)\n                proc.stdin.close();proc.stdin=None\n                out,_=proc.communicate()\n            except BaseException:\n                abort();proc.wait();raise\n            if proc.returncode:\n                err.seek(0);detail=err.read(65536).decode(\'utf-8\',\'replace\').lower()\n                if \'无效协议字段\' in detail or \'invalid protocol\' in detail:\n                    reason=\'B 已安装接收程序不支持探测协议，需更新 /usr/local/libexec/ssh-backup-receiver.sh（不重建账号）\'\n                elif \'permission denied\' in detail or proc.returncode==5:\n                    reason=\'SSH 认证失败，请检查 B 专用账号、密码和该账号是否允许登录\'\n                elif \'host key verification failed\' in detail or \'remote host identification has changed\' in detail:\n                    reason=\'B 主机密钥校验失败，禁止自动更换已信任指纹\'\n                elif \'connection refused\' in detail:\n                    reason=\'B 接收端口拒绝连接，请检查独立接收服务及端口\'\n                elif \'timed out\' in detail or proc.returncode<0:\n                    reason=\'SSH 连接或接收超时\'\n                elif \'sudo:\' in detail:\n                    reason=\'B 接收账号的 sudo 接收授权或安装程序异常\'\n                else:reason=\'B 认证或接收处理失败，请检查 B 接收服务日志（退出码 \'+str(proc.returncode)+\'）\'\n                raise ValueError(reason)\n            if len(out)>8192:raise ValueError(\'接收回执过长\')\n            return json.loads(out)\n    finally:\n        if timer:timer.cancel()\n        if secret:secret.close()\n\ndef probe(task,c):\n    nonce=secrets.token_hex(16)\n    response=exchange(task,c,{\'version\':1,\'action\':\'info\',\'nonce\':nonce})\n    if response.get(\'nonce\')!=nonce or response.get(\'status\')!=\'ready\' or response.get(\'history_readable\') is not False or not isinstance(response.get(\'target\'),str):\n        raise ValueError(\'B需更新接收程序以支持绑定目录查询\')\n    c[\'target\']=response[\'target\'];atomic(task/\'config.json\',c)\n    return response\n\ndef trust(task,c):\n    print(\'将显示 B SSH 主机指纹，必须与 B 管理员独立核对；不上传备份。\')\n    r=run([\'ssh-keyscan\',\'-T\',\'10\',\'-p\',str(c[\'port\']),\'--\',c[\'host\']],capture_output=True,timeout=40)\n    lines=[l for l in r.stdout.decode().splitlines() if l and not l.startswith(\'#\')]\n    if not lines:raise ValueError(\'未获取到主机公钥\')\n    fd,tmp=tempfile.mkstemp(dir=task)\n    try:\n        with os.fdopen(fd,\'w\') as f:f.write(\'\\n\'.join(lines)+\'\\n\')\n        run([\'ssh-keygen\',\'-lf\',tmp])\n        if prompt(\'已独立核对以上指纹，输入 yes 信任\')!=\'yes\':raise Cancel()\n        os.replace(tmp,task/\'known_hosts\');os.chmod(task/\'known_hosts\',0o600)\n    finally:\n        if os.path.exists(tmp):os.unlink(tmp)\n\ndef unit_paths(name):\n    stem=\'ssh-backup-send-\'+name\n    return UNITDIR/(stem+\'.service\'),UNITDIR/(stem+\'.timer\')\n\ndef schedule(task,c,delete=False):\n    service,timer=unit_paths(task.name)\n    for path in (service,timer):\n        if path.is_symlink() or (path.exists() and not path.read_text().startswith(MARK)):raise ValueError(\'拒绝接管其他服务：\'+str(path))\n    if delete:\n        if timer.exists():run([\'systemctl\',\'disable\',\'--now\',timer.name],stdout=subprocess.DEVNULL)\n        if service.exists():run([\'systemctl\',\'stop\',service.name])\n        for p in (service,timer):\n            if p.exists():p.unlink()\n        run([\'systemctl\',\'daemon-reload\']);return\n    text=MARK+\'[Unit]\\nDescription=Safe backup drop \'+task.name+\'\\n[Service]\\nType=oneshot\\nUMask=0077\\nExecStart=/bin/bash \'+str(ENGINE)+\' --sender tick \'+task.name+\'\\n\'\n    tim=MARK+\'[Unit]\\nDescription=Safe backup drop timer\\n[Timer]\\nOnBootSec=60s\\nOnUnitInactiveSec=60s\\nAccuracySec=1s\\n[Install]\\nWantedBy=timers.target\\n\'\n    for p,body in ((service,text),(timer,tim)):\n        if not p.exists() or p.read_text()!=body:p.write_text(body);p.chmod(0o644)\n    run([\'systemctl\',\'daemon-reload\']);run([\'systemctl\',\'enable\',\'--now\',timer.name],stdout=subprocess.DEVNULL)\n    run([\'systemctl\',\'is-enabled\',\'--quiet\',timer.name]);run([\'systemctl\',\'is-active\',\'--quiet\',timer.name])\n\ndef reusable(task):\n    if not task.exists() and not task.is_symlink():return\n    safe_dir(task)\n    for p in task.iterdir():\n        s=p.lstat()\n        if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1 or (p.name not in (\'run.lock\',\'log.lock\') and not re.fullmatch(r\'transfer\\.log(?:\\.[1-3])?\',p.name)):\n            raise ValueError(\'同名配置或未知文件已存在：\'+str(p))\n    with open(task/\'run.lock\',\'a\') as lock:\n        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)\n\ndef create():\n    init();print(\'输入 :quit 取消。安全投递不会改动普通 SSH/S3 任务。\')\n    name=prompt(\'任务名（小写安全名称）\');task=taskpath(name)\n    reusable(task)\n    c={\'mode\':\'transfer\',\'name\':name,\'generation\':secrets.token_hex(16)}\n    c[\'host\']=prompt(\'B 服务器 IP 或域名\')\n    if not c[\'host\'] or not re.fullmatch(r\'[A-Za-z0-9:.\\-]+\',c[\'host\']) or c[\'host\'].startswith(\'-\'):raise ValueError(\'主机名无效\')\n    c[\'port\']=int(prompt(\'B 安全接收 SSH 端口\',22222))\n    if not 1<=c[\'port\']<=65535:raise ValueError(\'端口无效\')\n    c[\'user\']=prompt(\'B 专用投递账号（完整用户名）\')\n    if not re.fullmatch(\'sbr_[a-z][a-z0-9_]{0,23}\',c[\'user\']):raise ValueError(\'投递用户名无效\')\n    auth=prompt(\'认证方式：1 私钥，2 密码\',\'1\');password=None\n    if auth==\'1\':\n        c[\'auth\']=\'key\';key=P(prompt(\'SSH 私钥路径\',\'/root/.ssh/id_ed25519\')).expanduser().resolve(strict=True)\n        s=key.stat()\n        if not key.is_file() or s.st_uid!=0 or s.st_mode&0o077:raise ValueError(\'私钥须 root 所有，权限 0600 或更严格\')\n        c[\'key\']=str(key)\n    elif auth==\'2\':\n        if not shutil_which(\'sshpass\'):raise ValueError(\'请先安装 sshpass\')\n        if prompt(\'密码将明文保存在本地0600凭据文件，输入 yes 同意\')!=\'yes\':raise Cancel()\n        c[\'auth\']=\'password\';password=prompt(\'B 投递账号密码（隐藏输入）\',secret=True)\n        if not password or any(x in password for x in \'\\r\\n\\x00\'):raise ValueError(\'密码无效\')\n    else:raise ValueError(\'认证方式无效\')\n    local=P(prompt(\'本地备份读取目录（仅此目录直接子文件 *.tar.gz）\',\'/home/备份/\'+name)).expanduser()\n    safe_dir(local);c[\'local\']=str(local)\n    task=safe_dir(local/\'ssh_backup_receiver\',True)/name\n    reusable(task)\n    print(\'B 最终目录由 B 的投递账号绑定，A 不填写远端路径；不清理本地或远端历史备份。\')\n    print(\'任务配置：\'+str(task)+\'；本地目录：\'+str(local))\n    if prompt(\'确认创建，输入 yes\')!=\'yes\':return\n    # 独立注册锁，防止两个向导覆盖同名配置。\n    with open(ROOT/\'.registry.lock\',\'a\') as registry:\n        fcntl.flock(registry,fcntl.LOCK_EX)\n        reusable(task)\n        task.mkdir(mode=0o700,exist_ok=True)\n        with open(task/\'run.lock\',\'a\') as guard:\n            fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)\n            atomic(task/\'config.json\',c)\n            atomic(ROOT/(name+\'.json\'),{\'local\':str(local)})\n            if password is not None:atomic(task/\'password.json\',{\'password\':password})\n    try:\n        trust(task,c);probe(task,c);atomic(task/\'trusted.json\',{\'generation\':c[\'generation\']})\n        schedule(task,c)\n        print(\'已验证并启用60秒检查定时器；未立即上传。传送文件须稳定10秒。\')\n    except BaseException:\n        print(\'配置已保留，尚未确认任务调度正常；可选2重新验证并修复调度。\',file=sys.stderr);raise\n\ndef shutil_which(cmd):\n    import shutil\n    return shutil.which(cmd)\n\ndef identity(path):\n    s=path.lstat()\n    if not stat.S_ISREG(s.st_mode):raise ValueError(\'不是普通文件\')\n    return [s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns]\n\ndef digest_archive(path):\n    before=identity(path)\n    # 读取全部成员及 gzip 尾部，拒绝损坏归档；不解压。\n    with gzip.open(path,\'rb\') as g:\n        with tarfile.open(fileobj=g,mode=\'r|\') as tar:\n            for member in tar:\n                if member.isfile():\n                    f=tar.extractfile(member)\n                    while f.read(1024*1024):pass\n        while g.read(1024*1024):pass\n    h=hashlib.sha256()\n    with path.open(\'rb\') as f:\n        for b in iter(lambda:f.read(1024*1024),b\'\'):h.update(b)\n    if identity(path)!=before:raise ValueError(\'归档校验时变化\')\n    return before,h.hexdigest()\n\ndef send(task,c,path):\n    before,digest=digest_archive(path)\n    header={\'version\':1,\'name\':path.name,\'size\':before[2],\'sha256\':digest,\'nonce\':secrets.token_hex(16)}\n    receipt=exchange(task,c,header,path)\n    if receipt=={**header,\'status\':\'conflict\'} and identity(path)==before:raise Conflict(\'同名归档内容不同，自动重试已暂停\')\n    if receipt!={**header,\'status\':\'archived\'} or identity(path)!=before:raise ValueError(\'归档回执不匹配或源文件发生变化\')\n    return before\n\n\ndef tick(name,force=False):\n    init();task=taskpath(name);safe_dir(task)\n    with open(task/\'run.lock\',\'a\') as lock:\n        os.chmod(task/\'run.lock\',0o600)\n        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)\n        except BlockingIOError:\n            if force:raise ValueError(\'此任务正在运行\')\n            return\n        c=read_json(task/\'config.json\')\n        if read_json(task/\'trusted.json\').get(\'generation\')!=c[\'generation\']:raise ValueError(\'未验证远端，请选2\')\n        state=read_json(task/\'state.json\') if (task/\'state.json\').exists() else {\'files\':{}}\n        if c.get(\'mode\')!=\'transfer\':raise ValueError(\'独立投递任务只支持传送模式\')\n        now=time.time()\n        paths=sorted(P(c[\'local\']).glob(\'*.tar.gz\'),key=lambda p:p.name)\n        changed=False;failed=False\n        for path in paths:\n            if path.is_symlink() or not path.is_file():continue\n            record=state[\'files\'].get(path.name,{})\n            # 成功名称为不可重传的历史身份；源文件即使变化也不得覆盖B端。\n            if record.get(\'done\') or record.get(\'conflict\'):continue\n            sig=identity(path)\n            if record.get(\'identity\')!=sig:\n                record={\'identity\':sig,\'seen\':now,\'attempts\':0};state[\'files\'][path.name]=record;changed=True\n            if now-record[\'seen\']<10:continue\n            if not force and now<record.get(\'next\',0):continue\n            try:\n                emit(task,\'开始上传 \'+path.name)\n                record[\'done\']=send(task,c,path);record[\'finished\']=time.time();record.pop(\'next\',None)\n                emit(task,\'上传并独立读回核验成功 \'+path.name)\n                if force:print(\'上传并核验成功：\'+path.name)\n            except Conflict:\n                record[\'conflict\']=True;record[\'conflict_at\']=time.time();record.pop(\'next\',None)\n                emit(task,\'同名冲突，停止此文件自动重试 \'+path.name);failed=True\n                if force:print(\'同名冲突已暂停：\'+path.name,file=sys.stderr)\n            except Exception as ex:\n                record[\'attempts\']+=1;record[\'next\']=time.time()+(60 if record[\'attempts\']<3 else 3600)\n                emit(task,\'传送失败 \'+path.name+\' \'+type(ex).__name__);failed=True\n                if force:print(\'传送失败：\'+path.name+\'（\'+type(ex).__name__+\'，查看任务日志）\',file=sys.stderr)\n            changed=True;atomic(task/\'state.json\',state)\n        if changed:atomic(task/\'state.json\',state)\n        if failed:raise ValueError(\'部分备份传送失败；冲突文件已暂停，其余临时失败按退避规则重试\')\n        if force and not changed:print(\'暂无新的稳定备份可传送；传送任务不打包，首次发现需稳定10秒。\')\n\ndef color(text,code):\n    return \'\\033[\'+code+\'m\'+text+\'\\033[0m\' if sys.stdout.isatty() and os.environ.get(\'TERM\') not in (None,\'dumb\') else text\n\ndef summary():\n    print(\'备份传送\')\n    print(\'备注名      状态        本地传送检测目录           目标目录\')\n    records=rows()\n    if not records: print(color(\'暂无\',\'31\'))\n    for i,(task,c) in enumerate(records,1):\n        service,timer=unit_paths(task.name)\n        good=(task/\'trusted.json\').exists() and subprocess.run([\'systemctl\',\'is-active\',\'--quiet\',timer.name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0\n        state=read_json(task/\'state.json\') if (task/\'state.json\').exists() else {\'files\':{}}\n        if any(v.get(\'conflict\') or (v.get(\'attempts\',0)>0 and not v.get(\'done\')) for v in state.get(\'files\',{}).values()):good=False\n        status=color(\'正常\',\'32\') if good else color(\'异常\',\'33\')\n        print(str(i)+\'. \'+task.name+\'    \'+status+\'    \'+c[\'local\']+\'    \'+c.get(\'target\',\'待测试确认\'))\n\ndef select(action):\n    init();records=rows();summary()\n    if not records:return\n    choice=prompt(\'选择任务编号（0返回）\',\'0\')\n    if choice==\'0\':return\n    if not choice.isascii() or not choice.isdecimal() or not 1<=int(choice)<=len(records):raise ValueError(\'编号无效\')\n    task,c=records[int(choice)-1]\n    if action==\'test\':\n        print(\'只读取本次探测回执，不读取或下载历史备份。\')\n        if not (task/\'known_hosts\').exists():trust(task,c)\n        probe(task,c);atomic(task/\'trusted.json\',{\'generation\':c[\'generation\']});schedule(task,c)\n        print(\'接收端响应正常，支持 SHA-256 独立读回核验；历史备份读取被禁止。调度已修复。\')\n    elif action==\'run\':tick(task.name,True)\n    elif action==\'delete\':\n        if prompt(\'删除 \'+task.name+\' 的调度和本地配置，保留本地/B端备份及外部私钥。输入 yes\')!=\'yes\':return\n        # 先停止本任务，不影响其他分类；保留锁 inode。\n        schedule(task,c,True)\n        with open(task/\'run.lock\',\'a\') as lock:\n            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)\n            allowed={\'config.json\',\'password.json\',\'known_hosts\',\'trusted.json\',\'state.json\'}\n            remove=[]\n            for p in task.iterdir():\n                st=p.lstat()\n                if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1:raise ValueError(\'发现链接或非普通文件，未清理：\'+str(p))\n                if p.name in (\'run.lock\',\'log.lock\') or re.fullmatch(r\'transfer\\.log(?:\\.[1-3])?\',p.name):continue\n                if p.name not in allowed:raise ValueError(\'发现未知文件，未清理：\'+str(p))\n                remove.append(p)\n            for p in remove:p.unlink()\n        (ROOT/(task.name+\'.json\')).unlink()\n        print(\'任务已删除，备份及日志保留；B端账号未删除。\')\n\ndef repair():\n    init()\n    for task,c in rows():\n        if (task/\'trusted.json\').exists():schedule(task,c)\n\n\ndef sender_main(args):\n    if args==[\'summary\']:\n        if ROOT.exists(): summary()\n        else:\n            print(\'备份传送\');print(\'备注名      状态        本地传送检测目录           目标目录\');print(color(\'暂无\',\'31\'))\n        return\n    init()\n    if args==[\'create-transfer\']:create()\n    elif args==[\'test\']:select(\'test\')\n    elif args==[\'run\']:select(\'run\')\n    elif args==[\'delete\']:select(\'delete\')\n    elif args==[\'repair\']:repair()\n    elif len(args)==2 and args[0]==\'tick\':tick(args[1])\n    else:raise ValueError(\'无效传送命令\')\n'
+SENDER_SOURCE='#!/usr/bin/python3\n"""Independent safe-drop tasks; no changes to ordinary SSH/S3 categories."""\nimport os,sys,json,re,stat,pathlib,tempfile,subprocess,hashlib,secrets,time,fcntl,getpass,tarfile,gzip,logging,logging.handlers\nP=pathlib.Path\nROOT=P(\'/etc/ssh-backup-receiver-sender\')\nENGINE=P(os.environ[\'SBR_SOURCE\'])\nUNITDIR=P(\'/etc/systemd/system\')\nMARK=\'# ssh-backup-receiver-sender owned v1\\n\'\nclass Cancel(Exception):pass\nclass Conflict(Exception):pass\n\ndef prompt(label,default=None,secret=False):\n    v=getpass.getpass(label+\'：\') if secret else input(label+(\' [默认 \'+str(default)+\']\' if default is not None else \'\')+\'：\')\n    if v in (\':quit\',\':cancel\',\'退出配置向导\'):raise Cancel()\n    return v if v else default\n\ndef safe_dir(p,create=False):\n    p=P(p)\n    if not p.is_absolute() or \'..\' in p.parts:raise ValueError(\'必须使用不含 .. 的绝对路径\')\n    for part in [*reversed(p.parents),p]:\n        if not part.exists() and not part.is_symlink() and create:part.mkdir(mode=0o700)\n        s=part.lstat()\n        if not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode&0o022:raise ValueError(\'目录须为 root 所有、非链接且不可被其他用户写入：\'+str(part))\n    return p\n\ndef init():\n    if os.geteuid()!=0:raise ValueError(\'请以 root 运行任务管理\')\n    safe_dir(ROOT,True)\n\ndef atomic(p,value):\n    if p.is_symlink():raise ValueError(\'拒绝配置链接\')\n    fd,tmp=tempfile.mkstemp(dir=p.parent,prefix=\'.write-\')\n    try:\n        with os.fdopen(fd,\'w\') as f:\n            os.fchmod(f.fileno(),0o600);json.dump(value,f,ensure_ascii=False);f.flush();os.fsync(f.fileno())\n        os.replace(tmp,p)\n    finally:\n        if os.path.exists(tmp):os.unlink(tmp)\n\ndef read_json(p):\n    s=p.lstat()\n    if not stat.S_ISREG(s.st_mode) or s.st_uid!=0 or s.st_mode&0o077:raise ValueError(\'配置/凭据权限异常\')\n    return json.loads(p.read_text())\n\ndef taskpath(name):\n    if not re.fullmatch(\'[a-z][a-z0-9_-]{0,31}\',name):raise ValueError(\'名称须小写字母开头，只含小写字母/数字/_/-，最多32字符\')\n    locator=ROOT/(name+\'.json\')\n    if locator.exists():\n        data=read_json(locator);return safe_dir(P(data.get(\'config_base\',data[\'local\']))/\'ssh_backup_receiver\'/name)\n    return ROOT/name\n\ndef rows():\n    result=[]\n    for locator in sorted(ROOT.glob(\'*.json\')):\n        try:\n            task=taskpath(locator.stem);c=read_json(task/\'config.json\');result.append((task,c))\n        except Exception: print(\'任务配置异常：\'+locator.stem,file=sys.stderr)\n    return result\n\ndef emit(task,message):\n    path=task/\'transfer.log\'\n    if path.is_symlink() or (task/\'log.lock\').is_symlink():raise ValueError(\'日志/锁不能是符号链接\')\n    with open(task/\'log.lock\',\'a\') as lock:\n        os.chmod(task/\'log.lock\',0o600);fcntl.flock(lock,fcntl.LOCK_EX)\n        if not path.exists():\n            fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600);os.close(fd)\n        os.chmod(path,0o600)\n        h=logging.handlers.RotatingFileHandler(path,maxBytes=2*1024*1024,backupCount=3,encoding=\'utf-8\')\n        try:\n            h.setFormatter(logging.Formatter(\'%(asctime)s %(message)s\'))\n            h.emit(logging.LogRecord(\'safe-drop\',20,\'\',0,message,(),None))\n            os.chmod(path,0o600)\n        finally:h.close()\n\ndef run(args,**kw):return subprocess.run(args,check=True,**kw)\n\ndef ssh(task,c):\n    args=[\'ssh\',\'-F\',\'/dev/null\',\'-T\',\'-p\',str(c[\'port\']),\'-o\',\'StrictHostKeyChecking=yes\',\'-o\',\'UserKnownHostsFile=\'+str(task/\'known_hosts\'),\'-o\',\'ConnectTimeout=15\',\'-o\',\'ServerAliveInterval=15\',\'-o\',\'ServerAliveCountMax=3\',\'-o\',\'ClearAllForwardings=yes\',\'-o\',\'BatchMode=yes\']\n    fd=None\n    if c[\'auth\']==\'key\':args+=[\'-i\',c[\'key\'],\'-o\',\'IdentitiesOnly=yes\',\'-o\',\'PasswordAuthentication=no\',\'-o\',\'KbdInteractiveAuthentication=no\']\n    else:\n        args[args.index(\'BatchMode=yes\')]=\'BatchMode=no\'\n        args+=[\'-o\',\'PubkeyAuthentication=no\',\'-o\',\'PreferredAuthentications=password\',\'-o\',\'KbdInteractiveAuthentication=no\',\'-o\',\'NumberOfPasswordPrompts=1\']\n        # 不将秘密放到 argv、环境变量或日志；FD 为受保护的匿名临时文件。\n        password=read_json(task/\'password.json\')[\'password\']\n        f=tempfile.TemporaryFile(dir=task);f.write((password+\'\\n\').encode());f.seek(0)\n        fd=f.fileno();args=[\'sshpass\',\'-d\',str(fd),*args]\n    args+=[c[\'user\']+\'@\'+c[\'host\'],\'backup-put\']\n    return args,(f if fd is not None else None)\n\ndef exchange(task,c,header,path=None):\n    args,secret=ssh(task,c)\n    # 单笔传输硬超时：独立进程组 watchdog 负责阻断可能阻塞的 stdin 写入。\n    proc=None\n    import threading,signal\n    def abort():\n        if proc and proc.poll() is None:\n            try:os.killpg(proc.pid,signal.SIGKILL)\n            except ProcessLookupError:pass\n    timer=None\n    try:\n        with tempfile.TemporaryFile(dir=task) as err:\n            proc=subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=err,pass_fds=(() if secret is None else (secret.fileno(),)),start_new_session=True)\n            timer=threading.Timer(c.get(\'timeout\',3600),abort);timer.daemon=True;timer.start()\n            try:\n                proc.stdin.write((json.dumps(header)+\'\\n\').encode())\n                if path:\n                    with path.open(\'rb\') as f:\n                        for block in iter(lambda:f.read(1024*1024),b\'\'):proc.stdin.write(block)\n                proc.stdin.close();proc.stdin=None\n                out,_=proc.communicate()\n            except BaseException:\n                abort();proc.wait();raise\n            if proc.returncode:\n                err.seek(0);detail=err.read(65536).decode(\'utf-8\',\'replace\').lower()\n                if \'无效协议字段\' in detail or \'invalid protocol\' in detail:\n                    reason=\'B 已安装接收程序不支持探测协议，需更新 /usr/local/libexec/ssh-backup-receiver.sh（不重建账号）\'\n                elif \'permission denied\' in detail or proc.returncode==5:\n                    reason=\'SSH 认证失败，请检查 B 专用账号、密码和该账号是否允许登录\'\n                elif \'host key verification failed\' in detail or \'remote host identification has changed\' in detail:\n                    reason=\'B 主机密钥校验失败，禁止自动更换已信任指纹\'\n                elif \'connection refused\' in detail:\n                    reason=\'B 接收端口拒绝连接，请检查独立接收服务及端口\'\n                elif \'timed out\' in detail or proc.returncode<0:\n                    reason=\'SSH 连接或接收超时\'\n                elif \'sudo:\' in detail:\n                    reason=\'B 接收账号的 sudo 接收授权或安装程序异常\'\n                else:reason=\'B 认证或接收处理失败，请检查 B 接收服务日志（退出码 \'+str(proc.returncode)+\'）\'\n                raise ValueError(reason)\n            if len(out)>8192:raise ValueError(\'接收回执过长\')\n            return json.loads(out)\n    finally:\n        if timer:timer.cancel()\n        if secret:secret.close()\n\ndef probe(task,c):\n    nonce=secrets.token_hex(16)\n    response=exchange(task,c,{\'version\':1,\'action\':\'info\',\'nonce\':nonce})\n    if response.get(\'nonce\')!=nonce or response.get(\'status\')!=\'ready\' or response.get(\'history_readable\') is not False or not isinstance(response.get(\'target\'),str):\n        raise ValueError(\'B需更新接收程序以支持绑定目录查询\')\n    c[\'target\']=response[\'target\'];atomic(task/\'config.json\',c)\n    return response\n\ndef trust(task,c):\n    print(\'将显示 B SSH 主机指纹，必须与 B 管理员独立核对；不上传备份。\')\n    r=run([\'ssh-keyscan\',\'-T\',\'10\',\'-p\',str(c[\'port\']),\'--\',c[\'host\']],capture_output=True,timeout=40)\n    lines=[l for l in r.stdout.decode().splitlines() if l and not l.startswith(\'#\')]\n    if not lines:raise ValueError(\'未获取到主机公钥\')\n    fd,tmp=tempfile.mkstemp(dir=task)\n    try:\n        with os.fdopen(fd,\'w\') as f:f.write(\'\\n\'.join(lines)+\'\\n\')\n        run([\'ssh-keygen\',\'-lf\',tmp])\n        if prompt(\'已独立核对以上指纹，输入 yes 信任\')!=\'yes\':raise Cancel()\n        os.replace(tmp,task/\'known_hosts\');os.chmod(task/\'known_hosts\',0o600)\n    finally:\n        if os.path.exists(tmp):os.unlink(tmp)\n\ndef unit_paths(name):\n    stem=\'ssh-backup-send-\'+name\n    return UNITDIR/(stem+\'.service\'),UNITDIR/(stem+\'.timer\')\n\ndef schedule(task,c,delete=False):\n    service,timer=unit_paths(task.name)\n    for path in (service,timer):\n        if path.is_symlink() or (path.exists() and not path.read_text().startswith(MARK)):raise ValueError(\'拒绝接管其他服务：\'+str(path))\n    if delete:\n        if timer.exists():run([\'systemctl\',\'disable\',\'--now\',timer.name],stdout=subprocess.DEVNULL)\n        if service.exists():run([\'systemctl\',\'stop\',service.name])\n        for p in (service,timer):\n            if p.exists():p.unlink()\n        run([\'systemctl\',\'daemon-reload\']);return\n    text=MARK+\'[Unit]\\nDescription=Safe backup drop \'+task.name+\'\\n[Service]\\nType=oneshot\\nUMask=0077\\nExecStart=/bin/bash \'+str(ENGINE)+\' --sender tick \'+task.name+\'\\n\'\n    tim=MARK+\'[Unit]\\nDescription=Safe backup drop timer\\n[Timer]\\nOnBootSec=60s\\nOnUnitInactiveSec=60s\\nAccuracySec=1s\\n[Install]\\nWantedBy=timers.target\\n\'\n    for p,body in ((service,text),(timer,tim)):\n        if not p.exists() or p.read_text()!=body:p.write_text(body);p.chmod(0o644)\n    run([\'systemctl\',\'daemon-reload\']);run([\'systemctl\',\'enable\',\'--now\',timer.name],stdout=subprocess.DEVNULL)\n    run([\'systemctl\',\'is-enabled\',\'--quiet\',timer.name]);run([\'systemctl\',\'is-active\',\'--quiet\',timer.name])\n\ndef reusable(task):\n    if not task.exists() and not task.is_symlink():return\n    safe_dir(task)\n    for p in task.iterdir():\n        s=p.lstat()\n        if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1 or (p.name not in (\'run.lock\',\'log.lock\') and not re.fullmatch(r\'transfer\\.log(?:\\.[1-3])?\',p.name)):\n            raise ValueError(\'同名配置或未知文件已存在：\'+str(p))\n    with open(task/\'run.lock\',\'a\') as lock:\n        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)\n\ndef create():\n    init();print(\'输入 :quit 取消。安全投递不会改动普通 SSH/S3 任务。\')\n    name=prompt(\'任务名（小写安全名称）\');task=taskpath(name)\n    reusable(task)\n    c={\'mode\':\'transfer\',\'name\':name,\'generation\':secrets.token_hex(16)}\n    c[\'host\']=prompt(\'B 服务器 IP 或域名\')\n    if not c[\'host\'] or not re.fullmatch(r\'[A-Za-z0-9:.\\-]+\',c[\'host\']) or c[\'host\'].startswith(\'-\'):raise ValueError(\'主机名无效\')\n    c[\'port\']=int(prompt(\'B 安全接收 SSH 端口\',int(os.environ.get(\'SBR_DEFAULT_PORT\',\'22222\'))))\n    if not 1<=c[\'port\']<=65535:raise ValueError(\'端口无效\')\n    c[\'user\']=prompt(\'B 专用投递账号（完整用户名）\')\n    if not re.fullmatch(\'sbr_[a-z][a-z0-9_]{0,23}\',c[\'user\']):raise ValueError(\'投递用户名无效\')\n    auth=prompt(\'认证方式：1 私钥，2 密码\',\'1\');password=None\n    if auth==\'1\':\n        c[\'auth\']=\'key\';key=P(prompt(\'SSH 私钥路径\',\'/root/.ssh/id_ed25519\')).expanduser().resolve(strict=True)\n        s=key.stat()\n        if not key.is_file() or s.st_uid!=0 or s.st_mode&0o077:raise ValueError(\'私钥须 root 所有，权限 0600 或更严格\')\n        c[\'key\']=str(key)\n    elif auth==\'2\':\n        if not shutil_which(\'sshpass\'):raise ValueError(\'请先安装 sshpass\')\n        if prompt(\'密码将明文保存在本地0600凭据文件，输入 yes 同意\')!=\'yes\':raise Cancel()\n        c[\'auth\']=\'password\';password=prompt(\'B 投递账号密码（隐藏输入）\',secret=True)\n        if not password or any(x in password for x in \'\\r\\n\\x00\'):raise ValueError(\'密码无效\')\n    else:raise ValueError(\'认证方式无效\')\n    config_base=P(prompt(\'配置本地保存路径\',\'/home/备份/\'+name)).expanduser()\n    if not config_base.is_absolute() or \'..\' in config_base.parts:raise ValueError(\'配置路径必须为安全绝对路径\')\n    print(color(\'Discourse论坛生成的备份目录应输入\',\'33\')+\'（\'+color(\'需实际查看真实路径\',\'31\')+\'）\')\n    print(color(\'/var/discourse/shared/standalone/backups/default\',\'32\'))\n    print(\'本地备份读取目录（仅此目录直接子文件 *.tar.gz）\')\n    local=P(prompt(\'请输入你的选择\',\'/home/备份/\'+name)).expanduser()\n    safe_dir(local);c[\'local\']=str(local);c[\'config_base\']=str(config_base)\n    # Do not create configuration folders under archive input; source stays read-only.\n    task=config_base/\'ssh_backup_receiver\'/name\n    if task.exists():reusable(task)\n    reusable(task)\n    print(\'B 最终目录由 B 的投递账号绑定，A 不填写远端路径；不清理本地或远端历史备份。\')\n    print(\'任务配置：\'+str(task)+\'；本地目录：\'+str(local))\n    if prompt(\'确认创建，输入 yes\')!=\'yes\':return\n    # 独立注册锁，防止两个向导覆盖同名配置。\n    with open(ROOT/\'.registry.lock\',\'a\') as registry:\n        fcntl.flock(registry,fcntl.LOCK_EX)\n        safe_dir(config_base/\'ssh_backup_receiver\',True)\n        reusable(task)\n        task.mkdir(mode=0o700,exist_ok=True)\n        with open(task/\'run.lock\',\'a\') as guard:\n            fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)\n            atomic(task/\'config.json\',c)\n            atomic(ROOT/(name+\'.json\'),{\'local\':str(local),\'config_base\':str(config_base)})\n            if password is not None:atomic(task/\'password.json\',{\'password\':password})\n    try:\n        trust(task,c);probe(task,c);atomic(task/\'trusted.json\',{\'generation\':c[\'generation\']})\n        schedule(task,c)\n        print(\'已验证并启用60秒检查定时器；未立即上传。传送文件须稳定10秒。\')\n    except BaseException:\n        print(\'配置已保留，尚未确认任务调度正常；可选2重新验证并修复调度。\',file=sys.stderr);raise\n\ndef shutil_which(cmd):\n    import shutil\n    return shutil.which(cmd)\n\ndef identity(path):\n    s=path.lstat()\n    if not stat.S_ISREG(s.st_mode):raise ValueError(\'不是普通文件\')\n    return [s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns]\n\ndef digest_archive(path):\n    before=identity(path)\n    # 读取全部成员及 gzip 尾部，拒绝损坏归档；不解压。\n    with gzip.open(path,\'rb\') as g:\n        with tarfile.open(fileobj=g,mode=\'r|\') as tar:\n            for member in tar:\n                if member.isfile():\n                    f=tar.extractfile(member)\n                    while f.read(1024*1024):pass\n        while g.read(1024*1024):pass\n    h=hashlib.sha256()\n    with path.open(\'rb\') as f:\n        for b in iter(lambda:f.read(1024*1024),b\'\'):h.update(b)\n    if identity(path)!=before:raise ValueError(\'归档校验时变化\')\n    return before,h.hexdigest()\n\ndef send(task,c,path):\n    before,digest=digest_archive(path)\n    header={\'version\':1,\'name\':path.name,\'size\':before[2],\'sha256\':digest,\'nonce\':secrets.token_hex(16)}\n    receipt=exchange(task,c,header,path)\n    if receipt=={**header,\'status\':\'conflict\'} and identity(path)==before:raise Conflict(\'同名归档内容不同，自动重试已暂停\')\n    if receipt!={**header,\'status\':\'archived\'} or identity(path)!=before:raise ValueError(\'归档回执不匹配或源文件发生变化\')\n    return before\n\n\ndef tick(name,force=False):\n    init();task=taskpath(name);safe_dir(task)\n    with open(task/\'run.lock\',\'a\') as lock:\n        os.chmod(task/\'run.lock\',0o600)\n        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)\n        except BlockingIOError:\n            if force:raise ValueError(\'此任务正在运行\')\n            return\n        c=read_json(task/\'config.json\')\n        if read_json(task/\'trusted.json\').get(\'generation\')!=c[\'generation\']:raise ValueError(\'未验证远端，请选2\')\n        state=read_json(task/\'state.json\') if (task/\'state.json\').exists() else {\'files\':{}}\n        if c.get(\'mode\')!=\'transfer\':raise ValueError(\'独立投递任务只支持传送模式\')\n        now=time.time()\n        paths=sorted(P(c[\'local\']).glob(\'*.tar.gz\'),key=lambda p:p.name)\n        changed=False;failed=False\n        for path in paths:\n            if path.is_symlink() or not path.is_file():continue\n            record=state[\'files\'].get(path.name,{})\n            # 成功名称为不可重传的历史身份；源文件即使变化也不得覆盖B端。\n            if record.get(\'done\') or record.get(\'conflict\'):continue\n            sig=identity(path)\n            if record.get(\'identity\')!=sig:\n                record={\'identity\':sig,\'seen\':now,\'attempts\':0};state[\'files\'][path.name]=record;changed=True\n            if now-record[\'seen\']<10:continue\n            if not force and now<record.get(\'next\',0):continue\n            try:\n                emit(task,\'开始上传 \'+path.name)\n                record[\'done\']=send(task,c,path);record[\'finished\']=time.time();record.pop(\'next\',None)\n                emit(task,\'上传并独立读回核验成功 \'+path.name)\n                if force:print(\'上传并核验成功：\'+path.name)\n            except Conflict:\n                record[\'conflict\']=True;record[\'conflict_at\']=time.time();record.pop(\'next\',None)\n                emit(task,\'同名冲突，停止此文件自动重试 \'+path.name);failed=True\n                if force:print(\'同名冲突已暂停：\'+path.name,file=sys.stderr)\n            except Exception as ex:\n                record[\'attempts\']+=1;record[\'next\']=time.time()+(60 if record[\'attempts\']<3 else 3600)\n                emit(task,\'传送失败 \'+path.name+\' \'+type(ex).__name__);failed=True\n                if force:print(\'传送失败：\'+path.name+\'（\'+type(ex).__name__+\'，查看任务日志）\',file=sys.stderr)\n            changed=True;atomic(task/\'state.json\',state)\n        if changed:atomic(task/\'state.json\',state)\n        if failed:raise ValueError(\'部分备份传送失败；冲突文件已暂停，其余临时失败按退避规则重试\')\n        if force and not changed:print(\'暂无新的稳定备份可传送；传送任务不打包，首次发现需稳定10秒。\')\n\ndef color(text,code):\n    return \'\\033[\'+code+\'m\'+text+\'\\033[0m\' if sys.stdout.isatty() and os.environ.get(\'TERM\') not in (None,\'dumb\') else text\n\ndef summary():\n    print(\'备份传送\')\n    print(\'备注名      状态        本地传送检测目录           目标目录\')\n    records=rows()\n    if not records: print(color(\'暂无\',\'31\'))\n    for i,(task,c) in enumerate(records,1):\n        service,timer=unit_paths(task.name)\n        good=(task/\'trusted.json\').exists() and subprocess.run([\'systemctl\',\'is-active\',\'--quiet\',timer.name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0\n        state=read_json(task/\'state.json\') if (task/\'state.json\').exists() else {\'files\':{}}\n        if any(v.get(\'conflict\') or (v.get(\'attempts\',0)>0 and not v.get(\'done\')) for v in state.get(\'files\',{}).values()):good=False\n        status=color(\'正常\',\'32\') if good else color(\'异常\',\'33\')\n        print(str(i)+\'. \'+task.name+\'    \'+status+\'    \'+c[\'local\']+\'    \'+c.get(\'target\',\'待测试确认\'))\n\ndef select(action):\n    init();records=rows();summary()\n    if not records:return\n    choice=prompt(\'选择任务编号（0返回）\',\'0\')\n    if choice==\'0\':return\n    if not choice.isascii() or not choice.isdecimal() or not 1<=int(choice)<=len(records):raise ValueError(\'编号无效\')\n    task,c=records[int(choice)-1]\n    if action==\'test\':\n        print(\'只读取本次探测回执，不读取或下载历史备份。\')\n        if not (task/\'known_hosts\').exists():trust(task,c)\n        probe(task,c);atomic(task/\'trusted.json\',{\'generation\':c[\'generation\']});schedule(task,c)\n        print(\'接收端响应正常，支持 SHA-256 独立读回核验；历史备份读取被禁止。调度已修复。\')\n    elif action==\'run\':tick(task.name,True)\n    elif action==\'delete\':\n        if prompt(\'删除 \'+task.name+\' 的调度和本地配置，保留本地/B端备份及外部私钥。输入 yes\')!=\'yes\':return\n        # 先停止本任务，不影响其他分类；保留锁 inode。\n        schedule(task,c,True)\n        with open(task/\'run.lock\',\'a\') as lock:\n            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)\n            allowed={\'config.json\',\'password.json\',\'known_hosts\',\'trusted.json\',\'state.json\'}\n            remove=[]\n            for p in task.iterdir():\n                st=p.lstat()\n                if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1:raise ValueError(\'发现链接或非普通文件，未清理：\'+str(p))\n                if p.name in (\'run.lock\',\'log.lock\') or re.fullmatch(r\'transfer\\.log(?:\\.[1-3])?\',p.name):continue\n                if p.name not in allowed:raise ValueError(\'发现未知文件，未清理：\'+str(p))\n                remove.append(p)\n            for p in remove:p.unlink()\n        (ROOT/(task.name+\'.json\')).unlink()\n        print(\'任务已删除，备份及日志保留；B端账号未删除。\')\n\ndef repair():\n    init()\n    for task,c in rows():\n        if (task/\'trusted.json\').exists():schedule(task,c)\n\n\ndef sender_main(args):\n    if args==[\'summary\']:\n        if ROOT.exists(): summary()\n        else:\n            print(\'备份传送\');print(\'备注名      状态        本地传送检测目录           目标目录\');print(color(\'暂无\',\'31\'))\n        return\n    init()\n    if args==[\'create-transfer\']:create()\n    elif args==[\'test\']:select(\'test\')\n    elif args==[\'run\']:select(\'run\')\n    elif args==[\'delete\']:select(\'delete\')\n    elif args==[\'repair\']:repair()\n    elif len(args)==2 and args[0]==\'tick\':tick(args[1])\n    else:raise ValueError(\'无效传送命令\')\n'
 
 def sender_command(args):
     if args==['create-transfer']: ensure_environment('sender')
