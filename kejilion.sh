@@ -6051,7 +6051,7 @@ linux_panel() {
     echo -e "${gl_kjlan}------------------------"
     echo -e "${gl_kjlan}996. ${gl_bai}CDN安装 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}997. ${gl_bai}PVE开小鸡面板"
     echo -e "${gl_kjlan}998. ${gl_bai}CDN迁移恢复 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}999. ${gl_bai}Webtop镜像版本管理 ${gl_huang}★${gl_bai}"
-    echo -e "${gl_kjlan}1000. ${gl_bai}网站自动备份 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1001. ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
+    echo -e "${gl_kjlan}1000. ${gl_bai}fnOS 系统重装 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1001. ${gl_bai}密码自动备份与恢复 ${gl_huang}★${gl_bai}"
     echo -e "${gl_kjlan}1002. ${gl_bai}win10长期服务版 ${gl_huang}★${gl_bai}\033[48G${gl_kjlan}1003. ${gl_bai}传送文件 ${gl_huang}★${gl_bai}"
     echo -e "$(panel_menu_item_green_if_installed 1004 "${gl_kjlan}1004. ${gl_bai}下载备份清理脚本 ${gl_huang}★${gl_bai}" "1004. 下载备份清理脚本 ★")\033[48G$(panel_menu_item_green_if_installed 1005 "${gl_kjlan}1005. ${gl_bai}网站论坛与其他备份合并 ${gl_huang}★${gl_bai}" "1005. 网站论坛与其他备份合并 ★")"
     echo -e "${gl_kjlan}------------------------"
@@ -10834,10 +10834,72 @@ EOF
       ;;
 
       1000)
-        clear
-        echo "▶️ 正在启动定时远程备份与传送模块..."
-        bash <(curl -fsSL https://raw.githubusercontent.com/zaixiangjian/sh/main/zidongbeifen.sh)
-        echo "✅ 远程备份与传送模块执行完成。"
+        (
+        FNOS_SCRIPT=/root/reinstall.sh
+        FNOS_DOWNLOAD_URL=https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh
+        while true; do
+          [[ ! -t 1 || ${TERM:-dumb} == dumb ]] || clear
+          echo '=================================='
+          echo '        fnOS 系统重装'
+          echo '警告：重装涉及系统盘数据清除，请先备份。'
+          echo "脚本路径：$FNOS_SCRIPT"
+          echo '=================================='
+          echo '1. 下载脚本'
+          echo '2. 执行安装（使用官方地址）'
+          echo '3. 指定地址安装（执行时手动输入地址）'
+          echo '0. 返回'
+          IFS= read -r -p '请输入选项：' fnos_choice || break
+          case "$fnos_choice" in
+            1)
+              if [[ -L $FNOS_SCRIPT ]]; then
+                echo '目标脚本为符号链接，拒绝覆盖。'
+              else
+                fnos_tmp=$(mktemp /root/.reinstall-download.XXXXXX) || break
+                if { curl -fL "$FNOS_DOWNLOAD_URL" -o "$fnos_tmp" || wget -O "$fnos_tmp" "$FNOS_DOWNLOAD_URL"; } && [[ -s $fnos_tmp ]] && bash -n "$fnos_tmp"; then
+                  chmod 600 "$fnos_tmp" && mv -f -- "$fnos_tmp" "$FNOS_SCRIPT" && echo '脚本下载及语法检查完成；未执行重装。'
+                else
+                  echo '下载或语法检查失败，原脚本保留。'
+                fi
+                rm -f -- "$fnos_tmp"
+              fi
+              ;;
+            2|3)
+              if [[ ! -f $FNOS_SCRIPT || -L $FNOS_SCRIPT ]]; then
+                echo '请先选择1下载脚本。'
+              else
+                ISO_URL=
+                if [[ $fnos_choice == 3 ]]; then
+                  IFS= read -r -p '请输入 fnOS ISO 下载地址：' ISO_URL || break
+                  if [[ -z $ISO_URL ]]; then
+                    echo '地址为空，已取消。'
+                    continue
+                  fi
+                  case "$ISO_URL" in
+                    http://*|https://*) ;;
+                    *) echo '请输入完整HTTP/HTTPS下载地址。'; continue ;;
+                  esac
+                fi
+                echo '警告：即将执行系统重装脚本，可能清除系统盘数据！'
+                IFS= read -r -p '输入小写yes确认执行（其他取消）：' fnos_confirm || break
+                if [[ $fnos_confirm == yes ]]; then
+                  if [[ $fnos_choice == 3 ]]; then
+                    bash "$FNOS_SCRIPT" fnos --iso "$ISO_URL"
+                  else
+                    bash "$FNOS_SCRIPT" fnos
+                  fi
+                  fnos_rc=$?
+                  echo "重装脚本已退出，返回码：$fnos_rc（不代表系统已安装完成）。"
+                else
+                  echo '已取消。'
+                fi
+              fi
+              ;;
+            0) break ;;
+            *) echo '无效选项' ;;
+          esac
+          IFS= read -r -p '按回车继续...' _ || break
+        done
+        )
         ;;
 
 
