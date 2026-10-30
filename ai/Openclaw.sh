@@ -243,9 +243,10 @@ check_openclaw_update() {
 			return 1
 		fi
 
-		local deadline=$((SECONDS + 180)) probe_log probe_rc remaining
+		local ready_timeout=900
+		local deadline=$((SECONDS + ready_timeout)) probe_log probe_rc remaining
 		probe_log=$(mktemp) || return 1
-		echo "等待 Gateway 就绪，最多 180 秒；首次启动可能需要一分钟以上..."
+		echo "等待 Gateway 就绪，最多 ${ready_timeout} 秒（15 分钟）；低性能 VPS 首次启动可能较慢..."
 		while (( SECONDS < deadline )); do
 			if systemctl --user is-failed --quiet openclaw-gateway.service; then
 				echo "❌ Gateway 服务已进入失败状态。"
