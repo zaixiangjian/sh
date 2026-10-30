@@ -950,11 +950,11 @@ PY_WEB_STATE
     )
     if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
         reset=$'\033[0m'
-        case $state in closed) color=$'\033[32m';; open) color=$'\033[31m';; *) color=$'\033[33m';; esac
+        case $state in closed) color=$'\033[31m';; open) color=$'\033[32m';; *) color=$'\033[33m';; esac
     fi
     case $state in
-        closed) printf '8. Web网页访问密码库管理（%s关闭网页访问%s）\n' "$color" "$reset" ;;
-        open) printf '8. Web网页访问密码库管理（%s开启网页访问%s）\n' "$color" "$reset" ;;
+        closed) printf '8. Web网页访问密码库管理（%s网页访问已关闭%s）\n' "$color" "$reset" ;;
+        open) printf '8. Web网页访问密码库管理（%s已开启网页访问%s）\n' "$color" "$reset" ;;
         *) printf '8. Web网页访问密码库管理（%s状态未知/未安装%s）\n' "$color" "$reset" ;;
     esac
 }
