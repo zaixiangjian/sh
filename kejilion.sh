@@ -5774,10 +5774,10 @@ linux_panel() {
     # ================= 动态检测已安装面板服务 =================
     declare -a installed_items=()
     # Docker 检测提速：原来每一项都 docker inspect 一次，几十个项目会很慢。
-    # 一次读取容器名和镜像；包括已停止容器，不为每个应用重复查询 Docker。
+    # 一次读取正在运行的容器名和镜像；已停止容器不标绿。
     local docker_container_list="" docker_container_records=""
     if command -v docker &>/dev/null; then
-        docker_container_records="$(docker ps -a --format '{{.Names}}\t{{.Image}}' 2>/dev/null || true)"
+        docker_container_records="$(docker ps --filter status=running --format '{{.Names}}\t{{.Image}}' 2>/dev/null || true)"
         docker_container_list="$(printf '%s\n' "$docker_container_records" | cut -f1)"
     fi
     check_docker() {
@@ -5893,10 +5893,8 @@ linux_panel() {
     check_docker "73" "matrix-synapse-1"
     check_docker "74" "mattermost-mattermost-1"
     check_docker "75" "certimate"
-    # 77/78 共用 Mailcow 部署；兼容 Compose v1/v2 容器名及已停止的安装。
-    # 只下载源码/管理脚本不算安装，目录回退必须同时具备 Compose 和 mailcow.conf。
-    if { [ -n "$docker_container_list" ] && printf '%s\n' "$docker_container_list" | grep -Eq '^(mailcow|(((mailcow-dockerized|mailcowdockerized)[-_])?((nginx|postfix|dovecot|sogo|mysql|redis|rspamd|acme|php-fpm|watchdog|unbound|clamd|olefy|memcached|netfilter|dockerapi)-mailcow))([-_][0-9]+)?)$'; } || \
-       { [ -f "/home/docker/mailcow-dockerized/docker-compose.yml" ] && [ -s "/home/docker/mailcow-dockerized/mailcow.conf" ]; }; then
+    # 77/78 共用 Mailcow 部署；仅运行中的容器标绿，兼容 Compose v1/v2 容器名。
+    if [ -n "$docker_container_list" ] && printf '%s\n' "$docker_container_list" | grep -Eq '^(mailcow|(((mailcow-dockerized|mailcowdockerized)[-_])?((nginx|postfix|dovecot|sogo|mysql|redis|rspamd|acme|php-fpm|watchdog|unbound|clamd|olefy|memcached|netfilter|dockerapi)-mailcow))([-_][0-9]+)?)$'; then
         installed_items+=("77" "78")
     fi
 	check_docker "79" "nexterm"
