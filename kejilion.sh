@@ -5146,20 +5146,77 @@ linux_ldnmp() {
 	34)
 	  root_use
 	  send_stats "LDNMP环境还原"
+	  local restore_mode
+	  while true; do
+		  if [ -t 1 ] && [ "${TERM:-dumb}" != "dumb" ]; then clear; fi
+		  echo "=================================="
+		  echo "        备份恢复管理"
+		  echo "=================================="
+		  echo "1. 还原数据并安装LDNMP环境"
+		  echo "自动安装所需环境时间可能较长"
+		  echo "=================================="
+		  echo "2. 只解压不安装环境"
+		  echo "直接解压不安装环境"
+		  echo "=================================="
+		  echo "0.   返回主菜单"
+		  echo "------------------------"
+		  if ! IFS= read -r -e -p "请输入你的选择: " restore_mode; then
+			  restore_mode=0
+			  break
+		  fi
+		  case "$restore_mode" in
+			  1|2|0) break ;;
+			  *) echo "输入无效，请输入 1、2 或 0。"; break_end ;;
+		  esac
+	  done
+	  [ "$restore_mode" == "0" ] && continue
 	  echo "可用的站点备份"
 	  echo "-------------------------"
-	  ls -lt /home/*.gz | awk '{print $NF}'
-	  echo ""
-	  read -e -p  "回车键还原最新的备份，输入备份文件名还原指定的备份，输入0退出：" filename
-
-	  if [ "$filename" == "0" ]; then
+	  local -a ldnmp_backups=()
+	  local backup_index backup_choice backup_count
+	  mapfile -d '' -t ldnmp_backups < <(
+		  find /home -maxdepth 1 -type f -name '*.tar.gz' -printf '%T@ %p\0' 2>/dev/null |
+		  sort -z -nr | cut -z -d ' ' -f2-
+	  )
+	  backup_count=${#ldnmp_backups[@]}
+	  if [ "$backup_count" -eq 0 ]; then
+		  echo "没有找到压缩包。"
 		  break_end
-		  linux_ldnmp
+		  continue
+	  fi
+	  for ((backup_index=0; backup_index<backup_count; backup_index++)); do
+		  printf '%d. %s\n' "$((backup_index + 1))" "${ldnmp_backups[backup_index]##*/}"
+	  done
+	  echo ""
+	  filename=""
+	  while true; do
+		  if ! IFS= read -r -e -p "回车键还原最新的备份，请选择需要恢复的备份，输入0退出：" backup_choice; then
+			  break
+		  fi
+		  [ "$backup_choice" == "0" ] && break
+		  backup_choice=${backup_choice:-1}
+		  if [[ "$backup_choice" =~ ^[1-9][0-9]*$ ]] &&
+			 [ "${#backup_choice}" -le "${#backup_count}" ] &&
+			 [ "$backup_choice" -le "$backup_count" ]; then
+			  filename=${ldnmp_backups[backup_choice-1]}
+			  break
+		  fi
+		  echo "输入无效，请输入 1-${backup_count} 之间的备份序号，或输入0退出。"
+	  done
+	  if [ -z "$filename" ]; then
+		  continue
 	  fi
 
-	  # 如果用户没有输入文件名，使用最新的压缩包
-	  if [ -z "$filename" ]; then
-		  filename=$(ls -t /home/*.tar.gz | head -1)
+	  if [ "$restore_mode" == "2" ]; then
+		  echo "仅解压到 /home/，同名文件会被覆盖；不会停止容器或安装环境。"
+		  echo -e "${gl_huang}正在解压 $filename ...${gl_bai}"
+		  if (cd /home/ && tar -xzf "$filename"); then
+			  echo "解压完成，未安装或启动LDNMP环境。"
+		  else
+			  echo "解压失败，请检查备份文件及上方错误。"
+		  fi
+		  break_end
+		  continue
 	  fi
 
 	  if [ -n "$filename" ]; then
