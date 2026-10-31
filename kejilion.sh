@@ -920,6 +920,99 @@ ldnmp_show_default_versions() {
   echo -e "4. redis：${gl_lv}最新${gl_bai}"
   echo "------------------------"
 }
+# Nginx 文件日志按大小轮转：保留份数不含当前日志；修改后安装/更新 nginx 生效。
+ldnmp_nginx_log_keep=7
+ldnmp_nginx_log_size_mb=30
+ldnmp_nginx_error_log_keep=7
+ldnmp_nginx_error_log_size_mb=10
+ldnmp_nginx_log_check_seconds=30
+
+ldnmp_prepare_nginx_log_rotation() {
+  local keep="$ldnmp_nginx_log_keep" size="$ldnmp_nginx_log_size_mb" interval="$ldnmp_nginx_log_check_seconds"
+  local error_keep="$ldnmp_nginx_error_log_keep" error_size="$ldnmp_nginx_error_log_size_mb"
+  local value
+  for value in "$keep" "$size" "$error_keep" "$error_size" "$interval"; do
+    case "$value" in ''|*[!0-9]*|0|0*) echo "Nginx 日志轮转参数必须为不带前导零的正整数。"; return 1 ;; esac
+    [ "${#value}" -le 6 ] || { echo "Nginx 日志轮转参数过大。"; return 1; }
+  done
+  command -v python3 >/dev/null 2>&1 || install python3
+  command -v python3 >/dev/null 2>&1 || return 1
+  mkdir -p /home/web/nginx-logrotate /home/web/log/nginx || return 1
+  local hook=/home/web/nginx-logrotate/40-size-rotate.sh
+  {
+    printf '#!/bin/sh\nACCESS_KEEP=%s\nACCESS_SIZE_MB=%s\nERROR_KEEP=%s\nERROR_SIZE_MB=%s\nCHECK_SECONDS=%s\n' "$keep" "$size" "$error_keep" "$error_size" "$interval"
+    cat <<'NGINX_ROTATE'
+# Executed by the official nginx entrypoint, not by host cron.
+if [ "${1:-}" != "--worker" ]; then
+    "$0" --worker &
+    exit 0
+fi
+# Wait for nginx to start; container termination stops this worker as well.
+while [ ! -s /var/run/nginx.pid ]; do sleep 1; done
+while :; do
+    pid=$(cat /var/run/nginx.pid 2>/dev/null) || exit 0
+    kill -0 "$pid" 2>/dev/null || exit 0
+    rotated=0
+    for log in /var/log/nginx/access.log /var/log/nginx/error.log; do
+        case "$log" in
+            */access.log) KEEP=$ACCESS_KEEP; limit=$((ACCESS_SIZE_MB * 1024 * 1024)) ;;
+            */error.log) KEEP=$ERROR_KEEP; limit=$((ERROR_SIZE_MB * 1024 * 1024)) ;;
+        esac
+        # Never follow a symlink (e.g. image defaults pointing to stdout).
+        [ ! -L "$log" ] || continue
+        if [ ! -f "$log" ]; then
+            # Retry a previous reopen failure without shifting any archives.
+            [ ! -f "$log.1" ] || rotated=1
+            continue
+        fi
+        bytes=$(stat -c %s "$log" 2>/dev/null) || continue
+        [ "$bytes" -ge "$limit" ] || continue
+        # Drop only numeric archives outside the configured retention count.
+        for archive in "$log".*; do
+            suffix=${archive##*.}
+            case "$suffix" in ''|*[!0-9]*) continue ;; esac
+            [ "$suffix" -lt "$KEEP" ] 2>/dev/null || rm -f -- "$archive"
+        done
+        n=$((KEEP - 1))
+        while [ "$n" -ge 1 ]; do
+            if [ -f "$log.$n" ]; then
+                mv -f -- "$log.$n" "$log.$((n + 1))" || exit 1
+            fi
+            n=$((n - 1))
+        done
+        # nginx keeps writing to this inode until USR1 reopens the active path.
+        mv -f -- "$log" "$log.1" || exit 1
+        rotated=1
+    done
+    if [ "$rotated" = 1 ]; then
+        nginx -s reopen || printf '%s\n' 'Nginx log reopen failed; will retry.' >&2
+    fi
+    sleep "$CHECK_SECONDS"
+done
+NGINX_ROTATE
+  } > "$hook" || return 1
+  chmod 0755 "$hook" || return 1
+  # Add a read-only entrypoint hook mount only; leave ports/images/other mounts intact.
+  python3 - /home/web/docker-compose.yml <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+lines = path.read_text().splitlines(True)
+start = next((i for i, line in enumerate(lines) if re.fullmatch(r'  nginx:\s*\n?', line)), None)
+if start is None:
+    raise SystemExit('未找到标准 nginx Compose 服务，未添加轮转挂载。')
+end = next((i for i in range(start+1, len(lines)) if lines[i].strip() and not lines[i].lstrip().startswith('#') and len(lines[i])-len(lines[i].lstrip()) <= 2), len(lines))
+mount = '      - ./nginx-logrotate/40-size-rotate.sh:/docker-entrypoint.d/40-size-rotate.sh:ro\n'
+block = lines[start:end]
+if any('/docker-entrypoint.d/40-size-rotate.sh' in line for line in block):
+    raise SystemExit(0)
+vol = next((i for i in range(start+1, end) if re.fullmatch(r'    volumes:\s*\n?', lines[i])), None)
+if vol is None:
+    raise SystemExit('未找到 nginx volumes 列表，未添加轮转挂载。')
+lines.insert(vol+1, mount)
+path.write_text(''.join(lines))
+PY
+}
+
 install_ldnmp_conf() {
 
   # 创建必要的目录和文件
@@ -947,6 +1040,7 @@ install_ldnmp_conf() {
 install_ldnmp() {
 
 	  check_swap
+	  ldnmp_prepare_nginx_log_rotation || { echo "Nginx 日志轮转配置失败，已停止安装。"; return 1; }
 	  cd /home/web && docker compose up -d
 	  clear
 	  echo "正在配置LDNMP环境，请耐心稍等……"
@@ -1278,6 +1372,7 @@ nginx_upgrade() {
     return 1
   fi
 
+  ldnmp_prepare_nginx_log_rotation || { echo "Nginx 日志轮转配置失败，未重建容器。"; return 1; }
   echo "正在更新 nginx 镜像并重建容器..."
   docker rm -f $ldnmp_pods > /dev/null 2>&1
 
