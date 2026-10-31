@@ -3962,6 +3962,7 @@ linux_test() {
 	  echo -e "${gl_kjlan}综合性测试"
 	  echo -e "${gl_kjlan}31.  ${gl_bai}bench 性能测试"
 	  echo -e "${gl_kjlan}32.  ${gl_bai}spiritysdx 融合怪测评 ${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}33.  ${gl_bai}NodeSeek论坛脚本测试 ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}99.  ${gl_bai}原始脚本IP质量体检脚本https://github.com/xykt/IPQuality ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}999.  ${gl_bai}IP质量体检脚本https://github.com/zaixiangjian/IPQuality/blob/main/ip.sh ${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}------------------------"
@@ -4076,7 +4077,11 @@ linux_test() {
 			  clear
 			  curl -L https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh -o ecs.sh && chmod +x ecs.sh && bash ecs.sh
 			  ;;
-
+		  33)
+			  send_stats "NodeSeek论坛脚本检测"
+			  clear
+			  bash <(curl -sL https://run.NodeQuality.com)
+			  ;;
 		  99)
 			  send_stats "IP质量体检脚本https://github.com/xykt/IPQuality"
 			  clear
