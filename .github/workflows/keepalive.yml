@@ -2,6 +2,7 @@ name: Repository Maintenance
 
 on:
   schedule:
+    # 每个月 1 日上午 8:17 执行
     - cron: "17 8 1 * *"
   workflow_dispatch:
 
