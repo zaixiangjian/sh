@@ -1,5 +1,34 @@
 #!/bin/bash
 
+# Minimal SSH/menu launchers may omit HOME and the user-session bus.
+if [ -z "${HOME:-}" ]; then
+    hermes_account_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+    if [[ "$hermes_account_home" != /* ]] || [ "$hermes_account_home" = / ] || [ ! -d "$hermes_account_home" ]; then
+        printf '%s\n' "❌ 无法确定当前用户主目录，取消执行。" >&2
+        exit 1
+    fi
+    export HOME="$hermes_account_home"
+    unset hermes_account_home
+fi
+# Discover this user's launcher; do not select another user's installation.
+if ! command -v hermes >/dev/null 2>&1; then
+    for hermes_bin_dir in "$HOME/.local/bin" "$HOME/.hermes/hermes-agent/venv/bin" "$HOME/.hermes/hermes-agent/.venv/bin"; do
+        if [ -x "$hermes_bin_dir/hermes" ]; then
+            export PATH="$hermes_bin_dir:$PATH"
+            break
+        fi
+    done
+    unset hermes_bin_dir
+fi
+hermes_manager_runtime="/run/user/$(id -u)"
+if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d "$hermes_manager_runtime" ] && [ -O "$hermes_manager_runtime" ]; then
+    export XDG_RUNTIME_DIR="$hermes_manager_runtime"
+fi
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/bus" ] && [ -O "$XDG_RUNTIME_DIR/bus" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+unset hermes_manager_runtime
+
 # 备份保存目录、文件名前缀与还原自动查找目录
 HERMES_BACKUP_DIR="/home/备份/hermes"
 HERMES_BACKUP_PREFIX="hermes"
