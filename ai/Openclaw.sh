@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Some launchers clear HOME; resolve it from the current user's account, not cwd.
+if [ -z "${HOME:-}" ]; then
+	openclaw_account_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+	if [ -z "$openclaw_account_home" ] || [[ "$openclaw_account_home" != /* ]] || [ "$openclaw_account_home" = / ] || [ ! -d "$openclaw_account_home" ]; then
+		printf '%s\n' "❌ 无法确定当前用户的主目录，取消执行。" >&2
+		exit 1
+	fi
+	export HOME="$openclaw_account_home"
+	unset openclaw_account_home
+fi
+
 # 备份保存目录、文件名前缀与还原自动查找目录
 OPENCLAW_BACKUP_DIR="/home/备份/Openclaw"
 OPENCLAW_BACKUP_PREFIX="openclaw"
@@ -89,6 +100,18 @@ install() {
 openclaw_ensure_runtime_deps
 # ===== end compatibility/bootstrap helpers =====
 
+# SSH/sudo shells may omit these even when the user's systemd manager is running.
+openclaw_prepare_user_bus() {
+	local runtime="/run/user/$(id -u)"
+	if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d "$runtime" ] && [ -O "$runtime" ]; then
+		export XDG_RUNTIME_DIR="$runtime"
+	fi
+	if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/bus" ] && [ -O "$XDG_RUNTIME_DIR/bus" ]; then
+		export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+	fi
+}
+openclaw_prepare_user_bus
+
 check_openclaw_update() {
 		local local_version remote_version newest_version
 		if ! command -v npm >/dev/null 2>&1; then
@@ -149,11 +172,16 @@ check_openclaw_update() {
 	}
 
 	get_running_status() {
-		if systemctl --user is-active --quiet openclaw-gateway.service 2>/dev/null; then
-			printf '%s\n' "${gl_lv}运行中${gl_bai}"
-		else
-			printf '%s\n' "${gl_hong}停止${gl_bai}"
-		fi
+		openclaw_prepare_user_bus
+		local state
+		state=$(systemctl --user show openclaw-gateway.service -p ActiveState --value 2>/dev/null) || state=""
+		case "$state" in
+			active) printf '%s\n' "${gl_lv}运行中${gl_bai}" ;;
+			activating|reloading) printf '%s\n' "${gl_huang}启动中${gl_bai}" ;;
+			deactivating) printf '%s\n' "${gl_huang}停止中${gl_bai}" ;;
+			inactive|failed) printf '%s\n' "${gl_hong}停止${gl_bai}" ;;
+			*) printf '%s\n' "${gl_huang}状态检测失败${gl_bai}" ;;
+		esac
 	}
 
 
@@ -210,11 +238,13 @@ check_openclaw_update() {
 		# 恢复后服务可能不存在/disabled。这里不要先 stop，
 		# 因为 openclaw gateway stop 可能会让刚装好的服务再次变成 disabled。
 		echo "正在安装/修复并启动 OpenClaw Gateway systemd 服务..."
-		local install_log install_rc
-		install_log=$(mktemp)
-		timeout 90 openclaw gateway install >"$install_log" 2>&1
-		install_rc=$?
-		cat "$install_log"
+		local install_log install_rc=0
+		install_log=$(mktemp) || return 1
+		if ! systemctl --user cat openclaw-gateway.service >/dev/null 2>&1 && [ ! -f "$HOME/.config/systemd/user/openclaw-gateway.service" ]; then
+			timeout --foreground -k 10 90 openclaw gateway install >"$install_log" 2>&1
+			install_rc=$?
+			cat "$install_log"
+		fi
 
 		# openclaw gateway install 在服务已存在/已启用时可能返回非 0，
 		# 但这不是失败；只要 unit 已存在，就直接启动，不要误判后强制重装。
@@ -6454,9 +6484,25 @@ ai_local_backup() {
 	update_moltbot() {
 		echo "更新 OpenClaw..."
 		send_stats "更新 OpenClaw..."
-		install_node_and_tools
-		git config --global url."${gh_proxy}github.com/".insteadOf ssh://git@github.com/
-		git config --global url."${gh_proxy}github.com/".insteadOf git@github.com:
+		local data_dir
+		data_dir=$(openclaw_custom_data_dir) || return 1
+		[ -d "$data_dir" ] && [ "$data_dir" != / ] || { printf '❌ 数据目录异常：%s，取消更新。\n' "$data_dir"; break_end; return 1; }
+		echo "先停止 Gateway，避免更新时替换正在使用的模块..."
+		if ! timeout --foreground -k 10 120 systemctl --user stop openclaw-gateway.service; then
+			echo "❌ 停止服务失败，取消更新。"
+			break_end
+			return 1
+		fi
+		if pgrep -f '(^|/)(openclaw-gateway|openclaw gateway|[^ ]*/openclaw/dist/index.js gateway)( |$)' >/dev/null; then
+			echo "❌ 仍有 Gateway 进程，请停止其他启动方式后重试。"
+			break_end
+			return 1
+		fi
+		if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+			install_node_and_tools || { break_end; return 1; }
+		fi
+		git config --global url."${gh_proxy}github.com/".insteadOf ssh://git@github.com/ || return 1
+		git config --global url."${gh_proxy}github.com/".insteadOf git@github.com: || return 1
 		if ! npm install -g openclaw@latest; then
 			echo "❌ OpenClaw 程序更新失败，未执行后续启动。"
 			break_end
@@ -6464,9 +6510,21 @@ ai_local_backup() {
 		fi
 		crontab -l 2>/dev/null | grep -v "s gateway" | crontab -
 		hash -r
+		echo "检查并迁移更新后的数据库及官方插件..."
+		if ! timeout --foreground -k 15 300 openclaw doctor --fix --non-interactive; then
+			echo "❌ 更新后修复失败，请检查上方错误；不会自动回退程序或数据。"
+			break_end
+			return 1
+		fi
+		echo "只读核验迁移后的会话数据库..."
+		if ! timeout --foreground -k 5 90 openclaw doctor --session-sqlite inspect --session-sqlite-all-agents; then
+			echo "❌ 会话数据库核验失败，请检查上方错误。"
+			break_end
+			return 1
+		fi
 		if ! start_gateway; then
 			echo "❌ 程序已更新，但 Gateway 启动失败；更新流程未完成。"
-			echo "若日志提示数据库 schema 迁移：先停止 Gateway 并备份数据，再执行 openclaw doctor --fix，完成后重新启动。"
+			echo "请检查上方数据库或插件错误。"
 			break_end
 			return 1
 		fi
