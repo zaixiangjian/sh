@@ -12,6 +12,9 @@ if [ -z "${HOME:-}" ]; then
 fi
 
 # 备份保存目录、文件名前缀与还原自动查找目录
+# Slow VPSes may need longer for Doctor inspection, migrations and plugin updates.
+OPENCLAW_DOCTOR_TIMEOUT=1800
+OPENCLAW_DOCTOR_EXIT_GRACE=60
 OPENCLAW_BACKUP_DIR="/home/备份/Openclaw"
 OPENCLAW_BACKUP_PREFIX="openclaw"
 OPENCLAW_RESTORE_DIRS=("$OPENCLAW_BACKUP_DIR" "/home" "/root")
@@ -6510,9 +6513,16 @@ ai_local_backup() {
 		fi
 		crontab -l 2>/dev/null | grep -v "s gateway" | crontab -
 		hash -r
-		echo "检查并迁移更新后的数据库及官方插件..."
-		if ! timeout --foreground -k 15 300 openclaw doctor --fix --non-interactive; then
-			echo "❌ 更新后修复失败，请检查上方错误；不会自动回退程序或数据。"
+		echo "检查并迁移更新后的数据库及官方插件（最多 ${OPENCLAW_DOCTOR_TIMEOUT} 秒；低性能服务器可能较慢）..."
+		local doctor_rc=0
+		timeout --foreground -k "$OPENCLAW_DOCTOR_EXIT_GRACE" "$OPENCLAW_DOCTOR_TIMEOUT" openclaw doctor --fix --non-interactive || doctor_rc=$?
+		if [ "$doctor_rc" -ne 0 ]; then
+			if [ "$doctor_rc" -eq 124 ] || [ "$doctor_rc" -eq 137 ]; then
+				echo "❌ Doctor 达到等待上限或被强制终止（退出码 $doctor_rc）；不代表数据库损坏，请检查资源与日志。"
+			else
+				echo "❌ 更新后修复失败（退出码 $doctor_rc），请检查上方错误。"
+			fi
+			echo "更新流程未完成，不会自动回退程序或数据。"
 			break_end
 			return 1
 		fi
