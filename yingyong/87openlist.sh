@@ -1003,7 +1003,7 @@ def add():
         if re.fullmatch('[1-9][0-9]{0,3}[smh]',io_timeout):break
         print('超时格式无效，请输入如30s、1m、5m。')
     while True:
-        transfers=ask('上传并发（1–16，回车默认 2）：') or '2'
+        transfers=ask('上传并发（1–16，回车默认 4）：') or '4'
         if transfers.isascii() and transfers.isdigit() and 1<=int(transfers)<=16:break
         print('请输入1–16之间的整数。')
     print('启用STARTTLS及证书验证（默认）；STARTTLS加密始终启用。')
@@ -1017,9 +1017,20 @@ def add():
     print('不会创建远程目录；下一步将验证连接并添加挂载。')
     secret=run(['rclone','obscure','-'],input=(password+'\n').encode()).decode().strip();password=None
     conf=BASE/(n+'.conf');service=SYSTEM/unit(n)
+    # 连接检查只使用私有临时配置，失败不得占用正式名称。
+    with tempfile.TemporaryDirectory(prefix='.ftps-check-',dir=BASE) as staging:
+        probe=pathlib.Path(staging)/'remote.conf'
+        write(probe,'[remote]\ntype = ftp\nhost = '+host+'\nport = '+str(int(port))+'\nuser = '+user+'\npass = '+secret+'\nexplicit_tls = true\ntls = false\nno_check_certificate = '+('true' if verify_certificate=='no' else 'false')+'\n')
+        try:
+            run(['rclone','lsf','remote:'+remote,'--config',str(probe),'--max-depth','1','--contimeout','10s','--timeout','20s','--retries','1'],timeout=40)
+        except BaseException:
+            print('连接验证未通过，未保存正式配置，可使用同一名称重新添加。');raise
+        # 验证期间不应出现同名对象；不覆盖任何已有配置或缓存。
+        for p in (BASE/(n+'.json'),conf,service,MOUNT/n,CACHE/n):
+            safe(p)
+            if p.exists():raise ValueError('验证期间出现同名配置或目录，不覆盖')
+        os.replace(probe,conf)
     try:
-        write(conf,'[remote]\ntype = ftp\nhost = '+host+'\nport = '+str(int(port))+'\nuser = '+user+'\npass = '+secret+'\nexplicit_tls = true\ntls = false\nno_check_certificate = '+('true' if verify_certificate=='no' else 'false')+'\n')
-        run(['rclone','lsf','remote:'+remote,'--config',str(conf),'--max-depth','1','--contimeout','10s','--timeout','20s','--retries','1'],timeout=40)
         (MOUNT/n).mkdir(mode=0);(CACHE/n).mkdir(mode=0o700)
         args=[shutil.which('rclone'),'mount','remote:'+remote,str(MOUNT/n),'--config',str(conf),'--allow-other','--default-permissions','--uid','1000','--gid','1000','--umask','007','--dir-perms','0770','--file-perms','0660','--vfs-cache-mode','writes','--cache-dir',str(CACHE/n),'--vfs-cache-max-size',size,'--vfs-cache-max-age','24h','--contimeout','10s','--timeout',io_timeout,'--transfers',str(int(transfers)),'--log-level','ERROR']
         if no_modtime=='yes':args+=['--no-modtime']
