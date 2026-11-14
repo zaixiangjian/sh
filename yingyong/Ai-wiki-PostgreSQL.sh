@@ -18,7 +18,7 @@ else
     LOCK=/run/lock/Ai-wiki-PostgreSQL.lock
 fi
 DEFAULT_VERSION=18-bookworm
-BASE_COMMANDS=(python3 tar gzip sha256sum flock realpath du df find timeout mktemp cmp readlink sort cut tail tr grep date dirname chmod chown cp mv rm mkdir rmdir ln sleep)
+BASE_COMMANDS=(python3 tar gzip flock realpath du df find timeout mktemp cmp readlink cut tail tr grep date dirname chmod chown mv rm mkdir rmdir sleep)
 say() { printf '%s\n' "$*"; }
 fail() { say "错误：$*" >&2; return 1; }
 ask() {
@@ -215,7 +215,7 @@ networks:
 EOF
 }
 compose_is_managed() {
-    cmp -s "$ROOT/compose.yaml" <(compose_template) || cmp -s "$ROOT/compose.yaml" <(compose_template legacy) || cmp -s "$ROOT/compose.yaml" <(compose_template unpublished) || cmp -s "$ROOT/compose.yaml" <(compose_template legacy | grep -v '^$') || cmp -s "$ROOT/compose.yaml" <(compose_template unpublished | grep -v '^$')
+    cmp -s "$ROOT/compose.yaml" <(compose_template) || cmp -s "$ROOT/compose.yaml" <(compose_template legacy) || cmp -s "$ROOT/compose.yaml" <(compose_template legacy | grep -v '^$') || cmp -s "$ROOT/compose.yaml" <(compose_template | grep -v '^$')
 }
 write_current_compose() {
     # Only explicit install/update/restore transitions apply new runtime settings.
@@ -228,7 +228,9 @@ write_current_compose() {
 load_env() {
     [[ -f $ROOT/.env && ! -L $ROOT/.env ]] || { fail '尚未安装或 .env 不安全'; return 1; }
     local key value
-    PGUSER= PGDB= PGVERSION= PG_BIND= PG_PORT=5432
+    # Legacy port fields remain readable for existing installations and backups;
+    # the managed Compose template never publishes PostgreSQL to the host.
+    PGUSER='' PGDB='' PGVERSION='' PG_BIND='' PG_PORT=5432
     while IFS='=' read -r key value; do
         case $key in POSTGRES_USER) PGUSER=$value;; POSTGRES_DB) PGDB=$value;; POSTGRES_VERSION) PGVERSION=$value;; PG_BIND) PG_BIND=$value;; PG_PORT) PG_PORT=$value;; ''|'#'*) :;; *) fail '环境文件包含非托管字段'; return 1;; esac
     done < "$ROOT/.env"
@@ -519,7 +521,7 @@ latest_valid() {
 }
 restore_pg() (
     paths_safe && ensure_docker || exit 1
-    local b stage bundle='' old='' was=0 swapped=0 had=0 completed=0 service_touched=0 api_was=0 api_touched=0
+    local stage bundle='' old='' was=0 swapped=0 had=0 completed=0 service_touched=0 api_was=0 api_touched=0
     api_container_owned || exit 1
     api_running && api_was=1
     choose_backup || exit 1
@@ -528,7 +530,7 @@ restore_pg() (
     bundle=$(mktemp -d "${TMPDIR:-/root/.cache/ai-wiki-postgresql/tmp}/aiwiki-restore-bundle-XXXXXXXX") || exit 1
     trap 'rm -rf -- "$bundle"' EXIT
     bundle_unpack "$selected" "$bundle" || exit 1
-    b=$bundle
+
     say "即将用 $selected 覆盖整个 $ROOT，包含数据库、凭据及所有博客文件。原始备份不会删除。"
     local answer
     printf '恢复将替换全项目并暂停数据库，输入小写 y 确认（其他输入取消）: ' >&2
@@ -540,7 +542,7 @@ restore_pg() (
     fi
     mkdir -p "$(dirname "$ROOT")" || exit 1
     local need avail
-    need=$(python3 -c 'import json,sys; print(sum(x["size"] for x in json.load(open(sys.argv[1]))["files"].values()))' "$b/manifest.json") || exit 1
+    need=$(python3 -c 'import json,sys; print(sum(x["size"] for x in json.load(open(sys.argv[1]))["files"].values()))' "$bundle/manifest.json") || exit 1
     avail=$(df -PB1 "$(dirname "$ROOT")" | tail -1 | tr -s ' ' | cut -d' ' -f4)
     (( avail > need + 67108864 )) || { fail '恢复暂存空间不足'; exit 1; }
     stage=$(mktemp -d "$(dirname "$ROOT")/.aiwiki-restore-XXXXXXXX") || exit 1
@@ -568,8 +570,8 @@ restore_pg() (
         exit "$rc"
     }
     trap restore_exit EXIT; trap 'exit 130' INT; trap 'exit 143' TERM HUP
-    tar --acls --xattrs --numeric-owner -xzpf "$b/project.tar.gz" -C "$stage" || exit 1
-    archive_tool tree "$b" "$stage" || exit 1
+    tar --acls --xattrs --numeric-owner -xzpf "$bundle/project.tar.gz" -C "$stage" || exit 1
+    archive_tool tree "$bundle" "$stage" || exit 1
     # Validate restored configuration BEFORE stopping or replacing anything.
     local saved=$ROOT; ROOT=$stage
     load_env && compose_is_managed || { ROOT=$saved; fail '恢复配置与当前资源名称/模板不兼容'; exit 1; }
@@ -605,9 +607,7 @@ for name,entry in projects.items():
  if not isinstance(entry,dict) or not isinstance(entry.get('users'),list): raise ValueError('invalid project entry')
  if not isinstance(entry.get('database'),str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,47}',entry['database']):raise ValueError('invalid project database')
  if any(not isinstance(u,str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,47}',u) or u.startswith('pg_') for u in entry['users']):raise ValueError('invalid project user')
-if mode=='list':
- for p,v in sorted(projects.items()): print(p+' database='+v['database']+' users='+','.join(v['users']))
-elif mode=='get': print(json.dumps(projects.get(args[0]),ensure_ascii=False))
+if mode=='get': print(json.dumps(projects.get(args[0]),ensure_ascii=False))
 elif mode=='add':
  p,db,user=args
  if p in projects: raise ValueError('project already registered')
@@ -1004,7 +1004,7 @@ else:
 ' "$api_counts" || say '检测失败（数据库结果解析异常）'
 )
 api_prompt_binding() {
-    ask 'API绑定地址 [127.0.0.1]（仅允许127.0.0.1或0.0.0.0；与数据库绑定独立）' || return 1
+    ask 'API绑定地址 [127.0.0.1]（仅允许127.0.0.1或0.0.0.0；PostgreSQL 5432不发布）' || return 1
     API_BIND_INPUT=${REPLY:-127.0.0.1}
     [[ $API_BIND_INPUT == 127.0.0.1 || $API_BIND_INPUT == 0.0.0.0 ]] || { fail '绑定地址不合法'; return 1; }
     if [[ $API_BIND_INPUT == 0.0.0.0 ]]; then
@@ -1013,7 +1013,7 @@ api_prompt_binding() {
 }
 api_engine() {
     python3 - "$ROOT" "$@" 3<&0 <<'PY_API_CONFIG'
-import sys,json,pathlib,re,hashlib,secrets,os,getpass
+import sys,json,pathlib,re,hashlib,os,getpass
 root=pathlib.Path(sys.argv[1]);mode=sys.argv[2];path=root/'config/apis.json'
 def load():
  if path.is_symlink():raise ValueError('API配置不能是链接')
@@ -1074,7 +1074,7 @@ PY_API_CONFIG
 }
 api_service_source() {
     cat <<'PY_API_SERVICE'
-import os,json,pathlib,hashlib,hmac,threading,urllib.parse,re
+import os,json,hashlib,hmac,threading,urllib.parse,re
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 import psycopg
 from psycopg.types.json import Jsonb
@@ -1097,7 +1097,8 @@ class Handler(BaseHTTPRequestHandler):
    if not a or not auth.startswith('Bearer ') or not hmac.compare_digest(hashlib.sha256(auth[7:].encode()).hexdigest(),a['token_hash']):self.reply(401,{'error':'unauthorized'});return
    length=int(self.headers.get('Content-Length','0'))
    if self.headers.get('Transfer-Encoding') or not 0<=length<=LIMIT:self.reply(413,{'error':'request too large or unsupported encoding'});return
-   # Each call reloads configuration, so deleted API names/rotated tokens stop authenticating immediately.
+   # Reload the mounted configuration for each call; atomic host-file replacement
+   # is applied by recreating the API container in the manager's edit/delete flow.
    if kind=='records' and len(route)==4:
     key=urllib.parse.unquote(route[3])
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}',key):raise ValueError('invalid record id')
@@ -1185,7 +1186,7 @@ api_remove_runtime() {
         api_running && { fail 'API仍在运行，拒绝移除'; return 1; }
         docker rm "$CONTAINER-API" >/dev/null || return 1
     fi
-    say 'API端口映射已关闭；PostgreSQL保持其独立配置的绑定地址与端口。'
+    say 'API端口映射已关闭；PostgreSQL 5432不发布到宿主机。'
 }
 api_apply() {
     api_container_owned || return 1
@@ -1271,7 +1272,7 @@ api_delete() {
     fi
 }
 api_database_details() (
-    load_env && managed || { say '数据库用户明细读取失败（项目未就绪）'; return; }
+    managed || { say '数据库用户明细读取失败（项目未就绪）'; return; }
     local result
     result=$(printf "SELECT COALESCE(json_agg(row_to_json(x)),'[]'::json) FROM (SELECT d.datname AS database_name,COALESCE((SELECT json_agg(r.rolname ORDER BY r.rolname) FROM pg_roles r WHERE r.rolcanlogin AND has_database_privilege(r.oid,d.oid,'CONNECT')),'[]'::json) AS users FROM pg_database d ORDER BY d.datname) x;\n" | sql 2>/dev/null) || { say '数据库用户明细查询失败'; return; }
     printf '%s' "$result" | python3 -c '
@@ -1324,7 +1325,7 @@ db_menu() {
         say '5. 修改用户密码'
         say '6. 管理数据库权限'
         say '7. 查看数据库及用户'
-        say '8. 管理API配置'
+        say '8. 管理API配置（本地端口5501容器8000）'
         say '0. 返回上一级'
         printf '请输入你的选择：' >&2
         IFS= read -r choice || return
@@ -2070,5 +2071,8 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
         --remote-task) [[ ${2:-} =~ ^[a-z][a-z0-9_-]{0,31}$ ]] && remote_locked_run "${3:-}@${2}" "${4:-}";;
         '') main;;
         *) fail '不支持该参数'; exit 1;;
+    esac
+fi
+
     esac
 fi
