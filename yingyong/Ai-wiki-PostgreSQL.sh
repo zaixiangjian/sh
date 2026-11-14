@@ -18,7 +18,7 @@ else
     LOCK=/run/lock/Ai-wiki-PostgreSQL.lock
 fi
 DEFAULT_VERSION=18-bookworm
-BASE_COMMANDS=(python3 tar gzip flock realpath du df find timeout mktemp cmp readlink cut tail tr grep date dirname chmod chown mv rm mkdir rmdir sleep)
+BASE_COMMANDS=(python3 tar gzip flock realpath du df find timeout mktemp cmp readlink cut tail tr grep date dirname chmod chown cp mv rm mkdir rmdir sleep)
 say() { printf '%s\n' "$*"; }
 fail() { say "错误：$*" >&2; return 1; }
 ask() {
@@ -609,9 +609,10 @@ for name,entry in projects.items():
  if any(not isinstance(u,str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,47}',u) or u.startswith('pg_') for u in entry['users']):raise ValueError('invalid project user')
 if mode=='get': print(json.dumps(projects.get(args[0]),ensure_ascii=False))
 elif mode=='add':
- p,db,user=args
+ p,db,user,*owner=args
  if p in projects: raise ValueError('project already registered')
  projects[p]={'database':db,'users':[user]}
+ if owner:projects[p]['owner_role']=owner[0]
 elif mode=='attach-user':
  db,user=args
  for entry in projects.values():
@@ -667,10 +668,58 @@ select_database_item() {
     [[ -z $result ]] || mapfile -t entries <<< "$result"
     select_numbered "$prompt" "${entries[@]}"
 }
+# Return only a registry-backed, non-login database owner; legacy projects require migration.
+shared_owner() {
+    local db=$1 owner result
+    owner=$(python3 - "$ROOT/config/manager.json" "$db" <<'PY_OWNER'
+import json,sys,re
+entries=[e for e in json.load(open(sys.argv[1]))['projects'].values() if e['database']==sys.argv[2]]
+if len(entries)!=1:sys.exit('需要唯一托管项目')
+owner=entries[0].get('owner_role','')
+if not re.fullmatch(r'aiwiki_owner_[0-9a-f]{24}',owner):sys.exit('旧项目尚未迁移到共享所有者模式，拒绝自动修改现有权限')
+print(owner)
+PY_OWNER
+    ) || return 1
+    result=$(printf 'SELECT (NOT rolcanlogin AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls AND oid=(SELECT datdba FROM pg_database WHERE datname=%s)) FROM pg_roles WHERE rolname=%s;\n' "$(ql "$db")" "$(ql "$owner")" | sql) || return 1
+    [[ $result == t ]] || { fail '共享所有者角色与数据库不匹配'; return 1; }
+    printf '%s\n' "$owner"
+}
+# Rules precede defaults, so PUBLIC CONNECT cannot bypass per-login isolation.
+# Use the authenticated login name: ALTER ROLE SET role does not bypass HBA.
+restrict_login_database() {
+    local db=$1 user=$2 temporary
+    valid_name "$db" && valid_name "$user" || return 1
+    temporary=$(mktemp "$TMPDIR/aiwiki-hba-XXXXXXXX") || return 1
+    if ! docker exec "$CONTAINER" sh -c 'cat "$PGDATA/pg_hba.conf"' > "$temporary"; then rm -f "$temporary"; return 1; fi
+    if ! python3 - "$temporary" "$db" "$user" <<'PY_HBA'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1]);db,user=sys.argv[2:]
+begin='# Ai-wiki login '+user+' BEGIN';end='# Ai-wiki login '+user+' END'
+lines=p.read_text().splitlines();out=[];inside=False
+for line in lines:
+ if line==begin:
+  if inside:raise ValueError('duplicate HBA block')
+  inside=True
+ elif line==end:
+  if not inside:raise ValueError('invalid HBA block')
+  inside=False
+ elif not inside:out.append(line)
+if inside:raise ValueError('incomplete HBA block')
+rules=[begin,'local "'+db+'" "'+user+'" scram-sha-256','local all "'+user+'" reject','local replication "'+user+'" reject','host "'+db+'" "'+user+'" 0.0.0.0/0 scram-sha-256','host "'+db+'" "'+user+'" ::/0 scram-sha-256','host all "'+user+'" 0.0.0.0/0 reject','host all "'+user+'" ::/0 reject','host replication "'+user+'" 0.0.0.0/0 reject','host replication "'+user+'" ::/0 reject',end]
+p.write_text('\n'.join(rules+out)+'\n')
+PY_HBA
+    then rm -f "$temporary"; return 1; fi
+    if ! docker exec -i --user postgres "$CONTAINER" sh -c 'umask 077; cat > "$PGDATA/.pg_hba.aiwiki" && mv -f "$PGDATA/.pg_hba.aiwiki" "$PGDATA/pg_hba.conf"' < "$temporary"; then rm -f "$temporary"; return 1; fi
+    rm -f "$temporary"
+    local result
+    result=$(printf "SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL; SELECT pg_reload_conf();\n" | sql) || return 1
+    [[ $result == $'0\nt' ]] || { fail 'HBA校验或重载失败，未启用用户登录'; return 1; }
+}
 user_create() {
     select_database_item database '输入要添加用户的数据库序号（回车默认取消）：' || return 1
-    local db=$SELECTED_NAME user pass
+    local db=$SELECTED_NAME user pass owner
     valid_name "$db" && exists_db "$db" || return 1
+    owner=$(shared_owner "$db") || return 1
     say "目标数据库：$db"
     ask '新数据库用户名' || return 1; user=$REPLY; valid_name "$user" || return 1
     local lookup_rc=0
@@ -679,18 +728,22 @@ user_create() {
     ask '用户密码（至少12字符）' 1 || return 1; pass=$REPLY; REPLY=; [[ ${#pass} -ge 12 ]] || return 1
     # Create and grant in one database transaction: failure leaves no partial role/grants.
     if ! {
-        printf 'BEGIN; CREATE ROLE %s LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %s;\n' "$(qi "$user")" "$(ql "$pass")"
-        printf 'GRANT CONNECT,TEMPORARY ON DATABASE %s TO %s; GRANT USAGE,CREATE ON SCHEMA public TO %s;\n' "$(qi "$db")" "$(qi "$user")" "$(qi "$user")"
-        printf 'GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO %s; GRANT USAGE,SELECT,UPDATE ON ALL SEQUENCES IN SCHEMA public TO %s; COMMIT;\n' "$(qi "$user")" "$(qi "$user")"
+        printf 'BEGIN; CREATE ROLE %s NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %s;\n' "$(qi "$user")" "$(ql "$pass")"
+        printf 'GRANT %s TO %s; ALTER ROLE %s IN DATABASE %s SET role TO %s; COMMIT;\n' "$(qi "$owner")" "$(qi "$user")" "$(qi "$user")" "$(qi "$db")" "$(ql "$owner")"
     } | sql "$db" >/dev/null 2>&1; then
         unset pass; fail '创建用户或授权失败，数据库事务已回滚'; return 1
     fi
     unset pass
+    if ! restrict_login_database "$db" "$user"; then
+        printf 'DROP ROLE %s;\n' "$(qi "$user")" | sql >/dev/null 2>&1 || fail '失败用户清理失败，用户仍为NOLOGIN'
+        return 1
+    fi
+    printf 'ALTER ROLE %s LOGIN;\n' "$(qi "$user")" | sql || return 1
     if ! registry attach-user "$db" "$user"; then
         fail "用户 $user 已创建并授权，但项目关联保存失败，请勿误认为用户创建失败而重复执行"; return 1
     fi
-    say "用户 $user 已添加到数据库 $db：可连接、创建临时表和public对象、读写现有public表及序列；不是超级管理员或数据库所有者。"
-    say '其他用户将来创建的表不会自动共享；需要时由对象创建者显式授权。'
+    say "用户 $user 已加入数据库 $db 的共享所有者 $owner；新连接默认以共享所有者创建对象，禁止连接其他数据库。"
+    say '拥有本库完整管理能力（包含删除本库）；不是实例超级管理员。主动RESET ROLE后创建的私有对象不自动共享。'
 }
 select_user_in_database() {
     local db=$1 result query
@@ -700,7 +753,20 @@ select_user_in_database() {
     result=$(printf '%s\n' "$query" | sql) || { fail '数据库用户列表读取失败'; return 1; }
     [[ -z $result ]] || mapfile -t entries <<< "$result"
     say "数据库：$db（列出有有效连接权限的用户，含PUBLIC/继承授权）"
-    select_numbered '请输入序号选择（回车默认取消）：' "${entries[@]}"
+    if [[ ${2:-} == api ]]; then
+        if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+            printf '\033[33m如需添加其他用户API，需要返回 PostgreSQL 数据库管理菜单，使用3号「创建数据库用户」添加。\033[0m\n'
+            printf '\033[33m在这里选择需要添加API的用户\033[0m\n'
+            printf '\033[32m已有的数据库用户\033[0m\n'
+        else
+            say '如需添加其他用户API，需要返回 PostgreSQL 数据库管理菜单，使用3号「创建数据库用户」添加。'
+            say '在这里选择需要添加API的用户'
+            say '已有的数据库用户'
+        fi
+        select_numbered '请输入序号选择需要添加API的用户（回车默认取消）：' "${entries[@]}"
+    else
+        select_numbered '请输入序号选择（回车默认取消）：' "${entries[@]}"
+    fi
 }
 user_delete() {
     select_database_item database '输入要删除用户的数据库序号（回车默认取消）：' || return 1
@@ -749,6 +815,11 @@ permissions() {
         2|3|4)
             [[ $user != "$PGUSER" ]] || { fail '不修改管理账户权限'; return 1; }
             owner=$(printf 'SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=%s;\n' "$(ql "$db")" | sql) || return 1
+            if [[ $action == 3 || $action == 4 ]]; then
+                local owner_member
+                owner_member=$(printf 'SELECT pg_has_role(%s,%s,\x27USAGE\x27);\n' "$(ql "$user")" "$(ql "$owner")" | sql) || return 1
+                [[ $owner_member == f ]] || { fail '该用户继承数据库所有者角色，不能通过撤销直接授权降为只读；需先单独移除所有者成员关系'; return 1; }
+            fi
             if [[ $action == 3 || $action == 4 ]] && [[ $owner == "$user" ]]; then
                 fail '数据库所有者仍拥有固有权限，不能用撤销授权将其变成只读；请先显式转移所有权'; return 1
             fi
@@ -803,9 +874,10 @@ print("==================================")
 }
 blog_create() (
     ask '自定义项目名称（字母开头，小写字母/数字/-/_，最多48字符）' || exit 1
-    local name=$REPLY user db pass made_user=0 made_db=0 made_dir=0 done=0
+    local name=$REPLY user db pass owner made_owner=0 made_user=0 made_db=0 made_dir=0 done=0
     valid_project "$name" || { fail '项目名称不合法或保留'; exit 1; }
     db=$name
+    owner=aiwiki_owner_$(python3 -c 'import secrets;print(secrets.token_hex(12))') || exit 1
     ask '自定义项目专用数据库用户名（字母开头，小写字母/数字/-/_，最多48字符）' || exit 1
     user=$REPLY
     valid_name "$user" || { fail '数据库用户名不合法'; exit 1; }
@@ -822,22 +894,26 @@ blog_create() (
         if (( ! done )); then
             (( ! made_db )) || printf 'DROP DATABASE %s;\n' "$(qi "$db")" | sql >/dev/null 2>&1 || fail "回滚数据库失败：$db"
             (( ! made_user )) || printf 'DROP ROLE %s;\n' "$(qi "$user")" | sql >/dev/null 2>&1 || fail "回滚用户失败：$user"
+            (( ! made_owner )) || printf 'DROP ROLE %s;\n' "$(qi "$owner")" | sql >/dev/null 2>&1 || fail "回滚所有者失败：$owner"
             if (( made_dir )); then find "$ROOT/$name" -depth -type d -empty -delete; fi
         fi
         exit "$rc"
     }
     trap blog_exit EXIT; trap 'exit 130' INT; trap 'exit 143' TERM HUP
-    if ! printf 'CREATE ROLE %s LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %s;\n' "$(qi "$user")" "$(ql "$pass")" | sql >/dev/null 2>&1; then fail '创建项目用户失败'; exit 1; fi
+    if ! printf 'BEGIN; CREATE ROLE %s NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; CREATE ROLE %s NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %s; GRANT %s TO %s; COMMIT;\n' "$(qi "$owner")" "$(qi "$user")" "$(ql "$pass")" "$(qi "$owner")" "$(qi "$user")" | sql >/dev/null 2>&1; then fail '创建项目用户失败'; exit 1; fi
+    made_owner=1
     made_user=1; unset pass
-    printf 'CREATE DATABASE %s OWNER %s;\n' "$(qi "$db")" "$(qi "$user")" | sql || { fail '创建项目数据库失败'; exit 1; }; made_db=1
+    printf 'CREATE DATABASE %s OWNER %s;\n' "$(qi "$db")" "$(qi "$owner")" | sql || { fail '创建项目数据库失败'; exit 1; }; made_db=1
     printf 'REVOKE ALL ON DATABASE %s FROM PUBLIC; GRANT ALL PRIVILEGES ON DATABASE %s TO %s;\n' "$(qi "$db")" "$(qi "$db")" "$(qi "$user")" | sql || exit 1
     # Explicit ownership avoids relying on version-specific template defaults.
     # This user manages its own database, not the PostgreSQL instance.
-    printf 'REVOKE ALL ON SCHEMA public FROM PUBLIC; ALTER SCHEMA public OWNER TO %s; GRANT ALL PRIVILEGES ON SCHEMA public TO %s;\n' "$(qi "$user")" "$(qi "$user")" | sql "$db" || exit 1
+    printf 'REVOKE ALL ON SCHEMA public FROM PUBLIC; ALTER SCHEMA public OWNER TO %s; GRANT ALL PRIVILEGES ON SCHEMA public TO %s; ALTER ROLE %s IN DATABASE %s SET role TO %s;\n' "$(qi "$owner")" "$(qi "$owner")" "$(qi "$user")" "$(qi "$db")" "$(ql "$owner")" | sql "$db" || exit 1
+    restrict_login_database "$db" "$user" || exit 1
+    printf 'ALTER ROLE %s LOGIN;\n' "$(qi "$user")" | sql || exit 1
     mkdir "$ROOT/$name" || exit 1; made_dir=1
     mkdir "$ROOT/$name"/{articles,research,tasks,records,attachments} || exit 1
-    registry add "$name" "$db" "$user" || exit 1
-    done=1; say "创建成功：项目 $name；数据库 $db；用户 $user（本数据库及public所有者）；目录 $ROOT/$name；具有本库管理权限，无实例超级用户权限。"
+    registry add "$name" "$db" "$user" "$owner" || exit 1
+    done=1; say "创建成功：项目 $name；数据库 $db；用户 $user；共享所有者 $owner（不能登录）；目录 $ROOT/$name；具有本库完整管理权限，禁止连接其他数据库。"
     say '注意：该用户可删除自己的数据库；删除用户前须显式转移其数据库和对象所有权，脚本不会自动删库。'
 )
 blog_delete() {
@@ -911,6 +987,12 @@ PY_SHARED_USER
         [[ $owner_check == 0 ]] || { fail "用户 $user 存在其他数据库或实例级依赖，拒绝删除"; return 1; }
         statements+=$(printf 'DROP ROLE IF EXISTS %s;\n' "$(qi "$user")")
     done
+    local shared_delete_owner=''
+    shared_delete_owner=$(printf '%s' "$entry" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("owner_role",""))') || return 1
+    if [[ -n $shared_delete_owner ]]; then
+        [[ $shared_delete_owner =~ ^aiwiki_owner_[0-9a-f]{24}$ ]] || return 1
+        statements+=$(printf 'DROP ROLE IF EXISTS %s;\n' "$(qi "$shared_delete_owner")")
+    fi
     if [[ $unregistered == yes ]]; then
         say "危险操作：永久删除无索引数据库 $db 及其中全部数据；不删除任何角色或本地目录。"
     else
@@ -1023,8 +1105,16 @@ def save(d):
 sys.stdin=os.fdopen(3)
 def ask(label,secret=False):
  print(label+'（回车取消）: ',end='',file=sys.stderr,flush=True)
- v=getpass.getpass('',stream=sys.stderr) if secret and sys.stdin.isatty() else sys.stdin.readline().rstrip('\n')
- if not v or v in (':quit',':cancel'):raise EOFError()
+ if secret and sys.stdin.isatty():v=getpass.getpass('',stream=sys.stderr)
+ else:
+  # Read exactly one line: buffered stdin would consume later Bash prompts.
+  raw=bytearray()
+  while True:
+   c=os.read(3,1)
+   if not c or c==b'\n':break
+   raw.extend(c)
+  v=raw.decode()
+ if not v or v in (':quit',':cancel','退出配置向导'):raise EOFError()
  if any(c in v for c in ('\r','\0')):raise ValueError('输入包含非法字符')
  return v
 try:
@@ -1058,7 +1148,7 @@ try:
   if mode=='add' and name in d['apis']:raise ValueError('API名称重复')
   if mode=='edit':
    old=d['apis'][name];db,user,project=old['database'],old['user'],old['project']
-  password=ask('该数据库用户的实际密码（隐藏）',True)
+  password=ask('该数据库用户的实际密码（隐藏，不修改数据库密码）',True)
   token=ask('API访问密钥（至少32字符，隐藏）',True)
   if len(token)<32:raise ValueError('访问密钥至少32字符')
   d['apis'][name]={'database':db,'user':user,'password':password,'project':project,'token_hash':hashlib.sha256(token.encode()).hexdigest()}
@@ -1230,7 +1320,7 @@ api_add() {
     select_database_item database '输入要添加API的数据库序号（回车默认取消）：' || return 1
     local db=$SELECTED_NAME user project
     valid_name "$db" || return 1
-    select_user_in_database "$db" || return 1; user=$SELECTED_NAME
+    select_user_in_database "$db" api || return 1; user=$SELECTED_NAME
     [[ $(printf 'SELECT rolsuper FROM pg_roles WHERE rolname=%s;\n' "$(ql "$user")" | sql) == f ]] || { fail 'API禁止使用超级管理员账户'; return 1; }
     project=$(python3 - "$ROOT/config/manager.json" "$db" <<'PY_API_PROJECT'
 import json,sys
@@ -1239,14 +1329,75 @@ if len(names)>1:sys.exit('数据库关联多个目录，拒绝自动映射')
 print(names[0] if names else '')
 PY_API_PROJECT
     ) || return 1
-    api_prompt_binding || return 1
-    local api_bind=$API_BIND_INPUT
-    say "API将使用用户 $user；文件项目：${project:-无（仅数据库记录接口）}；API绑定：$api_bind，映射端口$(api_engine port)。"
-    confirm '确认创建API？会创建专用记录表并授予该用户该表的读写权限。' || return 1
-    # No arbitrary SQL endpoint. Only this API-owned key/value table is exposed.
-    printf 'BEGIN; CREATE TABLE IF NOT EXISTS public.aiwiki_api_records(api_name text NOT NULL,record_id text NOT NULL,payload jsonb NOT NULL,PRIMARY KEY(api_name,record_id)); GRANT SELECT,INSERT,UPDATE,DELETE ON public.aiwiki_api_records TO %s; COMMIT;\n' "$(qi "$user")" | sql "$db" || return 1
-    api_engine add "$db" "$user" "$project" && api_engine set-bind "$api_bind" && api_apply
+    api_add_existing_user "$db" "$user" "$project"
 }
+# Stage every input before replacing live API configuration; never change role ownership.
+api_add_existing_user() (
+    local db=$1 user=$2 project=$3 stage original_root=$ROOT
+    local config_changed=0 completed=0 had_config=0 runtime_was=0
+    stage=$(mktemp -d "$TMPDIR/aiwiki-api-add-XXXXXXXX") || exit 1
+    mkdir "$stage/config" || { rm -rf -- "$stage"; exit 1; }
+    if [[ -e $ROOT/config/apis.json || -L $ROOT/config/apis.json ]]; then
+        [[ -f $ROOT/config/apis.json && ! -L $ROOT/config/apis.json ]] || { rm -rf -- "$stage"; exit 1; }
+        cp -p "$ROOT/config/apis.json" "$stage/original-apis.json" && cp -p "$ROOT/config/apis.json" "$stage/config/apis.json" || { rm -rf -- "$stage"; exit 1; }
+        had_config=1
+    fi
+    cp -p "$ROOT/config/manager.json" "$stage/original-manager.json" || { rm -rf -- "$stage"; exit 1; }
+    api_running && runtime_was=1
+    api_add_exit() {
+        local rc=$? rollback_ok=1
+        trap - EXIT INT TERM HUP
+        ROOT=$original_root
+        if (( ! completed )); then
+            if (( config_changed )); then
+                if (( had_config )); then
+                    cp -p "$stage/original-apis.json" "$ROOT/config/.apis-rollback" && mv -T "$ROOT/config/.apis-rollback" "$ROOT/config/apis.json" || rollback_ok=0
+                else rm -f -- "$ROOT/config/apis.json" || rollback_ok=0; fi
+                cp -p "$stage/original-manager.json" "$ROOT/config/.manager-rollback" && mv -T "$ROOT/config/.manager-rollback" "$ROOT/config/manager.json" || rollback_ok=0
+                if (( rollback_ok )); then
+                    if (( runtime_was )); then api_apply || rollback_ok=0
+                    else api_remove_runtime || rollback_ok=0; fi
+                fi
+            fi
+
+            if (( ! rollback_ok )); then
+                fail "新增失败且回滚未完成，保留检查目录：$stage；请检查API配置和运行状态"
+                exit 1
+            fi
+        fi
+        rm -rf -- "$stage"
+        exit "$rc"
+    }
+    trap api_add_exit EXIT; trap 'exit 130' INT; trap 'exit 143' TERM HUP
+    ROOT=$stage
+    api_engine add "$db" "$user" "$project" || exit 1
+    api_prompt_binding || exit 1
+    api_engine set-bind "$API_BIND_INPUT" || exit 1
+    ROOT=$original_root
+    say "API使用已有用户 $user；数据库：$db；文件项目：${project:-无（仅数据库记录接口）}。不修改用户密码及所有权。"
+    say 'API绑定地址为所有API共用，修改后会影响已有API。'
+    confirm '确认添加API？会创建专用记录表并授予该用户该表的读写权限。' || exit 1
+    local api_owner=''
+    api_owner=$(python3 - "$ROOT/config/manager.json" "$db" <<'PY_API_OWNER'
+import json,sys,re
+owners={e.get('owner_role','') for e in json.load(open(sys.argv[1]))['projects'].values() if e['database']==sys.argv[2]}
+owner=next(iter(owners)) if len(owners)==1 else ''
+if owner and not re.fullmatch(r'aiwiki_owner_[0-9a-f]{24}',owner):sys.exit('invalid owner')
+print(owner)
+PY_API_OWNER
+    ) || exit 1
+    if [[ -n $api_owner ]]; then shared_owner "$db" >/dev/null || exit 1; fi
+    {
+        printf 'BEGIN; CREATE TABLE IF NOT EXISTS public.aiwiki_api_records(api_name text NOT NULL,record_id text NOT NULL,payload jsonb NOT NULL,PRIMARY KEY(api_name,record_id));\n'
+        [[ -z $api_owner ]] || printf 'ALTER TABLE public.aiwiki_api_records OWNER TO %s;\n' "$(qi "$api_owner")"
+        printf 'GRANT SELECT,INSERT,UPDATE,DELETE ON public.aiwiki_api_records TO %s; COMMIT;\n' "$(qi "$user")"
+    } | sql "$db" || { fail 'API记录表准备或授权失败'; exit 1; }
+    config_changed=1
+    cp -p "$stage/config/apis.json" "$ROOT/config/.apis-add" && mv -T "$ROOT/config/.apis-add" "$ROOT/config/apis.json" || exit 1
+    registry attach-user "$db" "$user" && api_apply || exit 1
+    completed=1
+    say "创建成功：数据库 $db 的已有用户 $user 对应API已启用；用户密码及原有权限未修改。"
+)
 api_edit() {
     local names name
     local -a entries=()
@@ -1265,7 +1416,7 @@ api_delete() {
     local -a entries=()
     names=$(api_engine names) || return 1; [[ -z $names ]] || mapfile -t entries <<< "$names"
     select_numbered '请输入序号选择（回车默认取消）：' "${entries[@]}" || return 1; name=$SELECTED_NAME
-    confirm "删除API $name 配置？保留数据库及文件；最后一个API删除后撤销本地映射。" || return 1
+    confirm "仅删除API $name 配置？保留数据库用户、数据库、记录及文件；最后一个API删除后撤销本地映射。" || return 1
     if api_engine delete "$name"; then
         api_remove_runtime || return 1
         api_apply
@@ -2071,8 +2222,5 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
         --remote-task) [[ ${2:-} =~ ^[a-z][a-z0-9_-]{0,31}$ ]] && remote_locked_run "${3:-}@${2}" "${4:-}";;
         '') main;;
         *) fail '不支持该参数'; exit 1;;
-    esac
-fi
-
     esac
 fi
