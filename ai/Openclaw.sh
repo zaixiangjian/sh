@@ -256,7 +256,7 @@ check_openclaw_update() {
 			systemctl --user daemon-reload >/dev/null 2>&1 || true
 		elif [ "$install_rc" -ne 0 ]; then
 			echo "正在强制重装 OpenClaw Gateway 服务..."
-			timeout 90 openclaw gateway install --force || {
+			timeout --foreground -k 10 90 openclaw gateway install --force || {
 				rm -f "$install_log"
 				echo "❌ Gateway 服务安装/启动失败。"
 				return 1
@@ -6355,7 +6355,7 @@ ai_local_backup() {
 	openclaw_custom_restore_full() {
 		openclaw_custom_restore_dependencies || return 1
 		send_stats "OpenClaw自制全量还原"
-		local data_dir backup_root search_dir backups count i selected archive parent ts old_dir confirm
+		local data_dir backup_root search_dir backups count i selected archive parent confirm
 		data_dir=$(openclaw_custom_data_dir)
 		backup_root=$(openclaw_custom_backup_root)
 
@@ -6406,7 +6406,7 @@ ai_local_backup() {
 		fi
 
 		echo "将从以下备份还原：$archive"
-		echo "警告：当前 $data_dir 会被移动为 .before_restore 备份，然后替换为所选备份。"
+		echo "警告：当前 $data_dir 将被删除并替换为所选备份，不保留恢复前目录，失败无法自动回滚。"
 		echo "还原前会停止 OpenClaw；如果新机器没安装 OpenClaw，会自动安装/更新最新版，还原后自动启动并检测连通。"
 		read -e -p "确认还原？(y/N): " confirm
 		if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
@@ -6416,29 +6416,23 @@ ai_local_backup() {
 
 		openclaw_custom_stop_for_backup
 		parent=$(dirname "$data_dir")
-		ts=$(date +%Y%m%d_%H%M%S)
-		old_dir="${data_dir}.before_restore_${ts}"
 		mkdir -p "$parent"
 
-		if [ -e "$data_dir" ]; then
-			mv "$data_dir" "$old_dir" || {
-				echo "❌ 无法移动当前数据目录。"
-				return 1
-			}
-			echo "当前数据已保留为：$old_dir"
+		# 用户明确不保留恢复前目录；删除目标须为当前 HOME 下的固定数据目录。
+		if [ "$data_dir" != "$HOME/.openclaw" ] || [ -L "$data_dir" ]; then
+			echo "❌ 恢复目标不是当前用户的 .openclaw 实际目录，取消删除。"
+			return 1
 		fi
+		rm -rf -- "$data_dir" || { echo "❌ 无法删除当前数据目录。"; return 1; }
 
 		if tar -xzf "$archive" -C "$parent"; then
 			if [ ! -d "$data_dir" ]; then
 				echo "❌ 备份包结构异常，未还原出 $data_dir。"
-				[ -d "$old_dir" ] && [ ! -e "$data_dir" ] && mv "$old_dir" "$data_dir"
 				return 1
 			fi
 			echo "✅ OpenClaw 数据还原完成。"
 		else
-			echo "❌ 解压还原失败，正在尝试回滚。"
-			rm -rf "$data_dir"
-			[ -d "$old_dir" ] && mv "$old_dir" "$data_dir"
+			echo "❌ 解压还原失败；未保留恢复前目录，无法自动回滚。请保留原备份包后重试。"
 			return 1
 		fi
 
@@ -6446,6 +6440,18 @@ ai_local_backup() {
 			echo "❌ OpenClaw 安装/更新失败。数据已还原，但程序可能未安装成功。"
 			return 1
 		}
+		# 旧备份必须先通过官方离线迁移，再安装服务；不可用强制安装绕过凭据迁移。
+		local doctor_rc=0
+		echo "正在迁移还原后的数据（最多 ${OPENCLAW_DOCTOR_TIMEOUT} 秒；官方 Doctor 可能创建迁移保护副本）..."
+		timeout --foreground -k "$OPENCLAW_DOCTOR_EXIT_GRACE" "$OPENCLAW_DOCTOR_TIMEOUT" openclaw doctor --fix --non-interactive || doctor_rc=$?
+		if [ "$doctor_rc" -ne 0 ]; then
+			echo "❌ 还原后迁移失败或超时（退出码 $doctor_rc）；保留已还原数据，未继续安装/启动 Gateway。"
+			return 1
+		fi
+		if ! timeout --foreground -k 5 90 openclaw doctor --session-sqlite inspect --session-sqlite-all-agents; then
+			echo "❌ 还原后的会话数据库核验失败，未继续启动 Gateway。"
+			return 1
+		fi
 		if ! start_gateway; then
 			echo "⚠️ 数据已还原，但 Gateway 未就绪；请根据上面的日志排查，修复后执行主菜单 2 号。"
 			return 1
